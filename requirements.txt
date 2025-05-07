@@ -1,0 +1,7 @@
+fastapi>=0.115,<0.116
+uvicorn[standard]>=0.34,<0.35
+python-dotenv
+google-generativeai
+qdrant-client>=1.14,<1.15
+jinja2
+tenacity

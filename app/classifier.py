@@ -1,0 +1,196 @@
+import os
+from google import genai
+from google.genai import types
+from qdrant_client import QdrantClient, models
+from dotenv import load_dotenv
+from typing import List, Optional, Dict, Any
+
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def get_embeddings_batch(
+    client, model_name: str, task_type: str, texts: List[str]
+) -> List[List[float]]:
+    """
+    Generates embeddings for a batch of texts using the embedding API.
+
+    Args:
+        task_type: The task type for the embedding (e.g., "CLASSIFICATION").
+        texts: A list of strings to embed.
+
+    Returns:
+        A list of embedding vectors (each a list of floats).
+        Returns an empty list if an error occurs.
+    """
+    if not texts:
+        return []
+
+    try:
+        response = client.models.embed_content(
+            model=model_name,
+            contents=texts,
+            config=types.EmbedContentConfig(task_type=task_type),
+            # "CLASSIFICATION" is made for use with ML algorithms, train/test sets, etc.
+        )
+        return [embedding.values for embedding in response.embeddings]
+    except Exception as e:
+        print(f"An unexpected error occurred during embedding generation: {e}")
+        return []  # Return empty list on error
+
+
+def classify_string_batch(
+    query_texts: List[str],
+    top_k: int = 5,
+) -> List[List[Dict[str, Any]]]:
+    """
+    Takes a list of string inputs, gets their embeddings in a batch,
+    and queries the Qdrant DB using batch search to find the most
+    semantically similar entries for each query.
+
+    Args:
+        query_texts: A list of input strings to classify/find similar items for.
+        top_k: The number of top similar results to return for each query.
+
+    Returns:
+        A list of lists of search results (dictionaries). The outer list corresponds
+        to the input query_texts list. Each inner list contains dictionaries for
+        the top_k hits for that specific query, including score and payload.
+        Returns an empty list if a major error occurs (e.g., cannot connect,
+        collection doesn't exist, embedding fails). Individual query errors
+        might result in empty inner lists.
+    """
+
+    if not query_texts:
+        print("Input query list is empty.")
+        return []
+
+    try:
+
+        # 1. Get Embeddings for the Query Texts in a Single Batch Call
+        print(f"Generating embeddings for {len(query_texts)} queries...")
+        query_embeddings = get_embeddings_batch(
+            EMBED_CLIENT, EMBED_MODEL, task_type="RETRIEVAL_QUERY", texts=query_texts
+        )
+
+        if not query_embeddings or len(query_embeddings) != len(query_texts):
+            print(
+                "Error: Could not generate embeddings accurately for the query batch."
+            )
+            # Return a list of empty lists matching the input size for partial failure?
+            # Or return [] for complete failure? Let's return [] for simplicity here.
+            return []
+
+        # 2. Prepare Batch Query Requests for Qdrant using models.QueryRequest
+        query_requests = [
+            models.QueryRequest(
+                query=embedding,  # Pass the embedding vector as the 'query'
+                limit=top_k,
+                with_payload=True,
+                # If you used named vectors, you might need: using='your_vector_name'
+            )
+            for embedding in query_embeddings
+        ]
+
+        # 3. Query Qdrant using Batch Query
+        print(
+            f"Querying Qdrant collection '{QDRANT_COLLECTION_NAME}' with {len(query_requests)} requests..."
+        )
+        batch_query_responses = client.query_batch_points(
+            collection_name=QDRANT_COLLECTION_NAME,
+            requests=query_requests,  # Pass the list of QueryRequest objects
+        )
+
+        # 4. Process and Format Batch Results from QueryResponse objects
+        all_formatted_results = []
+        # Iterate through the list of QueryResponse objects
+        for i, response in enumerate(batch_query_responses):
+            # Access the list of ScoredPoint objects via the .points attribute
+            formatted_hits = [
+                {
+                    "score": hit.score,
+                    "payload": {
+                        "original_id": hit.payload.get("original_id", "N/A"),
+                        "class_name": hit.payload.get("class_name", "N/A"),
+                    },
+                }
+                # Iterate through the points within *this* response object
+                for hit in response.points
+            ]
+            all_formatted_results.append(formatted_hits)
+            # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
+
+        print(
+            f"Batch query finished. Returning {len(all_formatted_results)} sets of results."
+        )
+        return all_formatted_results
+
+    except Exception as e:
+        print(f"An error occurred during batch classification: {e}")
+        # Depending on the error, you might want different handling.
+        # Returning an empty list indicates a general failure.
+        return []
+
+
+if __name__ == "__main__":
+
+    EMBED_MODEL = "text-embedding-004"
+
+    QDRANT_DB_PATH = "./qdrant_db"  # Local path to store Qdrant data
+    QDRANT_COLLECTION_NAME = "ETIM10_google"  # Name for the Qdrant collection
+
+    # 1. Load Environment Variables
+    print("Loading environment variables...")
+    load_dotenv()
+
+    # 2. Initialize embedding API client
+    print("Initializing embedding API client...")
+    try:
+        EMBED_CLIENT = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        # Test connection (optional, but good practice)
+        EMBED_CLIENT.models.list()
+        print("Embedding client initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing embedding client: {e}")
+        exit()
+
+    # 3. Initialize Qdrant Client
+    print("Initializing Qdrant client...")
+    client = QdrantClient(path=QDRANT_DB_PATH)
+
+    # Check if collection exists before querying
+    if not client.collection_exists(collection_name=QDRANT_COLLECTION_NAME):
+        print(
+            f"Error: Collection '{QDRANT_COLLECTION_NAME}' does not exist in Qdrant at {QDRANT_DB_PATH}."
+        )
+        exit()
+
+    # --- Example Classification ---
+
+    test_queries = [
+        "Miniature circuit breaker (MCB), 10 A, 1p, characteristic: B ",
+        "Double 2-way switch 10AX beige Sedna Design",
+        "Combiner Box (Photovoltaik), 1100 V, 2 MPP's, 2 Inputs / 1 Output per",
+        "LEDtube 1200mm 12,5W/830 HO 2000Lm 50tH MASTER",
+        "UK 6-FSI/C - Fuse modular terminal block, 6 mm², 1-pole, 6 A",
+    ]
+
+    batch_search_results = classify_string_batch(
+        query_texts=test_queries,
+        top_k=3,
+    )
+
+    print("\n--- Batch Classification Results ---")
+    if batch_search_results:
+        for i, results in enumerate(batch_search_results):
+            print(f"\nResults for Query: '{test_queries[i]}'")
+            if results:
+                for result in results:
+                    print(f"  Original ID: {result['payload']['original_id']}")
+                    print(f"  Class name: {result['payload']['class_name']}")
+                    print(f"  Similarity score: {result['score']:.3f}")
+                    print("-" * 10)
+            else:
+                print("  No similar items found for this query.")
+    else:
+        print("Batch classification failed or returned no results.")

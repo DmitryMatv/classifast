@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Product Classifier - Home{% endblock %}
+
+{% block content %}
+<section id="classifier-form-section">
+    <h2>Enter Product Description</h2>
+    <form hx-post="/classify" hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
+        <textarea name="product_description" rows="4" cols="50" placeholder="e.g., Miniature circuit breaker (MCB), 10 A, 1p, characteristic: B" required></textarea>
+        <br>
+        <button type="submit">Classify Product</button>
+    </form>
+    <div id="loading-indicator" style="display:none;">
+        <p>Loading...</p>
+    </div>
+</section>
+
+<section id="results-section">
+    <h2>Classification Results</h2>
+    <div id="results-container">
+        <!-- Results will be loaded here by HTMX -->
+        <p>Enter a product description above and click "Classify Product" to see results.</p>
+    </div>
+</section>
+{% endblock %}
