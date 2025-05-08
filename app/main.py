@@ -6,6 +6,8 @@ from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any
+from google import genai
+from google.genai import types
 
 # Assuming classifier.py is in the same directory (app/)
 from .classifier import classify_string_batch, get_embeddings_batch
@@ -39,8 +41,6 @@ async def lifespan(app: FastAPI):
         # In a real app, you might raise an exception or handle this more gracefully
     else:
         try:
-            from google import genai
-
             EMBED_CLIENT = genai.Client(api_key=GEMINI_API_KEY)
             EMBED_CLIENT.models.list()  # Test connection
             print("Google GenAI Client initialized successfully.")
@@ -62,7 +62,14 @@ async def lifespan(app: FastAPI):
 
         if QDRANT_URL:
             print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
-            QDRANT_CLIENT = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+            QDRANT_CLIENT = QdrantClient(
+                host=QDRANT_URL,
+                port=443,  # Use HTTPS port since Traefik handles SSL
+                api_key=QDRANT_API_KEY,
+                https=True,
+                prefer_grpc=False,
+                timeout=60,  # Add a longer timeout just in case
+            )
         else:
             print(f"Initializing Qdrant client with local path: {QDRANT_PATH}")
             QDRANT_CLIENT = QdrantClient(path=QDRANT_PATH)

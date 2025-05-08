@@ -63,12 +63,11 @@ def load_and_prepare_data(
         df["class_name"] = df[class_column]
 
         # Convert IDs by removing 'EC' prefix and leading zeros, then convert to integers
-        # df["id"] = (df[id_column].astype(str).str.replace("EC", "").str.lstrip("0").astype(int))
+        # df["id"] = df[id_column].astype(str).str.replace("EC", "").str.lstrip("0").astype(int))
+        df["id"] = df[id_column].astype(str).str.replace("EC", "").astype(int)
 
         # Use UUIDs for unique IDs
-        df["uuid"] = df[id_column].apply(
-            lambda x: str(uuid.uuid5(uuid.NAMESPACE_DNS, str(x)))
-        )
+        # df["uuid"] = df[id_column].apply(lambda x: str(uuid.uuid5(uuid.NAMESPACE_DNS, str(x))))
 
         # --- Create Embedding Text ---
         print(f"Creating embedding texts...")
@@ -101,7 +100,7 @@ def load_and_prepare_data(
         print(f"Texts prepared. {len(df)} string(s) are ready for to be embedded.")
 
         # Select and rename columns for clarity
-        return df[["uuid", "original_id", "class_name", "embedding_text"]].copy()
+        return df[["id", "original_id", "class_name", "embedding_text"]].copy()
 
     except Exception as e:
         print(f"Error processing CSV file: {e}")
@@ -137,7 +136,14 @@ def create_and_populate_qdrant(
     """
     if qdrant_url:
         print(f"Initializing Qdrant client with remote URL: {qdrant_url}")
-        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+        client = QdrantClient(
+            host=qdrant_url,
+            port=443,  # Use HTTPS port since Traefik handles SSL
+            api_key=qdrant_api_key,
+            https=True,
+            prefer_grpc=False,
+            timeout=60,  # Add a longer timeout just in case
+        )
     elif qdrant_path:
         print(f"Initializing Qdrant client with local path: {qdrant_path}")
         client = QdrantClient(path=qdrant_path)
@@ -231,7 +237,7 @@ def create_and_populate_qdrant(
             # Prepare points for Qdrant upsert
             points_to_upsert = [
                 models.PointStruct(
-                    id=row["uuid"],  # id=str(uuid.uuid4()),
+                    id=row["id"],
                     vector=embeddings[j],
                     payload={
                         "original_id": row["original_id"],
@@ -259,14 +265,12 @@ def create_and_populate_qdrant(
 
 if __name__ == "__main__":
 
-    EMBED_MODEL = "text-embedding-004"
-    EMBED_DIMS = 768
-    # 768 - text-embedding-004
-    # 3072 - gemini-embedding-exp-03-07
+    EMBED_MODEL_DEFAULT = "text-embedding-004"
+    EMBED_DIMS_DEFAULT = 768
 
     # QDRANT_DB_PATH will be used as a fallback if QDRANT_URL is not in .env
     QDRANT_DB_PATH_FALLBACK = "./qdrant_db"
-    QDRANT_COLLECTION_NAME_DEFAULT = "ETIM10_google"
+    QDRANT_COLLECTION_NAME_DEFAULT = "Qdrant_Collection_1"
     QDRANT_DISTANCE_METRIC = models.Distance.DOT
 
     # 1. Load Environment Variables
@@ -279,7 +283,8 @@ if __name__ == "__main__":
     QDRANT_REMOTE_API_KEY = os.getenv("QDRANT_API_KEY")
 
     # Get other configurations from .env, with fallbacks to defaults defined above
-    EMBED_MODEL = os.getenv("EMBED_MODEL_NAME", EMBED_MODEL)
+    EMBED_MODEL = os.getenv("EMBED_MODEL_NAME", EMBED_MODEL_DEFAULT)
+    EMBED_DIMS = int(os.getenv("EMBED_DIMS", EMBED_DIMS_DEFAULT))
     QDRANT_COLLECTION_NAME = os.getenv(
         "QDRANT_COLLECTION_NAME", QDRANT_COLLECTION_NAME_DEFAULT
     )

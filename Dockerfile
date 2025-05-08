@@ -15,13 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Structure inside container: /service_root/app/main.py, /service_root/app/classifier.py etc.
 COPY ./app ./app
 
-# Make port 6009 available to the world outside this container
-EXPOSE 6009
-
-# Define environment variables for Uvicorn
-ENV APP_HOST=0.0.0.0
-ENV APP_PORT=6009
+# Make port 8000 available to the world outside this container
+EXPOSE 8000
 
 # Command to run the application using Uvicorn
 # Uvicorn will look for 'app.main:app' relative to the WORKDIR /service_root
-CMD ["uvicorn", "app.main:app", "--host", "${APP_HOST}", "--port", "${APP_PORT}"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
