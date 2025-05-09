@@ -7,3 +7,13 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:6009/health'
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
