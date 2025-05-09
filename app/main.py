@@ -7,10 +7,7 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 from google import genai
-from google.genai import types
-
-# Assuming classifier.py is in the same directory (app/)
-from .classifier import classify_string_batch, get_embeddings_batch
+from .classifier import classify_string_batch
 
 # We need to make the clients and config available to classifier functions
 # One way is to make them global here, or pass them explicitly.

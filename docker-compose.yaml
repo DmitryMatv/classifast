@@ -1,0 +1,19 @@
+services:
+  classifier-app:
+    build:
+      context: .
+    ports:
+      - "6009:6009"
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - 'http://localhost:6009/health'
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
