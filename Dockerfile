@@ -1,19 +1,35 @@
-# Use an official Python runtime as a parent image
-FROM python:3.13-slim
+# Build stage
+FROM python:3.13-slim AS builder
+WORKDIR /service_root
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Set the working directory in the container
+
+# Final stage
+FROM python:3.13-slim
 WORKDIR /service_root
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Install curl and wget
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl wget && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Create a non-root user
+RUN adduser --disabled-password --gecos '' appuser
+
+# Copy installed packages from the builder stage
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+# Copy executables (like uvicorn) from the builder stage's bin directory
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy the entire local 'app' directory (which should contain main.py, classifier.py, static, templates, __init__.py)
 # to a directory named 'app' inside the WORKDIR.
 # Structure inside container: /service_root/app/main.py, /service_root/app/classifier.py etc.
-COPY ./app ./app
+# Also set permissions
+COPY --chown=appuser ./app ./app
+
+# Set the user to the non-root user
+USER appuser
 
 # Make port 6009 available to the world outside this container
 EXPOSE 6009
