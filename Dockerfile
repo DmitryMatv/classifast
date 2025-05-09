@@ -20,4 +20,4 @@ EXPOSE 6009
 
 # Command to run the application using Uvicorn
 # Uvicorn will look for 'app.main:app' relative to the WORKDIR /service_root
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6009"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6009", "--workers", "4"]

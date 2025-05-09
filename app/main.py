@@ -127,6 +127,39 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 
+# --- Health Check Endpoint ---
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint for Docker/Kubernetes.
+    """
+    # Basic check: if we can reach here, the app is running.
+    # More sophisticated checks could be added here (e.g., DB connectivity).
+    if EMBED_CLIENT and QDRANT_CLIENT:
+        # Optionally, perform a quick check on clients
+        try:
+            EMBED_CLIENT.models.list()  # Simple check for Google client
+            # For Qdrant, checking collection existence or a simple count might be too slow
+            # A basic check that the client object exists is often sufficient for a healthcheck
+            pass
+            return {"status": "healthy", "embed_client": "ok", "qdrant_client": "ok"}
+        except Exception as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Service Unavailable: Client error - {str(e)}",
+            )
+    elif not EMBED_CLIENT:
+        raise HTTPException(
+            status_code=503, detail="Service Unavailable: EMBED_CLIENT not initialized"
+        )
+    elif not QDRANT_CLIENT:
+        raise HTTPException(
+            status_code=503, detail="Service Unavailable: QDRANT_CLIENT not initialized"
+        )
+    return {"status": "unhealthy", "detail": "One or more clients are not initialized"}
+
+
+# --- Routes ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serves the main page with the input form."""
