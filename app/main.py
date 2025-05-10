@@ -60,7 +60,14 @@ async def lifespan(app: FastAPI):
 
         if QDRANT_URL:
             print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
-            QDRANT_CLIENT = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+            QDRANT_CLIENT = QdrantClient(
+                host=QDRANT_URL,
+                port=443,  # Use HTTPS port since Traefik handles SSL
+                api_key=QDRANT_API_KEY,
+                https=True,
+                prefer_grpc=False,
+                timeout=60,  # Add a longer timeout just in case
+            )
         else:
             print(f"Initializing Qdrant client with local path: {QDRANT_PATH}")
             QDRANT_CLIENT = QdrantClient(path=QDRANT_PATH)
