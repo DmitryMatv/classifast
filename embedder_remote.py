@@ -1,10 +1,9 @@
 import pandas as pd
 import os
-import uuid
 from google import genai
 from qdrant_client import QdrantClient, models
 from dotenv import load_dotenv
-from typing import List, Optional, Dict, Any
+from typing import Optional
 from tqdm import tqdm
 
 
@@ -85,16 +84,14 @@ def load_and_prepare_data(
             + df["Parent"]
             + " | FEATURES: "
             + df["Properties"]
-            # is NAME really necessary everywhere? especially in German
-            + " || DE NAME: "
-            + df["Name_de"]
-            # " | GERMAN CLASS NAME SYNONYMS (Synonyme für den Namen der Produktklasse): "
-            + " | DE SYNONYMS: "
-            + df["Synonyms_de"]
-            + " | DE PARENT: "
-            + df["Parent_de"]
-            + " | DE FEATURES: "
-            + df["Properties_de"]
+            # + " || DE NAME: "  # is NAME really necessary everywhere? especially in German
+            # + df["Name_de"]
+            # + " | DE SYNONYMS: "  # " | GERMAN CLASS NAME SYNONYMS (Synonyme für den Namen der Produktklasse): "
+            # + df["Synonyms_de"]
+            # + " | DE PARENT: "
+            # + df["Parent_de"]
+            # + " | DE FEATURES: "
+            # + df["Properties_de"]
         ).str.strip()
 
         print(f"Texts prepared. {len(df)} string(s) are ready for to be embedded.")
@@ -181,7 +178,13 @@ def create_and_populate_qdrant(
                     size=vector_size, distance=distance_metric
                 ),
                 on_disk_payload=True,
-                optimizers_config=None,  # Optional adjustments
+                hnsw_config=models.HnswConfigDiff(
+                    m=32, ef_construct=200, max_indexing_threads=2, on_disk=True
+                ),
+                optimizers_config=models.OptimizersConfigDiff(
+                    flush_interval_sec=60,
+                    max_optimization_threads=1,
+                ),
             )
         else:
             # Get collection info and check vector configuration
@@ -305,7 +308,7 @@ if __name__ == "__main__":
         csv_path="etim_classes_data_bilingual.csv",  # Your specific CSV
         id_column="Code",  # Column with unique IDs
         class_column="Name",  # Column to store as payload
-        sample_n=10,  # For testing
+        # sample_n=69,  # For testing
     )
 
     # 4. Create/Populate Qdrant DB (The "Training" Step)
