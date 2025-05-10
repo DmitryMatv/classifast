@@ -1,21 +1,24 @@
 # Build stage
-FROM python:3.13-slim AS builder
+FROM python:3.13-alpine AS builder
 WORKDIR /service_root
 COPY requirements.txt .
+
+# Add build dependencies for Alpine. These are needed if your requirements.txt has packages with C extensions.
+#RUN apk add --no-cache build-base python3-dev
 RUN pip install --no-cache-dir -r requirements.txt
 
 
 # Final stage
-FROM python:3.13-slim
+FROM python:3.13-alpine
 WORKDIR /service_root
 
-# Install curl and wget
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl wget && \
-    rm -rf /var/lib/apt/lists/*
+# Install curl (for healthcheck) and remove wget
+RUN apk update && \
+    apk add --no-cache curl && \
+    rm -rf /var/cache/apk/*
 
-# Create a non-root user
-RUN adduser --disabled-password --gecos '' appuser
+# Create a non-root user and group
+RUN addgroup -S appgroup && adduser -S -G appgroup appuser
 
 # Copy installed packages from the builder stage
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
@@ -26,7 +29,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # to a directory named 'app' inside the WORKDIR.
 # Structure inside container: /service_root/app/main.py, /service_root/app/classifier.py etc.
 # Also set permissions
-COPY --chown=appuser ./app ./app
+COPY --chown=appuser:appgroup ./app ./app
 
 # Set the user to the non-root user
 USER appuser
