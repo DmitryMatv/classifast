@@ -4,20 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="description"
-        content="Categorization service. Classify anything, fast, and in bulk. Enter any text to find a respective class.">
-    <meta name="keywords" content="Categorization, Classification, Categorizer, Classifier, Search, ETIM">
+        content="Fast classification tools for various standards.">
+    <meta name="keywords" content="Standard, Categorization, Classification, Categorizer, Classifier, Search, Match">
     <meta name="author" content="Dmitry Matv">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="index, follow">
-    <title>Classify anything, fast, and in bulk | Classifast</title>
+    <title>Classifast | Instant Bulk Classification Tool</title>
 
     <link rel="canonical" href="https://classifast.com/">
     <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Classify anything, fast, and in bulk | Classifast">
+    <meta property="og:title" content="Classifast | Instant Bulk Classification">
     <meta property="og:description"
-        content="Categorization service. Classify anything, fast, and in bulk. Enter any text to find a respective class.">
+        content="Fast classification tools for various standards.">
     <meta property="og:url" content="https://classifast.com/">
     <meta property="og:image" content="https://classifast.com/static/images/preview.png">
 
@@ -38,10 +38,6 @@
 
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
 
-    <script src="https://unpkg.com/htmx.org@2.0.4"
-        integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
-        crossorigin="anonymous"></script>
-
     <script defer src="https://umami.classifast.com/script.js"
         data-website-id="92ba1e11-eb38-415a-bbb6-8ef7b783bece"></script>
 </head>
@@ -49,28 +45,25 @@
 <body>
     <header>
         <h2>Classifast</h2>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}">ETIM International</a>
+                </li>
+                <!-- Add links to other classifiers here as they are created -->
+                <!-- <li><a href="/classify/another_standard">Another Standard</a></li> -->
+            </ul>
+        </nav>
     </header>
     <main>
-        <section id="classifier-form-section">
-            <h3>Instant classifier/categorizer</h3>
-            <form hx-post="/classify" hx-target="#results-container" hx-swap="innerHTML"
-                hx-indicator="#loading-indicator">
-                <textarea name="product_description" rows="2" cols="20" placeholder="LED T8 600mm 8W G13 CW 1CT/4"
-                    required></textarea>
-                <br>
-                <button type="submit">Classify</button>
-            </form>
-            <div id="loading-indicator" style="display:none;">
-                <p>Loading...</p>
-            </div>
+        <section id="welcome-section">
+            <h1>Welcome to Classifast</h1>
+            <p>Your hub for fast, bulk classification tools.</p>
+            <p>Select a classification standard from the menu above to get started.</p>
+            <!-- You could add more descriptive content about the service here -->
         </section>
 
-        <section id="results-section">
-            <div id="results-container">
-                <!-- Results will be loaded here by HTMX -->
-                <p>Enter a search query above and click "Classify" to see results.</p>
-            </div>
-        </section>
+        <!-- Removed classifier form and results sections -->
+
     </main>
     <footer>
         <p>&copy; 2024 Dmitry Matv</p>

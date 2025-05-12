@@ -8,20 +8,8 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 from google import genai
 from .classifier import classify_string_batch
-from starlette.middleware.base import BaseHTTPMiddleware  # Added import
+from starlette.middleware.base import BaseHTTPMiddleware
 
-# We need to make the clients and config available to classifier functions
-# One way is to make them global here, or pass them explicitly.
-# Since classifier.py uses them as globals, we'll define them globally here after init.
-
-# --- Global variables to be initialized on startup ---
-EMBED_CLIENT = None
-QDRANT_CLIENT = None
-EMBED_MODEL_NAME = "text-embedding-004"  # Default, can be overridden by env
-QDRANT_COLLECTION = "ETIM10_google"  # Default, can be overridden by env
-# --- End Global Variables ---
-
-# Load environment variables from .env file
 load_dotenv()
 
 
@@ -83,8 +71,8 @@ async def lifespan(app: FastAPI):
         )
 
         # Load model name and collection name from env or use defaults
-        EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", EMBED_MODEL_NAME)
-        QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION_NAME", QDRANT_COLLECTION)
+        EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "text-embedding-004")
+        QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION_NAME", "default_collection")
 
         classifier_module.EMBED_MODEL = EMBED_MODEL_NAME
         classifier_module.QDRANT_COLLECTION_NAME = QDRANT_COLLECTION
@@ -176,17 +164,71 @@ async def health_check():
 
 
 # --- Routes ---
+
+# Dictionary to map classifier types to their configurations
+CLASSIFIER_CONFIG = {
+    "etim": {
+        "title": "ETIM International",
+        "description": "Classify products based on the ETIM International standard.",
+        "collection_name": "ETIM_10_eng_768",  # Specific collection for ETIM
+        "placeholder": "Resistor, 10 Ohm, 1W",
+    },
+    # Add other classifiers here in the future
+    "unspsc": {
+        "title": "UNSPSC",
+        "description": "Classify products based on the UNSPSC standard.",
+        "collection_name": "UNSPSC_v24_google",
+        "placeholder": "Computer monitor, 24 inch",
+    },
+}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    """Serves the main page with the input form."""
+    """Serves the main homepage.
+    This route now renders the general landing page.
+    """
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.post("/classify", response_class=HTMLResponse)
-async def handle_classify(request: Request, product_description: str = Form(...)):
+@app.get("/classify/{classifier_type}", response_class=HTMLResponse)
+async def show_classifier_page(request: Request, classifier_type: str):
+    """Serves the specific classifier page based on the type.
+    Renders the classifier_page.html template with context.
     """
-    Receives product description, classifies it, and returns HTML partial with results.
+    config = CLASSIFIER_CONFIG.get(classifier_type)
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
+    return templates.TemplateResponse(
+        "classifier_page.html",
+        {
+            "request": request,
+            "title": config["title"],
+            "description": config["description"],
+            "placeholder": config["placeholder"],
+            "classifier_type": classifier_type,  # Pass type for form action URL
+        },
+    )
+
+
+@app.post("/classify/{classifier_type}", response_class=HTMLResponse)
+async def handle_classify(
+    request: Request, classifier_type: str, product_description: str = Form(...)
+):
     """
+    Receives product description for a specific classifier type,
+    classifies it using the correct Qdrant collection,
+    and returns HTML partial with results.
+    """
+    config = CLASSIFIER_CONFIG.get(classifier_type)
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
     if not EMBED_CLIENT or not QDRANT_CLIENT:
         raise HTTPException(
             status_code=503,
@@ -194,17 +236,20 @@ async def handle_classify(request: Request, product_description: str = Form(...)
         )
 
     if not product_description or not product_description.strip():
-        # Return an empty result or an error message partial
+        # Return the results partial with an empty list or specific message
         return templates.TemplateResponse(
-            "results.html", {"request": request, "results_for_query": []}
+            "results.html",
+            {"request": request, "results_for_query": [], "query": product_description},
         )
 
-    print(f"Received query for classification: '{product_description}'")
+    print(
+        f"Received query for '{classifier_type}' classification: '{product_description}'"
+    )
 
-    # The classifier.py script's classify_string_batch expects query_texts to be a list.
-    # It also relies on global variables for clients and config, which we set up in lifespan.
+    collection_name = config["collection_name"]
+
     try:
-        # Ensure global variables in classifier module are correctly set if not already
+        # Ensure classifier module globals are set (redundant if lifespan works, but safe)
         import app.classifier as classifier_module
 
         if not hasattr(classifier_module, "client") or classifier_module.client is None:
@@ -219,35 +264,29 @@ async def handle_classify(request: Request, product_description: str = Form(...)
             or classifier_module.EMBED_MODEL is None
         ):
             classifier_module.EMBED_MODEL = EMBED_MODEL_NAME
-        if (
-            not hasattr(classifier_module, "QDRANT_COLLECTION_NAME")
-            or classifier_module.QDRANT_COLLECTION_NAME is None
-        ):
-            classifier_module.QDRANT_COLLECTION_NAME = QDRANT_COLLECTION
 
-        # Call the batch classification function (even for a single query)
+        # Call the batch classification function with the specific collection name
         batch_results: List[List[Dict[str, Any]]] = classify_string_batch(
-            query_texts=[product_description], top_k=3  # Or make this configurable
+            query_texts=[product_description],
+            collection_name=collection_name,  # Pass the correct collection
+            top_k=5,
         )
 
         classification_results = []
         if batch_results and len(batch_results) > 0:
-            classification_results = batch_results[
-                0
-            ]  # We sent one query, so we take the first list of results
+            classification_results = batch_results[0]
 
         print(
-            f"Classification results for '{product_description}': {classification_results}"
+            f"Classification results for '{product_description}' in '{collection_name}': {classification_results}"
         )
 
     except Exception as e:
-        print(f"Error during classification: {e}")
-        # Consider how to inform the user; for now, return empty results
-        # You might want to return a specific error message partial
+        print(f"Error during '{classifier_type}' classification: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error processing your request: {str(e)}"
         )
 
+    # Render the results partial
     return templates.TemplateResponse(
         "results.html",
         {

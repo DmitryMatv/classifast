@@ -41,15 +41,17 @@ def get_embeddings_batch(
 
 def classify_string_batch(
     query_texts: List[str],
+    collection_name: str,  # Add collection_name parameter
     top_k: int = 5,
 ) -> List[List[Dict[str, Any]]]:
     """
     Takes a list of string inputs, gets their embeddings in a batch,
-    and queries the Qdrant DB using batch search to find the most
+    and queries the specified Qdrant collection using batch search to find the most
     semantically similar entries for each query.
 
     Args:
         query_texts: A list of input strings to classify/find similar items for.
+        collection_name: The name of the Qdrant collection to query.  # Add description
         top_k: The number of top similar results to return for each query.
 
     Returns:
@@ -94,11 +96,12 @@ def classify_string_batch(
 
         # 3. Query Qdrant using Batch Query
         print(
-            f"Querying Qdrant collection '{QDRANT_COLLECTION_NAME}' with {len(query_requests)} requests..."
+            f"Querying Qdrant collection '{collection_name}' with {len(query_requests)} requests..."  # Use parameter
         )
         batch_query_responses = client.query_batch_points(
-            collection_name=QDRANT_COLLECTION_NAME,
+            collection_name=collection_name,  # Use parameter
             requests=query_requests,  # Pass the list of QueryRequest objects
+            # consistency=models.ReadConsistencyType.MAJORITY, # Optional: Adjust consistency
         )
 
         # 4. Process and Format Batch Results from QueryResponse objects
@@ -132,6 +135,8 @@ def classify_string_batch(
         return []
 
 
+"""
+# Example usage of the classify_string_batch function
 if __name__ == "__main__":
 
     EMBED_MODEL = "text-embedding-004"
@@ -177,6 +182,7 @@ if __name__ == "__main__":
 
     batch_search_results = classify_string_batch(
         query_texts=test_queries,
+        collection_name=QDRANT_COLLECTION_NAME,  # Pass collection name here
         top_k=3,
     )
 
@@ -194,3 +200,5 @@ if __name__ == "__main__":
                 print("  No similar items found for this query.")
     else:
         print("Batch classification failed or returned no results.")
+"""
+# Note: The example usage is commented out to avoid execution during import.

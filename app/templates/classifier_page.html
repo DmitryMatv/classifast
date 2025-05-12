@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="{{ description }}">
+    <meta name="keywords" content="{{ title }}, Categorization, Classification, Categorizer, Classifier, Search, Match">
+    <meta name="author" content="Dmitry Matv">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="index, follow">
+    <title>{{ title }} | Classifast</title>
+
+    <!-- Assuming a base URL or consistent static path setup -->
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+
+    <!-- Add relevant OG tags if needed, potentially dynamic -->
+    <meta property="og:title" content="{{ title }} | Classifast">
+    <meta property="og:description" content="{{ description }}">
+    <!-- <meta property="og:url" content="URL for this specific classifier page"> -->
+    <!-- <meta property="og:image" content="URL for a relevant image"> -->
+
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+
+    <script src="https://unpkg.com/htmx.org@2.0.4"
+        integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+        crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <header>
+        <!-- Consistent Header - maybe include navigation back to home? -->
+        <nav>
+            <a href="/">Home</a> | <!-- Link back to homepage -->
+            <span>Classifast Classifiers</span> <!-- Placeholder for potential dropdown/menu -->
+        </nav>
+        <h2>{{ title }}</h2>
+    </header>
+    <main>
+        <section id="classifier-form-section">
+            <h3>{{ description }}</h3>
+            <!-- The form now posts to the dynamic URL based on classifier_type -->
+            <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
+                <!-- Use the placeholder variable passed from the context -->
+                <textarea name="product_description" rows="2" cols="20" placeholder="{{ placeholder }}"
+                    required></textarea>
+                <br>
+                <button type="submit">Classify</button>
+            </form>
+            <div id="loading-indicator" style="display:none;">
+                <p>Loading...</p>
+            </div>
+        </section>
+
+        <section id="results-section">
+            <div id="results-container">
+                <!-- Results will be loaded here by HTMX -->
+                <p>Enter a search query above and click "Classify" to see results.</p>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2024 Dmitry Matv</p>
+    </footer>
+</body>
+
+</html>
