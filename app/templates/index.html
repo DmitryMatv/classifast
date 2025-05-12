@@ -1,25 +1,80 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
 
-{% block title %}Classify anything, fast, and in bulk | Classifast{% endblock %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="description"
+        content="Categorization service. Classify anything, fast, and in bulk. Enter any text to find a respective class.">
+    <meta name="keywords" content="Categorization, Classification, Categorizer, Classifier, Search, ETIM">
+    <meta name="author" content="Dmitry Matv">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="index, follow">
+    <title>Classify anything, fast, and in bulk | Classifast</title>
 
-{% block content %}
-<section id="classifier-form-section">
-    <h3>Instant classifier/categorizer</h3>
-    <form hx-post="/classify" hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
-        <textarea name="product_description" rows="2" cols="20" placeholder="LED T8 600mm 8W G13 CW 1CT/4"
-            required></textarea>
-        <br>
-        <button type="submit">Classify</button>
-    </form>
-    <div id="loading-indicator" style="display:none;">
-        <p>Loading...</p>
-    </div>
-</section>
+    <link rel="canonical" href="https://classifast.com/">
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
 
-<section id="results-section">
-    <div id="results-container">
-        <!-- Results will be loaded here by HTMX -->
-        <p>Enter a search query above and click "Classify" to see results.</p>
-    </div>
-</section>
-{% endblock %}
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Classify anything, fast, and in bulk | Classifast">
+    <meta property="og:description"
+        content="Categorization service. Classify anything, fast, and in bulk. Enter any text to find a respective class.">
+    <meta property="og:url" content="https://classifast.com/">
+    <meta property="og:image" content="https://classifast.com/static/images/preview.png">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Classify anything, fast, and in bulk | Classifast",
+        "url": "https://classifast.com/",
+        "description": "Classify anything, fast, and in bulk. Enter any text to find a respective class.",
+        "author": {
+            "@type": "Person",
+            "name": "Dmitry Matv"
+        },
+        "keywords": "Categorization, Classification, Categorizer, Classifier, Search, ETIM"
+    }
+    </script>
+
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+
+    <script src="https://unpkg.com/htmx.org@2.0.4"
+        integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
+        crossorigin="anonymous"></script>
+
+    <script defer src="https://umami.classifast.com/script.js"
+        data-website-id="92ba1e11-eb38-415a-bbb6-8ef7b783bece"></script>
+</head>
+
+<body>
+    <header>
+        <h2>Classifast</h2>
+    </header>
+    <main>
+        <section id="classifier-form-section">
+            <h3>Instant classifier/categorizer</h3>
+            <form hx-post="/classify" hx-target="#results-container" hx-swap="innerHTML"
+                hx-indicator="#loading-indicator">
+                <textarea name="product_description" rows="2" cols="20" placeholder="LED T8 600mm 8W G13 CW 1CT/4"
+                    required></textarea>
+                <br>
+                <button type="submit">Classify</button>
+            </form>
+            <div id="loading-indicator" style="display:none;">
+                <p>Loading...</p>
+            </div>
+        </section>
+
+        <section id="results-section">
+            <div id="results-container">
+                <!-- Results will be loaded here by HTMX -->
+                <p>Enter a search query above and click "Classify" to see results.</p>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2024 Dmitry Matv</p>
+    </footer>
+</body>
+
+</html>

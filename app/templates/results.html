@@ -1,20 +1,20 @@
 {% if query %}
-    <p><strong>Results for:</strong> "{{ query }}"</p>
+<p><strong>Results for:</strong> "{{ query }}"</p>
 {% endif %}
 
 {% if results_for_query %}
-    <ul>
+<ul>
     {% for result in results_for_query %}
-        <li>
-            <strong>Class Name:</strong> {{ result.payload.class_name | e }}<br>
-            <strong>Original ID:</strong> {{ result.payload.original_id | e }}<br>
-            <strong>Score:</strong> {{ "%.3f"|format(result.score) }}
-        </li>
+    <li>
+        <strong>Class Name:</strong> {{ result.payload.class_name | e }}<br>
+        <strong>Original ID:</strong> {{ result.payload.original_id | e }}<br>
+        <strong>Score:</strong> {{ "%.3f"|format(result.score) }}
+    </li>
     {% endfor %}
-    </ul>
+</ul>
 {% elif query %}
-    <p>No similar items found for this query.</p>
+<p>No similar items found for this query.</p>
 {% else %}
-    <!-- This part might not be reached if the main.py logic for empty query is hit first -->
-    <p>Please enter a product description.</p>
+<!-- This part might not be reached if the main.py logic for empty query is hit first -->
+<p>Please enter a product description.</p>
 {% endif %}
