@@ -39,9 +39,7 @@
         <section id="classifier-form-section">
             <h3>{{ description }}</h3>
             <!-- The form now posts to the dynamic URL based on classifier_type -->
-            <!-- Force HTTPS scheme for url_for in production -->
-            <form
-                hx-post="{{ url_for('handle_classify', classifier_type=classifier_type, _scheme='https', _external=True) }}"
+            <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
                 <!-- Use the placeholder variable passed from the context -->
                 <textarea name="product_description" rows="2" cols="20" placeholder="{{ placeholder }}"
