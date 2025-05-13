@@ -31,14 +31,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Also set permissions
 COPY --chown=appuser:appgroup ./app ./app
 
-# Set the user to the non-root user
 USER appuser
 
-# Make port 6009 available to the world outside this container
 EXPOSE 6009
 
-# Command to run the application using Uvicorn
-# Uvicorn will look for 'app.main:app' relative to the WORKDIR /service_root
-# Correctly separate the --forwarded-allow-ips option and its value "*"
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6009", "--forwarded-allow-ips", "*"]
-# "--workers", "4",
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6009", "--workers", "2", "--forwarded-allow-ips", "*"]

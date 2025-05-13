@@ -298,6 +298,6 @@ async def handle_classify(
 
 
 # To run this app (from the directory containing the 'app' folder):
-# uvicorn app.main:app --reload
+# uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 # Ensure you have .env file with GEMINI_API_KEY, and optionally QDRANT_URL or QDRANT_PATH,
 # QDRANT_COLLECTION_NAME, EMBED_MODEL_NAME.

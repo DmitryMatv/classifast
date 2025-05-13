@@ -3,8 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="description"
-        content="Fast classification tools for various standards.">
+    <meta name="description" content="Fast classification tools for various standards.">
     <meta name="keywords" content="Standard, Categorization, Classification, Categorizer, Classifier, Search, Match">
     <meta name="author" content="Dmitry Matv">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,8 +15,7 @@
 
     <meta property="og:type" content="website">
     <meta property="og:title" content="Classifast | Instant Bulk Classification">
-    <meta property="og:description"
-        content="Fast classification tools for various standards.">
+    <meta property="og:description" content="Fast classification tools for various standards.">
     <meta property="og:url" content="https://classifast.com/">
     <meta property="og:image" content="https://classifast.com/static/images/preview.png">
 
@@ -47,10 +45,9 @@
         <h2>Classifast</h2>
         <nav>
             <ul>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}">ETIM International</a>
-                </li>
-                <!-- Add links to other classifiers here as they are created -->
-                <!-- <li><a href="/classify/another_standard">Another Standard</a></li> -->
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}">ETIM International</a></li>
+                <!-- Add other classifier links here -->
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}">UNSPSC</a></li>
             </ul>
         </nav>
     </header>

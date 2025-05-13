@@ -42,13 +42,12 @@
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
                 <!-- Use the placeholder variable passed from the context -->
-                <textarea name="product_description" rows="2" cols="20" placeholder="{{ placeholder }}"
-                    required></textarea>
+                <textarea name="product_description" rows="3" placeholder="{{ placeholder }}" required></textarea>
                 <br>
                 <button type="submit">Classify</button>
             </form>
-            <div id="loading-indicator" style="display:none;">
-                <p>Loading...</p>
+            <div id="loading-indicator" class="htmx-indicator">
+                <div class="spinner"></div>
             </div>
         </section>
 
