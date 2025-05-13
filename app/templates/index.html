@@ -34,36 +34,38 @@
     }
     </script>
 
-    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
 
     <script defer src="https://umami.classifast.com/script.js"
         data-website-id="92ba1e11-eb38-415a-bbb6-8ef7b783bece"></script>
 </head>
 
-<body>
-    <header>
-        <h2>Classifast</h2>
-        <nav>
-            <ul>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}">ETIM International</a></li>
-                <!-- Add other classifier links here -->
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}">UNSPSC</a></li>
-            </ul>
-        </nav>
+<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
+    <header class="bg-gray-800 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center max-w-screen-md">
+            <h3 class="text-2xl font-bold">Classifast</h3>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                            class="hover:text-blue-300">ETIM International</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                            class="hover:text-blue-300">UNSPSC</a></li>
+                    <!-- Add other classifier links here -->
+                </ul>
+            </nav>
+        </div>
     </header>
-    <main>
-        <section id="welcome-section">
-            <h1>Welcome to Classifast</h1>
-            <p>Your hub for fast, bulk classification tools.</p>
-            <p>Select a classification standard from the menu above to get started.</p>
-            <!-- You could add more descriptive content about the service here -->
+    <main class="flex-grow container mx-auto p-4 max-w-screen-md">
+        <section id="welcome-section" class="bg-white p-6 rounded-lg shadow text-center">
+            <h1 class="text-3xl font-semibold mb-2">Welcome to Classifast</h1>
+            <p class="text-gray-600 mb-1">Your hub for fast, bulk classification.</p>
+            <p class="text-gray-600">Select a classification standard from the menu above to get started.</p>
         </section>
-
-        <!-- Removed classifier form and results sections -->
-
     </main>
-    <footer>
-        <p>&copy; 2024 Dmitry Matv</p>
+    <footer class="bg-gray-800 text-white text-center p-3 mt-auto">
+        <div class="container mx-auto max-w-screen-md">
+            <p>&copy; 2025 Dmitry Matv</p>
+        </div>
     </footer>
 </body>
 

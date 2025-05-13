@@ -10,56 +10,56 @@
     <meta name="robots" content="index, follow">
     <title>{{ title }} | Classifast</title>
 
-    <!-- Assuming a base URL or consistent static path setup -->
     <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
 
-    <!-- Add relevant OG tags if needed, potentially dynamic -->
     <meta property="og:title" content="{{ title }} | Classifast">
     <meta property="og:description" content="{{ description }}">
-    <!-- <meta property="og:url" content="URL for this specific classifier page"> -->
-    <!-- <meta property="og:image" content="URL for a relevant image"> -->
 
-    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
 
     <script src="https://unpkg.com/htmx.org@2.0.4"
         integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
         crossorigin="anonymous"></script>
 </head>
 
-<body>
-    <header>
-        <!-- Consistent Header - maybe include navigation back to home? -->
-        <nav>
-            <a href="/">Home</a> | <!-- Link back to homepage -->
-            <span>Classifast Classifiers</span> <!-- Placeholder for potential dropdown/menu -->
-        </nav>
-        <h2>{{ title }}</h2>
+<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
+    <header class="bg-gray-800 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center max-w-screen-md">
+            <nav class="text-sm">
+                <a href="/" class="hover:text-blue-300">Home</a> |
+                <span class="text-gray-400">Classifast Classifiers</span>
+            </nav>
+            <h3 class="text-2xl font-bold">{{ title }}</h3>
+        </div>
     </header>
-    <main>
-        <section id="classifier-form-section">
-            <h3>{{ description }}</h3>
-            <!-- The form now posts to the dynamic URL based on classifier_type -->
+    <main class="flex-grow container mx-auto p-4 max-w-screen-md">
+        <section id="classifier-form-section" class="bg-white p-4 rounded-lg shadow mb-4">
+            <h3 class="text-lg font-semibold text-center mb-2">{{ description }}</h3>
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
-                <!-- Use the placeholder variable passed from the context -->
-                <textarea name="product_description" rows="3" placeholder="{{ placeholder }}" required></textarea>
-                <br>
-                <button type="submit">Classify</button>
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-3">
+                <textarea name="product_description" rows="2" placeholder="{{ placeholder }}" required
+                    class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"></textarea>
+                <div class="flex justify-center">
+                    <button type="submit"
+                        class="w-1/4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md text-sm transition duration-150 ease-in-out">Classify</button>
+                </div>
             </form>
-            <div id="loading-indicator" class="htmx-indicator">
-                <div class="spinner"></div>
+            <div id="loading-indicator" class="htmx-indicator hidden justify-center items-center pt-3">
+                <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
             </div>
         </section>
 
-        <section id="results-section">
+        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto">
             <div id="results-container">
-                <!-- Results will be loaded here by HTMX -->
-                <p>Enter a search query above and click "Classify" to see results.</p>
+                <p class="text-sm text-gray-500 text-center">Enter a search query above and click "Classify" to see
+                    results.</p>
             </div>
         </section>
     </main>
-    <footer>
-        <p>&copy; 2024 Dmitry Matv</p>
+    <footer class="bg-gray-800 text-white text-center p-3 mt-auto">
+        <div class="container mx-auto max-w-screen-md">
+            <p>&copy; 2025 Dmitry Matv</p>
+        </div>
     </footer>
 </body>
 
