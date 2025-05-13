@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 from google import genai
 from .classifier import classify_string_batch
-from starlette.middleware.base import BaseHTTPMiddleware
 
 load_dotenv()
 
@@ -109,23 +108,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-
-# Middleware to add Cache-Control headers for specific static files
-class CacheControlMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        if request.url.path == "/static/styles.css":
-            # Set Cache-Control for 1 day (86400 seconds).
-            # For infrequently changing files with cache-busting (e.g., style.v1.css),
-            # you can use a much longer duration (e.g., 31536000 for 1 year).
-            response.headers["Cache-Control"] = "public, max-age=86400"
-        return response
-
-
-app.add_middleware(CacheControlMiddleware)
-
-# Mount static files (for CSS, JS)
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
