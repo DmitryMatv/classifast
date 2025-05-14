@@ -20,6 +20,40 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"
         integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
         crossorigin="anonymous"></script>
+
+    <style>
+        /* Always show scrollbar on html to prevent layout shift, then hide it */
+        html {
+            overflow-y: scroll;
+        }
+
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE, Edge and Firefox */
+        html,
+        body {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        /* Hide scrollbar for specific textareas */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+    </style>
 </head>
 
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
@@ -37,8 +71,11 @@
             <h3 class="text-lg font-semibold text-center mb-2">{{ description }}</h3>
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-3">
-                <textarea name="product_description" rows="2" placeholder="{{ placeholder }}" required
-                    class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"></textarea>
+                <label for="product_description_area" class="sr-only">Product Description</label>
+                <!-- sr-only is a Tailwind class to visually hide -->
+                <textarea name="product_description" id="product_description_area" rows="4"
+                    placeholder="{{ placeholder }}" required
+                    class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm hide-scrollbar min-h-[80px] max-h-[300px] resize-y"></textarea>
                 <div class="flex justify-center">
                     <button type="submit"
                         class="w-1/4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md text-sm transition duration-150 ease-in-out">Classify</button>

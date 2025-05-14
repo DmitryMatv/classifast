@@ -100,8 +100,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return HTMLResponse(
+        content=f"<p>Too many requests. Please try again in {exc.detail}.</p>",
+        status_code=429,
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 
 
 # Setup Jinja2 templates

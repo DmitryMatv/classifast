@@ -38,6 +38,28 @@
 
     <script defer src="https://umami.classifast.com/script.js"
         data-website-id="92ba1e11-eb38-415a-bbb6-8ef7b783bece"></script>
+
+    <style>
+        /* Always show scrollbar on html to prevent layout shift, then hide it */
+        html {
+            overflow-y: scroll;
+        }
+
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE, Edge and Firefox */
+        html,
+        body {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+    </style>
 </head>
 
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
