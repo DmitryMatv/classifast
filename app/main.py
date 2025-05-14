@@ -1,21 +1,31 @@
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any
+
 from google import genai
+from qdrant_client import QdrantClient
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 from .classifier import classify_string_batch
 
 load_dotenv()
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address, default_limits=["5/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Runs when the application starts
-    global EMBED_CLIENT, QDRANT_CLIENT, EMBED_MODEL_NAME, QDRANT_COLLECTION
+    global EMBED_CLIENT, QDRANT_CLIENT, EMBED_MODEL_NAME  # QDRANT_COLLECTION removed
 
     print("FastAPI application startup...")
 
@@ -34,17 +44,11 @@ async def lifespan(app: FastAPI):
             EMBED_CLIENT = None  # Ensure it's None if init fails
 
     # Initialize Qdrant Client
-    # User wants a placeholder for Qdrant connection.
     # We'll allow QDRANT_URL (for remote/dockerized) or QDRANT_PATH (for local)
     QDRANT_URL = os.getenv("QDRANT_URL")
     QDRANT_PATH = os.getenv("QDRANT_PATH", "./qdrant_db")  # Default local path
-    QDRANT_API_KEY = os.getenv(
-        "QDRANT_API_KEY"
-    )  # Optional API key for Qdrant Cloud/secured instances
-
+    QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     try:
-        from qdrant_client import QdrantClient
-
         if QDRANT_URL:
             print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
             QDRANT_CLIENT = QdrantClient(
@@ -59,32 +63,21 @@ async def lifespan(app: FastAPI):
             print(f"Initializing Qdrant client with local path: {QDRANT_PATH}")
             QDRANT_CLIENT = QdrantClient(path=QDRANT_PATH)
 
-        # Make QDRANT_CLIENT available to classifier.py through its global 'client'
-        # This is a bit of a hack due to not modifying classifier.py.
-        # A better way would be to pass clients explicitly to functions.
-        import app.classifier as classifier_module
-
-        classifier_module.client = QDRANT_CLIENT
-        classifier_module.EMBED_CLIENT = (
-            EMBED_CLIENT  # Also set the embed client for classifier
-        )
-
-        # Load model name and collection name from env or use defaults
+        # Load model name from env or use defaults
         EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "text-embedding-004")
-        QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION_NAME", "default_collection")
 
-        classifier_module.EMBED_MODEL = EMBED_MODEL_NAME
-        classifier_module.QDRANT_COLLECTION_NAME = QDRANT_COLLECTION
-
-        # Check if collection exists (optional, but good for early feedback)
-        if QDRANT_CLIENT and not QDRANT_CLIENT.collection_exists(
-            collection_name=QDRANT_COLLECTION
-        ):
-            print(
-                f"Warning: Qdrant collection '{QDRANT_COLLECTION}' does not exist yet."
-            )
+        # Check if Qdrant client can list collections as a health check
+        if QDRANT_CLIENT:
+            try:
+                collections_result = QDRANT_CLIENT.get_collections()
+                print(
+                    f"Qdrant client initialized. Found collections: {[col.name for col in collections_result.collections]}"
+                )
+            except Exception as e:
+                print(f"Qdrant client initialized, but could not list collections: {e}")
+                # Depending on severity, you might still want to set QDRANT_CLIENT to None or raise
         else:
-            print(f"Qdrant client initialized. Using collection: {QDRANT_COLLECTION}")
+            print("Qdrant client could not be initialized.")
 
     except Exception as e:
         print(f"Error initializing Qdrant client: {e}")
@@ -107,6 +100,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # Setup Jinja2 templates
@@ -125,9 +120,7 @@ async def health_check():
         # Optionally, perform a quick check on clients
         try:
             EMBED_CLIENT.models.list()  # Simple check for Google client
-            # For Qdrant, checking collection existence or a simple count might be too slow
-            # A basic check that the client object exists is often sufficient for a healthcheck
-            pass
+            QDRANT_CLIENT.get_collections()  # Simple check for Qdrant client
             return {"status": "healthy", "embed_client": "ok", "qdrant_client": "ok"}
         except Exception as e:
             raise HTTPException(
@@ -173,7 +166,7 @@ async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/classify/{classifier_type}", response_class=HTMLResponse)
+@app.get("/{classifier_type}", response_class=HTMLResponse)
 async def show_classifier_page(request: Request, classifier_type: str):
     """Serves the specific classifier page based on the type.
     Renders the classifier_page.html template with context.
@@ -196,7 +189,8 @@ async def show_classifier_page(request: Request, classifier_type: str):
     )
 
 
-@app.post("/classify/{classifier_type}", response_class=HTMLResponse)
+@app.post("/{classifier_type}", response_class=HTMLResponse)
+@limiter.limit("5/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request, classifier_type: str, product_description: str = Form(...)
 ):
@@ -231,24 +225,11 @@ async def handle_classify(
     collection_name = config["collection_name"]
 
     try:
-        # Ensure classifier module globals are set (redundant if lifespan works, but safe)
-        import app.classifier as classifier_module
-
-        if not hasattr(classifier_module, "client") or classifier_module.client is None:
-            classifier_module.client = QDRANT_CLIENT
-        if (
-            not hasattr(classifier_module, "EMBED_CLIENT")
-            or classifier_module.EMBED_CLIENT is None
-        ):
-            classifier_module.EMBED_CLIENT = EMBED_CLIENT
-        if (
-            not hasattr(classifier_module, "EMBED_MODEL")
-            or classifier_module.EMBED_MODEL is None
-        ):
-            classifier_module.EMBED_MODEL = EMBED_MODEL_NAME
-
         # Call the batch classification function with the specific collection name
         batch_results: List[List[Dict[str, Any]]] = classify_string_batch(
+            qdrant_client=QDRANT_CLIENT,  # Pass QDRANT_CLIENT
+            embed_client=EMBED_CLIENT,  # Pass EMBED_CLIENT
+            embed_model_name=EMBED_MODEL_NAME,  # Pass EMBED_MODEL_NAME
             query_texts=[product_description],
             collection_name=collection_name,  # Pass the correct collection
             top_k=5,

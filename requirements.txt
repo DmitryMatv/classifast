@@ -6,3 +6,4 @@ google-genai
 qdrant-client>=1.14,<1.15
 jinja2
 tenacity
+slowapi

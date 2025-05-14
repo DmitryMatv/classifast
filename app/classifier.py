@@ -10,12 +10,14 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def get_embeddings_batch(
-    client, model_name: str, task_type: str, texts: List[str]
+    embed_client, model_name: str, task_type: str, texts: List[str]
 ) -> List[List[float]]:
     """
     Generates embeddings for a batch of texts using the embedding API.
 
     Args:
+        embed_client: The Google GenAI client.
+        model_name: The name of the embedding model to use.
         task_type: The task type for the embedding (e.g., "CLASSIFICATION").
         texts: A list of strings to embed.
 
@@ -27,7 +29,7 @@ def get_embeddings_batch(
         return []
 
     try:
-        response = client.models.embed_content(
+        response = embed_client.models.embed_content(
             model=model_name,
             contents=texts,
             config=types.EmbedContentConfig(task_type=task_type),
@@ -40,8 +42,11 @@ def get_embeddings_batch(
 
 
 def classify_string_batch(
+    qdrant_client: QdrantClient,  # Add qdrant_client parameter
+    embed_client: genai.Client,  # Add embed_client parameter
+    embed_model_name: str,  # Add embed_model_name parameter
     query_texts: List[str],
-    collection_name: str,  # Add collection_name parameter
+    collection_name: str,
     top_k: int = 5,
 ) -> List[List[Dict[str, Any]]]:
     """
@@ -50,8 +55,11 @@ def classify_string_batch(
     semantically similar entries for each query.
 
     Args:
+        qdrant_client: The Qdrant client instance.
+        embed_client: The Google GenAI client instance.
+        embed_model_name: The name of the embedding model to use.
         query_texts: A list of input strings to classify/find similar items for.
-        collection_name: The name of the Qdrant collection to query.  # Add description
+        collection_name: The name of the Qdrant collection to query.
         top_k: The number of top similar results to return for each query.
 
     Returns:
@@ -70,9 +78,14 @@ def classify_string_batch(
     try:
 
         # 1. Get Embeddings for the Query Texts in a Single Batch Call
-        print(f"Generating embeddings for {len(query_texts)} queries...")
+        print(
+            f"Generating embeddings for {len(query_texts)} queries using model {embed_model_name}..."
+        )
         query_embeddings = get_embeddings_batch(
-            EMBED_CLIENT, EMBED_MODEL, task_type="RETRIEVAL_QUERY", texts=query_texts
+            embed_client,
+            embed_model_name,
+            task_type="RETRIEVAL_QUERY",
+            texts=query_texts,
         )
 
         if not query_embeddings or len(query_embeddings) != len(query_texts):
@@ -96,11 +109,11 @@ def classify_string_batch(
 
         # 3. Query Qdrant using Batch Query
         print(
-            f"Querying Qdrant collection '{collection_name}' with {len(query_requests)} requests..."  # Use parameter
+            f"Querying Qdrant collection '{collection_name}' with {len(query_requests)} requests..."
         )
-        batch_query_responses = client.query_batch_points(
-            collection_name=collection_name,  # Use parameter
-            requests=query_requests,  # Pass the list of QueryRequest objects
+        batch_query_responses = qdrant_client.query_batch_points(  # Use passed qdrant_client
+            collection_name=collection_name,
+            requests=query_requests,
             # consistency=models.ReadConsistencyType.MAJORITY, # Optional: Adjust consistency
         )
 
@@ -135,7 +148,6 @@ def classify_string_batch(
         return []
 
 
-"""
 # Example usage of the classify_string_batch function
 if __name__ == "__main__":
 
@@ -150,10 +162,11 @@ if __name__ == "__main__":
 
     # 2. Initialize embedding API client
     print("Initializing embedding API client...")
+    embed_client_instance = None  # Initialize to None
     try:
-        EMBED_CLIENT = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        embed_client_instance = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         # Test connection (optional, but good practice)
-        EMBED_CLIENT.models.list()
+        embed_client_instance.models.list()
         print("Embedding client initialized successfully.")
     except Exception as e:
         print(f"Error initializing embedding client: {e}")
@@ -161,10 +174,14 @@ if __name__ == "__main__":
 
     # 3. Initialize Qdrant Client
     print("Initializing Qdrant client...")
-    client = QdrantClient(path=QDRANT_DB_PATH)
+    qdrant_client_instance = QdrantClient(
+        path=QDRANT_DB_PATH
+    )  # Initialize qdrant_client_instance
 
     # Check if collection exists before querying
-    if not client.collection_exists(collection_name=QDRANT_COLLECTION_NAME):
+    if not qdrant_client_instance.collection_exists(
+        collection_name=QDRANT_COLLECTION_NAME
+    ):  # Use qdrant_client_instance
         print(
             f"Error: Collection '{QDRANT_COLLECTION_NAME}' does not exist in Qdrant at {QDRANT_DB_PATH}."
         )
@@ -181,8 +198,11 @@ if __name__ == "__main__":
     ]
 
     batch_search_results = classify_string_batch(
+        qdrant_client=qdrant_client_instance,  # Pass qdrant_client_instance
+        embed_client=embed_client_instance,  # Pass embed_client_instance
+        embed_model_name=EMBED_MODEL,  # Pass embed_model_name
         query_texts=test_queries,
-        collection_name=QDRANT_COLLECTION_NAME,  # Pass collection name here
+        collection_name=QDRANT_COLLECTION_NAME,
         top_k=3,
     )
 
@@ -200,5 +220,5 @@ if __name__ == "__main__":
                 print("  No similar items found for this query.")
     else:
         print("Batch classification failed or returned no results.")
-"""
+
 # Note: The example usage is commented out to avoid execution during import.
