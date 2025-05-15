@@ -133,9 +133,7 @@ def classify_string_batch(
                 # Iterate through the points within *this* response object
                 for hit in response.points
             ]
-            all_formatted_results.append(
-                {"hits": formatted_hits, "time": response.time}
-            )
+            all_formatted_results.append({"hits": formatted_hits})
             # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
 
         print(
