@@ -3,7 +3,7 @@ services:
     build:
       context: .
     ports:
-      - "6009:6009"
+      - "8000:8000"
     env_file:
       - .env
     restart: unless-stopped
@@ -12,7 +12,7 @@ services:
         - CMD
         - curl
         - '-f'
-        - 'http://localhost:6009/health'
+        - 'http://localhost:8000/health'
       interval: 10m
       timeout: 30s
       retries: 3

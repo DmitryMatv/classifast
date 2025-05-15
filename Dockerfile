@@ -1,38 +1,52 @@
-# Build stage
-FROM python:3.13-alpine AS builder
+# --- Stage 1: Builder ---
+# This stage builds Python wheels for our dependencies
+# and creates a virtual environment to keep things clean.
+FROM python:3.13.3-slim-bookworm AS builder
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /service_root
+
+# Create a virtual environment
+RUN python -m venv /opt/venv
+
+# Install dependencies directly into the venv path without activating
 COPY requirements.txt .
-
-# Add build dependencies for Alpine. These are needed if your requirements.txt has packages with C extensions.
-#RUN apk add --no-cache build-base python3-dev
-RUN pip install --no-cache-dir -r requirements.txt
+RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 
-# Final stage
-FROM python:3.13-alpine
+# --- Stage 2: Final ---
+# This stage takes the installed dependencies and application code
+# to create a lean production image.
+FROM python:3.13.3-slim-bookworm AS final
+
+# Set environment variables for the final image
+ENV PYTHONUNBUFFERED=1 \
+    # Path to the virtual environment's executables
+    PATH="/opt/venv/bin:$PATH"
+
 WORKDIR /service_root
 
-# Install curl (for healthcheck) and remove wget
-RUN apk update && \
-    apk add --no-cache curl && \
-    rm -rf /var/cache/apk/*
+# Install curl for health checks as root user
+USER root
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y curl && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group
-RUN addgroup -S appgroup && adduser -S -G appgroup appuser
+RUN groupadd --system appgroup && \
+    useradd --system --gid appgroup --no-create-home appuser
 
-# Copy installed packages from the builder stage
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-# Copy executables (like uvicorn) from the builder stage's bin directory
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy the virtual environment from the builder stage
+COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
 
-# Copy the entire local 'app' directory (which should contain main.py, classifier.py, static, templates, __init__.py)
-# to a directory named 'app' inside the WORKDIR.
-# Structure inside container: /service_root/app/main.py, /service_root/app/classifier.py etc.
-# Also set permissions
+# Copy application code
+# Ensure your app code is in a subdirectory (e.g., ./app) for cleaner COPY
 COPY --chown=appuser:appgroup ./app ./app
 
 USER appuser
 
-EXPOSE 6009
+EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6009", "--workers", "2", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "3", "--forwarded-allow-ips", "fddf:4d:bfa1::1:0"]
