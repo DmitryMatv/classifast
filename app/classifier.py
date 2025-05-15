@@ -133,7 +133,9 @@ def classify_string_batch(
                 # Iterate through the points within *this* response object
                 for hit in response.points
             ]
-            all_formatted_results.append(formatted_hits)
+            all_formatted_results.append(
+                {"hits": formatted_hits, "time": response.time}
+            )
             # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
 
         print(
@@ -220,5 +222,3 @@ if __name__ == "__main__":
                 print("  No similar items found for this query.")
     else:
         print("Batch classification failed or returned no results.")
-
-# Note: The example usage is commented out to avoid execution during import.

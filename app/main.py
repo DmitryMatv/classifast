@@ -10,6 +10,10 @@ from typing import List, Dict, Any
 from google import genai
 from qdrant_client import QdrantClient
 
+# from starlette.middleware.base import BaseHTTPMiddleware
+# from starlette.types import CallNext
+# from starlette.responses import Response
+
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -18,8 +22,32 @@ from .classifier import classify_string_batch
 
 load_dotenv()
 
+"""
+# Security Headers Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: CallNext) -> Response:
+        response = await call_next(request)
+        # Set security headers
+        response.headers["X-Content-Type-Options"] = (
+            "nosniff"  # Prevents MIME type sniffing
+        )
+        response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"  # HSTS
+        )
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com https://umami.classifast.com; "
+            "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
+            "img-src 'self' data: /static/images/favicon.ico; "
+            "object-src 'none'; "
+            "frame-ancestors 'none';"
+        )
+        return response
+"""
+
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address, default_limits=["5/minute"])
+limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"])
 
 
 @asynccontextmanager
@@ -52,12 +80,14 @@ async def lifespan(app: FastAPI):
         if QDRANT_URL:
             print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
             QDRANT_CLIENT = QdrantClient(
-                host=QDRANT_URL,
-                port=443,  # Use HTTPS port since Traefik handles SSL
+                url=QDRANT_URL,
                 api_key=QDRANT_API_KEY,
-                https=True,
-                prefer_grpc=False,
-                timeout=60,  # Add a longer timeout just in case
+                # Uncomment the following lines if you want to use HTTPS with Traefik
+                # host=QDRANT_URL,
+                # port=443,  # Use HTTPS port since Traefik handles SSL
+                # https=True,
+                # prefer_grpc=False,
+                # timeout=60,  # Add a longer timeout just in case
             )
         else:
             print(f"Initializing Qdrant client with local path: {QDRANT_PATH}")
@@ -100,6 +130,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# app.add_middleware(SecurityHeadersMiddleware)
 
 app.state.limiter = limiter
 
@@ -200,7 +232,7 @@ async def show_classifier_page(request: Request, classifier_type: str):
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
-@limiter.limit("5/minute")  # Apply rate limit to this endpoint
+@limiter.limit("10/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request, classifier_type: str, product_description: str = Form(...)
 ):
@@ -246,12 +278,18 @@ async def handle_classify(
         )
 
         classification_results = []
+        query_time = None
         if batch_results and len(batch_results) > 0:
-            classification_results = batch_results[0]
+            # batch_results is now a list of dicts, each with 'hits' and 'time'
+            # Assuming single query in batch for this endpoint
+            classification_results = batch_results[0].get("hits", [])
+            query_time = batch_results[0].get("time")
 
         print(
             f"Classification results for '{product_description}' in '{collection_name}': {classification_results}"
         )
+        if query_time is not None:
+            print(f"Qdrant query time: {query_time:.6f} seconds")
 
     except Exception as e:
         print(f"Error during '{classifier_type}' classification: {e}")
@@ -270,7 +308,4 @@ async def handle_classify(
     )
 
 
-# To run this app (from the directory containing the 'app' folder):
 # uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-# Ensure you have .env file with GEMINI_API_KEY, and optionally QDRANT_URL or QDRANT_PATH,
-# QDRANT_COLLECTION_NAME, EMBED_MODEL_NAME.
