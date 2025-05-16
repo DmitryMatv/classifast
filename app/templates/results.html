@@ -1,19 +1,30 @@
-<!-- {% if query %}
-<p><strong>Results for:</strong> "{{ query }}"</p>
-{% endif %} -->
+{% if query %}
+<section aria-labelledby="results-heading">
+    <figure class="mb-2" hidden> <!-- Unhide for debug -->
+        <figcaption id="results-heading" class="font-semibold">Results for:</figcaption>
+        <pre
+            class="mt-2 p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200  whitespace-pre-wrap">"{{ query | e }}"</pre>
+    </figure>
 
-{% if results_for_query %}
-<ul class="space-y-3">
-    {% for result in results_for_query %}
-    <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200">
-        <p><strong>Class Name:</strong> {{ result.payload.class_name | e }}</p>
-        <p><strong>Original ID:</strong> {{ result.payload.original_id | e }}</p>
-        <p><strong>Score:</strong> {{ "%.3f"|format(result.score) }}</p>
-    </li>
-    {% endfor %}
-</ul>
-{% elif query %}
-<p class="text-center text-gray-600">No similar items found for "{{ query | e }}".</p>
+    {% if results_for_query %}
+    <ul class="space-y-3">
+        {% for result in results_for_query %}
+        <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200">
+            <p><strong>Class Name:</strong> {{ result.payload.class_name | e }}</p>
+            <p><strong>Original ID:</strong> {{ result.payload.original_id | e }}</p>
+            <p><strong>Score:</strong> {{ "%.3f"|format(result.score) }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div>
+        <p class="text-center text-gray-600">No similar items found.</p>
+    </div>
+    {% endif %}
+</section>
+
 {% else %}
-<p class="text-center text-gray-600">Please enter a product description to classify.</p>
+<section>
+    <p class="text-center text-gray-600">Please enter a product description to classify.</p>
+</section>
 {% endif %}
