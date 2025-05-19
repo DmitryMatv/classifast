@@ -1,5 +1,6 @@
-import pandas as pd
 import os
+import time
+import pandas as pd
 from google import genai
 from qdrant_client import QdrantClient, models
 from dotenv import load_dotenv
@@ -73,26 +74,35 @@ def load_and_prepare_data(
         # Convert selected columns to string and join with spaces
         # df["embedding_text"] = df[columns_to_embed].astype(str).agg(" ".join, axis=1)
 
+        # Replace _NEWLINE_ in "Properties" column with actual newlines
+        df["Properties_lines"] = df["Properties"].str.replace("_NEWLINE_", "\n")
+
         df["embedding_text"] = (
             "NAME: "
             + df["Name"]
-            + " | SYNONYMS: "
+            + "\n"  # This should be \n if a real newline is desired for embedding
+            + "SYNONYMS: "
             + df["Synonyms"]
-            + " | DEFINITION: "  # is it really necessary?
+            + "\n"  # This should be \n
+            + "DEFINITION: "
             + df["Definition"]
-            + " | PARENT: "
+            + "\n"  # This should be \n
+            + "PARENT: "
             + df["Parent"]
-            + " | FEATURES: "
-            + df["Properties"]
-            # + " || DE NAME: "  # is NAME really necessary everywhere? especially in German
-            # + df["Name_de"]
-            # + " | DE SYNONYMS: "  # " | GERMAN CLASS NAME SYNONYMS (Synonyme für den Namen der Produktklasse): "
-            # + df["Synonyms_de"]
-            # + " | DE PARENT: "
-            # + df["Parent_de"]
-            # + " | DE FEATURES: "
-            # + df["Properties_de"]
+            + "\n"  # This should be \n
+            + "FEATURES: "
+            + "\n"  # This should be \n
+            + df["Properties_lines"]  # \n from the .str.replace()
+            + "\n"  # This should be \n
+            + "PROPERTY SETS: "
+            + df["Property_sets"]
         ).str.strip()
+
+        # Preview the first embedding text
+        if not df.empty:
+            print(
+                f"Preview of the first embedding text:\n{df['embedding_text'].iloc[0]}"
+            )
 
         print(f"Texts prepared. {len(df)} string(s) are ready for to be embedded.")
 
@@ -112,7 +122,7 @@ def create_and_populate_qdrant(
     qdrant_url: Optional[str] = None,
     qdrant_api_key: Optional[str] = None,
     qdrant_path: Optional[str] = None,  # Keep for fallback or local-only mode
-    embedding_batch_size: int = 100,  # Process N texts per API call
+    embedding_batch_size: int = 1,  # Process N texts per API call (128 for VoyagerAI API)
 ) -> bool:
     """
     Connects to Qdrant, creates a collection if needed, generates embeddings,
@@ -217,12 +227,31 @@ def create_and_populate_qdrant(
     num_rows = len(data)
     print(f"Generating embeddings and upserting {num_rows} points...")
 
+    calls_this_minute = 0
+    minute_start_time = time.time()
+
     try:
         for i in tqdm(
             range(0, num_rows, embedding_batch_size), desc="Upserting in batches"
         ):
             batch_df = data.iloc[i : i + embedding_batch_size]
             texts_to_embed = batch_df["embedding_text"].tolist()
+
+            # Rate limiting
+            current_time = time.time()
+            if current_time - minute_start_time >= 60:
+                minute_start_time = current_time
+                calls_this_minute = 0
+
+            if calls_this_minute >= 10:
+                sleep_duration = 60 - (current_time - minute_start_time)
+                if sleep_duration > 0:
+                    print(
+                        f"Rate limit reached. Sleeping for {sleep_duration:.2f} seconds."
+                    )
+                    time.sleep(sleep_duration)
+                minute_start_time = time.time()  # Reset timer after sleeping
+                calls_this_minute = 0
 
             # Get embeddings for the batch
             embeddings = get_embeddings_batch(
@@ -231,6 +260,7 @@ def create_and_populate_qdrant(
                 task_type="RETRIEVAL_DOCUMENT",
                 texts=texts_to_embed,
             )
+            calls_this_minute += 1
 
             if not embeddings or len(embeddings) != len(batch_df):
                 print(f"Error embedding batch at index {i}. Skipping batch.")
@@ -305,7 +335,7 @@ if __name__ == "__main__":
 
     # 3. Load and Prepare Data
     prepared_data = load_and_prepare_data(
-        csv_path="etim_classes_data_bilingual.csv",  # Your specific CSV
+        csv_path="etim_classes_data.csv",  # Your specific CSV
         id_column="Code",  # Column with unique IDs
         class_column="Name",  # Column to store as payload
         # sample_n=69,  # For testing
