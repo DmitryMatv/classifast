@@ -14,7 +14,7 @@ from qdrant_client import QdrantClient
 # from starlette.types import CallNext
 # from starlette.responses import Response
 
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
@@ -129,6 +129,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # app.add_middleware(SecurityHeadersMiddleware)
 

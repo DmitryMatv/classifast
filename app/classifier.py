@@ -1,4 +1,5 @@
 import os
+import time
 from google import genai
 from google.genai import types
 from qdrant_client import QdrantClient, models
@@ -58,17 +59,16 @@ def classify_string_batch(
         qdrant_client: The Qdrant client instance.
         embed_client: The Google GenAI client instance.
         embed_model_name: The name of the embedding model to use.
-        query_texts: A list of input strings to classify/find similar items for.
+        query_texts: A list of input query_texts to classify/find similar items for.
         collection_name: The name of the Qdrant collection to query.
         top_k: The number of top similar results to return for each query.
 
     Returns:
-        A list of lists of search results (dictionaries). The outer list corresponds
-        to the input query_texts list. Each inner list contains dictionaries for
-        the top_k hits for that specific query, including score and payload.
-        Returns an empty list if a major error occurs (e.g., cannot connect,
-        collection doesn't exist, embedding fails). Individual query errors
-        might result in empty inner lists.
+        A list of dictionaries, where each dictionary corresponds to an input query
+        and contains:
+            - "hits": A list of the top_k search results (dictionaries with score and payload).
+            - "time": The time taken for the Qdrant query for this specific batch of queries (float, seconds).
+        Returns an empty list if a major error occurs.
     """
 
     if not query_texts:
@@ -111,11 +111,14 @@ def classify_string_batch(
         print(
             f"Querying Qdrant collection '{collection_name}' with {len(query_requests)} requests..."
         )
+        start_time = time.perf_counter()
         batch_query_responses = qdrant_client.query_batch_points(  # Use passed qdrant_client
             collection_name=collection_name,
             requests=query_requests,
             # consistency=models.ReadConsistencyType.MAJORITY, # Optional: Adjust consistency
         )
+        end_time = time.perf_counter()
+        qdrant_query_time = end_time - start_time
 
         # 4. Process and Format Batch Results from QueryResponse objects
         all_formatted_results = []
@@ -133,7 +136,9 @@ def classify_string_batch(
                 # Iterate through the points within *this* response object
                 for hit in response.points
             ]
-            all_formatted_results.append({"hits": formatted_hits})
+            all_formatted_results.append(
+                {"hits": formatted_hits, "time": qdrant_query_time}
+            )
             # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
 
         print(
