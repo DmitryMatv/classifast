@@ -10,9 +10,10 @@
     <ul class="space-y-3">
         {% for result in results_for_query %}
         <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200">
-            <p><strong>Class Name:</strong> {{ result.payload.class_name | e }}</p>
-            <p><strong>Original ID:</strong> {{ result.payload.original_id | e }}</p>
-            <p><strong>Score:</strong> {{ "%.3f"|format(result.score) }}</p>
+            <span class="text-gray-500">{{ "%.0f%%"|format(result.score * 100) }}</span>
+            <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
+                class="text-blue-600 hover:underline"> {{ result.payload.original_id | e }}</a>
+            {{ result.payload.class_name | e }}
         </li>
         {% endfor %}
     </ul>

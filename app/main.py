@@ -191,6 +191,7 @@ CLASSIFIER_CONFIG = {
         "description": "Classify products based on the ETIM International standard.",
         "collection_name": "ETIM_10_eng_768",  # Specific collection for ETIM
         "placeholder": "Resistor, 10 Ohm, 1W",
+        "base_url": "https://prod.etim-international.com/Class/Details?classId=",
     },
     # Add other classifiers here in the future
     "unspsc": {
@@ -198,6 +199,7 @@ CLASSIFIER_CONFIG = {
         "description": "Classify products based on the UNSPSC standard.",
         "collection_name": "UNSPSC_v24_google",
         "placeholder": "Computer monitor, 24 inch",
+        "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
     },
 }
 
@@ -259,7 +261,12 @@ async def handle_classify(
         # Return the results partial with an empty list or specific message
         return templates.TemplateResponse(
             "results.html",
-            {"request": request, "results_for_query": [], "query": product_description},
+            {
+                "request": request,
+                "query": product_description,
+                "results_for_query": [],
+                "base_url": config.get("base_url"),
+            },
         )
 
     print(
@@ -306,6 +313,7 @@ async def handle_classify(
             "request": request,
             "query": product_description,
             "results_for_query": classification_results,
+            "base_url": config.get("base_url"),
         },
     )
 
