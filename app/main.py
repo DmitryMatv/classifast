@@ -1,59 +1,31 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse
+from contextlib import asynccontextmanager
+from typing import Any, Dict, List
+
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from contextlib import asynccontextmanager
-from typing import List, Dict, Any
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from google import genai
 from qdrant_client import QdrantClient
 
-# from starlette.middleware.base import BaseHTTPMiddleware
-# from starlette.types import CallNext
-# from starlette.responses import Response
-
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
 from .classifier import classify_string_batch
 
+# from starlette.middleware.base import BaseHTTPMiddleware
+# from starlette.types import CallNext
+
 load_dotenv()
-
-"""
-# Security Headers Middleware
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: CallNext) -> Response:
-        response = await call_next(request)
-        # Set security headers
-        response.headers["X-Content-Type-Options"] = (
-            "nosniff"  # Prevents MIME type sniffing
-        )
-        response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"  # HSTS
-        )
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com https://umami.classifast.com; "
-            "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
-            "img-src 'self' data: /static/images/favicon.ico; "
-            "object-src 'none'; "
-            "frame-ancestors 'none';"
-        )
-        return response
-"""
-
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Runs when the application starts
-    global EMBED_CLIENT, QDRANT_CLIENT, EMBED_MODEL_NAME  # QDRANT_COLLECTION removed
+    global EMBED_CLIENT, EMBED_MODEL_NAME, QDRANT_CLIENT  # QDRANT_COLLECTION removed
 
     print("FastAPI application startup...")
 
@@ -130,10 +102,54 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+"""
+# Security Headers Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: CallNext) -> Response:
+        response = await call_next(request)
+        # Set security headers
+        response.headers["X-Content-Type-Options"] = (
+            "nosniff"  # Prevents MIME type sniffing
+        )
+        response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"  # HSTS
+        )
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com https://umami.classifast.com; "
+            "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
+            "img-src 'self' data: /static/images/favicon-32x32.png; "
+            "object-src 'none'; "
+            "frame-ancestors 'none';"
+        )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+"""
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# app.add_middleware(SecurityHeadersMiddleware)
+
+@app.get("/robots.txt", response_class=FileResponse)
+async def robots_txt():
+    return "app/static/robots.txt"
+
+
+@app.get("/sitemap.xml", response_class=FileResponse)
+async def sitemap_xml():
+    return "app/static/sitemap.xml"
+
+
+@app.get("/ads.txt", response_class=FileResponse)
+async def ads_txt():
+    return "app/static/ads.txt"
+
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"])
 
 app.state.limiter = limiter
 
@@ -148,11 +164,7 @@ async def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExc
 app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 
 
-# Setup Jinja2 templates
-templates = Jinja2Templates(directory="app/templates")
-
-
-# --- Health Check Endpoint ---
+# Healthcheck
 @app.get("/health")
 async def health_check():
     """
@@ -182,7 +194,18 @@ async def health_check():
     return {"status": "unhealthy", "detail": "One or more clients are not initialized"}
 
 
-# --- Routes ---
+# Setup Jinja2 templates
+templates = Jinja2Templates(directory="app/templates")
+
+
+# Serve the main homepage
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    """Serves the main homepage.
+    This route now renders the general landing page.
+    """
+    return templates.TemplateResponse("index.html", {"request": request})
+
 
 # Dictionary to map classifier types to their configurations
 CLASSIFIER_CONFIG = {
@@ -202,14 +225,6 @@ CLASSIFIER_CONFIG = {
         "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
     },
 }
-
-
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    """Serves the main homepage.
-    This route now renders the general landing page.
-    """
-    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)

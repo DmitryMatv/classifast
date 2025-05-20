@@ -303,7 +303,7 @@ if __name__ == "__main__":
 
     # QDRANT_DB_PATH will be used as a fallback if QDRANT_URL is not in .env
     QDRANT_DB_PATH_FALLBACK = "./qdrant_db"
-    QDRANT_COLLECTION_NAME_DEFAULT = "Qdrant_Collection_1"
+    QDRANT_COLLECTION_NAME = "ETIM_10_eng_3072_exp"  # Not using .env for Embedder
     QDRANT_DISTANCE_METRIC = models.Distance.DOT
 
     # 1. Load Environment Variables
@@ -318,9 +318,6 @@ if __name__ == "__main__":
     # Get other configurations from .env, with fallbacks to defaults defined above
     EMBED_MODEL = os.getenv("EMBED_MODEL_NAME", EMBED_MODEL_DEFAULT)
     EMBED_DIMS = int(os.getenv("EMBED_DIMS", EMBED_DIMS_DEFAULT))
-    QDRANT_COLLECTION_NAME = os.getenv(
-        "QDRANT_COLLECTION_NAME", QDRANT_COLLECTION_NAME_DEFAULT
-    )
 
     # 2. Initialize embedding API client
     print("Initializing embedding API client...")
