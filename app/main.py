@@ -133,6 +133,11 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
+@app.get("/favicon.ico", response_class=FileResponse, include_in_schema=False)
+async def favicon():
+    return FileResponse("app/static/images/favicon-32x32.png")
+
+
 @app.get("/robots.txt", response_class=FileResponse)
 async def robots_txt():
     return "app/static/robots.txt"
