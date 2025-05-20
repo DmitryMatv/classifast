@@ -217,7 +217,7 @@ CLASSIFIER_CONFIG = {
     "etim": {
         "title": "ETIM International",
         "description": "Classify products based on the ETIM International standard.",
-        "collection_name": "ETIM_10_eng_768",  # Specific collection for ETIM
+        "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
         "placeholder": "Resistor, 10 Ohm, 1W",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
     },

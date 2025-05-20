@@ -39,6 +39,10 @@ def load_and_prepare_data(
     try:
         df = pd.read_csv(csv_path, delimiter="|")  # Adjust delimiter if needed
 
+        # --- Select specific row ---
+        # df = df.iloc[[2200]].copy()
+        # print(f"Selected row at index 2200.")
+
         # --- Sampling ---
         if sample_n is not None and sample_n > 0 and sample_n <= len(df):
             print(f"Sampling {sample_n} rows from the dataframe.")
@@ -223,18 +227,83 @@ def create_and_populate_qdrant(
         print(f"Error interacting with Qdrant collection: {e}")
         return False
 
+    # --- Fetch existing original_ids from the collection ---
+    print(f"Fetching existing original_ids from collection '{collection_name}'...")
+    existing_original_ids = set()
+    try:
+        next_offset = None
+        processed_count = 0
+        # Scroll through all points in the collection to get existing original_ids
+        while True:
+            records_batch, next_offset = client.scroll(
+                collection_name=collection_name,
+                limit=250,  # Adjust batch size as needed
+                offset=next_offset,
+                with_payload=["original_id"],  # Only fetch the original_id from payload
+                with_vectors=False,  # We don't need vectors for this
+            )
+            if not records_batch:
+                break  # No more points
+
+            for record in records_batch:
+                # Ensure payload is not None and original_id is present
+                if record.payload and "original_id" in record.payload:
+                    existing_original_ids.add(record.payload["original_id"])
+
+            processed_count += len(records_batch)
+            if processed_count > 0 and processed_count % 1000 == 0:  # Log progress
+                print(
+                    f"Scanned {processed_count} existing points in '{collection_name}'..."
+                )
+
+            if next_offset is None:  # No more pages
+                break
+        print(
+            f"Found {len(existing_original_ids)} unique existing original_ids in '{collection_name}'."
+        )
+    except Exception as e:
+        print(f"Error fetching existing points from Qdrant: {e}")
+        print(
+            "Proceeding to upsert all data. Duplicates may occur if points already exist."
+        )
+        existing_original_ids = (
+            set()
+        )  # Reset to empty set on error to attempt upserting all
+
+    # --- Filter data to exclude existing original_ids ---
+    if existing_original_ids:  # Only filter if we successfully fetched some IDs
+        print(f"Original data size before filtering: {len(data)}")
+        # Create a boolean series for rows where 'original_id' is NOT in existing_original_ids
+        data_to_upsert = data[~data["original_id"].isin(existing_original_ids)].copy()
+        print(f"Number of new points to upsert after filtering: {len(data_to_upsert)}")
+    else:
+        # If no existing IDs were found or an error occurred during fetch, use all data
+        data_to_upsert = data.copy()
+        print(
+            f"No existing points found or check skipped. Number of points to upsert: {len(data_to_upsert)}"
+        )
+
+    if data_to_upsert.empty:
+        print(
+            "No new data to upsert. All points (based on original_id) may already exist in the collection."
+        )
+        return True  # Successfully did nothing, which is the correct outcome
+
     # --- Generate Embeddings and Upsert in Batches ---
-    num_rows = len(data)
-    print(f"Generating embeddings and upserting {num_rows} points...")
+    num_rows = len(data_to_upsert)  # Use the filtered data for upsertion
+    print(f"Generating embeddings and upserting {num_rows} new points...")
 
     calls_this_minute = 0
     minute_start_time = time.time()
 
     try:
         for i in tqdm(
-            range(0, num_rows, embedding_batch_size), desc="Upserting in batches"
+            range(0, num_rows, embedding_batch_size),
+            desc="Upserting new points",  # Updated description
         ):
-            batch_df = data.iloc[i : i + embedding_batch_size]
+            batch_df = data_to_upsert.iloc[
+                i : i + embedding_batch_size
+            ]  # Use the filtered data
             texts_to_embed = batch_df["embedding_text"].tolist()
 
             # Rate limiting
