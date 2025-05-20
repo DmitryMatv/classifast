@@ -1,5 +1,4 @@
 import os
-import time
 from google import genai
 from google.genai import types
 from qdrant_client import QdrantClient, models
@@ -64,10 +63,8 @@ def classify_string_batch(
         top_k: The number of top similar results to return for each query.
 
     Returns:
-        A list of dictionaries, where each dictionary corresponds to an input query
-        and contains:
-            - "hits": A list of the top_k search results (dictionaries with score and payload).
-            - "time": The time taken for the Qdrant query for this specific batch of queries (float, seconds).
+        A list of lists of search results (dictionaries with score and payload).
+        Each inner list corresponds to an input query.
         Returns an empty list if a major error occurs.
     """
 
@@ -108,17 +105,12 @@ def classify_string_batch(
         ]
 
         # 3. Query Qdrant using Batch Query
-        print(
-            f"Querying Qdrant collection '{collection_name}' with {len(query_requests)} requests..."
-        )
-        start_time = time.perf_counter()
+        print(f"Querying '{collection_name}' with {len(query_requests)} request(s)...")
         batch_query_responses = qdrant_client.query_batch_points(  # Use passed qdrant_client
             collection_name=collection_name,
             requests=query_requests,
             # consistency=models.ReadConsistencyType.MAJORITY, # Optional: Adjust consistency
         )
-        end_time = time.perf_counter()
-        qdrant_query_time = end_time - start_time
 
         # 4. Process and Format Batch Results from QueryResponse objects
         all_formatted_results = []
@@ -136,9 +128,7 @@ def classify_string_batch(
                 # Iterate through the points within *this* response object
                 for hit in response.points
             ]
-            all_formatted_results.append(
-                {"hits": formatted_hits, "time": qdrant_query_time}
-            )
+            all_formatted_results.append(formatted_hits)
             # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
 
         print(
@@ -213,10 +203,10 @@ if __name__ == "__main__":
 
     print("\n--- Batch Classification Results ---")
     if batch_search_results:
-        for i, results in enumerate(batch_search_results):
+        for i, results_for_query in enumerate(batch_search_results):
             print(f"\nResults for Query: '{test_queries[i]}'")
-            if results:
-                for result in results:
+            if results_for_query:  # Check if the list of hits is not empty
+                for result in results_for_query:  # Iterate directly over hits
                     print(f"  Original ID: {result['payload']['original_id']}")
                     print(f"  Class name: {result['payload']['class_name']}")
                     print(f"  Similarity score: {result['score']:.3f}")

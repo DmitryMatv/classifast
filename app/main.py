@@ -1,4 +1,5 @@
 import os
+import time  # Add this import
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List
@@ -284,47 +285,49 @@ async def handle_classify(
             {
                 "request": request,
                 "query": product_description,
-                "results_for_query": [],
-                "base_url": config.get("base_url"),
+                "results_for_query": [],  # Empty results
             },
         )
 
+    collection_name = config["collection_name"]
+
     print(
-        f"Received query for '{classifier_type}' classification: '{product_description}'"
+        f"Received query for '{classifier_type}' classification. Using '{collection_name}' collection."
     )
 
-    collection_name = config["collection_name"]
+    # Start timer for total duration
+    start_total_time = time.perf_counter()
 
     try:
         # Call the batch classification function with the specific collection name
-        batch_results: List[List[Dict[str, Any]]] = classify_string_batch(
+        # batch_results is now List[List[Dict[str, Any]]]
+        # where each inner list is the hits for a query.
+        results_for_single_query: List[Dict[str, Any]] = classify_string_batch(
             qdrant_client=QDRANT_CLIENT,  # Pass QDRANT_CLIENT
             embed_client=EMBED_CLIENT,  # Pass EMBED_CLIENT
             embed_model_name=EMBED_MODEL_NAME,  # Pass EMBED_MODEL_NAME
             query_texts=[product_description],
             collection_name=collection_name,  # Pass the correct collection
-            top_k=5,
+            top_k=10,
         )
 
         classification_results = []
-        query_time = None
-        if batch_results and len(batch_results) > 0:
-            # batch_results is now a list of dicts, each with 'hits' and 'time'
-            # Assuming single query in batch for this endpoint
-            classification_results = batch_results[0].get("hits", [])
-            query_time = batch_results[0].get("time")
+        if results_for_single_query:
+            classification_results = results_for_single_query[0]
 
         print(
-            f"Classification results for '{product_description}' in '{collection_name}': {classification_results}"
+            f"Results for '{product_description}' in '{collection_name}':\n{classification_results}"
         )
-        if query_time is not None:
-            print(f"Qdrant query time: {query_time:.6f} seconds")
 
     except Exception as e:
         print(f"Error during '{classifier_type}' classification: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Error processing your request: {str(e)}"
+            status_code=500, detail=f"Error processing request: {str(e)}"
         )
+
+    end_total_time = time.perf_counter()  # End timer for total duration
+    total_request_time = end_total_time - start_total_time
+    print(f"Total request processing time: {total_request_time:.6f} seconds")
 
     # Render the results partial
     return templates.TemplateResponse(
@@ -333,6 +336,7 @@ async def handle_classify(
             "request": request,
             "query": product_description,
             "results_for_query": classification_results,
+            "total_request_time": total_request_time,
             "base_url": config.get("base_url"),
         },
     )
