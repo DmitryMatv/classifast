@@ -15,6 +15,7 @@ def load_and_prepare_data(
     csv_path: str,
     id_column: str,
     class_column: str,
+    definition_column: str,  # Added definition_column
     sample_n: Optional[int] = None,
 ) -> pd.DataFrame:
     """
@@ -24,10 +25,11 @@ def load_and_prepare_data(
         csv_path: Path to the input CSV file.
         id_column: Name of the column containing unique IDs for Qdrant points.
         class_column: Name of the column whose value will be stored as payload.
+        definition_column: Name of the column containing the definition. # Added
         sample_n: If not None, randomly sample this many rows from the dataframe.
 
     Returns:
-        A pandas DataFrame with 'id', 'class_column', and 'embedding_text' columns.
+        A pandas DataFrame with 'id', 'original_id', 'class_name', 'definition', and 'embedding_text' columns.
         Returns None if file not found or required columns are missing.
     """
 
@@ -55,7 +57,11 @@ def load_and_prepare_data(
         df.info()  # Print DataFrame info for debugging
 
         # --- Column Validation ---
-        required_columns = [id_column, class_column]  # + columns_to_embed
+        required_columns = [
+            id_column,
+            class_column,
+            definition_column,
+        ]  # Added definition_column
         missing_cols = [col for col in required_columns if col not in df.columns]
         if missing_cols:
             print(f"Error: Missing required columns in CSV: {missing_cols}")
@@ -65,6 +71,7 @@ def load_and_prepare_data(
         # Store original IDs and Class name in payload for reference
         df["original_id"] = df[id_column]
         df["class_name"] = df[class_column]
+        df["definition"] = df[definition_column]  # Added definition
 
         # Convert IDs by removing 'EC' prefix and leading zeros, then convert to integers
         # df["id"] = df[id_column].astype(str).str.replace("EC", "").str.lstrip("0").astype(int))
@@ -103,15 +110,14 @@ def load_and_prepare_data(
         ).str.strip()
 
         # Preview the first embedding text
-        if not df.empty:
-            print(
-                f"Preview of the first embedding text:\n{df['embedding_text'].iloc[0]}"
-            )
+        # print(f"Preview of the first embedding text:\n{df['embedding_text'].iloc[0]}")
 
         print(f"Texts prepared. {len(df)} string(s) are ready for to be embedded.")
 
         # Select and rename columns for clarity
-        return df[["id", "original_id", "class_name", "embedding_text"]].copy()
+        return df[
+            ["id", "original_id", "class_name", "definition", "embedding_text"]
+        ].copy()  # Added "definition"
 
     except Exception as e:
         print(f"Error processing CSV file: {e}")
@@ -164,24 +170,6 @@ def create_and_populate_qdrant(
 
     # --- Create Collection (if it doesn't exist) ---
     try:
-
-        """
-        # Delete collection if it exists
-        if client.collection_exists(collection_name):
-            client.delete_collection(collection_name)
-            print(f"Deleted existing collection: {collection_name}")
-
-        # Create a new collection
-        client.create_collection(
-            collection_name=collection_name,
-            vectors_config=models.VectorParams(
-                size=vector_size,
-                distance=distance_metric,  # Using DOT product as recommended by OpenAI
-            ),
-        )
-        print(f"Created Qdrant collection: '{collection_name}' with {vector_size} dimensions and {distance_metric} distance.")
-        """
-
         if not client.collection_exists(collection_name):
             print(
                 f"Creating Qdrant collection: '{collection_name}' with {vector_size} dimensions and {distance_metric} distance."
@@ -201,7 +189,6 @@ def create_and_populate_qdrant(
                 ),
             )
         else:
-            # Get collection info and check vector configuration
             coll_info = client.get_collection(collection_name)
             vector_config = coll_info.config.params
             if (
@@ -220,77 +207,119 @@ def create_and_populate_qdrant(
                 )
             else:
                 print(
-                    f"Collection '{collection_name}' already exists. Upserting data..."
+                    f"Collection '{collection_name}' already exists. Preparing to update and upsert data..."
                 )
 
     except Exception as e:
         print(f"Error interacting with Qdrant collection: {e}")
         return False
 
-    # --- Fetch existing original_ids from the collection ---
-    print(f"Fetching existing original_ids from collection '{collection_name}'...")
-    existing_original_ids = set()
+    # --- Fetch existing Qdrant point IDs and their original_ids ---
+    print(
+        f"Fetching existing point IDs and original_ids from collection '{collection_name}'..."
+    )
+    existing_qdrant_points_map = {}  # Maps original_id to Qdrant point_id
     try:
         next_offset = None
         processed_count = 0
-        # Scroll through all points in the collection to get existing original_ids
         while True:
             records_batch, next_offset = client.scroll(
                 collection_name=collection_name,
-                limit=250,  # Adjust batch size as needed
+                limit=250,
                 offset=next_offset,
-                with_payload=["original_id"],  # Only fetch the original_id from payload
-                with_vectors=False,  # We don't need vectors for this
+                with_payload=["original_id"],  # Only fetch original_id
+                with_vectors=False,
             )
             if not records_batch:
-                break  # No more points
-
+                break
             for record in records_batch:
-                # Ensure payload is not None and original_id is present
                 if record.payload and "original_id" in record.payload:
-                    existing_original_ids.add(record.payload["original_id"])
-
+                    # Store mapping from original_id to the Qdrant point's actual ID (which could be int or UUID)
+                    existing_qdrant_points_map[record.payload["original_id"]] = (
+                        record.id
+                    )
             processed_count += len(records_batch)
-            if processed_count > 0 and processed_count % 1000 == 0:  # Log progress
+            if processed_count > 0 and processed_count % 1000 == 0:
                 print(
                     f"Scanned {processed_count} existing points in '{collection_name}'..."
                 )
-
-            if next_offset is None:  # No more pages
+            if next_offset is None:
                 break
         print(
-            f"Found {len(existing_original_ids)} unique existing original_ids in '{collection_name}'."
+            f"Found {len(existing_qdrant_points_map)} existing points with 'original_id' in '{collection_name}'."
         )
     except Exception as e:
         print(f"Error fetching existing points from Qdrant: {e}")
-        print(
-            "Proceeding to upsert all data. Duplicates may occur if points already exist."
-        )
-        existing_original_ids = (
-            set()
-        )  # Reset to empty set on error to attempt upserting all
+        # If we can't fetch, we can't reliably update. Depending on requirements,
+        # one might choose to only upsert new items or stop.
+        # For this implementation, we'll proceed cautiously, prioritizing updates if possible.
+        # If this map is empty, all data will be treated as new if not for the next filtering step.
 
-    # --- Filter data to exclude existing original_ids ---
-    if existing_original_ids:  # Only filter if we successfully fetched some IDs
-        print(f"Original data size before filtering: {len(data)}")
-        # Create a boolean series for rows where 'original_id' is NOT in existing_original_ids
-        data_to_upsert = data[~data["original_id"].isin(existing_original_ids)].copy()
-        print(f"Number of new points to upsert after filtering: {len(data_to_upsert)}")
-    else:
-        # If no existing IDs were found or an error occurred during fetch, use all data
-        data_to_upsert = data.copy()
-        print(
-            f"No existing points found or check skipped. Number of points to upsert: {len(data_to_upsert)}"
-        )
+    # --- Separate data for payload update and new upserts ---
+    points_to_update_payload = []
+    data_to_upsert_new_df_list = []
 
-    if data_to_upsert.empty:
-        print(
-            "No new data to upsert. All points (based on original_id) may already exist in the collection."
-        )
-        return True  # Successfully did nothing, which is the correct outcome
+    print("Separating data for payload updates and new point upserts...")
+    for _, row in data.iterrows():
+        original_id = row["original_id"]
+        if original_id in existing_qdrant_points_map:
+            qdrant_point_id = existing_qdrant_points_map[original_id]
+            points_to_update_payload.append(
+                {
+                    "id": qdrant_point_id,  # The actual ID in Qdrant
+                    "payload": {
+                        "original_id": row["original_id"],
+                        "class_name": row["class_name"],
+                        "definition": row["definition"],
+                    },
+                }
+            )
+        else:
+            data_to_upsert_new_df_list.append(row.to_dict())
 
-    # --- Generate Embeddings and Upsert in Batches ---
-    num_rows = len(data_to_upsert)  # Use the filtered data for upsertion
+    data_to_upsert_new = pd.DataFrame(data_to_upsert_new_df_list)
+
+    print(f"Found {len(points_to_update_payload)} points for payload update.")
+    print(f"Found {len(data_to_upsert_new)} new points to embed and upsert.")
+
+    # --- Update Payload for Existing Points ---
+    if points_to_update_payload:
+        print(
+            f"Updating payload for {len(points_to_update_payload)} existing points using client.set_payload iteratively..."
+        )
+        try:
+            for point_data in tqdm(
+                points_to_update_payload,  # List of {'id': qdrant_id, 'payload': complete_new_payload}
+                desc="Updating payloads",
+            ):
+                client.set_payload(
+                    collection_name=collection_name,
+                    payload=point_data[
+                        "payload"
+                    ],  # This is the complete payload for the point
+                    points=[point_data["id"]],  # Apply to the specific point ID
+                    wait=True,
+                )
+            print(
+                f"Payload updated for {len(points_to_update_payload)} existing points."
+            )
+        except Exception as e:
+            print(f"Error updating payloads for existing points: {e}")
+            # Potentially return False or log and continue with new points
+
+    # --- Generate Embeddings and Upsert New Points in Batches ---
+    if data_to_upsert_new.empty:
+        if not points_to_update_payload:  # No updates were made either
+            print(
+                "No new data to upsert and no existing points found for payload update."
+            )
+        else:
+            print(
+                "No new data to upsert. Payload updates for existing points (if any) are complete."
+            )
+        return True  # Successfully did what was needed
+
+    num_rows = len(data_to_upsert_new)
     print(f"Generating embeddings and upserting {num_rows} new points...")
 
     calls_this_minute = 0
@@ -299,33 +328,29 @@ def create_and_populate_qdrant(
     try:
         for i in tqdm(
             range(0, num_rows, embedding_batch_size),
-            desc="Upserting new points",  # Updated description
+            desc="Upserting new points",
         ):
-            batch_df = data_to_upsert.iloc[
-                i : i + embedding_batch_size
-            ]  # Use the filtered data
+            batch_df = data_to_upsert_new.iloc[i : i + embedding_batch_size]
             texts_to_embed = batch_df["embedding_text"].tolist()
 
-            # Rate limiting
             current_time = time.time()
             if current_time - minute_start_time >= 60:
                 minute_start_time = current_time
                 calls_this_minute = 0
 
-            if calls_this_minute >= 10:
+            if calls_this_minute >= 10:  # Assuming a rate limit (adjust as needed)
                 sleep_duration = 60 - (current_time - minute_start_time)
                 if sleep_duration > 0:
                     print(
                         f"Rate limit reached. Sleeping for {sleep_duration:.2f} seconds."
                     )
                     time.sleep(sleep_duration)
-                minute_start_time = time.time()  # Reset timer after sleeping
+                minute_start_time = time.time()
                 calls_this_minute = 0
 
-            # Get embeddings for the batch
             embeddings = get_embeddings_batch(
-                EMBED_CLIENT,
-                EMBED_MODEL,
+                EMBED_CLIENT,  # Make sure EMBED_CLIENT is passed or defined globally
+                EMBED_MODEL,  # Make sure EMBED_MODEL is passed or defined globally
                 task_type="RETRIEVAL_DOCUMENT",
                 texts=texts_to_embed,
             )
@@ -333,35 +358,33 @@ def create_and_populate_qdrant(
 
             if not embeddings or len(embeddings) != len(batch_df):
                 print(f"Error embedding batch at index {i}. Skipping batch.")
-                # Decide on error handling: continue, retry, or stop? Here we skip.
                 continue
 
-            # Prepare points for Qdrant upsert
             points_to_upsert = [
                 models.PointStruct(
-                    id=row["id"],
+                    id=row["id"],  # This is the 'id' from the CSV, converted earlier
                     vector=embeddings[j],
                     payload={
                         "original_id": row["original_id"],
                         "class_name": row["class_name"],
+                        "definition": row["definition"],
                     },
                 )
                 for j, (_, row) in enumerate(batch_df.iterrows())
-                # Use enumerate to match embeddings
             ]
 
             if points_to_upsert:
                 client.upsert(
                     collection_name=collection_name,
                     points=points_to_upsert,
-                    wait=True,  # Wait for operation to complete
+                    wait=True,
                 )
 
-        print("Data upserted successfully into Qdrant.")
+        print("New data upserted successfully into Qdrant.")
         return True
 
     except Exception as e:
-        print(f"Error during embedding generation or Qdrant upsert: {e}")
+        print(f"Error during embedding generation or Qdrant upsert of new points: {e}")
         return False
 
 
@@ -404,6 +427,7 @@ if __name__ == "__main__":
         csv_path="etim_classes_data.csv",  # Your specific CSV
         id_column="Code",  # Column with unique IDs
         class_column="Name",  # Column to store as payload
+        definition_column="Definition",  # Added definition column
         # sample_n=69,  # For testing
     )
 
