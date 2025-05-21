@@ -12,8 +12,9 @@
         <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200">
             <span class="text-gray-500">{{ "%.0f%%"|format(result.score * 100) }}</span>
             <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
-                class="text-blue-600 hover:underline"> {{ result.payload.original_id | e }}</a>
-            {{ result.payload.class_name | e }}
+                class="text-blue-600 hover:underline"><b>{{ result.payload.original_id | e }}</b></a>
+            <b>{{ result.payload.class_name | e }}</b>
+            <br><span class="text-gray-700">{{ result.payload.definition | e }}</span>
         </li>
         {% endfor %}
     </ul>

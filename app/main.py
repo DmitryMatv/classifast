@@ -289,14 +289,12 @@ async def handle_classify(
             },
         )
 
-    collection_name = config["collection_name"]
-
-    print(
-        f"Received query for '{classifier_type}' classification. Using '{collection_name}' collection."
-    )
+    print(f"Received query for '{classifier_type}' classification.")
 
     # Start timer for total duration
     start_total_time = time.perf_counter()
+
+    collection_name = config["collection_name"]
 
     try:
         # Call the batch classification function with the specific collection name

@@ -120,10 +120,7 @@ def classify_string_batch(
             formatted_hits = [
                 {
                     "score": hit.score,
-                    "payload": {
-                        "original_id": hit.payload.get("original_id", "N/A"),
-                        "class_name": hit.payload.get("class_name", "N/A"),
-                    },
+                    "payload": hit.payload,  # Return the whole payload
                 }
                 # Iterate through the points within *this* response object
                 for hit in response.points
