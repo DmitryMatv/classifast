@@ -216,18 +216,18 @@ async def read_root(request: Request):
 # Dictionary to map classifier types to their configurations
 CLASSIFIER_CONFIG = {
     "etim": {
-        "title": "ETIM International",
-        "description": "Classify products based on the ETIM International standard.",
+        "title": "ETIM International Product Classifier",
+        "description": "Accurately classify technical and electrical products using the ETIM International standard. Ideal for manufacturers, distributors, and wholesalers.",
         "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
-        "placeholder": "Resistor, 10 Ohm, 1W",
+        "placeholder": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
     },
     # Add other classifiers here in the future
     "unspsc": {
-        "title": "UNSPSC",
-        "description": "Classify products based on the UNSPSC standard.",
+        "title": "UNSPSC Product & Service Classifier",
+        "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard. Suitable for e-procurement and global commerce.",
         "collection_name": "UNSPSC_v24_google",
-        "placeholder": "Computer monitor, 24 inch",
+        "placeholder": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
     },
 }

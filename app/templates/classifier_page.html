@@ -3,19 +3,117 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="description" content="{{ description }}">
-    <meta name="keywords" content="{{ title }}, Categorization, Classification, Categorizer, Classifier, Search, Match">
-    <meta name="author" content="Dmitry Matv">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="index, follow">
-    <title>{{ title }} | Classifast</title>
 
+    {% if classifier_type == 'unspsc' %}
+    <title>UNSPSC Code Lookup & Classification | Classifast</title>
+    <meta name="description"
+        content="Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.">
+    <meta name="keywords"
+        content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, AI classifier, product classification, service classification">
+    {% elif classifier_type == 'etim' %}
+    <title>ETIM Product Classification & Lookup | Classifast</title>
+    <meta name="description"
+        content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products. Streamline your product data management.">
+    <meta name="keywords"
+        content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, AI classifier, product data management">
+    {% else %}
+    <title>{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification</title>
+    <meta name="description"
+        content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
+    <meta name="keywords"
+        content="{{ title }}, {{ classifier_type.upper() }} Product Classification, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, AI Product Matching, {{ classifier_type.upper() }} Codes">
+    {% endif %}
+    <meta name="author" content="Dmitry Matv">
+    <meta name="creator" content="Dmitry Matv">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <link rel="canonical" href="{{ request.url }}">
+    <link rel="home" href="{{ url_for('read_root') }}">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
 
-    <meta property="og:title" content="{{ title }} | Classifast">
-    <meta property="og:description" content="{{ description }}">
+    <meta property="og:type" content="website">
+    {% if classifier_type == 'unspsc' %}
+    <meta property="og:title" content="UNSPSC Code Lookup & Classification | Classifast">
+    <meta property="og:description"
+        content="Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services.">
+    {% elif classifier_type == 'etim' %}
+    <meta property="og:title" content="ETIM Product Classification & Lookup | Classifast">
+    <meta property="og:description"
+        content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products.">
+    {% else %}
+    <meta property="og:title"
+        content="{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification">
+    <meta property="og:description"
+        content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
+    {% endif %}
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:site_name" content="classifast.com">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:image" content="{{ url_for('static', path='images/preview.png') }}">
+    <meta property="og:image:width" content="1146">
+    <meta property="og:image:height" content="600">
+    <meta property="og:image:alt"
+        content="Classifast {{ title }} Page Preview - {{ classifier_type.upper() }} Classification Tool">
+
+    <meta name="twitter:card" content="summary_large_image">
+    {% if classifier_type == 'unspsc' %}
+    <meta name="twitter:title" content="UNSPSC Code Lookup & Classification | Classifast">
+    <meta name="twitter:description"
+        content="Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services.">
+    {% elif classifier_type == 'etim' %}
+    <meta name="twitter:title" content="ETIM Product Classification & Lookup | Classifast">
+    <meta name="twitter:description"
+        content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products.">
+    {% else %}
+    <meta name="twitter:title"
+        content="{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification">
+    <meta name="twitter:description"
+        content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
+    {% endif %}
+    <meta name="twitter:image" content="{{ url_for('static', path='images/preview.png') }}">
+    <meta name="twitter:site" content="@YourTwitterHandle">
+    <meta name="twitter:creator" content="@DmitryMatv">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        {% if classifier_type == 'unspsc' %}
+        "name": "UNSPSC Code Lookup & Classification | Classifast",
+        "description": "Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.",
+        "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, AI classifier, product classification, service classification, semantic search",
+        {% elif classifier_type == 'etim' %}
+        "name": "ETIM Product Classification & Lookup | Classifast",
+        "description": "Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products. Streamline your product data management.",
+        "keywords": "ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, AI classifier, product data management, semantic search",
+        {% else %}
+        "name": "{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification",
+        "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
+        "keywords": "{{ title }}, {{ classifier_type.upper() }} Product Classification, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, AI Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
+        {% endif %}
+        "url": "{{ request.url }}",
+        "author": {
+            "@type": "Person",
+            "name": "Dmitry Matv"
+        },
+        "isPartOf": {
+            "@type": "WebApplication",
+            "name": "Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool",
+            "url": "{{ url_for('read_root') }}"
+        },
+        "provider": {
+            "@type": "Organization",
+            "name": "Classifast",
+            "url": "{{ url_for('read_root') }}"
+        }
+    }
+    </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -27,33 +125,6 @@
         /* Always show scrollbar on html to prevent layout shift, then hide it */
         html {
             overflow-y: scroll;
-        }
-
-        /* Hide scrollbar for Chrome, Safari and Opera */
-        html::-webkit-scrollbar,
-        body::-webkit-scrollbar {
-            display: none;
-        }
-
-        /* Hide scrollbar for IE, Edge and Firefox */
-        html,
-        body {
-            -ms-overflow-style: none;
-            /* IE and Edge */
-            scrollbar-width: none;
-            /* Firefox */
-        }
-
-        /* Hide scrollbar for specific textareas */
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            /* IE and Edge */
-            scrollbar-width: none;
-            /* Firefox */
         }
 
         /* HTMX loading indicator styles */
@@ -88,7 +159,7 @@
                 <!-- sr-only is a Tailwind class to visually hide -->
                 <textarea name="product_description" id="product_description_area" placeholder="{{ placeholder }}"
                     required
-                    class="w-full p-2 border border-gray-300 rounded-md focus:outline-none text-sm hide-scrollbar h-[80px] min-h-[80px] max-h-[500px] resize-y"></textarea>
+                    class="w-full p-2 border border-gray-300 rounded-md focus:outline-none text-sm h-[80px] min-h-[80px] max-h-[500px] resize-y"></textarea>
                 <div class="flex justify-start items-center space-x-4">
                     <button type="submit"
                         class="w-1/3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md text-sm transition duration-150 ease-in-out">Classify</button>

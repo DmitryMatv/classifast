@@ -3,38 +3,74 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="description" content="Fast classification tools for various standards.">
-    <meta name="keywords" content="Standard, Categorization, Classification, Categorizer, Classifier, Search, Match">
-    <meta name="author" content="Dmitry Matv">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="index, follow">
-    <title>Classifast | Instant Bulk Classification Tool</title>
 
+    <title>Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool</title>
+    <meta name="description"
+        content="Easily find UNSPSC codes, ETIM classes, and NAICS industry codes with Classifast. AI-powered search for accurate product and service classification. Supports UNSPSC code lookup, NAICS code search, and ETIM classification.">
+    <meta name="keywords"
+        content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification, AI classifier">
+    <meta name="author" content="Dmitry Matv">
+    <meta name="creator" content="Dmitry Matv">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1">
     <link rel="canonical" href="https://classifast.com/">
+    <link rel="home" href="https://classifast.com/">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Classifast | Instant Bulk Classification">
-    <meta property="og:description" content="Fast classification tools for various standards.">
+    <meta property="og:title" content="Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool">
+    <meta property="og:description"
+        content="Easily find UNSPSC codes, ETIM classes, and NAICS industry codes with Classifast. AI-powered search for accurate product and service classification. Supports UNSPSC code lookup, NAICS code search, and ETIM classification.">
     <meta property="og:url" content="https://classifast.com/">
+    <meta property="og:site_name" content="classifast.com">
+    <meta property="og:locale" content="en_US">
     <meta property="og:image" content="https://classifast.com/static/images/preview.png">
+    <meta property="og:image:width" content="1146">
+    <meta property="og:image:height" content="600">
+    <meta property="og:image:alt" content="Classifast - UNSPSC, ETIM, and NAICS Classification Tool">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool">
+    <meta name="twitter:description"
+        content="Easily find UNSPSC codes, ETIM classes, and NAICS industry codes with Classifast. AI-powered search for accurate product and service classification. Supports UNSPSC code lookup, NAICS code search, and ETIM classification.">
+    <meta name="twitter:image" content="https://classifast.com/static/images/preview.png">
+    <meta name="twitter:site" content="@YourTwitterHandle">
+    <meta name="twitter:creator" content="@DmitryMatv">
+
 
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "WebApplication",
-        "name": "Classify anything, fast, and in bulk | Classifast",
+        "name": "Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool",
         "url": "https://classifast.com/",
-        "description": "Classify anything, fast, and in bulk. Enter any text to find a respective class.",
+        "description": "Classifast provides an AI-powered tool for easy UNSPSC code lookup, ETIM classification, and NAICS code search. Find commodity codes, UNSPSC categories, and NAICS industry codes quickly and accurately.",
         "author": {
             "@type": "Person",
             "name": "Dmitry Matv"
         },
-        "keywords": "Categorization, Classification, Categorizer, Classifier, Search, ETIM"
+        "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification, AI classifier, data management, semantic search",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0.1",
+            "priceCurrency": "USD"
+        },
+        "provider": {
+            "@type": "Organization",
+            "name": "Classifast",
+            "url": "https://classifast.com/"
+        }
     }
     </script>
+
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -67,7 +103,7 @@
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
     <header class="bg-gray-800 text-white p-4 shadow-md">
         <div class="container mx-auto flex justify-between items-center max-w-screen-md">
-            <h3 class="text-2xl font-bold">Classifast</h3>
+            <h3 class="text-2xl font-bold">classi<span class="text-blue-300">fast</span>.com</h3>
             <nav>
                 <ul class="flex space-x-4">
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
@@ -81,9 +117,11 @@
     </header>
     <main class="flex-grow container mx-auto p-4 max-w-screen-md">
         <section id="welcome-section" class="bg-white p-6 rounded-lg shadow text-center">
-            <h1 class="text-3xl font-semibold mb-2">Welcome to Classifast</h1>
-            <p class="text-gray-600 mb-1">Your hub for fast, bulk classification.</p>
-            <p class="text-gray-600">Select a classification standard from the menu above to get started.</p>
+            <h1 class="text-3xl font-semibold mb-2">Welcome to Classifast: Your Smart Product Classification Hub</h1>
+            <p class="text-gray-600 mb-1">Instantly classify your products against ETIM, UNSPSC, and more with
+                AI-powered accuracy.</p>
+            <p class="text-gray-600">Select a classification standard from the navigation menu to begin streamlining
+                your product data management.</p>
         </section>
     </main>
     <footer class="bg-gray-800 text-white text-center p-3 mt-auto">
