@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from slowapi import Limiter
@@ -26,7 +26,9 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Runs when the application starts
-    global EMBED_CLIENT, EMBED_MODEL_NAME, QDRANT_CLIENT  # QDRANT_COLLECTION removed
+    global embed_client, embed_model_name, qdrant_client
+    embed_client = None  # Initialize to None
+    qdrant_client = None  # Initialize to None
 
     print("FastAPI application startup...")
 
@@ -37,55 +39,48 @@ async def lifespan(app: FastAPI):
         # In a real app, you might raise an exception or handle this more gracefully
     else:
         try:
-            EMBED_CLIENT = genai.Client(api_key=GEMINI_API_KEY)
-            EMBED_CLIENT.models.list()  # Test connection
+            embed_client = genai.Client(api_key=GEMINI_API_KEY)
+            embed_client.models.list()  # Test connection
             print("Google GenAI Client initialized successfully.")
         except Exception as e:
             print(f"Error initializing Google GenAI Client: {e}")
-            EMBED_CLIENT = None  # Ensure it's None if init fails
+            embed_client = None  # Ensure it's None if init fails
 
     # Initialize Qdrant Client
-    # We'll allow QDRANT_URL (for remote/dockerized) or QDRANT_PATH (for local)
     QDRANT_URL = os.getenv("QDRANT_URL")
-    QDRANT_PATH = os.getenv("QDRANT_PATH", "./qdrant_db")  # Default local path
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     try:
-        if QDRANT_URL:
-            print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
-            QDRANT_CLIENT = QdrantClient(
-                api_key=QDRANT_API_KEY,
-                # url=QDRANT_URL,
-                host=QDRANT_URL,
-                port=443,  # Use HTTPS port since Traefik handles SSL
-                https=True,
-                prefer_grpc=False,
-                timeout=60,  # Add a longer timeout just in case
-            )
-        else:
-            print(f"Initializing Qdrant client with local path: {QDRANT_PATH}")
-            QDRANT_CLIENT = QdrantClient(path=QDRANT_PATH)
+        print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
+        qdrant_client = QdrantClient(
+            api_key=QDRANT_API_KEY,
+            # url=QDRANT_URL,
+            host=QDRANT_URL,
+            port=443,  # Use HTTPS port since Traefik handles SSL
+            https=True,
+            prefer_grpc=False,
+            timeout=60,  # Add a longer timeout just in case
+        )
 
         # Load model name from env or use defaults
-        EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "text-embedding-004")
+        embed_model_name = os.getenv("EMBED_MODEL_NAME", "text-embedding-004")
 
         # Check if Qdrant client can list collections as a health check
-        if QDRANT_CLIENT:
+        if qdrant_client:
             try:
-                collections_result = QDRANT_CLIENT.get_collections()
+                collections_result = qdrant_client.get_collections()
                 print(
                     f"Qdrant client initialized. Found collections: {[col.name for col in collections_result.collections]}"
                 )
             except Exception as e:
                 print(f"Qdrant client initialized, but could not list collections: {e}")
-                # Depending on severity, you might still want to set QDRANT_CLIENT to None or raise
+                # Depending on severity, you might still want to set qdrant_client to None or raise
         else:
             print("Qdrant client could not be initialized.")
 
     except Exception as e:
         print(f"Error initializing Qdrant client: {e}")
-        QDRANT_CLIENT = None
 
-    if not EMBED_CLIENT or not QDRANT_CLIENT:
+    if not embed_client or not qdrant_client:
         print(
             "Critical Error: One or more clients failed to initialize. The application might not function correctly."
         )
@@ -93,9 +88,9 @@ async def lifespan(app: FastAPI):
     yield
     # Runs when the application is shutting down
     print("FastAPI application shutdown...")
-    if QDRANT_CLIENT:
+    if qdrant_client:
         try:
-            QDRANT_CLIENT.close()
+            qdrant_client.close()
             print("Qdrant client closed.")
         except Exception as e:
             print(f"Error closing Qdrant client: {e}")
@@ -160,11 +155,13 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"])
 app.state.limiter = limiter
 
 
-async def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    return HTMLResponse(
-        content=f"<p>Too many requests. Please try again in {exc.detail}.</p>",
-        status_code=429,
-    )
+async def custom_rate_limit_exceeded_handler(request: Request, exc: Exception):
+    if isinstance(exc, RateLimitExceeded):
+        return HTMLResponse(
+            content=f"<p>Too many requests. Please try again in {exc.detail}.</p>",
+            status_code=429,
+        )
+    return HTMLResponse(content="Internal Server Error", status_code=500)
 
 
 app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
@@ -178,24 +175,26 @@ async def health_check():
     """
     # Basic check: if we can reach here, the app is running.
     # More sophisticated checks could be added here (e.g., DB connectivity).
-    if EMBED_CLIENT and QDRANT_CLIENT:
+    if embed_client and qdrant_client:
         # Optionally, perform a quick check on clients
         try:
-            EMBED_CLIENT.models.list()  # Simple check for Google client
-            QDRANT_CLIENT.get_collections()  # Simple check for Qdrant client
+            embed_client.models.list()  # Simple check for Google client
+            qdrant_client.get_collections()  # Simple check for Qdrant client
             return {"status": "healthy", "embed_client": "ok", "qdrant_client": "ok"}
         except Exception as e:
             raise HTTPException(
                 status_code=503,
                 detail=f"Service Unavailable: Client error - {str(e)}",
             )
-    elif not EMBED_CLIENT:
+    elif not embed_client:
         raise HTTPException(
-            status_code=503, detail="Service Unavailable: EMBED_CLIENT not initialized"
+            status_code=503,
+            detail="Service Unavailable: embed_client not initialized",
         )
-    elif not QDRANT_CLIENT:
+    elif not qdrant_client:
         raise HTTPException(
-            status_code=503, detail="Service Unavailable: QDRANT_CLIENT not initialized"
+            status_code=503,
+            detail="Service Unavailable: qdrant_client not initialized",
         )
     return {"status": "unhealthy", "detail": "One or more clients are not initialized"}
 
@@ -272,7 +271,7 @@ async def handle_classify(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
-    if not EMBED_CLIENT or not QDRANT_CLIENT:
+    if not embed_client or not qdrant_client:
         raise HTTPException(
             status_code=503,
             detail="Backend services not available. Please check server logs.",
@@ -300,16 +299,16 @@ async def handle_classify(
         # Call the batch classification function with the specific collection name
         # batch_results is now List[List[Dict[str, Any]]]
         # where each inner list is the hits for a query.
-        results_for_single_query: List[Dict[str, Any]] = classify_string_batch(
-            qdrant_client=QDRANT_CLIENT,  # Pass QDRANT_CLIENT
-            embed_client=EMBED_CLIENT,  # Pass EMBED_CLIENT
-            embed_model_name=EMBED_MODEL_NAME,  # Pass EMBED_MODEL_NAME
+        results_for_single_query: List[List[Dict[str, Any]]] = classify_string_batch(
+            qdrant_client=qdrant_client,  # Pass qdrant_client
+            embed_client=embed_client,  # Pass embed_client
+            embed_model_name=embed_model_name,  # Pass embed_model_name
             query_texts=[product_description],
             collection_name=collection_name,  # Pass the correct collection
             top_k=10,
         )
 
-        classification_results = []
+        classification_results: List[Dict[str, Any]] = []
         if results_for_single_query:
             classification_results = results_for_single_query[0]
 

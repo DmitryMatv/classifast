@@ -3,7 +3,7 @@ from google import genai
 from google.genai import types
 from qdrant_client import QdrantClient, models
 from dotenv import load_dotenv
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
