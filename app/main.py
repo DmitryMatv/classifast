@@ -131,7 +131,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/favicon.ico", response_class=FileResponse, include_in_schema=False)
 async def favicon():
-    return FileResponse("app/static/images/favicon-32x32.png")
+    return FileResponse("app/static/images/favicon.ico")
 
 
 @app.get("/robots.txt", response_class=FileResponse)
@@ -215,18 +215,20 @@ async def read_root(request: Request):
 # Dictionary to map classifier types to their configurations
 CLASSIFIER_CONFIG = {
     "etim": {
-        "title": "ETIM International Product Classifier",
+        "title": "ETIM Product Classifier",
         "description": "Accurately classify technical and electrical products using the ETIM International standard. Ideal for manufacturers, distributors, and wholesalers.",
+        "version": "ETIM version 10.0 (2024-12-10)",
         "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
-        "placeholder": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
+        "example": "Miniature circuit breaker, 16A, C-curve, 1P+N",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
     },
     # Add other classifiers here in the future
     "unspsc": {
         "title": "UNSPSC Product & Service Classifier",
         "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard. Suitable for e-procurement and global commerce.",
+        "version": "UNSPSC version PLACEHOLDER (DATE)",
         "collection_name": "UNSPSC_v24_google",
-        "placeholder": "Example: Laptop computer, 15 inch screen, 8GB RAM",
+        "example": "Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
     },
 }
@@ -246,11 +248,12 @@ async def show_classifier_page(request: Request, classifier_type: str):
     return templates.TemplateResponse(
         "classifier_page.html",
         {
+            "classifier_type": classifier_type,  # Pass type for form action URL
             "request": request,
             "title": config["title"],
             "description": config["description"],
-            "placeholder": config["placeholder"],
-            "classifier_type": classifier_type,  # Pass type for form action URL
+            "version": config["version"],
+            "example": config["example"],
         },
     )
 
