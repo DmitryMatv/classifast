@@ -226,7 +226,7 @@ CLASSIFIER_CONFIG = {
     "unspsc": {
         "title": "UNSPSC Product & Service Classifier",
         "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard. Suitable for e-procurement and global commerce.",
-        "version": "UNSPSC version PLACEHOLDER (DATE)",
+        "version": "UNSPSC UNv260801",
         "collection_name": "UNSPSC_v24_google",
         "example": "Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
