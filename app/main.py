@@ -216,19 +216,19 @@ async def read_root(request: Request):
 CLASSIFIER_CONFIG = {
     "etim": {
         "title": "ETIM Product Classifier",
-        "description": "Accurately classify technical and electrical products using the ETIM International standard. Ideal for manufacturers, distributors, and wholesalers.",
+        "description": "Classify technical and electrical products using the ETIM International standard.\nETIM (ETIM Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector through a uniform classification system. It is an initiative started to standardize the electronic exchange of product data for technical products, to enable the electronic trading of these products.Essential tool for manufacturers, distributors, and wholesalers.",
         "version": "ETIM version 10.0 (2024-12-10)",
         "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
-        "example": "Miniature circuit breaker, 16A, C-curve, 1P+N",
+        "example": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
     },
     # Add other classifiers here in the future
     "unspsc": {
         "title": "UNSPSC Product & Service Classifier",
-        "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard. Suitable for e-procurement and global commerce.",
+        "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard for use in eCommerce and e-procurement.\nThe United Nations Standard Products and Services Code® (UNSPSC®), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. The latest release (August 14, 2023) of the code set is 26.0801.",
         "version": "UNSPSC UNv260801",
-        "collection_name": "UNSPSC_v24_google",
-        "example": "Laptop computer, 15 inch screen, 8GB RAM",
+        "collection_name": "UNSPSC_eng_UNv260801-1_3072_exp",
+        "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
     },
 }

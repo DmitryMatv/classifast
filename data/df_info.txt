@@ -1,0 +1,175 @@
+PS C:\Users\user\classifier-1> & C:/Users/user/AppData/Local/Programs/Python/Python313/python.exe c:/Users/user/classifier-1/df.py
+Loading data from existing Parquet file: ./Data/unspsc-english-v260801.1.parquet
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 158464 entries, 0 to 158463
+Data columns (total 16 columns):
+ #   Column                Non-Null Count   Dtype 
+---  ------                --------------   ----- 
+ 0   Version               158457 non-null  object
+ 1   Key                   158464 non-null  object
+ 2   Segment               158464 non-null  object
+ 3   Segment Title         158464 non-null  object
+ 4   Segment Definition    158464 non-null  object
+ 5   Family                158406 non-null  object
+ 6   Family Title          158406 non-null  object
+ 7   Family Definition     134476 non-null  object
+ 8   Class                 157847 non-null  object
+ 9   Class Title           157847 non-null  object
+ 10  Class Definition      137971 non-null  object
+ 11  Commodity             149850 non-null  object
+ 12  Commodity Title       149850 non-null  object
+ 13  Commodity Definition  136817 non-null  object
+ 14  Synonym               0 non-null       object
+ 15  Acronym               0 non-null       object
+dtypes: object(16)
+memory usage: 19.3+ MB
+
+Shape of the dataframe (rows, columns): (158464, 16)
+
+First and last rows of the dataframe:
+     Version     Key   Segment                                      Segment Title  ... Commodity Title Commodity Definition Synonym Acronym
+0  UNv260801  100004  10000000  Live Plant and Animal Material and Accessories...  ...            Cats                 None    None    None       
+1  UNv260801  100005  10000000  Live Plant and Animal Material and Accessories...  ...            Dogs                 None    None    None       
+2  UNv260801  100006  10000000  Live Plant and Animal Material and Accessories...  ...            Mink                 None    None    None       
+3  UNv260801  100007  10000000  Live Plant and Animal Material and Accessories...  ...            Rats                 None    None    None       
+4  UNv260801  100008  10000000  Live Plant and Animal Material and Accessories...  ...          Horses                 None    None    None       
+
+[5 rows x 16 columns]
+
+...
+          Version     Key   Segment  ...                               Commodity Definition Synonym Acronym
+158459  UNv260801  102548  95000000  ...  A building or structure where dental equipment...    None    None
+158460  UNv260801  102549  95000000  ...  A building or structure where surgical equipme...    None    None
+158461  UNv260801  102545  95000000  ...                                               None    None    None
+158462  UNv260801  102525  95000000  ...                                               None    None    None
+158463  UNv260801  174112  95000000  ...                                               None    None    None
+
+[5 rows x 16 columns]
+
+Column names:
+ ['Version', 'Key', 'Segment', 'Segment Title', 'Segment Definition', 'Family', 'Family Title', 'Family Definition', 'Class', 'Class Title', 'Class Definition', 'Commodity', 'Commodity Title', 'Commodity Definition', 'Synonym', 'Acronym']
+
+Summary statistics:
+          Version     Key   Segment  ...                               Commodity Definition Synonym Acronym
+count      158457  158464    158464  ...                                             136817       0       0
+unique          9  158448        58  ...                                             135175       0       0
+top     UNv260801  283444  85000000  ...  This classification denotes a combination drug...     NaN     NaN
+freq       158449       2     76414  ...                                                 81     NaN     NaN
+
+[4 rows x 16 columns]
+
+Missing values in each column:
+Version                      7
+Key                          0
+Segment                      0
+Segment Title                0
+Segment Definition           0
+Family                      58
+Family Title                58
+Family Definition        23988
+Class                      617
+Class Title                617
+Class Definition         20493
+Commodity                 8614
+Commodity Title           8614
+Commodity Definition     21647
+Synonym                 158464
+Acronym                 158464
+dtype: int64
+
+Number of unique values in each column:
+Version: 9
+Key: 158448
+Segment: 58
+Segment Title: 58
+Segment Definition: 58
+Family: 559
+Family Title: 559
+Family Definition: 271
+Class: 7998
+Class Title: 7982
+Class Definition: 5837
+Commodity: 149849
+Commodity Title: 149827
+Commodity Definition: 135175
+Synonym: 0
+Acronym: 0
+
+Completely identical rows:
+0
+
+Number keys count:
+Key
+283444    2
+283536    2
+283537    2
+282571    2
+282572    2
+283534    2
+283532    2
+283259    2
+283533    2
+283346    2
+283535    2
+282813    2
+282812    2
+282811    2
+282810    2
+283531    2
+Name: count, dtype: int64
+
+All rows with the same key (sorted by key):
+         Version     Key   Segment  ...                               Commodity Definition Synonym Acronym
+12492  UNv260801  283536  25000000  ...  Offshore loading systems are specialized equip...    None    None
+13605       None  283259  26000000  ...                                               None    None    None
+13827  UNv260808  282810  26000000  ...                                               None    None    None
+13828  UNv260809  282811  26000000  ...                                               None    None    None
+13829       None  282812  26000000  ...                                               None    None    None
+13830       None  282813  26000000  ...                                               None    None    None
+13879       None  282571  26000000  ...                                               None    None    None
+13880       None  282572  26000000  ...                                               None    None    None
+14489  UNv260801  283534  27000000  ...  Hydrogen site equipment refers to the various ...    None    None
+19116  UNv260801  282810  39000000  ...  The precision approach path indicator (PAPI) u...    None    None
+19117  UNv260801  282811  39000000  ...  The PAPI is a light array positioned beside th...    None    None
+19118  UNv260801  282812  39000000  ...  Per International Civil Aviation Organization ...    None    None
+19119  UNv260801  282813  39000000  ...  An aeronautical light beacon is a visual NAVAI...    None    None
+21923  UNv260801  283535  41000000  ...  General field instruments are a broad category...    None    None
+24219  UNv260801  283259  42000000  ...  Balloon catheters are used for the treatment o...    None    None
+30166  UNv260801  283537  47000000  ...  Dump station fee systems are used to charge us...    None    None
+78202       None  283346  72000000  ...                                               None    None    None
+78311  UNv260801  282571  72000000  ...                                               None    None    None
+78678  UNv260801  283532  72000000  ...  A service to ensure that equipment is fit for ...    None    None
+78679  UNv260801  283533  72000000  ...  Heat tracing Insulation is also called Trace H...    None    None
+78907       None  283444  73000000  ...                                               None    None    None
+79033  UNv260801  283444  73000000  ...  Pipeline coating service covers pipe external ...    None    None
+79604  UNv260801  282572  78000000  ...                                               None    None    None
+80090  UNv260801  283531  81000000  ...                                               None    None    None
+80091  UNv260801  283531  81000000  ...  Engineering, procurement, and construction ser...    None    None
+80092  UNv260802  283532  81000000  ...                                               None    None    None
+80093  UNv260803  283533  81000000  ...                                               None    None    None
+80094  UNv260804  283534  81000000  ...                                               None    None    None
+80095  UNv260805  283535  81000000  ...                                               None    None    None
+80096  UNv260806  283536  81000000  ...                                               None    None    None
+80097  UNv260807  283537  81000000  ...                                               None    None    None
+80283  UNv260801  283346  81000000  ...  Facilities management services includes lease ...    None    None
+
+[32 rows x 16 columns]
+
+Hierarchy structure:
+Root level items: 0
+
+Top 5 parents by number of children:
+Parent 85000000 (Unknown): 76414 children
+Parent 50000000 (Unknown): 34041 children
+Parent 51000000 (Unknown): 9389 children
+Parent 10000000 (Unknown): 8266 children
+Parent 42000000 (Unknown): 4157 children
+
+...
+
+Bottom 5 parents by number of children:
+Parent 90000000 (Unknown): 119 children
+Parent 76000000 (Unknown): 106 children
+Parent 57000000 (Unknown): 91 children
+Parent 54000000 (Unknown): 73 children
+Parent 91000000 (Unknown): 51 children
