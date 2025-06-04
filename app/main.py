@@ -53,16 +53,32 @@ async def lifespan(app: FastAPI):
         print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
         qdrant_client = QdrantClient(
             api_key=QDRANT_API_KEY,
-            # url=QDRANT_URL,
             host=QDRANT_URL,
-            port=443,  # Use HTTPS port since Traefik handles SSL
+            port=443,
             https=True,
             prefer_grpc=False,
-            timeout=60,  # Add a longer timeout just in case
+            timeout=60,
         )
 
-        # Load model name from env or use defaults
-        embed_model_name = os.getenv("EMBED_MODEL_NAME", "text-embedding-004")
+        # Verify collections exist and store their vector sizes
+        for classifier_type, config in CLASSIFIER_CONFIG.items():
+            if not qdrant_client.collection_exists(config["collection_name"]):
+                print(
+                    f"Warning: Collection {config['collection_name']} for {classifier_type} does not exist"
+                )
+                continue
+
+            # Get collection info and check vector configuration
+            collection_info = qdrant_client.get_collection(config["collection_name"])
+            vector_params = collection_info.config.params.vectors
+            embed_dims = config["embed_dims"]
+
+            if isinstance(vector_params, dict) and "size" in vector_params:
+                vector_size = vector_params["size"]
+                if vector_size != embed_dims:
+                    print(
+                        f"Warning: Collection {config['collection_name']} has vector size {vector_size} but config specifies {embed_dims}"
+                    )
 
         # Check if Qdrant client can list collections as a health check
         if qdrant_client:
@@ -216,20 +232,24 @@ async def read_root(request: Request):
 CLASSIFIER_CONFIG = {
     "etim": {
         "title": "ETIM Product Classifier",
-        "description": "Classify technical and electrical products using the ETIM International standard.\nETIM (ETIM Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector through a uniform classification system. It is an initiative started to standardize the electronic exchange of product data for technical products, to enable the electronic trading of these products.Essential tool for manufacturers, distributors, and wholesalers.",
+        "description": "Classify technical and electrical products using the ETIM International standard. ETIM (ETIM Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector through a uniform classification system. It is an initiative started to standardize the electronic exchange of product data for technical products, to enable the electronic trading of these products.",
         "version": "ETIM version 10.0 (2024-12-10)",
         "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
         "example": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
+        "embed_dims": 3072,
+        "embed_model_name": "gemini-embedding-exp-03-07",
     },
     # Add other classifiers here in the future
     "unspsc": {
         "title": "UNSPSC Product & Service Classifier",
-        "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard for use in eCommerce and e-procurement.\nThe United Nations Standard Products and Services Code® (UNSPSC®), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. The latest release (August 14, 2023) of the code set is 26.0801.",
-        "version": "UNSPSC UNv260801",
+        "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard for use in eCommerce and procurement. UNSPSC is a global standard used to organize products and services into hierarchical categories. Accurate classification helps businesses improve spend analytics, streamline procurement, and enhance data governance-key steps toward efficiency and cost savings.",
+        "version": "UNSPSC UNv260801 (August 14, 2023)",
         "collection_name": "UNSPSC_eng_UNv260801-1_3072_exp",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
+        "embed_dims": 3072,
+        "embed_model_name": "gemini-embedding-exp-03-07",
     },
 }
 
@@ -305,7 +325,7 @@ async def handle_classify(
         results_for_single_query: List[List[Dict[str, Any]]] = classify_string_batch(
             qdrant_client=qdrant_client,  # Pass qdrant_client
             embed_client=embed_client,  # Pass embed_client
-            embed_model_name=embed_model_name,  # Pass embed_model_name
+            embed_model_name=config["embed_model_name"],  # Use from config
             query_texts=[product_description],
             collection_name=collection_name,  # Pass the correct collection
             top_k=10,

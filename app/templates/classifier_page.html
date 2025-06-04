@@ -145,7 +145,7 @@
         <div class="container mx-auto flex justify-between items-center max-w-screen-md">
             <nav class="text-sm">
                 <a href="/" class="hover:text-blue-300">Home</a> |
-                <span class="text-gray-400">Classifast Classifiers</span>
+                <span class="text-gray-500">Classifast Classifiers</span>
             </nav>
             <h3 class="text-2xl font-bold">{{ title }}</h3>
         </div>
@@ -164,7 +164,7 @@
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none text-sm h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
                 <div class="flex justify-start items-center space-x-4">
                     <button type="submit"
-                        class="bg-blue-500 hover:bg-blue-700 text-white py-3 px-24 rounded-md text-base transition duration-150 ease-in-out">Classify</button>
+                        class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-24 rounded-md text-base transition duration-150 ease-in-out">Search (1 credit)</button>
                     <div id="loading-indicator" class="htmx-indicator justify-center items-center">
                         <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                     </div>
@@ -174,9 +174,13 @@
 
         <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto">
             <div id="results-container">
+                <p class="text-left text-gray-500 text-sm  mb-4">
+                    For the best classification results please include as much relevant and accurate data as possible.
+                    The more detailed and precise your input text, the better the classification.
+                </p>
                 <p class="text-left text-gray-500 text-sm">
-                    For the best classification results, please include as much relevant and accurate data as possible
-                    in your query. The more detailed and precise your input, the better the classification.
+                    Long multi-line unformatted text or broken tables - all input is accepted and will work fine
+                    as long as its accurately describes what you want to classify.
                 </p>
             </div>
         </section>
