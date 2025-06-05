@@ -1,8 +1,8 @@
 import os
-import time  # Add this import
+import time
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Callable, Awaitable
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
@@ -12,13 +12,14 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+from starlette.requests import Request
+
 from google import genai
 from qdrant_client import QdrantClient
 
 from .classifier import classify_string_batch
-
-# from starlette.middleware.base import BaseHTTPMiddleware
-# from starlette.types import CallNext
 
 load_dotenv()
 
@@ -60,6 +61,19 @@ async def lifespan(app: FastAPI):
             timeout=60,
         )
 
+        # Check if Qdrant client can list collections as a health check
+        if qdrant_client:
+            try:
+                collections_result = qdrant_client.get_collections()
+                print(
+                    f"Qdrant client initialized. Found collections: {[col.name for col in collections_result.collections]}"
+                )
+            except Exception as e:
+                print(f"Qdrant client initialized, but could not list collections: {e}")
+                # Depending on severity, you might still want to set qdrant_client to None or raise
+        else:
+            print("Qdrant client could not be initialized.")
+
         # Verify collections exist and store their vector sizes
         for classifier_type, config in CLASSIFIER_CONFIG.items():
             if not qdrant_client.collection_exists(config["collection_name"]):
@@ -80,19 +94,6 @@ async def lifespan(app: FastAPI):
                         f"Warning: Collection {config['collection_name']} has vector size {vector_size} but config specifies {embed_dims}"
                     )
 
-        # Check if Qdrant client can list collections as a health check
-        if qdrant_client:
-            try:
-                collections_result = qdrant_client.get_collections()
-                print(
-                    f"Qdrant client initialized. Found collections: {[col.name for col in collections_result.collections]}"
-                )
-            except Exception as e:
-                print(f"Qdrant client initialized, but could not list collections: {e}")
-                # Depending on severity, you might still want to set qdrant_client to None or raise
-        else:
-            print("Qdrant client could not be initialized.")
-
     except Exception as e:
         print(f"Error initializing Qdrant client: {e}")
 
@@ -102,6 +103,7 @@ async def lifespan(app: FastAPI):
         )
 
     yield
+
     # Runs when the application is shutting down
     print("FastAPI application shutdown...")
     if qdrant_client:
@@ -114,10 +116,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-"""
+
 # Security Headers Middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: CallNext) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         response = await call_next(request)
         # Set security headers
         response.headers["X-Content-Type-Options"] = (
@@ -129,17 +133,30 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com https://umami.classifast.com; "
+            "script-src 'self' https://cdn.tailwindcss.com https://umami.classifast.com; "
+            "script-src-elem 'self' https://cdn.tailwindcss.com https://umami.classifast.com; "
+            "script-src-attr 'none'; "
             "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
-            "img-src 'self' data: /static/images/favicon-32x32.png; "
+            "style-src-elem 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
+            "style-src-attr 'unsafe-inline'; "
+            "img-src 'self' https://*.classifast.com /static/images/; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "connect-src 'self' https://umami.classifast.com; "
             "object-src 'none'; "
-            "frame-ancestors 'none';"
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'; "
+            "frame-src 'none'; "
+            "media-src 'none'; "
+            "manifest-src 'self'; "
+            "worker-src 'none'; "
+            "upgrade-insecure-requests;"
         )
         return response
 
 
 app.add_middleware(SecurityHeadersMiddleware)
-"""
+
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -237,8 +254,8 @@ CLASSIFIER_CONFIG = {
         "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
         "example": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
-        "embed_dims": 3072,
         "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_dims": 3072,
     },
     # Add other classifiers here in the future
     "unspsc": {
@@ -247,9 +264,9 @@ CLASSIFIER_CONFIG = {
         "version": "UNSPSC UNv260801 (August 14, 2023)",
         "collection_name": "UNSPSC_eng_UNv260801-1_3072_exp",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
-        "base_url": "https://www.unspsc.org/search-code=",  # Example, replace with actual if known
-        "embed_dims": 3072,
+        "base_url": "https://letmegooglethat.com/?q=UNSPSC+",  # Example, replace with actual if known
         "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_dims": 3072,
     },
 }
 

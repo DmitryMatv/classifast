@@ -122,6 +122,11 @@
         crossorigin="anonymous"></script>
 
     <style>
+        /* Global font settings */
+        * {
+            font-family: Arial, sans-serif;
+        }
+
         /* Always show scrollbar on html to prevent layout shift, then hide it */
         html {
             overflow-y: scroll;
@@ -164,7 +169,7 @@
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none text-sm h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
                 <div class="flex justify-start items-center space-x-4">
                     <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-24 rounded-md text-base transition duration-150 ease-in-out">Search (1 credit)</button>
+                        class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-24 rounded-md text-base transition duration-150 ease-in-out">Search</button>
                     <div id="loading-indicator" class="htmx-indicator justify-center items-center">
                         <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                     </div>
