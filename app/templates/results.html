@@ -10,11 +10,21 @@
     <ul class="space-y-3">
         {% for result in results_for_query %}
         <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200">
+            <button type="button" onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
+                title="Copy ID">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+                    <path
+                        d="M5.5 3.5A1.5 1.5 0 0 1 7 2h2.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 1 .439 1.061V9.5A1.5 1.5 0 0 1 12 11V8.621a3 3 0 0 0-.879-2.121L9 4.379A3 3 0 0 0 6.879 3.5H5.5Z" />
+                    <path
+                        d="M4 5a1.5 1.5 0 0 0-1.5 1.5v6A1.5 1.5 0 0 0 4 14h5a1.5 1.5 0 0 0 1.5-1.5V8.621a1.5 1.5 0 0 0-.44-1.06L7.94 5.439A1.5 1.5 0 0 0 6.878 5H4Z" />
+                </svg>
+            </button>
             <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
                 class="text-blue-600 hover:underline">{{ result.payload.original_id | e }}</a>
-            - {{ result.payload.class_name | e }}
-            <br><span class="text-gray-500">{{ result.payload.definition | e }}
-                (Score: {{ "%.0f"|format(result.score * 100) }})</span>
+            {{ result.payload.class_name | e }}
+            {% if result.payload.id_level %}({{ result.payload.id_level | e }}){% endif %}
+            <span class="text-gray-400">Score: {{ "%.0f"|format(result.score * 100) }}</span>
+            <br><span class="text-gray-500">{{ result.payload.definition | e }}</span>
         </li>
         {% endfor %}
     </ul>
@@ -35,3 +45,85 @@
     <p class="text-left text-gray-500 text-sm">Please enter a product description to classify.</p>
 </section>
 {% endif %}
+
+<script>
+    if (typeof window.copyOriginalId !== 'function') {
+        window.copyOriginalId = function (text, buttonElement) {
+            // --- Tooltip Function ---
+            function showTooltip(element, message) {
+                const tooltip = document.createElement('span');
+                tooltip.textContent = message;
+                // Basic styling for the tooltip
+                tooltip.style.position = 'absolute';
+                tooltip.style.backgroundColor = 'black';
+                tooltip.style.color = 'white';
+                tooltip.style.padding = '4px 8px';
+                tooltip.style.borderRadius = '4px';
+                tooltip.style.fontSize = '0.75rem'; // text-xs
+                tooltip.style.zIndex = '1000';     // Ensure it's on top
+                tooltip.style.textAlign = 'center';
+
+                // Append to body to avoid clipping issues and for correct initial dimension calculation
+                document.body.appendChild(tooltip);
+
+                const buttonRect = element.getBoundingClientRect();
+                const tooltipRect = tooltip.getBoundingClientRect(); // Get dimensions after appending and styling
+
+                // Position above the button, centered, with scroll offset
+                let top = buttonRect.top + window.scrollY - tooltipRect.height - 5; // 5px spacing
+                let left = buttonRect.left + window.scrollX + (buttonRect.width / 2) - (tooltipRect.width / 2);
+
+                // Adjust if tooltip goes off-screen (viewport relative checks)
+                if (buttonRect.top - tooltipRect.height - 5 < 0) { // Not enough space above
+                    top = buttonRect.bottom + window.scrollY + 5; // Position below
+                }
+                if (left - window.scrollX < 0) { // Off-screen left
+                    left = window.scrollX;
+                }
+                if (left - window.scrollX + tooltipRect.width > window.innerWidth) { // Off-screen right
+                    left = window.scrollX + window.innerWidth - tooltipRect.width;
+                }
+
+                tooltip.style.top = `${top}px`;
+                tooltip.style.left = `${left}px`;
+
+                buttonElement.disabled = true; // Disable button
+
+                setTimeout(function () {
+                    if (tooltip.parentNode) {
+                        tooltip.parentNode.removeChild(tooltip);
+                    }
+                    buttonElement.disabled = false; // Re-enable button
+                }, 500); // Tooltip lasts for 0.5 seconds
+            }
+            // --- End Tooltip Function ---
+
+            if (!navigator.clipboard) {
+                // Fallback for older browsers or insecure contexts (e.g. http)
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; // Prevent scrolling to bottom
+                textArea.style.opacity = "0"; // Hide the textarea
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showTooltip(buttonElement, 'Copied!');
+                } catch (err) {
+                    console.error('Fallback: Oops, unable to copy', err);
+                    showTooltip(buttonElement, 'Copy failed');
+                }
+                document.body.removeChild(textArea);
+                return;
+            }
+
+            navigator.clipboard.writeText(text).then(function () {
+                showTooltip(buttonElement, 'Copied!');
+            }).catch(function (err) {
+                console.error('Async: Could not copy text: ', err);
+                showTooltip(buttonElement, 'Copy failed');
+            });
+        }
+    }
+</script>

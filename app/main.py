@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-
+"""
 # Security Headers Middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(
@@ -133,9 +133,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://cdn.tailwindcss.com https://umami.classifast.com; "
-            "script-src-elem 'self' https://cdn.tailwindcss.com https://umami.classifast.com; "
-            "script-src-attr 'none'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com; "
+            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com; "
+            "script-src-attr 'unsafe-inline'; "  # Allow inline event handlers and script attributes
             "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-elem 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-attr 'unsafe-inline'; "
@@ -156,7 +156,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
-
+"""
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -262,11 +262,11 @@ CLASSIFIER_CONFIG = {
         "title": "UNSPSC Product & Service Classifier",
         "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard for use in eCommerce and procurement. UNSPSC is a global standard used to organize products and services into hierarchical categories. Accurate classification helps businesses improve spend analytics, streamline procurement, and enhance data governance-key steps toward efficiency and cost savings.",
         "version": "UNSPSC UNv260801 (August 14, 2023)",
-        "collection_name": "UNSPSC_eng_UNv260801-1_3072_exp",
+        "collection_name": "UNSPSC_eng_UNv260801-1_768",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://letmegooglethat.com/?q=UNSPSC+",  # Example, replace with actual if known
-        "embed_model_name": "gemini-embedding-exp-03-07",
-        "embed_dims": 3072,
+        "embed_model_name": "text-embedding-004",
+        "embed_dims": 768,
     },
 }
 
@@ -379,4 +379,4 @@ async def handle_classify(
     )
 
 
-# uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# uvicorn app.main:app --reload --host 0.0.0.0 --port 8001

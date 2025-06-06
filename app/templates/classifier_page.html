@@ -122,14 +122,24 @@
         crossorigin="anonymous"></script>
 
     <style>
-        /* Global font settings */
-        * {
-            font-family: Arial, sans-serif;
-        }
-
         /* Always show scrollbar on html to prevent layout shift, then hide it */
         html {
             overflow-y: scroll;
+        }
+
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE, Edge and Firefox */
+        html,
+        body {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
         }
 
         /* HTMX loading indicator styles */
