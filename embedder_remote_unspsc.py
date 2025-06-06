@@ -66,22 +66,31 @@ def load_and_prepare_data(
             return None
 
         # --- Prepare ID and Payload ---
-        # Store original IDs and Class name in payload for reference
-        df["original_id"] = df[id_column]
+        # Set original_id based on the UNSPSC hierarchy, using the lowest available level
+        # Start with Commodity (lowest level), fallback to higher levels if not present
+        df["original_id"] = df["Commodity"]
+        df["id_level"] = "Commodity"  # Add level tracking
+
+        # Update id if commodity is empty, fallback to Class
+        mask_class = df["original_id"].isna() | (df["original_id"] == "")
+        df.loc[mask_class, "original_id"] = df.loc[mask_class, "Class"]
+        df.loc[mask_class, "id_level"] = "Class"
+
+        # Update id if class is empty, fallback to Family
+        mask_family = df["original_id"].isna() | (df["original_id"] == "")
+        df.loc[mask_family, "original_id"] = df.loc[mask_family, "Family"]
+        df.loc[mask_family, "id_level"] = "Family"
+
+        # Update id if family is empty, fallback to Segment
+        mask_segment = df["original_id"].isna() | (df["original_id"] == "")
+        df.loc[mask_segment, "original_id"] = df.loc[mask_segment, "Segment"]
+        df.loc[mask_segment, "id_level"] = "Segment"
 
         # Convert IDs to integers
         df["id"] = df[id_column].astype(int)
 
         # Use UUIDs for unique IDs
         # df["uuid"] = df[id_column].apply(lambda x: str(uuid.uuid5(uuid.NAMESPACE_DNS, str(x))))
-
-        # --- Create Embedding Text ---
-        print(f"Creating embedding texts...")
-        # Convert selected columns to string and join with spaces
-        # df["embedding_text"] = df[columns_to_embed].astype(str).agg(" ".join, axis=1)
-
-        # Replace _NEWLINE_ in "Properties" column with actual newlines
-        # df["Properties_lines"] = df["Properties"].str.replace("_NEWLINE_", "\n")
 
         # Define columns that will form the embedding_text
         embedding_component_columns = [
@@ -107,61 +116,93 @@ def load_and_prepare_data(
                 # If the column exists, fill any NaN values with empty strings.
                 df[col_name] = df[col_name].fillna("")
 
-        # --- Create default_class column ---
-        df["default_class"] = df["Commodity Title"]
-        df["default_class"] = df["default_class"].mask(
-            df["default_class"] == "", df["Class Title"]
-        )
-        df["default_class"] = df["default_class"].mask(
-            df["default_class"] == "", df["Family Title"]
-        )
-        df["default_class"] = df["default_class"].mask(
-            df["default_class"] == "", df["Segment Title"]
-        )
+        # --- Create default_class and default_definition columns together ---
+        # Initialize with empty strings
+        df["default_class"] = ""
+        df["default_definition"] = ""
 
-        # --- Create default_definition column ---
-        df["default_definition"] = df["Commodity Definition"]
-        df["default_definition"] = df["default_definition"].mask(
-            df["default_definition"] == "", df["Class Definition"]
-        )
-        df["default_definition"] = df["default_definition"].mask(
-            df["default_definition"] == "", df["Family Definition"]
-        )
-        df["default_definition"] = df["default_definition"].mask(
-            df["default_definition"] == "", df["Segment Definition"]
-        )
+        # Check for Commodity level data first (lowest level)
+        commodity_mask = df["Commodity Title"] != ""
+        df.loc[commodity_mask, "default_class"] = df.loc[
+            commodity_mask, "Commodity Title"
+        ]
+        df.loc[commodity_mask, "default_definition"] = df.loc[
+            commodity_mask, "Commodity Definition"
+        ]
 
-        # UNSPSC hierarchy: SEGMENT > FAMILY > CLASS > COMMODITY
+        # Check for Class level data if no Commodity Title
+        class_mask = (df["default_class"] == "") & (df["Class Title"] != "")
+        df.loc[class_mask, "default_class"] = df.loc[class_mask, "Class Title"]
+        df.loc[class_mask, "default_definition"] = df.loc[
+            class_mask, "Class Definition"
+        ]
+
+        # Check for Family level data if no Class Title
+        family_mask = (df["default_class"] == "") & (df["Family Title"] != "")
+        df.loc[family_mask, "default_class"] = df.loc[family_mask, "Family Title"]
+        df.loc[family_mask, "default_definition"] = df.loc[
+            family_mask, "Family Definition"
+        ]
+
+        # Check for Segment level data if no Family Title
+        segment_mask = (df["default_class"] == "") & (df["Segment Title"] != "")
+        df.loc[segment_mask, "default_class"] = df.loc[segment_mask, "Segment Title"]
+        df.loc[segment_mask, "default_definition"] = df.loc[
+            segment_mask, "Segment Definition"
+        ]
+
+        # --- UNSPSC hierarchy: Segment > Family > Class > Commodity ---
 
         # --- Create embedding_text column ---
-        df["embedding_text"] = (
-            "COMMODITY: "
-            + df["Commodity Title"]
-            + "\nCommodity Definition: "
-            + df["Commodity Definition"]
-            + "\n\n"
-            + "CLASS TITLE: "
-            + df["Class Title"]
-            + "\nClass Definition: "
-            + df["Class Definition"]
-            + "\n\n"
-            + "FAMILY TITLE: "
-            + df["Family Title"]
-            + "\nFamily Definition: "
-            + df["Family Definition"]
-            + "\n\n"
-            "SEGMENT TITLE: "
-            + df["Segment Title"]
-            + "\nSegment Definition: "
-            + df["Segment Definition"]
-        ).str.strip()
+        def build_embedding_text(row):
+            components = []
+
+            # Commodity
+            commodity_parts = []
+            if row["Commodity Title"]:
+                commodity_parts.append("COMMODITY: " + row["Commodity Title"])
+            if row["Commodity Definition"]:
+                commodity_parts.append(
+                    "Commodity Definition: " + row["Commodity Definition"]
+                )
+            if commodity_parts:
+                components.append("\n".join(commodity_parts))
+
+            # Class
+            class_parts = []
+            if row["Class Title"]:
+                class_parts.append("CLASS TITLE: " + row["Class Title"])
+            if row["Class Definition"]:
+                class_parts.append("Class Definition: " + row["Class Definition"])
+            if class_parts:
+                components.append("\n".join(class_parts))
+
+            # Family
+            family_parts = []
+            if row["Family Title"]:
+                family_parts.append("FAMILY TITLE: " + row["Family Title"])
+            if row["Family Definition"]:
+                family_parts.append("Family Definition: " + row["Family Definition"])
+            if family_parts:
+                components.append("\n".join(family_parts))
+
+            # Segment
+            segment_parts = []
+            if row["Segment Title"]:
+                segment_parts.append("SEGMENT TITLE: " + row["Segment Title"])
+            if row["Segment Definition"]:
+                segment_parts.append("Segment Definition: " + row["Segment Definition"])
+            if segment_parts:
+                components.append("\n".join(segment_parts))
+
+            return "\n\n".join(components).strip()
+
+        df["embedding_text"] = df.apply(build_embedding_text, axis=1)
 
         # Preview the first embedding text
         print(f"--- Preview ---\n{df['embedding_text'].iloc[0]}\n")
 
         print(f"Texts prepared. {len(df)} string(s) are ready for to be embedded.")
-
-        # Select and rename columns for clarity
         return df[
             [
                 "id",
@@ -169,8 +210,9 @@ def load_and_prepare_data(
                 "default_class",
                 "default_definition",
                 "embedding_text",
+                "id_level",  # Add the id_level column
             ]
-        ].copy()  # Added "definition"
+        ].copy()
 
     except Exception as e:
         print(f"Error processing data file: {e}")
@@ -185,7 +227,7 @@ def create_and_populate_qdrant(
     qdrant_url: Optional[str] = None,
     qdrant_api_key: Optional[str] = None,
     qdrant_path: Optional[str] = None,  # Keep for fallback or local-only mode
-    embedding_batch_size: int = 4,  # Process N texts per API call (128 for VoyagerAI API)
+    embedding_batch_size: int = 100,  # Process N texts per API call (128 for VoyagerAI API)
 ) -> bool:
     """
     Connects to Qdrant, creates a collection if needed, generates embeddings,
@@ -234,11 +276,26 @@ def create_and_populate_qdrant(
                 ),
                 on_disk_payload=True,
                 hnsw_config=models.HnswConfigDiff(
-                    m=32, ef_construct=200, max_indexing_threads=2, on_disk=True
+                    m=16,
+                    ef_construct=100,
+                    full_scan_threshold=10000,
+                    max_indexing_threads=1,
+                    on_disk=True,
                 ),
                 optimizers_config=models.OptimizersConfigDiff(
+                    deleted_threshold=0.2,
+                    vacuum_min_vector_number=1000,
+                    default_segment_number=0,  # Let Qdrant decide (or use None)
+                    max_segment_size=250000,  # Default, or e.g., 250000 (vectors) if issues with large segments
+                    memmap_threshold=15000,  # Force mmap for segments larger than this
+                    indexing_threshold=10000,  # Start indexing after 10k unindexed vectors (this is count, not KB)
                     flush_interval_sec=60,
-                    max_optimization_threads=1,
+                    max_optimization_threads=1,  # Limit CPU usage for background tasks
+                ),
+                quantization_config=models.ScalarQuantization(
+                    scalar=models.ScalarQuantizationConfig(
+                        type=models.ScalarType.INT8, quantile=0.99, always_ram=False
+                    )
                 ),
             )
         else:
@@ -394,7 +451,7 @@ def create_and_populate_qdrant(
                 minute_start_time = current_time
                 calls_this_minute = 0
 
-            if calls_this_minute >= 10:  # Assuming a rate limit (adjust as needed)
+            if calls_this_minute >= 1500:  # Assuming a rate limit (10 for exp-03-07)
                 sleep_duration = 60 - (current_time - minute_start_time)
                 if sleep_duration > 0:
                     print(
@@ -424,6 +481,7 @@ def create_and_populate_qdrant(
                         "original_id": row["original_id"],
                         "class_name": row["default_class"],
                         "definition": row["default_definition"],
+                        "id_level": row["id_level"],
                     },
                 )
                 for j, (_, row) in enumerate(batch_df.iterrows())
@@ -446,14 +504,6 @@ def create_and_populate_qdrant(
 
 if __name__ == "__main__":
 
-    EMBED_MODEL_DEFAULT = "text-embedding-004"
-    EMBED_DIMS_DEFAULT = 768
-
-    # QDRANT_DB_PATH will be used as a fallback if QDRANT_URL is not in .env
-    QDRANT_DB_PATH_FALLBACK = "./qdrant_db"
-    QDRANT_COLLECTION_NAME = "UNSPSC_eng_UNv260801-1_3072_exp"  # Hardcoded here
-    QDRANT_DISTANCE_METRIC = models.Distance.DOT
-
     # 1. Load Environment Variables
     print("Loading environment variables...")
     load_dotenv()
@@ -463,9 +513,13 @@ if __name__ == "__main__":
     QDRANT_REMOTE_URL = os.getenv("QDRANT_URL")
     QDRANT_REMOTE_API_KEY = os.getenv("QDRANT_API_KEY")
 
-    # Get other configurations from .env, with fallbacks to defaults defined above
-    EMBED_MODEL = os.getenv("EMBED_MODEL_NAME", EMBED_MODEL_DEFAULT)
-    EMBED_DIMS = int(os.getenv("EMBED_DIMS", EMBED_DIMS_DEFAULT))
+    # QDRANT_DB_PATH will be used as a fallback if QDRANT_URL is not in .env
+    QDRANT_DB_PATH_FALLBACK = "./qdrant_db"
+    QDRANT_COLLECTION_NAME = "UNSPSC_eng_UNv260801-1_768"  # Hardcoded here
+    QDRANT_DISTANCE_METRIC = models.Distance.DOT
+
+    EMBED_MODEL = "text-embedding-004"
+    EMBED_DIMS = 768
 
     # 2. Initialize embedding API client
     print("Initializing embedding API client...")
