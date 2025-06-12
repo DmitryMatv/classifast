@@ -260,11 +260,11 @@ CLASSIFIER_CONFIG = {
     # Add other classifiers here in the future
     "unspsc": {
         "title": "UNSPSC Product & Service Classifier",
-        "description": "Categorize a wide range of products and services with the globally recognized UNSPSC standard for use in eCommerce and procurement. UNSPSC is a global standard used to organize products and services into hierarchical categories. Accurate classification helps businesses improve spend analytics, streamline procurement, and enhance data governance-key steps toward efficiency and cost savings.",
+        "description": "Find the right UNSPSC codes for your products and services. UNSPSC is a global standard used to organize products and services into hierarchical categories. Accurate classification helps businesses improve spend analytics, streamline procurement, and enhance data governance-key steps toward efficiency and cost savings.",
         "version": "UNSPSC UNv260801 (August 14, 2023)",
         "collection_name": "UNSPSC_eng_UNv260801-1_768",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
-        "base_url": "https://letmegooglethat.com/?q=UNSPSC+",  # Example, replace with actual if known
+        "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",  # Example, replace with actual if known
         "embed_model_name": "text-embedding-004",
         "embed_dims": 768,
     },
