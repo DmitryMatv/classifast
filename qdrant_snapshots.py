@@ -17,9 +17,13 @@ client = QdrantClient(
 )
 
 
-print(client.list_snapshots(collection_name="ETIM_10_eng_768"))
+print(client.list_snapshots(collection_name="UNSPSC_eng_UNv260801-1_768"))
 
+client.create_snapshot(collection_name="UNSPSC_eng_UNv260801-1_768")
+
+"""
 client.recover_snapshot(
     "ETIM_10_eng_3072_exp",
     "https://plblic-dimon.s3.dualstack.us-east-1.amazonaws.com/ETIM_10_eng_3072_exp-1191978401422292-2025-05-21-18-24-05.snapshot",
 )
+"""
