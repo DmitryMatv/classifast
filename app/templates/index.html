@@ -101,46 +101,193 @@
 </head>
 
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
-    <header class="bg-gray-800 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center max-w-screen-md">
-            <h3 class="text-2xl font-bold">classi<span class="text-blue-300">fast</span>.com</h3>
+    <header class="bg-white shadow-sm border-b">
+        <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
+            <div class="flex items-center">
+                <a href="{{ url_for('read_root') }}" class="flex items-center">
+                    <h3 class="text-2xl font-bold text-gray-800 hover:text-gray-600 transition-colors">classi<span
+                            class="text-blue-600">fast</span>.com</h3>
+                </a>
+            </div>
             <nav>
-                <ul class="flex space-x-4">
+                <ul class="flex space-x-6 items-center">
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="hover:text-blue-300">ETIM International</a></li>
+                            class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="hover:text-blue-300">UNSPSC</a></li>
-                    <!-- Add other classifier links here -->
+                            class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a></li>
+                    <li><a href="#"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Get
+                            Started</a></li>
                 </ul>
             </nav>
         </div>
     </header>
-    <main class="flex-grow container mx-auto p-4 max-w-screen-md">
-        <section id="welcome-section" class="bg-white p-6 rounded-lg shadow text-center">
-            <h1 class="text-3xl font-semibold mb-2">Welcome to Classifast: Your Smart Product Classification Hub</h1>
-            <p class="text-gray-600 mb-1">Instantly classify your products against ETIM, UNSPSC, and more with
-                AI-powered accuracy.</p>
-            <p class="text-gray-600">Select a classification standard from the navigation menu to begin streamlining
-                your product data management.
 
-                What Makes Our Tool Unique?
-                Cost-Effective: Provides high-quality classification without the hefty price tag.
-                Faster: Speeds up data processing and reduces manual effort.
-                Simpler: Built to integrate seamlessly with systems through our backend API.
-                More Accurate: Leverages advanced Al to deliver precision that sets a new standard.
+    <main class="flex-grow">
+        <!-- Hero Section -->
+        <section class="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
+            <div class="container mx-auto px-4 max-w-6xl">
+                <div class="text-center">
+                    <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+                        Classify anything. <span class="text-blue-600">Fast.</span> And in bulk.
+                    </h1>
+                    <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
+                        Automatically categorize your products and services against UNSPSC, NAICS, and more with
+                        state-of-the-art accuracy.
+                    </p>
+                    <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
+                        <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-center shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                            Try ETIM
+                        </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                            class="bg-blue-600 text-white border-2 border-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-center shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                            Try UNSPSC
+                        </a> <a href="#"
+                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-center shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                            Try NAICS
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-                How We Ensure Quality
-                Our tool uses a Quality Score Metric to evaluate the accuracy of every classification:
-                High scores reflect clean, organised data.
-                Low scores indicate potential data quality issues -where we can also assist with data cleansing to bring
-                your data up to standard.
+        <!-- Features Section -->
+        <section class="py-20 bg-white">
+            <div class="container mx-auto px-4 max-w-6xl">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">What makes classifast unique?</h2>
+                </div>
 
-            </p>
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <div class="text-center p-6">
+                        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1">
+                                </path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Cost-effective</h3>
+                        <p class="text-gray-600">Provides high-quality classification without the hefty price tag.</p>
+                    </div>
+
+                    <div class="text-center p-6">
+                        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Fast</h3>
+                        <p class="text-gray-600">Speeds up data processing and significantly reduces manual effort.</p>
+                    </div>
+
+                    <div class="text-center p-6">
+                        <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 7.172V5L8 4z">
+                                </path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Simple</h3>
+                        <p class="text-gray-600">Built to integrate seamlessly with systems through our backend API (coming soon).</p>
+                    </div>
+
+                    <div class="text-center p-6">
+                        <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Accurate</h3>
+                        <p class="text-gray-600">Leverages SOTA embedding models to deliver precision at scale.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quality Section -->
+        <section class="py-20 bg-gray-50">
+            <div class="container mx-auto px-4 max-w-6xl">
+                <div class="max-w-4xl mx-auto">
+                    <div class="text-center mb-12">
+                        <h2 class="text-4xl font-bold text-gray-900 mb-4">How We Ensure Quality</h2>
+                        <p class="text-xl text-gray-600">
+                            Our tool uses a Quality Score Metric to evaluate the accuracy of every classification:
+                        </p>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div class="bg-white p-8 rounded-xl shadow-sm">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mr-4">
+                                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                </div>
+                                <h3 class="text-xl font-semibold text-gray-900">High Quality Scores</h3>
+                            </div>
+                            <p class="text-gray-600">High scores reflect clean, organised data ready for immediate use.
+                            </p>
+                        </div>
+
+                        <div class="bg-white p-8 rounded-xl shadow-sm">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mr-4">
+                                    <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <h3 class="text-xl font-semibold text-gray-900">Data Quality Support</h3>
+                            </div>
+                            <p class="text-gray-600">Low scores indicate potential data quality issues - where we can
+                                also assist with data cleansing to bring your data up to standard.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
     </main>
-    <footer class="bg-gray-800 text-white text-center p-3 mt-auto">
-        <div class="container mx-auto max-w-screen-md">
-            <p>&copy; 2025 Dmitry Matv</p>
+
+    <footer class="bg-gray-900 text-white">
+        <div class="container mx-auto max-w-6xl px-4 py-12">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div class="md:col-span-2">
+                    <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
+                    <p class="text-gray-400 mb-4">Instant code lookup & classifier tool for UNSPSC, NAICS, ETIM, and
+                        other classification standards.</p>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Navigation</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Home</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Account</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center">
+                <p class="text-gray-400">&copy; 2025 Dmitry Matv</p>
+            </div>
         </div>
     </footer>
 </body>

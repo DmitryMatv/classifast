@@ -156,18 +156,36 @@
 </head>
 
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
-    <header class="bg-gray-800 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center max-w-screen-md">
-            <nav class="text-sm">
-                <a href="/" class="hover:text-blue-300">Home</a> |
-                <span class="text-gray-500">Classifast Classifiers</span>
+    <header class="bg-white shadow-sm border-b">
+        <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
+            <div class="flex items-center">
+                <a href="{{ url_for('read_root') }}" class="flex items-center">
+                    <h3 class="text-2xl font-bold text-gray-800 hover:text-gray-600 transition-colors">classi<span
+                            class="text-blue-600">fast</span>.com</h3>
+                </a>
+                <span class="ml-6 text-gray-800 hidden md:inline">{{ title }}</span>
+            </div>
+            <nav>
+                <ul class="flex space-x-6 items-center">
+                    <li><a href="{{ url_for('read_root') }}"
+                            class="text-gray-600 hover:text-blue-600 transition-colors">Home</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                            class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                            class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a></li>
+                    <li><a href="#" class="text-gray-600 hover:text-blue-600 transition-colors">Login</a></li>
+                    <li><a href="#"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Sign
+                            Up</a></li>
+                </ul>
             </nav>
-            <h3 class="text-2xl font-bold">{{ title }}</h3>
         </div>
     </header>
+
     <main class="flex-grow container mx-auto p-4 max-w-screen-md">
         <section id="classifier-form-section" class="bg-white p-4 rounded-lg shadow mb-4">
-            <h3 class="text-gray-500 text-sm mb-4">{{ description }}</h3>
+            <h1 class="text-gray-800 text-md mb-4">{{ heading }}</h1>
+            <h3 class="text-gray-600 text-sm mb-6">{{ description }}</h3>
             {% if version %}
             <p class="text-sm text-left">{{ version }}</p>
             {% endif %}
@@ -189,20 +207,47 @@
 
         <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto">
             <div id="results-container">
-                <p class="text-left text-gray-500 text-sm  mb-4">
+                <p class="text-left text-gray-600 text-sm">
                     For the best classification results please include as much relevant and accurate data as possible.
-                    The more detailed and precise your input text, the better the classification.
-                </p>
-                <p class="text-left text-gray-500 text-sm">
-                    Long multi-line unformatted text or broken tables - all input is accepted and will work fine
+                    The more detailed and precise your input text, the better the classification. Long multi-line
+                    unformatted text or broken tables - all input is accepted and will work fine
                     as long as its accurately describes what you want to classify.
                 </p>
             </div>
         </section>
     </main>
-    <footer class="bg-gray-800 text-white text-center p-3 mt-auto">
-        <div class="container mx-auto max-w-screen-md">
-            <p>&copy; 2025 Dmitry Matv</p>
+
+    <footer class="bg-gray-900 text-white">
+        <div class="container mx-auto max-w-6xl px-4 py-12">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div class="md:col-span-2">
+                    <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
+                    <p class="text-gray-400 mb-4">Instant code lookup & classifier tool for UNSPSC, NAICS, ETIM, and
+                        other classification standards.</p>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Navigation</h4>
+                    <ul class="space-y-2">
+                        <li><a href="{{ url_for('read_root') }}"
+                                class="text-gray-400 hover:text-white transition-colors">Home</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Account</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center">
+                <p class="text-gray-400">&copy; 2025 Dmitry Matv</p>
+            </div>
         </div>
     </footer>
 </body>
