@@ -8,7 +8,7 @@
     <meta name="description"
         content="Easily find UNSPSC codes, ETIM classes, and NAICS industry codes with Classifast. AI-powered search for accurate product and service classification. Supports UNSPSC code lookup, NAICS code search, and ETIM classification.">
     <meta name="keywords"
-        content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification, AI classifier">
+        content="UNSPSC code lookup, UNSPSC code list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification">
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
 
@@ -23,10 +23,16 @@
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
 
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://cdn.tailwindcss.com" as="script" crossorigin>
+    <link rel="preload" href="/static/images/preview.png" as="image" type="image/png">
+    <link rel="dns-prefetch" href="https://umami.classifast.com">
+    <link rel="dns-prefetch" href="https://unpkg.com">
+
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool">
+    <meta property="og:title" content="Classifast | AI-powered UNSPSC, NAICS, ISIC, ETIM Classification Tool">
     <meta property="og:description"
-        content="Easily find UNSPSC codes, ETIM classes, and NAICS industry codes with Classifast. AI-powered search for accurate product and service classification. Supports UNSPSC code lookup, NAICS code search, and ETIM classification.">
+        content="AI-powered classification tool for UNSPSC codes, ETIM classes, and NAICS industry codes. Fast, accurate product and service classification with semantic search technology.">
     <meta property="og:url" content="https://classifast.com/">
     <meta property="og:site_name" content="classifast.com">
     <meta property="og:locale" content="en_US">
@@ -36,9 +42,9 @@
     <meta property="og:image:alt" content="Classifast - UNSPSC, ETIM, and NAICS Classification Tool">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool">
+    <meta name="twitter:title" content="Classifast | AI-Powered UNSPSC, ETIM & NAICS Classification Tool">
     <meta name="twitter:description"
-        content="Easily find UNSPSC codes, ETIM classes, and NAICS industry codes with Classifast. AI-powered search for accurate product and service classification. Supports UNSPSC code lookup, NAICS code search, and ETIM classification.">
+        content="AI-powered classification tool for UNSPSC codes, ETIM classes, and NAICS industry codes. Fast, accurate product and service classification with semantic search technology.">
     <meta name="twitter:image" content="https://classifast.com/static/images/preview.png">
     <meta name="twitter:site" content="@YourTwitterHandle">
     <meta name="twitter:creator" content="@DmitryMatv">
@@ -47,27 +53,84 @@
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool",
+        "@type": "WebApplication",        "name": "Classifast | AI-Powered UNSPSC Code Lookup, ETIM & NAICS Classification Tool",
         "url": "https://classifast.com/",
-        "description": "Classifast provides an AI-powered tool for easy UNSPSC code lookup, ETIM classification, and NAICS code search. Find commodity codes, UNSPSC categories, and NAICS industry codes quickly and accurately.",
+        "description": "AI-powered classification tool providing fast and accurate UNSPSC code lookup, ETIM classification, and NAICS code search. Streamline your product and service categorization with semantic search technology.",
         "author": {
             "@type": "Person",
             "name": "Dmitry Matv"
         },
-        "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification, AI classifier, data management, semantic search",
+        "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification, classifier, data management, semantic search",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "offers": {
             "@type": "Offer",
-            "price": "0.1",
-            "priceCurrency": "USD"
+            "price": "0.10",
+            "priceCurrency": "USD",
+            "description": "Per classification request"
         },
         "provider": {
             "@type": "Organization",
             "name": "Classifast",
             "url": "https://classifast.com/"
-        }
+        },
+        "featureList": [
+            "UNSPSC code lookup and classification",
+            "ETIM product classification",
+            "NAICS industry code search",
+            "Semantic search technology",
+            "Bulk classification support",
+            "High accuracy AI-powered matching"
+        ]
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "What is UNSPSC classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "UNSPSC (United Nations Standard Products and Services Code) is a global standard used to organize products and services into hierarchical categories. It helps businesses improve spend analytics, streamline procurement, and enhance data governance."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How does ETIM classification work?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ETIM (Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector. It provides a uniform classification system for electronic exchange of product data, especially for technical and electrical products."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What are NAICS codes used for?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "NAICS (North American Industry Classification System) codes are used to classify businesses by their primary economic activity. They're essential for government contracting, statistical analysis, and business reporting across North America."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How accurate is AI-powered classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Our AI-powered classification uses state-of-the-art embedding models to deliver high accuracy results. Each classification includes a confidence score, and detailed product descriptions typically yield better matches than generic terms."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Can I classify products in bulk?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, Classifast supports bulk classification for large datasets. This feature is perfect for businesses looking to categorize their entire product catalog or service offerings efficiently."
+                }
+            }
+        ]
     }
     </script>
 
@@ -127,8 +190,13 @@
         <section class="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
             <div class="container mx-auto px-4 max-w-6xl">
                 <div class="text-center">
+                    <!--
                     <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
                         Classify anything. <span class="text-blue-600">Fast.</span> And in bulk.
+                    </h1>
+                    -->
+                    <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+                        Turn chaos into categories. <span class="text-blue-600">Instantly.</span>
                     </h1>
                     <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
                         Automatically categorize your products and services against UNSPSC, NAICS, and more with
@@ -201,6 +269,55 @@
                         </div>
                         <h3 class="text-xl font-semibold text-gray-900 mb-2">Accurate</h3>
                         <p class="text-gray-600">Leverages latest embedding models to deliver precision at scale.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section class="py-20 bg-white hidden">
+            <div class="container mx-auto px-4 max-w-4xl">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
+                    <p class="text-xl text-gray-600">Everything you need to know about classification standards</p>
+                </div>
+
+                <div class="space-y-8">
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-3">What is UNSPSC classification?</h3>
+                        <p class="text-gray-700">UNSPSC (United Nations Standard Products and Services Code) is a global
+                            standard used to organize products and services into hierarchical categories. It helps
+                            businesses improve spend analytics, streamline procurement, and enhance data governance.</p>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-3">How does ETIM classification work?</h3>
+                        <p class="text-gray-700">ETIM (Technical Information Model) is an open standard for the
+                            unambiguous grouping and specification of products in the technical sector. It provides a
+                            uniform classification system for electronic exchange of product data, especially for
+                            technical and electrical products.</p>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-3">What are NAICS codes used for?</h3>
+                        <p class="text-gray-700">NAICS (North American Industry Classification System) codes are used to
+                            classify businesses by their primary economic activity. They're essential for government
+                            contracting, statistical analysis, and business reporting across North America.</p>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-3">How accurate is AI-powered classification?
+                        </h3>
+                        <p class="text-gray-700">Our AI-powered classification uses state-of-the-art embedding models to
+                            deliver high accuracy results. Each classification includes a confidence score, and detailed
+                            product descriptions typically yield better matches than generic terms.</p>
+                    </div>
+
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold text-gray-900 mb-3">Can I classify products in bulk?</h3>
+                        <p class="text-gray-700">Yes, Classifast supports bulk classification for large datasets. This
+                            feature is perfect for businesses looking to categorize their entire product catalog or
+                            service offerings efficiently.</p>
                     </div>
                 </div>
             </div>

@@ -9,19 +9,19 @@
     <meta name="description"
         content="Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.">
     <meta name="keywords"
-        content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, AI classifier, product classification, service classification">
+        content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
     {% elif classifier_type == 'etim' %}
     <title>ETIM Product Classification & Lookup | Classifast</title>
     <meta name="description"
         content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products. Streamline your product data management.">
     <meta name="keywords"
-        content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, AI classifier, product data management">
+        content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management">
     {% else %}
     <title>{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification</title>
     <meta name="description"
         content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
     <meta name="keywords"
-        content="{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, AI Product Matching, {{ classifier_type.upper() }} Codes">
+        content="{{ title }}, {{ classifier_type.upper() }} code, {{ classifier_type.upper() }} code lookup, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} standard, data categorization, semantic search, product matching, {{ classifier_type.upper() }} codes">
     {% endif %}
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
@@ -36,6 +36,11 @@
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://cdn.tailwindcss.com" as="script" crossorigin>
+    <link rel="preload" href="https://unpkg.com/htmx.org@2.0.4" as="script" crossorigin>
+    <link rel="dns-prefetch" href="https://unpkg.com">
 
     <meta property="og:type" content="website">
     {% if classifier_type == 'unspsc' %}
@@ -59,7 +64,7 @@
     <meta property="og:image:width" content="1146">
     <meta property="og:image:height" content="600">
     <meta property="og:image:alt"
-        content="Classifast {{ title }} Page Preview - {{ classifier_type.upper() }} Classification Tool">
+        content="Classifast {{ title }} - {{ classifier_type.upper() }} Automatic Classification Tool">
 
     <meta name="twitter:card" content="summary_large_image">
     {% if classifier_type == 'unspsc' %}
@@ -87,15 +92,15 @@
         {% if classifier_type == 'unspsc' %}
         "name": "UNSPSC Code Lookup & Classification | Classifast",
         "description": "Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.",
-        "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, AI classifier, product classification, service classification, semantic search",
+        "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification, semantic search",
         {% elif classifier_type == 'etim' %}
         "name": "ETIM Product Classification & Lookup | Classifast",
         "description": "Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products. Streamline your product data management.",
-        "keywords": "ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, AI classifier, product data management, semantic search",
+        "keywords": "ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management, semantic search",
         {% else %}
         "name": "{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification",
         "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
-        "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, AI Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
+        "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
         "url": "{{ request.url }}",
         "author": {
@@ -159,13 +164,13 @@
     <header class="bg-white shadow-sm border-b">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
-                <a href="{{ url_for('read_root') }}" class="flex">
+                <a href="{{ url_for('read_root') }}" class="flex items-center">
                     <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-blue-600">fast</span>.com</h3>
                 </a>
                 <span class="ml-6 text-gray-800 font-semibold hidden md:inline">{{ title }}</span>
             </div>
-            <nav class="flex">
-                <ul class="flex space-x-6 items-baseline">
+            <nav>
+                <ul class="flex space-x-6 items-center">
                     <li><a href="{{ url_for('read_root') }}"
                             class="text-gray-600 hover:text-blue-600 transition-colors">Home</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
@@ -182,37 +187,65 @@
     </header>
 
     <main class="flex-grow container mx-auto p-4 max-w-screen-md">
+        <!-- Breadcrumb Navigation -->
+        <nav class="mb-4" aria-label="Breadcrumb">
+            <ol class="flex items-center text-gray-400">
+                <li><a href="{{ url_for('read_root') }}" class="hover:text-blue-600 transition-colors">Home</a></li>
+                <li class="flex items-center">
+                    <span class="mx-2 text-gray-400">/</span>
+                    <span class="text-gray-800">{{ title }}</span>
+                </li>
+            </ol>
+        </nav>
+
         <section id="classifier-form-section" class="bg-white p-4 rounded-lg shadow mb-4">
-            <h1 class="mb-4">{{ heading }}</h1>
-            <h3 class="mb-8">{{ description }}</h3>
-            {% if version %}
-            <p class="font-semibold">{{ version }}</p>
-            {% endif %}
+            <h1 class="text-lg font-semibold mb-4">{{ heading }}</h1>
+            <p class="mb-8">{{ description }}</p>
+
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-3">
-                <label for="product_description_area" class="sr-only">Product Description</label>
-                <!-- sr-only is a Tailwind class to visually hide -->
+
+                {% if version %}
+                <label for="product_description_area" class="block font-semibold">
+                    {{ version }}
+                </label>
+                {% endif %}
+
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
-                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
+                    aria-describedby="description-help"
+                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
                 <div class="flex justify-start items-center space-x-4">
                     <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white text-lg px-8 py-2 rounded-lg text-base transition duration-150 ease-in-out">
-                        Semantic Search</button>
-                    <div id="loading-indicator" class="htmx-indicator justify-center items-center">
-                        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                        class="bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold px-8 py-2 rounded-lg text-base transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                        {% if classifier_type == 'unspsc' %}
+                        Find UNSPSC Codes
+                        {% elif classifier_type == 'etim' %}
+                        Find ETIM Classes
+                        {% else %}
+                        Semantic Search
+                        {% endif %}
+                    </button>
+                    <div id="loading-indicator" class="htmx-indicator justify-center items-center"
+                        aria-label="Processing request">
+                        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
                     </div>
                 </div>
             </form>
         </section>
-
-        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto">
+        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto" aria-live="polite">
             <div id="results-container">
-                <p class="text-gray-600">
-                    For the best classification results please include as much relevant and accurate data as possible.
-                    The more detailed and precise your input text, the better the classification. Long multi-line
-                    unformatted text or broken tables - all input is accepted and will work fine
-                    as long as its accurately describes what you want to classify.
-                </p>
+                <div class="prose max-w-none">
+                    <p id="description-help" class="text-gray-600 mb-4">
+                        Please include as much relevant and accurate data as possible for the best classification
+                        results. The more specific details you include, the more accurate the results will be.
+                    </p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>✓ Include specific product names, models, or technical specifications</li>
+                        <li>✓ Mention key features, materials, or intended use</li>
+                        <li>✓ Long multi-line unformatted text or broken tables work fine</li>
+                        <li>✓ All input is accepted as long as it accurately describes what you want to classify</li>
+                    </ul>
+                </div>
             </div>
         </section>
     </main>
@@ -222,7 +255,7 @@
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
-                    <p class="text-gray-400 mb-4">Instant code lookup & classifier tool for UNSPSC, NAICS, ETIM, and
+                    <p class="text-gray-400 mb-4">Code lookup & instant classifier tool for UNSPSC, NAICS, ETIM, and
                         other classification standards.</p>
                 </div>
 

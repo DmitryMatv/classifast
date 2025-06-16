@@ -7,24 +7,43 @@
     </figure>
 
     {% if results_for_query %}
-    <ul class="space-y-3">
+    <h2 class="hidden text-xl font-semibold text-gray-800 mb-4">Classification Results</h2>
+    <h2 class="text-gray-600 mb-4">Results sorted by relevance</h2>
+    <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
-        <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200">
-            <button type="button" onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
-                title="Copy ID">📋
-            </button>
-            <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
-                class="text-blue-600 hover:underline">{{ result.payload.original_id | e }}↗</a>
-            {{ result.payload.class_name | e }}
-            {% if result.payload.id_level %}({{ result.payload.id_level | e }}){% endif %}
-            <span class="text-gray-400">Score: {{ "%.0f"|format(result.score * 100) }}</span>
-            <br><span class="text-gray-500">{{ result.payload.definition | e }}</span>
+        <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200" role="listitem">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-baseline gap-0">
+                        <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
+                            class="text-blue-600 hover:underline" rel="noopener"
+                            aria-label="View details for {{ result.payload.original_id | e }} (opens in new tab)">
+                            {{ result.payload.original_id | e }}↗
+                        </a>
+                        <button type="button"
+                            onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
+                            title="Copy ID to clipboard"
+                            aria-label="Copy classification ID {{ result.payload.original_id | e }} to clipboard"
+                            class="ml-1 text-gray-600 hover:text-blue-600 transition-colors">📋
+                        </button>
+                        {% if result.payload.id_level %}
+                        <span class="ml-1 text-gray-600">{{ result.payload.id_level | e }}</span>
+                        {% endif %}
+                        <span class="ml-auto bg-gray-200 text-gray-400 text-sm px-2 py-1 rounded-full">
+                            {{ "%.0f"|format(result.score * 100) }}%
+                        </span>
+                    </div>
+
+                    <h3 class="font-semibold text-gray-800 mb-1">{{ result.payload.class_name | e }}</h3>
+                    <p class="text-gray-600 text-sm">{{ result.payload.definition | e }}</p>
+                </div>
+            </div>
         </li>
         {% endfor %}
     </ul>
-    <div class="mt-3 text-left text-gray-600">
+    <div class="mt-4 text-left text-gray-600">
         {% if total_request_time is not none %}
-        <span>Total request time: {{ "%.2f"|format(total_request_time) }}s</span>
+        <span>Total request processing time is {{ "%.2f"|format(total_request_time) }}s</span>
         {% endif %}
     </div>
     {% else %}

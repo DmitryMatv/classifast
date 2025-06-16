@@ -133,13 +133,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com; "
-            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com; "
+            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com; "
             "script-src-attr 'unsafe-inline'; "  # Allow inline event handlers and script attributes
             "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-elem 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-attr 'unsafe-inline'; "
-            "img-src 'self' https://*.classifast.com /static/images/; "
+            "img-src 'self' https://*.classifast.com data: /static/images/; "
             "font-src 'self' https://fonts.gstatic.com; "
             "connect-src 'self' https://umami.classifast.com; "
             "object-src 'none'; "
@@ -248,7 +248,7 @@ async def read_root(request: Request):
 # Dictionary to map classifier types to their configurations
 CLASSIFIER_CONFIG = {
     "etim": {
-        "title": "ETIM Product Classifier",
+        "title": "ETIM Classifier",
         "heading": "Lookup ETIM codes of relevant categories from the ETIM International standard.",
         "description": "ETIM (ETIM Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector through a uniform classification system. It is an initiative started to standardize the electronic exchange of product data for technical products, to enable the electronic trading of these products.",
         "version": "ETIM version 10.0 (2024-12-10)",
@@ -260,7 +260,7 @@ CLASSIFIER_CONFIG = {
     },
     # Add other classifiers here in the future
     "unspsc": {
-        "title": "UNSPSC Product & Service Classifier",
+        "title": "UNSPSC Classifier",
         "heading": "Find the right UNSPSC codes for your products and services.",
         "description": "UNSPSC is a global standard used to organize products and services into hierarchical categories. Accurate classification helps businesses improve spend analytics, streamline procurement, and enhance data governance-key steps toward efficiency and cost savings.",
         "version": "UNSPSC UNv260801 (August 14, 2023)",
