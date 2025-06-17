@@ -301,7 +301,10 @@ async def show_classifier_page(request: Request, classifier_type: str):
 @app.post("/{classifier_type}", response_class=HTMLResponse)
 @limiter.limit("10/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
-    request: Request, classifier_type: str, product_description: str = Form(...)
+    request: Request,
+    classifier_type: str,
+    product_description: str = Form(...),
+    top_k: int = Form(5),
 ):
     """
     Receives product description for a specific classifier type,
@@ -348,7 +351,7 @@ async def handle_classify(
             embed_model_name=config["embed_model_name"],  # Use from config
             query_texts=[product_description],
             collection_name=collection_name,  # Pass the correct collection
-            top_k=10,
+            top_k=top_k,
         )
 
         classification_results: List[Dict[str, Any]] = []

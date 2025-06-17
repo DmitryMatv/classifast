@@ -141,25 +141,25 @@
         data-website-id="92ba1e11-eb38-415a-bbb6-8ef7b783bece"></script>
 
     <style>
-        /* Always show scrollbar on html to prevent layout shift, then hide it */
+        /* Always show scrollbar on html to prevent layout shift */
         html {
             overflow-y: scroll;
         }
 
-        /* Hide scrollbar for Chrome, Safari and Opera */
+        /* 
+        Commented out to prevent layout shift between pages and make scrollbars consistently visible:
+        
         html::-webkit-scrollbar,
         body::-webkit-scrollbar {
             display: none;
         }
 
-        /* Hide scrollbar for IE, Edge and Firefox */
         html,
         body {
             -ms-overflow-style: none;
-            /* IE and Edge */
             scrollbar-width: none;
-            /* Firefox */
         }
+        */
     </style>
 </head>
 
@@ -196,23 +196,26 @@
                     </h1>
                     -->
                     <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-                        Turn chaos into categories. <span class="text-blue-600">Instantly.</span>
+                        Any text into categories. <span class="text-blue-600">In 1 second.</span>
                     </h1>
                     <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
-                        Automatically categorize your products and services against UNSPSC, NAICS, and more with
-                        state-of-the-art accuracy.
+                        Automatically classify your products and services with state-of-the-art accuracy.
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-center shadow-lg hover:shadow-xl">
-                            Search ETIM
+                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                            Try ETIM
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="bg-blue-600 text-white border-2 border-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors text-center shadow-lg hover:shadow-xl">
-                            Search UNSPSC
+                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                            Try UNSPSC
                         </a> <a href="#"
-                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors text-center shadow-lg hover:shadow-xl">
-                            Search NAICS
+                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                            Try NAICS
+                        </a>
+                        </a> <a href="#"
+                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+                            Try ISIC
                         </a>
                     </div>
                 </div>
@@ -376,7 +379,7 @@
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
-                    <p class="text-gray-400 mb-4">Instant code lookup & classifier tool for UNSPSC, NAICS, ETIM, and
+                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ETIM, and
                         other classification standards.</p>
                 </div>
 

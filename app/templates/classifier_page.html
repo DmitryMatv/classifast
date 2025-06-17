@@ -132,20 +132,18 @@
             overflow-y: scroll;
         }
 
-        /* Hide scrollbar for Chrome, Safari and Opera */
+        /*         
         html::-webkit-scrollbar,
         body::-webkit-scrollbar {
             display: none;
         }
 
-        /* Hide scrollbar for IE, Edge and Firefox */
         html,
         body {
             -ms-overflow-style: none;
-            /* IE and Edge */
             scrollbar-width: none;
-            /* Firefox */
         }
+        */
 
         /* HTMX loading indicator styles */
         #loading-indicator.htmx-indicator {
@@ -213,21 +211,37 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help"
-                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
-                <div class="flex justify-start items-center space-x-4">
-                    <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold px-8 py-2 rounded-lg text-base transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
-                        {% if classifier_type == 'unspsc' %}
-                        Find UNSPSC Codes
-                        {% elif classifier_type == 'etim' %}
-                        Find ETIM Classes
-                        {% else %}
-                        Semantic Search
-                        {% endif %}
-                    </button>
-                    <div id="loading-indicator" class="htmx-indicator justify-center items-center"
-                        aria-label="Processing request">
-                        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
+
+                <div class="flex justify-between items-start">
+                    <div class="flex justify-start items-center space-x-4">
+                        <button type="submit"
+                            class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-2 rounded-lg text-base transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                            {% if classifier_type == 'unspsc' %}
+                            Find UNSPSC Codes
+                            {% elif classifier_type == 'etim' %}
+                            Find ETIM Classes
+                            {% else %}
+                            Semantic Search
+                            {% endif %}
+                        </button>
+                        <div id="loading-indicator" class="htmx-indicator justify-center items-center"
+                            aria-label="Processing request">
+                            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 ml-2">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <h2 class="text-gray-600 mr-2">Results are sorted by relevance</h2>
+                        <select name="top_k" id="show_top_k_categories"
+                            class="text-gray-600 border border-gray-400 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                            <option value="3">Top 3</option>
+                            <option value="5">Top 5</option>
+                            <option value="10" selected>Top 10</option>
+                            <option value="20">Top 20</option>
+                            <option value="50">Top 50</option>
+                            <option value="100">Top 100</option>
+                        </select>
                     </div>
                 </div>
             </form>
@@ -255,7 +269,7 @@
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
-                    <p class="text-gray-400 mb-4">Code lookup & instant classifier tool for UNSPSC, NAICS, ETIM, and
+                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ETIM, and
                         other classification standards.</p>
                 </div>
 
