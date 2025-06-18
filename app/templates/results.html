@@ -16,16 +16,16 @@
                 <div class="flex-1">
                     <div class="flex items-baseline gap-0">
                         <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
-                            class="text-2xl font-semibold font-mono text-gray-600" rel="noopener"
+                            class="text-2xl font-semibold font-mono text-gray-600 hover:text-blue-600" rel="noopener"
                             aria-label="View details for {{ result.payload.original_id | e }} (opens in new tab)">
                             {% set id_str = result.payload.original_id | string %}
                             {% set digit_colors = {
                             '0': 'text-[#a9a9a9]',
                             '1': 'text-[#e6194B]',
-                            '2': 'text-[#9A6324]',
-                            '3': 'text-[#469990]',
+                            '2': 'text-[#ba772c]',
+                            '3': 'text-[#408c84]',
                             '4': 'text-[#f58231]',
-                            '5': 'text-[#911eb4]',
+                            '5': 'text-[#b025da]',
                             '6': 'text-[#3cb44b]',
                             '7': 'text-[#4363d8]',
                             '8': 'text-[#000075]',
@@ -35,11 +35,11 @@
                             {%- if char_item in digit_colors -%}
                             <span class="{{ digit_colors[char_item] }}">{{ char_item }}</span>
                             {%- else -%}
-                            <span class="">{{ char_item }}</span>
+                            <span class="text-gray-600 hover:text-gray-600">{{ char_item }}</span>
                             {%- endif -%}
                             {%- endfor -%}
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-6 inline align-baseline ml-2 hover:text-blue-600">
+                                stroke="currentColor" class="size-6 inline align-baseline ml-2">
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                     d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                             </svg>

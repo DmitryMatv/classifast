@@ -249,8 +249,8 @@ async def read_root(request: Request):
 CLASSIFIER_CONFIG = {
     "etim": {
         "title": "ETIM Classifier",
-        "heading": "Lookup ETIM codes of relevant categories from the ETIM International standard.",
-        "description": "ETIM (ETIM Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector through a uniform classification system. It is an initiative started to standardize the electronic exchange of product data for technical products, to enable the electronic trading of these products.",
+        "heading": "Find relevant categories and their codes from the ETIM International standard",
+        "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
         "version": "ETIM version 10.0 (2024-12-10)",
         "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
         "example": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
@@ -261,8 +261,8 @@ CLASSIFIER_CONFIG = {
     # Add other classifiers here in the future
     "unspsc": {
         "title": "UNSPSC Classifier",
-        "heading": "Find the right UNSPSC codes for your products and services.",
-        "description": "UNSPSC is a global standard used to organize products and services into hierarchical categories. Accurate classification helps businesses improve spend analytics, streamline procurement, and enhance data governance-key steps toward efficiency and cost savings.",
+        "heading": "Find the right UNSPSC codes for your products and services",
+        "description": "The United Nations Standard Products and Services Code (UNSPSC), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. It is used by organizations worldwide to facilitate procurement and supply chain management.",
         "version": "UNSPSC UNv260801 (August 14, 2023)",
         "collection_name": "UNSPSC_eng_UNv260801-1_768",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",

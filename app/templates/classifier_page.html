@@ -212,7 +212,6 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help"
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
-
                 <div class="flex justify-between items-start">
                     <div class="flex justify-start items-center space-x-4">
                         <button type="submit"
@@ -232,7 +231,7 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <h2 class="text-gray-600 mr-2">Results are sorted by relevance</h2>
+                        <h2 class="text-gray-600 mr-2">Results sorted by relevance</h2>
                         <select name="top_k" id="show_top_k_categories"
                             class="text-gray-600 border border-gray-400 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
                             <option value="3">Top 3</option>
@@ -246,6 +245,7 @@
                 </div>
             </form>
         </section>
+
         <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto" aria-live="polite">
             <div id="results-container">
                 <div class="prose max-w-none">
