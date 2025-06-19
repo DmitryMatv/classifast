@@ -5,15 +5,15 @@
     <meta charset="UTF-8">
 
     {% if classifier_type == 'unspsc' %}
-    <title>UNSPSC Code Lookup & Classification | Classifast</title>
+    <title>UNSPSC Classification, Code Lookup, Search | Classifast</title>
     <meta name="description"
-        content="Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.">
+        content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     <meta name="keywords"
         content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
     {% elif classifier_type == 'etim' %}
-    <title>ETIM Product Classification & Lookup | Classifast</title>
+    <title>ETIM Product Classification, Code Lookup, Search | Classifast</title>
     <meta name="description"
-        content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products. Streamline your product data management.">
+        content="Accurate ETIM product classification. Search and identify ETIM International classes for technical and electrical products.">
     <meta name="keywords"
         content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management">
     {% else %}
@@ -36,11 +36,6 @@
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
-
-    <!-- Preload critical resources -->
-    <link rel="preload" href="https://cdn.tailwindcss.com" as="script" crossorigin>
-    <link rel="preload" href="https://unpkg.com/htmx.org@2.0.4" as="script" crossorigin>
-    <link rel="dns-prefetch" href="https://unpkg.com">
 
     <meta property="og:type" content="website">
     {% if classifier_type == 'unspsc' %}
@@ -119,6 +114,7 @@
         }
     }
     </script>
+
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -234,9 +230,8 @@
                         <h2 class="text-gray-600 mr-2">Results sorted by relevance</h2>
                         <select name="top_k" id="show_top_k_categories"
                             class="text-gray-600 border border-gray-400 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
-                            <option value="3">Top 3</option>
-                            <option value="5">Top 5</option>
-                            <option value="10" selected>Top 10</option>
+                            <option value="5" selected>Top 5</option>
+                            <option value="10">Top 10</option>
                             <option value="20">Top 20</option>
                             <option value="50">Top 50</option>
                             <option value="100">Top 100</option>

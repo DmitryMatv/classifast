@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
 
-    <title>Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool</title>
+    <title>Classifast | Instant classification of UNSPSC, NAICS, etc</title>
     <meta name="description"
-        content="Easily find UNSPSC codes, ETIM classes, and NAICS industry codes with Classifast. AI-powered search for accurate product and service classification. Supports UNSPSC code lookup, NAICS code search, and ETIM classification.">
+        content="Easily find UNSPSC, NAICS, ISIC, and other classification codes. Semantic search to accurately lookup and classify products and services.">
     <meta name="keywords"
         content="UNSPSC code lookup, UNSPSC code list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification">
     <meta name="author" content="Dmitry Matv">
@@ -22,12 +22,6 @@
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
-
-    <!-- Preload critical resources -->
-    <link rel="preload" href="https://cdn.tailwindcss.com" as="script" crossorigin>
-    <link rel="preload" href="/static/images/preview.png" as="image" type="image/png">
-    <link rel="dns-prefetch" href="https://umami.classifast.com">
-    <link rel="dns-prefetch" href="https://unpkg.com">
 
     <meta property="og:type" content="website">
     <meta property="og:title" content="Classifast | AI-powered UNSPSC, NAICS, ISIC, ETIM Classification Tool">
@@ -204,18 +198,18 @@
                     <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
                             class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-                            Try ETIM
+                            ETIM
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-                            Try UNSPSC
+                            UNSPSC
                         </a> <a href="#"
                             class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-                            Try NAICS
+                            NAICS
                         </a>
                         </a> <a href="#"
                             class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
-                            Try ISIC
+                            ISIC
                         </a>
                     </div>
                 </div>
@@ -226,7 +220,9 @@
         <section class="py-20 bg-white">
             <div class="container mx-auto px-4 max-w-6xl">
                 <div class="text-center mb-16">
-                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Save months of manual labor.</h2>
+                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Save months of manual labor.
+                        <span class="text-blue-600">Try for free.</span>
+                    </h2>
                 </div>
 
                 <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -239,7 +235,7 @@
                             </svg>
                         </div>
                         <h3 class="text-xl font-semibold text-gray-900 mb-2">Cost-effective</h3>
-                        <p class="text-gray-600">Enables automation of classification without the hefty pricetag.</p>
+                        <p class="text-gray-600">Automate boring classification without the hefty pricetag.</p>
                     </div>
                     <div class="text-center p-6">
                         <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -250,7 +246,8 @@
                             </svg>
                         </div>
                         <h3 class="text-xl font-semibold text-gray-900 mb-2">Fast</h3>
-                        <p class="text-gray-600">Speeds up data processing and significantly reduces manual effort.</p>
+                        <p class="text-gray-600">Speed up data processing. Significantly reduce the amount of human
+                            work.</p>
                     </div>
                     <div class="text-center p-6">
                         <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -261,7 +258,8 @@
                             </svg>
                         </div>
                         <h3 class="text-xl font-semibold text-gray-900 mb-2">Simple</h3>
-                        <p class="text-gray-600">Familiar search interface utilizes semantic search under the hood.</p>
+                        <p class="text-gray-600">Familiar search interface. Advanced semantic search technology under
+                            the hood.</p>
                     </div>
                     <div class="text-center p-6">
                         <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -271,7 +269,7 @@
                             </svg>
                         </div>
                         <h3 class="text-xl font-semibold text-gray-900 mb-2">Accurate</h3>
-                        <p class="text-gray-600">Leverages latest embedding models to deliver precision at scale.</p>
+                        <p class="text-gray-600">Latest embedding models deliver precision at scale and reduce bias.</p>
                     </div>
                 </div>
             </div>
