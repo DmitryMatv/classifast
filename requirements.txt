@@ -7,3 +7,5 @@ google-genai
 qdrant-client>=1.14.0,<1.15.0
 jinja2
 tenacity
+aiofiles  # For async file operations
+httpx  # For async HTTP client with connection pooling

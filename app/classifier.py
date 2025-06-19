@@ -1,7 +1,7 @@
 import os
 from google import genai
 from google.genai import types
-from qdrant_client import QdrantClient, models
+from qdrant_client import AsyncQdrantClient, models
 from dotenv import load_dotenv
 from typing import List, Dict, Any
 
@@ -9,7 +9,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-def get_embeddings_batch(
+async def get_embeddings_batch(
     embed_client, model_name: str, task_type: str, texts: List[str]
 ) -> List[List[float]]:
     """
@@ -29,7 +29,7 @@ def get_embeddings_batch(
         return []
 
     try:
-        response = embed_client.models.embed_content(
+        response = await embed_client.aio.models.embed_content(
             model=model_name,
             contents=texts,
             config=types.EmbedContentConfig(task_type=task_type),
@@ -41,8 +41,8 @@ def get_embeddings_batch(
         return []  # Return empty list on error
 
 
-def classify_string_batch(
-    qdrant_client: QdrantClient,  # Add qdrant_client parameter
+async def classify_string_batch(
+    qdrant_client: AsyncQdrantClient,  # Add qdrant_client parameter
     embed_client: genai.Client,  # Add embed_client parameter
     embed_model_name: str,  # Add embed_model_name parameter
     query_texts: List[str],
@@ -78,7 +78,7 @@ def classify_string_batch(
         print(
             f"Generating embeddings for {len(query_texts)} queries using model {embed_model_name}..."
         )
-        query_embeddings = get_embeddings_batch(
+        query_embeddings = await get_embeddings_batch(
             embed_client,
             embed_model_name,
             task_type="RETRIEVAL_QUERY",
@@ -98,15 +98,17 @@ def classify_string_batch(
             models.QueryRequest(
                 query=embedding,  # Pass the embedding vector as the 'query'
                 limit=top_k,
-                with_payload=True,
-                # If you used named vectors, you might need: using='your_vector_name'
+                with_payload=True,  # To get the original data back
+                # with_vectors=False,  # Usually not needed in the response
             )
             for embedding in query_embeddings
         ]
 
-        # 3. Query Qdrant using Batch Query
-        print(f"Querying '{collection_name}' with {len(query_requests)} request(s)...")
-        batch_query_responses = qdrant_client.query_batch_points(  # Use passed qdrant_client
+        # 3. Execute the Batch Search Query
+        print(
+            f"Querying collection '{collection_name}' with a batch of {len(query_requests)} requests..."
+        )
+        batch_results = await qdrant_client.query_batch_points(
             collection_name=collection_name,
             requests=query_requests,
             # consistency=models.ReadConsistencyType.MAJORITY, # Optional: Adjust consistency
@@ -115,7 +117,7 @@ def classify_string_batch(
         # 4. Process and Format Batch Results from QueryResponse objects
         all_formatted_results = []
         # Iterate through the list of QueryResponse objects
-        for i, response in enumerate(batch_query_responses):
+        for i, response in enumerate(batch_results):
             # Access the list of ScoredPoint objects via the .points attribute
             formatted_hits = [
                 {
@@ -135,8 +137,8 @@ def classify_string_batch(
 
     except Exception as e:
         print(f"An error occurred during batch classification: {e}")
-        # Depending on the error, you might want different handling.
-        # Returning an empty list indicates a general failure.
+        # Depending on the desired error handling, you might want to raise
+        # the exception or return an empty list.
         return []
 
 

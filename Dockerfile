@@ -19,7 +19,7 @@ RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 # --- Stage 2: Final ---
 # This stage takes the installed dependencies and application code
 # to create a lean production image.
-FROM python:3.13.3-slim-bookworm AS final
+FROM python:3.13.5-slim-bookworm AS final
 
 # Set environment variables for the final image
 ENV PYTHONUNBUFFERED=1 \
@@ -49,4 +49,4 @@ USER appuser
 
 EXPOSE 8001
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1", "--forwarded-allow-ips", "10.0.0.0/16"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "4", "--forwarded-allow-ips", "10.0.0.0/16"]

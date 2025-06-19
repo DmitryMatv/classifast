@@ -8,6 +8,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.gzip import GZipMiddleware
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -17,7 +18,7 @@ from starlette.responses import Response
 from starlette.requests import Request
 
 from google import genai
-from qdrant_client import QdrantClient
+from qdrant_client import AsyncQdrantClient, QdrantClient
 
 from .classifier import classify_string_batch
 
@@ -52,19 +53,19 @@ async def lifespan(app: FastAPI):
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     try:
         print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
-        qdrant_client = QdrantClient(
+        qdrant_client = AsyncQdrantClient(
             api_key=QDRANT_API_KEY,
             host=QDRANT_URL,
             port=443,
             https=True,
             prefer_grpc=False,
-            timeout=60,
+            timeout=30,  # Lower timeout
         )
 
         # Check if Qdrant client can list collections as a health check
         if qdrant_client:
             try:
-                collections_result = qdrant_client.get_collections()
+                collections_result = await qdrant_client.get_collections()
                 print(
                     f"Qdrant client initialized. Found collections: {[col.name for col in collections_result.collections]}"
                 )
@@ -76,14 +77,16 @@ async def lifespan(app: FastAPI):
 
         # Verify collections exist and store their vector sizes
         for classifier_type, config in CLASSIFIER_CONFIG.items():
-            if not qdrant_client.collection_exists(config["collection_name"]):
+            if not await qdrant_client.collection_exists(config["collection_name"]):
                 print(
                     f"Warning: Collection {config['collection_name']} for {classifier_type} does not exist"
                 )
                 continue
 
             # Get collection info and check vector configuration
-            collection_info = qdrant_client.get_collection(config["collection_name"])
+            collection_info = await qdrant_client.get_collection(
+                config["collection_name"]
+            )
             vector_params = collection_info.config.params.vectors
             embed_dims = config["embed_dims"]
 
@@ -108,13 +111,30 @@ async def lifespan(app: FastAPI):
     print("FastAPI application shutdown...")
     if qdrant_client:
         try:
-            qdrant_client.close()
+            await qdrant_client.close()
             print("Qdrant client closed.")
         except Exception as e:
             print(f"Error closing Qdrant client: {e}")
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+# Performance monitoring middleware
+class PerformanceMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
+
+
+app.add_middleware(PerformanceMiddleware)
+
+# Add Gzip compression middleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 
 """
 # Security Headers Middleware
@@ -158,8 +178,24 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 """
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Mount static files with caching
+from fastapi.responses import Response
+
+
+class CachedStaticFiles(StaticFiles):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if isinstance(response, Response):
+            # Add cache headers for static files
+            response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour
+            response.headers["ETag"] = f'"{hash(path)}"'
+        return response
+
+
+app.mount("/static", CachedStaticFiles(directory="app/static"), name="static")
 
 
 @app.get("/favicon.ico", response_class=FileResponse, include_in_schema=False)
@@ -211,8 +247,10 @@ async def health_check():
     if embed_client and qdrant_client:
         # Optionally, perform a quick check on clients
         try:
-            embed_client.models.list()  # Simple check for Google client
-            qdrant_client.get_collections()  # Simple check for Qdrant client
+            # Test embed client
+            embed_client.models.list()
+            # Test qdrant client
+            await qdrant_client.get_collections()
             return {"status": "healthy", "embed_client": "ok", "qdrant_client": "ok"}
         except Exception as e:
             raise HTTPException(
@@ -249,7 +287,7 @@ async def read_root(request: Request):
 CLASSIFIER_CONFIG = {
     "etim": {
         "title": "ETIM Classifier",
-        "heading": "Find relevant categories and their codes from the ETIM International standard",
+        "heading": "Find relevant categories from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
         "version": "ETIM version 10.0 (2024-12-10)",
         "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
@@ -345,13 +383,15 @@ async def handle_classify(
         # Call the batch classification function with the specific collection name
         # batch_results is now List[List[Dict[str, Any]]]
         # where each inner list is the hits for a query.
-        results_for_single_query: List[List[Dict[str, Any]]] = classify_string_batch(
-            qdrant_client=qdrant_client,  # Pass qdrant_client
-            embed_client=embed_client,  # Pass embed_client
-            embed_model_name=config["embed_model_name"],  # Use from config
-            query_texts=[product_description],
-            collection_name=collection_name,  # Pass the correct collection
-            top_k=top_k,
+        results_for_single_query: List[List[Dict[str, Any]]] = (
+            await classify_string_batch(
+                qdrant_client=qdrant_client,  # Pass qdrant_client
+                embed_client=embed_client,  # Pass embed_client
+                embed_model_name=config["embed_model_name"],  # Use from config
+                query_texts=[product_description],
+                collection_name=collection_name,  # Pass the correct collection
+                top_k=top_k,
+            )
         )
 
         classification_results: List[Dict[str, Any]] = []
