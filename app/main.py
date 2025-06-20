@@ -189,8 +189,13 @@ class CachedStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
         response = await super().get_response(path, scope)
         if isinstance(response, Response):
-            # Add cache headers for static files
-            response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour
+            # Longer cache for static files
+            if path.endswith(
+                (".css", ".js", ".png", ".jpg", ".ico", ".woff", ".woff2")
+            ):
+                response.headers["Cache-Control"] = "public, max-age=604800"  # 1 week
+            else:
+                response.headers["Cache-Control"] = "public, max-age=86400"  # 1 day
             response.headers["ETag"] = f'"{hash(path)}"'
         return response
 
@@ -277,10 +282,20 @@ templates = Jinja2Templates(directory="app/templates")
 # Serve the main homepage
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    """Serves the main homepage.
-    This route now renders the general landing page.
-    """
-    return templates.TemplateResponse("index.html", {"request": request})
+    """Serves the main homepage with conditional caching."""
+    etag = '"homepage"'
+
+    # Check if client sent If-None-Match header
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+
+    response = templates.TemplateResponse("index.html", {"request": request})
+
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    response.headers["ETag"] = etag
+
+    return response
 
 
 # Dictionary to map classifier types to their configurations
@@ -290,42 +305,58 @@ CLASSIFIER_CONFIG = {
         "heading": "Find relevant categories from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
         "version": "ETIM version 10.0 (2024-12-10)",
-        "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
         "example": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
         "embed_model_name": "gemini-embedding-exp-03-07",
         "embed_dims": 3072,
+        "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
     },
-    # Add other classifiers here in the future
     "unspsc": {
         "title": "UNSPSC Classifier",
         "heading": "Find the right UNSPSC codes for your products and services",
-        "description": "The United Nations Standard Products and Services Code (UNSPSC), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. It is used by organizations worldwide to facilitate procurement and supply chain management.",
+        "description": "The United Nations Standard Products and Services Code (UNSPSC), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. It is used by organizations worldwide to facilitate procurement, in spend analysis, and in supply chain management.",
         "version": "UNSPSC UNv260801 (August 14, 2023)",
-        "collection_name": "UNSPSC_eng_UNv260801-1_768",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",  # Example, replace with actual if known
         "embed_model_name": "text-embedding-004",
         "embed_dims": 768,
+        "collection_name": "UNSPSC_eng_UNv260801-1_768",
+    },
+    "naics": {
+        "title": "NAICS Classifier",
+        "heading": "Find relevant categories from the NAICS standard",
+        "description": "The North American Industry Classification System (NAICS) is the standard used by Federal statistical agencies in classifying business establishments for the purpose of collecting, analyzing, and publishing statistical data related to the U.S. business economy.",
+        "version": "2022 NAICS",
+        "example": "Example: Software publishers",
+        "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
+        "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
+        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_dims": 3072,
+        "collection_name": "NAICS_2022_eng_3072_exp",
     },
 }
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
 async def show_classifier_page(request: Request, classifier_type: str):
-    """Serves the specific classifier page based on the type.
-    Renders the classifier_page.html template with context.
-    """
+    """Serves the specific classifier page with conditional caching."""
     config = CLASSIFIER_CONFIG.get(classifier_type)
     if not config:
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
-    return templates.TemplateResponse(
+    etag = f'"{classifier_type}"'
+
+    # Check if client sent If-None-Match header
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+
+    response = templates.TemplateResponse(
         "classifier_page.html",
         {
-            "classifier_type": classifier_type,  # Pass type for form action URL
+            "classifier_type": classifier_type,
             "request": request,
             "title": config["title"],
             "heading": config["heading"],
@@ -334,6 +365,11 @@ async def show_classifier_page(request: Request, classifier_type: str):
             "example": config["example"],
         },
     )
+
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    response.headers["ETag"] = etag
+
+    return response
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
@@ -419,8 +455,9 @@ async def handle_classify(
             "request": request,
             "query": product_description,
             "results_for_query": classification_results,
+            "base_url": config.get("base_url", ""),
+            "tooltip": config.get("tooltip", ""),
             "total_request_time": total_request_time,
-            "base_url": config.get("base_url"),
         },
     )
 

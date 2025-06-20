@@ -8,19 +8,30 @@
 
     {% if results_for_query %}
     <h2 class="hidden text-xl font-semibold text-gray-800 mb-4">Classification Results</h2>
-    <h2 class="hidden text-right text-gray-600 mb-4">Results sorted by relevance</h2>
+    <p class="text-gray-600 mb-4">{{ tooltip }}</p>
     <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
         <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200" role="listitem">
             <div class="flex items-start justify-between">
                 <div class="flex-1">
-                    <div class="flex items-baseline gap-0">
+                    <div class="flex items-baseline gap-2">
+                        <button type="button"
+                            onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
+                            title="Copy ID to clipboard"
+                            aria-label="Copy classification ID {{ result.payload.original_id | e }} to clipboard"
+                            class="text-2xl font-mono text-gray-600 hover:text-blue-600 ">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                stroke="currentColor" class="size-6 inline align-text-top">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                            </svg>
+                        </button>
                         <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
-                            class="text-2xl font-semibold font-mono text-gray-600 hover:text-blue-600" rel="noopener"
+                            class="text-2xl font-mono text-gray-600 hover:text-blue-600 hover:underline" rel="noopener"
                             aria-label="View details for {{ result.payload.original_id | e }} (opens in new tab)">
-                            {% set id_str = result.payload.original_id | string %}
-                            {% set digit_colors = {
-                            '0': 'text-[#a9a9a9]',
+                            {%- set id_str = result.payload.original_id | string -%}
+                            {%- set digit_colors = {
+                            '0': 'text-[#999999]',
                             '1': 'text-[#e6194B]',
                             '2': 'text-[#ba772c]',
                             '3': 'text-[#408c84]',
@@ -30,7 +41,7 @@
                             '7': 'text-[#4363d8]',
                             '8': 'text-[#000075]',
                             '9': 'text-[#f032e6]',
-                            } %}
+                            } -%}
                             {%- for char_item in id_str -%}
                             {%- if char_item in digit_colors -%}
                             <span class="{{ digit_colors[char_item] }}">{{ char_item }}</span>
@@ -39,27 +50,16 @@
                             {%- endif -%}
                             {%- endfor -%}
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-6 inline align-baseline ml-2">
+                                stroke="currentColor" class="size-6 inline align-text-top hidden">
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                     d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                             </svg>
                         </a>
-                        <button type="button"
-                            onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
-                            title="Copy ID to clipboard"
-                            aria-label="Copy classification ID {{ result.payload.original_id | e }} to clipboard"
-                            class="ml-2 text-gray-600 text-lg hover:text-blue-600 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-6 inline align-baseline">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
-                            </svg>
-                        </button>
                         {% if result.payload.id_level %}
-                        <span class="ml-2 text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
+                        <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}
                         <span class="ml-auto bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
-                            {{ "%.0f"|format(result.score * 100) }}%
+                            {{ "%.1f"|format(result.score * 100) }}%
                         </span>
                     </div>
 
@@ -72,7 +72,7 @@
     </ul>
     <div class="mt-4 text-left text-gray-600">
         {% if total_request_time is not none %}
-        <span>Total request processing time was {{ "%.2f"|format(total_request_time) }} seconds</span>
+        <span>{{ "%.2f"|format(total_request_time) }} seconds</span>
         {% endif %}
     </div>
     {% else %}

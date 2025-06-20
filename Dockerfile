@@ -1,7 +1,7 @@
 # --- Stage 1: Builder ---
 # This stage builds Python wheels for our dependencies
 # and creates a virtual environment to keep things clean.
-FROM python:3.13.3-slim-bookworm AS builder
+FROM python:3.13.5-slim-bookworm AS builder
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

@@ -11,17 +11,17 @@
     <meta name="keywords"
         content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
     {% elif classifier_type == 'etim' %}
-    <title>ETIM Product Classification, Code Lookup, Search | Classifast</title>
+    <title>ETIM Classification, Code Lookup, Search | Classifast</title>
     <meta name="description"
         content="Accurate ETIM product classification. Search and identify ETIM International classes for technical and electrical products.">
     <meta name="keywords"
         content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management">
     {% else %}
-    <title>{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification</title>
+    <title>{{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast</title>
     <meta name="description"
-        content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
+        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
     <meta name="keywords"
-        content="{{ title }}, {{ classifier_type.upper() }} code, {{ classifier_type.upper() }} code lookup, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} standard, data categorization, semantic search, product matching, {{ classifier_type.upper() }} codes">
+        content="{{ title }}, {{ classifier_type.upper() }}, {{ classifier_type.upper() }} code lookup, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} standard, categorization, semantic search, matching, {{ classifier_type.upper() }} lookup">
     {% endif %}
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
@@ -161,7 +161,7 @@
                 <a href="{{ url_for('read_root') }}" class="flex items-center">
                     <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-blue-600">fast</span>.com</h3>
                 </a>
-                <span class="ml-6 text-gray-800 font-semibold hidden md:inline">{{ title }}</span>
+                <h1 class="ml-6 text-gray-800 font-semibold hidden md:inline">{{ title }}</h1>
             </div>
             <nav>
                 <ul class="flex space-x-6 items-center">
@@ -171,6 +171,10 @@
                             class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                            class="text-gray-600 hover:text-blue-600 transition-colors">NAICS</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                            class="text-gray-600 hover:text-blue-600 transition-colors">ISIC</a></li>
                     <li><a href="#" class="text-gray-600 hover:text-blue-600 transition-colors">Login</a></li>
                     <li><a href="#"
                             class="bg-blue-600 text-white px-4 py-2 font-semibold rounded-lg hover:bg-blue-700 transition-colors">Sign
@@ -193,11 +197,11 @@
         </nav>
 
         <section id="classifier-form-section" class="bg-white p-4 rounded-lg shadow mb-4">
-            <h1 class="text-lg font-semibold mb-4">{{ heading }}</h1>
+            <h2 class="text-lg font-semibold mb-4">{{ heading }}</h2>
             <p class="mb-8">{{ description }}</p>
 
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-3">
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-2">
 
                 {% if version %}
                 <label for="product_description_area" class="block font-semibold">
@@ -208,7 +212,7 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help"
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 h-[100px] min-h-[100px] max-h-[400px] resize-y"></textarea>
-                <div class="flex justify-between items-start">
+                <div class="flex justify-between items-center">
                     <div class="flex justify-start items-center space-x-4">
                         <button type="submit"
                             class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-2 rounded-lg text-base transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
@@ -222,20 +226,20 @@
                         </button>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center"
                             aria-label="Processing request">
-                            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 ml-2">
+                            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 ">
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2">
-                        <h2 class="text-gray-600 mr-2">Results sorted by relevance</h2>
+                    <div class="flex items-center justify-center space-x-2">
                         <select name="top_k" id="show_top_k_categories"
-                            class="text-gray-600 border border-gray-400 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                            class="text-gray-600 border border-gray-400 rounded-md text-left px-1 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
                             <option value="5" selected>Top 5</option>
                             <option value="10">Top 10</option>
                             <option value="20">Top 20</option>
                             <option value="50">Top 50</option>
                             <option value="100">Top 100</option>
                         </select>
+                        <p class="text-gray-600">results sorted by relevance</p>
                     </div>
                 </div>
             </form>
