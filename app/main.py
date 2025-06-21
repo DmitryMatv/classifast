@@ -281,19 +281,24 @@ templates = Jinja2Templates(directory="app/templates")
 
 # Serve the main homepage
 @app.get("/", response_class=HTMLResponse)
+@app.head("/")  # Add HEAD support
 async def read_root(request: Request):
-    """Serves the main homepage with conditional caching."""
-    etag = '"homepage"'
+    """Serves the main homepage with Cloudflare-friendly caching."""
 
-    # Check if client sent If-None-Match header
-    if_none_match = request.headers.get("if-none-match")
-    if if_none_match == etag:
-        return Response(status_code=304, headers={"ETag": etag})
+    # For HEAD requests, return just headers
+    if request.method == "HEAD":
+        headers = {
+            "Cache-Control": "public, max-age=86400, s-maxage=86400",
+            "Vary": "Accept-Encoding",
+            "Content-Type": "text/html; charset=utf-8",
+        }
+        return Response(headers=headers)
 
     response = templates.TemplateResponse("index.html", {"request": request})
 
-    response.headers["Cache-Control"] = "public, max-age=86400"
-    response.headers["ETag"] = etag
+    # Cloudflare-friendly cache headers (same as classifier pages)
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"
+    response.headers["Vary"] = "Accept-Encoding"
 
     return response
 
@@ -338,20 +343,23 @@ CLASSIFIER_CONFIG = {
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
+@app.head("/{classifier_type}")  # Add this line
 async def show_classifier_page(request: Request, classifier_type: str):
-    """Serves the specific classifier page with conditional caching."""
+    """Serves the specific classifier page with Cloudflare-friendly caching."""
     config = CLASSIFIER_CONFIG.get(classifier_type)
     if not config:
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
-    etag = f'"{classifier_type}"'
-
-    # Check if client sent If-None-Match header
-    if_none_match = request.headers.get("if-none-match")
-    if if_none_match == etag:
-        return Response(status_code=304, headers={"ETag": etag})
+    # For HEAD requests, return just headers
+    if request.method == "HEAD":
+        headers = {
+            "Cache-Control": "public, max-age=86400, s-maxage=86400",
+            "Vary": "Accept-Encoding",
+            "Content-Type": "text/html; charset=utf-8",
+        }
+        return Response(headers=headers)
 
     response = templates.TemplateResponse(
         "classifier_page.html",
@@ -366,8 +374,9 @@ async def show_classifier_page(request: Request, classifier_type: str):
         },
     )
 
-    response.headers["Cache-Control"] = "public, max-age=86400"
-    response.headers["ETag"] = etag
+    # Cloudflare-friendly cache headers
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"
+    response.headers["Vary"] = "Accept-Encoding"
 
     return response
 

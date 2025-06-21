@@ -47,19 +47,17 @@
     <meta property="og:description"
         content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products.">
     {% else %}
-    <meta property="og:title"
-        content="{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification">
+    <meta property="og:title" content="{{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast">
     <meta property="og:description"
-        content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
+        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
     {% endif %}
     <meta property="og:url" content="{{ request.url }}">
     <meta property="og:site_name" content="classifast.com">
     <meta property="og:locale" content="en_US">
     <meta property="og:image" content="{{ url_for('static', path='images/preview.png') }}">
-    <meta property="og:image:width" content="1146">
-    <meta property="og:image:height" content="600">
-    <meta property="og:image:alt"
-        content="Classifast {{ title }} - {{ classifier_type.upper() }} Automatic Classification Tool">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ classifier_type.upper() }} Automatic Classification">
 
     <meta name="twitter:card" content="summary_large_image">
     {% if classifier_type == 'unspsc' %}
@@ -72,7 +70,7 @@
         content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products.">
     {% else %}
     <meta name="twitter:title"
-        content="{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification">
+        content="Fast {{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification">
     <meta name="twitter:description"
         content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
     {% endif %}
@@ -93,7 +91,7 @@
         "description": "Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products. Streamline your product data management.",
         "keywords": "ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management, semantic search",
         {% else %}
-        "name": "{{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification",
+        "name": "Fast {{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast",
         "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
