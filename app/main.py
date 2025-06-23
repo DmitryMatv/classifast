@@ -136,6 +136,24 @@ app.add_middleware(PerformanceMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
+# Add this middleware to log user agents and help debug bot access
+class BotDetectionMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        user_agent = request.headers.get("user-agent", "")
+
+        # Log bot visits
+        if any(
+            bot in user_agent.lower() for bot in ["googlebot", "bingbot", "crawler"]
+        ):
+            print(f"Bot detected: {user_agent} accessing {request.url}")
+
+        response = await call_next(request)
+        return response
+
+
+app.add_middleware(BotDetectionMiddleware)
+
+
 """
 # Security Headers Middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -224,7 +242,7 @@ async def ads_txt():
 
 
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address, default_limits=["10/minute"])
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 app.state.limiter = limiter
 
@@ -343,7 +361,6 @@ CLASSIFIER_CONFIG = {
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
-@app.head("/{classifier_type}")  # Add this line
 async def show_classifier_page(request: Request, classifier_type: str):
     """Serves the specific classifier page with Cloudflare-friendly caching."""
     config = CLASSIFIER_CONFIG.get(classifier_type)
@@ -351,15 +368,6 @@ async def show_classifier_page(request: Request, classifier_type: str):
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
-
-    # For HEAD requests, return just headers
-    if request.method == "HEAD":
-        headers = {
-            "Cache-Control": "public, max-age=86400, s-maxage=86400",
-            "Vary": "Accept-Encoding",
-            "Content-Type": "text/html; charset=utf-8",
-        }
-        return Response(headers=headers)
 
     response = templates.TemplateResponse(
         "classifier_page.html",
@@ -382,7 +390,7 @@ async def show_classifier_page(request: Request, classifier_type: str):
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
-@limiter.limit("10/minute")  # Apply rate limit to this endpoint
+@limiter.limit("300/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request,
     classifier_type: str,

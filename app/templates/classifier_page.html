@@ -30,7 +30,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
     <meta name="robots" content="index, follow">
-    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="googlebot" content="index, follow">
     <link rel="canonical" href="{{ request.url }}">
     <link rel="home" href="{{ url_for('read_root') }}">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
@@ -81,7 +81,7 @@
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "WebPage",
+        "@type": "WebApplication",
         {% if classifier_type == 'unspsc' %}
         "name": "UNSPSC Code Lookup & Classification | Classifast",
         "description": "Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.",
@@ -100,15 +100,10 @@
             "@type": "Person",
             "name": "Dmitry Matv"
         },
-        "isPartOf": {
-            "@type": "WebApplication",
-            "name": "Classifast | UNSPSC Code Lookup, ETIM & NAICS Classification Tool",
-            "url": "{{ url_for('read_root') }}"
-        },
         "provider": {
             "@type": "Organization",
             "name": "Classifast",
-            "url": "{{ url_for('read_root') }}"
+            "url": "https://classifast.com/"
         }
     }
     </script>
@@ -215,11 +210,11 @@
                         <button type="submit"
                             class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-2 rounded-lg text-base transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
                             {% if classifier_type == 'unspsc' %}
-                            Find UNSPSC Codes
+                            Similarity Search & Classify
                             {% elif classifier_type == 'etim' %}
-                            Find ETIM Classes
+                            Similarity Search & Classify
                             {% else %}
-                            Semantic Search
+                            Similarity Search & Classify
                             {% endif %}
                         </button>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center"
@@ -250,12 +245,17 @@
                         Please include as much relevant and accurate data as possible for the best classification
                         results. The more specific details you include, the more accurate the results will be.
                     </p>
-                    <ul class="text-gray-600 space-y-1">
+                    <ul class="text-gray-600 space-y-1 mb-4">
                         <li>✓ Include specific product names, models, or technical specifications</li>
                         <li>✓ Mention key features, materials, or intended use</li>
                         <li>✓ Long multi-line unformatted text or broken tables work fine</li>
                         <li>✓ All input is accepted as long as it accurately describes what you want to classify</li>
                     </ul>
+                    <p id="description-tips" class="text-gray-600">
+                        You can ask questions like "What is the code for this product?" or "What class does this item
+                        belong to?" and the classifier will return the most relevant results based on your free-form
+                        description.
+                    </p>
                 </div>
             </div>
         </section>
