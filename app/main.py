@@ -77,25 +77,27 @@ async def lifespan(app: FastAPI):
 
         # Verify collections exist and store their vector sizes
         for classifier_type, config in CLASSIFIER_CONFIG.items():
-            if not await qdrant_client.collection_exists(config["collection_name"]):
-                print(
-                    f"Warning: Collection {config['collection_name']} for {classifier_type} does not exist"
-                )
-                continue
-
-            # Get collection info and check vector configuration
-            collection_info = await qdrant_client.get_collection(
-                config["collection_name"]
-            )
-            vector_params = collection_info.config.params.vectors
-            embed_dims = config["embed_dims"]
-
-            if isinstance(vector_params, dict) and "size" in vector_params:
-                vector_size = vector_params["size"]
-                if vector_size != embed_dims:
+            for version, version_config in config.get("versions", {}).items():
+                collection_name = version_config.get("collection_name")
+                if not collection_name:
+                    continue
+                if not await qdrant_client.collection_exists(collection_name):
                     print(
-                        f"Warning: Collection {config['collection_name']} has vector size {vector_size} but config specifies {embed_dims}"
+                        f"Warning: Collection {collection_name} for {classifier_type} version {version} does not exist"
                     )
+                    continue
+
+                # Get collection info and check vector configuration
+                collection_info = await qdrant_client.get_collection(collection_name)
+                vector_params = collection_info.config.params.vectors
+                embed_dims = version_config.get("embed_dims")
+
+                if isinstance(vector_params, dict) and "size" in vector_params:
+                    vector_size = vector_params["size"]
+                    if vector_size != embed_dims:
+                        print(
+                            f"Warning: Collection {collection_name} has vector size {vector_size} but config specifies {embed_dims}"
+                        )
 
     except Exception as e:
         print(f"Error initializing Qdrant client: {e}")
@@ -325,37 +327,61 @@ async def read_root(request: Request):
 CLASSIFIER_CONFIG = {
     "etim": {
         "title": "ETIM Classifier",
-        "heading": "Find relevant categories from the ETIM International standard",
+        "heading": "Find relevant EC classes from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
-        "version": "ETIM version 10.0 (2024-12-10)",
         "example": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
-        "embed_model_name": "gemini-embedding-exp-03-07",
-        "embed_dims": 3072,
-        "collection_name": "ETIM_10_eng_3072_exp",  # Specific collection for ETIM
+        "versions": {
+            "ETIM version 10.0 (2024-12-10)": {
+                "embed_model_name": "gemini-embedding-exp-03-07",
+                "embed_dims": 3072,
+                "collection_name": "ETIM_10_eng_3072_exp",
+            },
+            "ETIM version 9.0 (work in progress)": {
+                "embed_model_name": "gemini-embedding-exp-03-07",
+                "embed_dims": 3072,
+                "collection_name": "ETIM_9_eng_3072_exp",
+            },
+        },
     },
     "unspsc": {
         "title": "UNSPSC Classifier",
         "heading": "Find the right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. It is used by organizations worldwide to facilitate procurement, in spend analysis, and in supply chain management.",
-        "version": "UNSPSC UNv260801 (August 14, 2023)",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",  # Example, replace with actual if known
-        "embed_model_name": "text-embedding-004",
-        "embed_dims": 768,
-        "collection_name": "UNSPSC_eng_UNv260801-1_768",
+        "versions": {
+            "UNSPSC UNv260801 (August 14, 2023)": {
+                "embed_model_name": "text-embedding-004",
+                "embed_dims": 768,
+                "collection_name": "UNSPSC_eng_UNv260801-1_768",
+            },
+            "UNSPSC UNv250101 (work in progress)": {
+                "embed_model_name": "text-embedding-004",
+                "embed_dims": 768,
+                "collection_name": "UNSPSC_eng_UNv250101-1_768",
+            },
+        },
     },
     "naics": {
         "title": "NAICS Classifier",
-        "heading": "Find relevant categories from the NAICS standard",
+        "heading": "Find appropriate NAICS codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the standard used by Federal statistical agencies in classifying business establishments for the purpose of collecting, analyzing, and publishing statistical data related to the U.S. business economy.",
-        "version": "2022 NAICS",
         "example": "Example: Software publishers",
         "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
         "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
-        "embed_model_name": "gemini-embedding-exp-03-07",
-        "embed_dims": 3072,
-        "collection_name": "NAICS_2022_eng_3072_exp",
+        "versions": {
+            "2022 NAICS": {
+                "embed_model_name": "gemini-embedding-exp-03-07",
+                "embed_dims": 3072,
+                "collection_name": "NAICS_2022_eng_3072_exp",
+            },
+            "2017 NAICS (work in progress)": {
+                "embed_model_name": "gemini-embedding-exp-03-07",
+                "embed_dims": 3072,
+                "collection_name": "NAICS_2017_eng_3072_exp",
+            },
+        },
     },
 }
 
@@ -377,7 +403,7 @@ async def show_classifier_page(request: Request, classifier_type: str):
             "title": config["title"],
             "heading": config["heading"],
             "description": config["description"],
-            "version": config["version"],
+            "versions": list(config["versions"].keys()),
             "example": config["example"],
         },
     )
@@ -396,6 +422,7 @@ async def handle_classify(
     classifier_type: str,
     product_description: str = Form(...),
     top_k: int = Form(5),
+    version: str = Form(...),
 ):
     """
     Receives product description for a specific classifier type,
@@ -406,6 +433,13 @@ async def handle_classify(
     if not config:
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
+    version_config = config.get("versions", {}).get(version)
+    if not version_config:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Version '{version}' for classifier '{classifier_type}' not found",
         )
 
     if not embed_client or not qdrant_client:
@@ -425,12 +459,15 @@ async def handle_classify(
             },
         )
 
-    print(f"Received query for '{classifier_type}' classification.")
+    print(
+        f"Received query for '{classifier_type}' classification with version '{version}'."
+    )
 
     # Start timer for total duration
     start_total_time = time.perf_counter()
 
-    collection_name = config["collection_name"]
+    collection_name = version_config["collection_name"]
+    embed_model_name = version_config["embed_model_name"]
 
     try:
         # Call the batch classification function with the specific collection name
@@ -440,7 +477,7 @@ async def handle_classify(
             await classify_string_batch(
                 qdrant_client=qdrant_client,  # Pass qdrant_client
                 embed_client=embed_client,  # Pass embed_client
-                embed_model_name=config["embed_model_name"],  # Use from config
+                embed_model_name=embed_model_name,  # Use from config
                 query_texts=[product_description],
                 collection_name=collection_name,  # Pass the correct collection
                 top_k=top_k,

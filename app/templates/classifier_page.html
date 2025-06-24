@@ -196,10 +196,18 @@
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-2">
 
-                {% if version %}
-                <label for="product_description_area" class="block font-semibold">
-                    {{ version }}
-                </label>
+                {% if versions %}
+                <div class="flex items-center justify-start space-x-2 mb-2">
+                    <label for="version_selector" class="hidden font-semibold">
+                        Select version:
+                    </label>
+                    <select name="version" id="version_selector"
+                        class="text-gray-600 border border-gray-400 rounded-md text-left px-1 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                        {% for v in versions %}
+                        <option value="{{ v }}">{{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 {% endif %}
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
@@ -208,13 +216,13 @@
                 <div class="flex justify-between items-center">
                     <div class="flex justify-start items-center space-x-4">
                         <button type="submit"
-                            class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-2 rounded-lg text-base transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                            class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-lg text-base transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 transform">
                             {% if classifier_type == 'unspsc' %}
                             Similarity Search & Classify
                             {% elif classifier_type == 'etim' %}
                             Similarity Search & Classify
                             {% else %}
-                            Similarity Search & Classify
+                            Submit
                             {% endif %}
                         </button>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center"
@@ -228,8 +236,7 @@
                             class="text-gray-600 border border-gray-400 rounded-md text-left px-1 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
                             <option value="5" selected>Top 5</option>
                             <option value="10">Top 10</option>
-                            <option value="20">Top 20</option>
-                            <option value="50">Top 50</option>
+                            <option value="25">Top 25</option>
                             <option value="100">Top 100</option>
                         </select>
                         <p class="text-gray-600">results sorted by relevance</p>
