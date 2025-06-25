@@ -1,6 +1,6 @@
-# Classifast - Intelligent Industry Classification
+# Classifast
 
-Classifast is a web application that provides automated classification for products and services using international standards like UNSPSC, ETIM, and NAICS. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated categorization.
+Classifast is a web application that provides easy classification of any text input according to international product and service standards like UNSPSC, NAICS, ISIC, ETIM. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated yet intelligent categorization.
 
 ## Features
 

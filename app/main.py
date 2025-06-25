@@ -329,18 +329,19 @@ CLASSIFIER_CONFIG = {
         "title": "ETIM Classifier",
         "heading": "Find relevant EC classes from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
-        "example": "Example: Miniature circuit breaker, 16A, C-curve, 1P+N",
+        "example": """Example:
+Miniature circuit breaker
+Current rating: 16A
+Characteristic curve: C-curve
+Number of poles: 1P+N
+Breaking capacity: 6kA
+Mounting: DIN rail""",
         "base_url": "https://prod.etim-international.com/Class/Details?classId=",
         "versions": {
             "ETIM version 10.0 (2024-12-10)": {
                 "embed_model_name": "gemini-embedding-exp-03-07",
                 "embed_dims": 3072,
                 "collection_name": "ETIM_10_eng_3072_exp",
-            },
-            "ETIM version 9.0 (work in progress)": {
-                "embed_model_name": "gemini-embedding-exp-03-07",
-                "embed_dims": 3072,
-                "collection_name": "ETIM_9_eng_3072_exp",
             },
         },
     },
@@ -356,11 +357,6 @@ CLASSIFIER_CONFIG = {
                 "embed_dims": 768,
                 "collection_name": "UNSPSC_eng_UNv260801-1_768",
             },
-            "UNSPSC UNv250101 (work in progress)": {
-                "embed_model_name": "text-embedding-004",
-                "embed_dims": 768,
-                "collection_name": "UNSPSC_eng_UNv250101-1_768",
-            },
         },
     },
     "naics": {
@@ -375,11 +371,6 @@ CLASSIFIER_CONFIG = {
                 "embed_model_name": "gemini-embedding-exp-03-07",
                 "embed_dims": 3072,
                 "collection_name": "NAICS_2022_eng_3072_exp",
-            },
-            "2017 NAICS (work in progress)": {
-                "embed_model_name": "gemini-embedding-exp-03-07",
-                "embed_dims": 3072,
-                "collection_name": "NAICS_2017_eng_3072_exp",
             },
         },
     },
@@ -516,4 +507,4 @@ async def handle_classify(
     )
 
 
-# uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+# uvicorn app.main:app --reload --port 8001

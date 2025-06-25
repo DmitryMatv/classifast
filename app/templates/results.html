@@ -8,22 +8,26 @@
 
     {% if results_for_query %}
     <h2 class="hidden text-xl font-semibold text-gray-800 mb-4">Classification Results</h2>
+    {% if tooltip and tooltip.strip() %}
     <p class="text-gray-600 mb-4">{{ tooltip }}</p>
+    {% endif %}
     <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
         <li class="p-3 bg-gray-50 rounded-md shadow-sm border border-gray-200" role="listitem">
             <div class="flex items-start justify-between">
                 <div class="flex-1">
-                    <div class="flex items-baseline gap-4">
+                    <div class="flex items-baseline gap-2">
                         <button type="button"
                             onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
                             title="Copy ID to clipboard"
                             aria-label="Copy classification ID {{ result.payload.original_id | e }} to clipboard"
                             class="text-2xl font-mono text-gray-600 hover:text-blue-600 ">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-6 inline align-text-top">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z" />
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class="inline align-text-top lucide lucide-copy-icon lucide-copy">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
                             </svg>
                         </button>
                         <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
@@ -49,10 +53,13 @@
                             <span class="text-gray-600 hover:text-gray-600">{{ char_item }}</span>
                             {%- endif -%}
                             {%- endfor -%}
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-6 inline align-text-top hidden">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class=" hidden inline align-text-top ml-2 lucide lucide-external-link-icon lucide-external-link">
+                                <path d="M15 3h6v6" />
+                                <path d="M10 14 21 3" />
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                             </svg>
                         </a>
                         {% if result.payload.id_level %}
