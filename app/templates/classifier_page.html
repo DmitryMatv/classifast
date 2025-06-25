@@ -197,10 +197,8 @@
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-2">
 
                 {% if versions %}
-                <div class="flex items-center justify-start space-x-2 mb-2">
-                    <label for="version_selector" class="hidden font-semibold">
-                        Select version:
-                    </label>
+                <div class="flex items-center justify-start space-y-2 mb-2">
+                    <label for="version_selector" class="hidden font-semibold">Select version:</label>
                     <select name="version" id="version_selector"
                         class="text-gray-600 border border-gray-400 rounded-md text-left px-1 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
                         {% for v in versions %}
@@ -259,9 +257,9 @@
                         <li>✓ All input is accepted as long as it accurately describes what you want to classify</li>
                     </ul>
                     <p id="description-tips" class="text-gray-600">
-                        You can ask questions like "What is the code for this product?" or "What class does this item
-                        belong to?" and the classifier will return the most relevant results based on your free-form
-                        description.
+                        You can also ask questions like "What is the code for this product?" or "What class does this
+                        item belong to?" and the classifier will return the most relevant results based on your
+                        free-form description.
                     </p>
                 </div>
             </div>
@@ -297,7 +295,7 @@
             </div>
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">
-                <p class="text-gray-400">&copy; 2025 Dmitry Matv</p>
+                <p class="text-gray-400">2025 Dmitry Matv</p>
             </div>
         </div>
     </footer>
