@@ -157,7 +157,7 @@
     </style>
 </head>
 
-<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
+<body class="bg-white text-gray-800 flex flex-col min-h-screen">
     <header class="bg-white shadow-sm border-b">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-center">
@@ -197,7 +197,7 @@
                         Any text into categories. <span class="text-blue-600">In 1 second.</span>
                     </h1>
                     <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
-                        Automatically classify your products and services with state-of-the-art accuracy.
+                        Automatically classify your products and services with state-of-the-art accuracy
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
@@ -207,11 +207,12 @@
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
                             UNSPSC
-                        </a> <a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                        </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                             class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
                             NAICS
                         </a>
-                        </a> <a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                        <a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                             class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
                             ISIC
                         </a>
@@ -280,8 +281,8 @@
         </section>
 
         <!-- FAQ Section -->
-        <section class="py-20 bg-white hidden">
-            <div class="container mx-auto px-4 max-w-4xl">
+        <section class="hidden">
+            <div class="container mx-auto px-4 max-w-4xl py-20">
                 <div class="text-center mb-16">
                     <h3 class="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h3>
                     <p class="text-xl text-gray-600">Everything you need to know about classification standards</p>
@@ -327,53 +328,6 @@
                 </div>
             </div>
         </section>
-
-        <!-- Quality Section -->
-        <section class="py-20 bg-gray-50" style="display: none;">
-            <div class="container mx-auto px-4 max-w-6xl">
-                <div class="max-w-4xl mx-auto">
-                    <div class="text-center mb-12">
-                        <h2 class="text-4xl font-bold text-gray-900 mb-4">How?</h2>
-                        <p class="text-xl text-gray-600">
-                            Classifast uses Score metric to evaluate the accuracy of every classification:
-                        </p>
-                    </div>
-
-                    <div class="grid md:grid-cols-2 gap-8">
-                        <div class="bg-white p-8 rounded-xl shadow-sm">
-                            <div class="flex items-center mb-4">
-                                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mr-4">
-                                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor"
-                                        viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M5 13l4 4L19 7"></path>
-                                    </svg>
-                                </div>
-                                <h3 class="text-xl font-semibold text-gray-900">High Quality Scores</h3>
-                            </div>
-                            <p class="text-gray-600">High scores reflect clean, organised data ready for immediate use.
-                            </p>
-                        </div>
-
-                        <div class="bg-white p-8 rounded-xl shadow-sm">
-                            <div class="flex items-center mb-4">
-                                <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mr-4">
-                                    <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor"
-                                        viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z">
-                                        </path>
-                                    </svg>
-                                </div>
-                                <h3 class="text-xl font-semibold text-gray-900">Data Quality Support</h3>
-                            </div>
-                            <p class="text-gray-600">Low scores indicate potential data quality issues - where we can
-                                also assist with data cleansing to bring your data up to standard.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
     </main>
 
     <footer class="bg-gray-900 text-white">
@@ -381,9 +335,8 @@
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
-                    <p class="text-gray-400 mb-4">Instant classifier and semantic category search for UNSPSC, NAICS,
-                        ISIC, and
-                        other classification standards.</p>
+                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC,
+                        and other industry classification standards.</p>
                 </div>
 
                 <div>

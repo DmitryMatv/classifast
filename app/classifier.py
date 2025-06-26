@@ -29,6 +29,12 @@ async def get_embeddings_batch(
         return []
 
     try:
+        # Debug: Log the texts being sent to embedding API to verify newlines
+        # print(f"Embedding API input texts (repr): {[repr(text) for text in texts]}")
+        # print(f"Total texts to embed: {len(texts)}")
+        # for i, text in enumerate(texts):
+        #     print(f"Text {i+1} length: {len(text)}, newlines: {text.count(chr(10))}")
+
         response = await embed_client.aio.models.embed_content(
             model=model_name,
             contents=texts,

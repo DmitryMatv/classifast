@@ -18,7 +18,7 @@ from starlette.responses import Response
 from starlette.requests import Request
 
 from google import genai
-from qdrant_client import AsyncQdrantClient, QdrantClient
+from qdrant_client import AsyncQdrantClient
 
 from .classifier import classify_string_batch
 
@@ -370,6 +370,11 @@ Mounting: DIN rail""",
             "2022 NAICS": {
                 "embed_model_name": "gemini-embedding-exp-03-07",
                 "embed_dims": 3072,
+                "collection_name": "NAICS_2022_6-digits_eng_3072_exp",
+            },
+            "2022 NAICS (including all two-through-six-digit categories)": {
+                "embed_model_name": "gemini-embedding-exp-03-07",
+                "embed_dims": 3072,
                 "collection_name": "NAICS_2022_eng_3072_exp",
             },
         },
@@ -420,6 +425,10 @@ async def handle_classify(
     classifies it using the correct Qdrant collection,
     and returns HTML partial with results.
     """
+    print(
+        f"Received query for '{classifier_type}' classification with version '{version}'."
+    )
+
     config = CLASSIFIER_CONFIG.get(classifier_type)
     if not config:
         raise HTTPException(
@@ -439,20 +448,23 @@ async def handle_classify(
             detail="Backend services not available. Please check server logs.",
         )
 
+    # Validate input: Check if text is empty or only whitespace
     if not product_description or not product_description.strip():
         # Return the results partial with an empty list or specific message
         return templates.TemplateResponse(
             "results.html",
             {
                 "request": request,
-                "query": product_description,
+                "query": product_description,  # Pass original (potentially empty) text
                 "results_for_query": [],  # Empty results
             },
         )
 
-    print(
-        f"Received query for '{classifier_type}' classification with version '{version}'."
-    )
+    # Debug: Print the raw product_description to verify newlines are preserved
+    # print(f"Raw product description (repr): {repr(product_description)}")
+    # print(f"Product description length: {len(product_description)}")
+    # print(f"Number of newlines in description: {product_description.count(chr(10))}")
+    # print(f"Product description (first 200 chars): {product_description[:200]}")
 
     # Start timer for total duration
     start_total_time = time.perf_counter()
@@ -462,6 +474,8 @@ async def handle_classify(
 
     try:
         # Call the batch classification function with the specific collection name
+        # IMPORTANT: product_description is passed exactly as received from the form,
+        # preserving all newlines, whitespace, and formatting for accurate embedding.
         # batch_results is now List[List[Dict[str, Any]]]
         # where each inner list is the hits for a query.
         results_for_single_query: List[List[Dict[str, Any]]] = (
@@ -469,7 +483,7 @@ async def handle_classify(
                 qdrant_client=qdrant_client,  # Pass qdrant_client
                 embed_client=embed_client,  # Pass embed_client
                 embed_model_name=embed_model_name,  # Use from config
-                query_texts=[product_description],
+                query_texts=[product_description],  # Original text with all formatting
                 collection_name=collection_name,  # Pass the correct collection
                 top_k=top_k,
             )
