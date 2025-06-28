@@ -30,38 +30,46 @@
                                 <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
                             </svg>
                         </button>
+                        {% if base_url and base_url.strip() %}
                         <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
                             class="text-2xl font-mono text-gray-600 hover:text-blue-600 hover:underline" rel="noopener"
                             aria-label="View details for {{ result.payload.original_id | e }} (opens in new tab)">
-                            {%- set id_str = result.payload.original_id | string -%}
-                            {%- set digit_colors = {
-                            '0': 'text-[#999999]',
-                            '1': 'text-[#e6194B]',
-                            '2': 'text-[#ba772c]',
-                            '3': 'text-[#408c84]',
-                            '4': 'text-[#f58231]',
-                            '5': 'text-[#b025da]',
-                            '6': 'text-[#3cb44b]',
-                            '7': 'text-[#4363d8]',
-                            '8': 'text-[#000075]',
-                            '9': 'text-[#f032e6]',
-                            } -%}
-                            {%- for char_item in id_str -%}
-                            {%- if char_item in digit_colors -%}
-                            <span class="{{ digit_colors[char_item] }}">{{ char_item }}</span>
-                            {%- else -%}
-                            <span class="text-gray-600 hover:text-gray-600">{{ char_item }}</span>
-                            {%- endif -%}
-                            {%- endfor -%}
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round"
-                                class=" hidden inline align-text-top ml-2 lucide lucide-external-link-icon lucide-external-link">
-                                <path d="M15 3h6v6" />
-                                <path d="M10 14 21 3" />
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                            </svg>
+                            {% else %}
+                            <span class="text-2xl font-mono text-gray-600">
+                                {% endif %}
+                                {%- set id_str = result.payload.original_id | string -%}
+                                {%- set digit_colors = {
+                                '0': 'text-[#999999]',
+                                '1': 'text-[#e6194B]',
+                                '2': 'text-[#ba772c]',
+                                '3': 'text-[#408c84]',
+                                '4': 'text-[#f58231]',
+                                '5': 'text-[#b025da]',
+                                '6': 'text-[#3cb44b]',
+                                '7': 'text-[#4363d8]',
+                                '8': 'text-[#000075]',
+                                '9': 'text-[#f032e6]',
+                                } -%}
+                                {%- for char_item in id_str -%}
+                                {%- if char_item in digit_colors -%}
+                                <span class="{{ digit_colors[char_item] }}">{{ char_item }}</span>
+                                {%- else -%}
+                                <span class="text-gray-600 hover:text-gray-600">{{ char_item }}</span>
+                                {%- endif -%}
+                                {%- endfor -%}
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    class=" hidden inline align-text-top ml-2 lucide lucide-external-link-icon lucide-external-link">
+                                    <path d="M15 3h6v6" />
+                                    <path d="M10 14 21 3" />
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                </svg>
+                                {% if base_url and base_url.strip() %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                         {% if result.payload.id_level %}
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}

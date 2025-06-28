@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
                     continue
                 if not await qdrant_client.collection_exists(collection_name):
                     print(
-                        f"Warning: Collection {collection_name} for {classifier_type} version {version} does not exist"
+                        f"Warning: Collection {collection_name} for {classifier_type} version {version} does not exist."
                     )
                     continue
 
@@ -365,17 +365,32 @@ Mounting: DIN rail""",
         "description": "The North American Industry Classification System (NAICS) is the standard used by Federal statistical agencies in classifying business establishments for the purpose of collecting, analyzing, and publishing statistical data related to the U.S. business economy.",
         "example": "Example: Software publishers",
         "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
-        "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
         "versions": {
             "2022 NAICS": {
                 "embed_model_name": "gemini-embedding-exp-03-07",
                 "embed_dims": 3072,
                 "collection_name": "NAICS_2022_6-digits_eng_3072_exp",
+                "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
             },
-            "2022 NAICS (including all two-through-six-digit categories)": {
+            "2022 NAICS including all two-through-six-digit categories": {
                 "embed_model_name": "gemini-embedding-exp-03-07",
                 "embed_dims": 3072,
                 "collection_name": "NAICS_2022_eng_3072_exp",
+            },
+        },
+    },
+    "isic": {
+        "title": "ISIC Classifier",
+        "heading": "Classify economic activities using the ISIC standard",
+        "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is a United Nations industry classification system. Wide use has been made of ISIC in classifying data according to kind of economic activity in the fields of employment and health data.",
+        "example": "Example: Manufacture of motor vehicles",
+        # "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
+        # "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
+        "versions": {
+            "ISIC Rev. 5 (forthcoming UN publication)": {
+                "embed_model_name": "gemini-embedding-exp-03-07",
+                "embed_dims": 3072,
+                "collection_name": "ISIC5_v7",
             },
         },
     },
@@ -515,7 +530,7 @@ async def handle_classify(
             "query": product_description,
             "results_for_query": classification_results,
             "base_url": config.get("base_url", ""),
-            "tooltip": config.get("tooltip", ""),
+            "tooltip": version_config.get("tooltip", ""),
             "total_request_time": total_request_time,
         },
     )
