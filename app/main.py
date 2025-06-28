@@ -387,6 +387,11 @@ Mounting: DIN rail""",
         # "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
         # "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
         "versions": {
+            "ISIC Rev. 4": {
+                "embed_model_name": "gemini-embedding-exp-03-07",
+                "embed_dims": 3072,
+                "collection_name": "ISIC4_v6",
+            },
             "ISIC Rev. 5 (forthcoming UN publication)": {
                 "embed_model_name": "gemini-embedding-exp-03-07",
                 "embed_dims": 3072,
@@ -520,7 +525,7 @@ async def handle_classify(
 
     end_total_time = time.perf_counter()  # End timer for total duration
     total_request_time = end_total_time - start_total_time
-    print(f"Total request processing time: {total_request_time:.6f} seconds")
+    print(f"Total request processing time: {total_request_time:.6f} seconds.")
 
     # Render the results partial
     return templates.TemplateResponse(

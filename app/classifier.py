@@ -149,8 +149,7 @@ async def classify_string_batch(
 
 
 # Example usage of the classify_string_batch function
-if __name__ == "__main__":
-
+async def main():
     EMBED_MODEL = "text-embedding-004"
 
     QDRANT_DB_PATH = "./qdrant_db"  # Local path to store Qdrant data
@@ -170,22 +169,25 @@ if __name__ == "__main__":
         print("Embedding client initialized successfully.")
     except Exception as e:
         print(f"Error initializing embedding client: {e}")
-        exit()
+        return
 
     # 3. Initialize Qdrant Client
     print("Initializing Qdrant client...")
-    qdrant_client_instance = QdrantClient(
+    qdrant_client_instance = AsyncQdrantClient(
         path=QDRANT_DB_PATH
     )  # Initialize qdrant_client_instance
 
     # Check if collection exists before querying
-    if not qdrant_client_instance.collection_exists(
-        collection_name=QDRANT_COLLECTION_NAME
-    ):  # Use qdrant_client_instance
+    try:
+        collection_info = await qdrant_client_instance.get_collection(
+            collection_name=QDRANT_COLLECTION_NAME
+        )
+        print(f"Collection '{QDRANT_COLLECTION_NAME}' found.")
+    except Exception:
         print(
             f"Error: Collection '{QDRANT_COLLECTION_NAME}' does not exist in Qdrant at {QDRANT_DB_PATH}."
         )
-        exit()
+        return
 
     # --- Example Classification ---
 
@@ -197,7 +199,7 @@ if __name__ == "__main__":
         "UK 6-FSI/C - Fuse modular terminal block, 6 mm², 1-pole, 6 A",
     ]
 
-    batch_search_results = classify_string_batch(
+    batch_search_results = await classify_string_batch(
         qdrant_client=qdrant_client_instance,  # Pass qdrant_client_instance
         embed_client=embed_client_instance,  # Pass embed_client_instance
         embed_model_name=EMBED_MODEL,  # Pass embed_model_name
@@ -220,3 +222,9 @@ if __name__ == "__main__":
                 print("  No similar items found for this query.")
     else:
         print("Batch classification failed or returned no results.")
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(main())
