@@ -7,7 +7,6 @@
 data/
 *.xlsx
 *.csv
-*.txt
 
 # Docker
 docker-compose.y*ml
