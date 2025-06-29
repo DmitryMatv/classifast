@@ -3,7 +3,7 @@
 # and creates a virtual environment to keep things clean.
 FROM python:3.13.5-slim-bookworm AS builder
 
-# Set environment variables
+# Set environment variables for builder
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /service_root
@@ -24,7 +24,9 @@ FROM python:3.13.5-slim-bookworm AS final
 # Set environment variables for the final image
 ENV PYTHONUNBUFFERED=1 \
     # Path to the virtual environment's executables
-    PATH="/opt/venv/bin:$PATH"
+    PATH="/opt/venv/bin:$PATH" \
+    # FastAPI production settings
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /service_root
 
@@ -41,12 +43,11 @@ RUN groupadd --system appgroup && \
 # Copy the virtual environment from the builder stage
 COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
 
-# Copy application code
-# Ensure your app code is in a subdirectory (e.g., ./app) for cleaner COPY
+# Copy application code and dependencies
 COPY --chown=appuser:appgroup ./app ./app
 
 USER appuser
 
 EXPOSE 8001
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "5", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--forwarded-allow-ips", "*"]

@@ -77,6 +77,7 @@ async def lifespan(app: FastAPI):
 
         # Verify collections exist and store their vector sizes
         for classifier_type, config in CLASSIFIER_CONFIG.items():
+            embed_dims = config.get("embed_dims")
             for version, version_config in config.get("versions", {}).items():
                 collection_name = version_config.get("collection_name")
                 if not collection_name:
@@ -90,7 +91,6 @@ async def lifespan(app: FastAPI):
                 # Get collection info and check vector configuration
                 collection_info = await qdrant_client.get_collection(collection_name)
                 vector_params = collection_info.config.params.vectors
-                embed_dims = version_config.get("embed_dims")
 
                 if isinstance(vector_params, dict) and "size" in vector_params:
                     vector_size = vector_params["size"]
@@ -252,7 +252,7 @@ app.state.limiter = limiter
 async def custom_rate_limit_exceeded_handler(request: Request, exc: Exception):
     if isinstance(exc, RateLimitExceeded):
         return HTMLResponse(
-            content=f"<p>Too many requests. Please try again in {exc.detail}.</p>",
+            content="<p>Rate limit exceeded. Please try again later.</p>",
             status_code=429,
         )
     return HTMLResponse(content="Internal Server Error", status_code=500)
@@ -336,12 +336,12 @@ Characteristic curve: C-curve
 Number of poles: 1P+N
 Breaking capacity: 6kA
 Mounting: DIN rail""",
-        "base_url": "https://prod.etim-international.com/Class/Details?classId=",
+        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_dims": 3072,
         "versions": {
             "ETIM version 10.0 (2024-12-10)": {
-                "embed_model_name": "gemini-embedding-exp-03-07",
-                "embed_dims": 3072,
                 "collection_name": "ETIM_10_eng_3072_exp",
+                "base_url": "https://prod.etim-international.com/Class/Details?classId=",
             },
         },
     },
@@ -350,12 +350,12 @@ Mounting: DIN rail""",
         "heading": "Find the right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. It is used by organizations worldwide to facilitate procurement, in spend analysis, and in supply chain management.",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
-        "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",  # Example, replace with actual if known
+        "embed_model_name": "text-embedding-004",
+        "embed_dims": 768,
         "versions": {
             "UNSPSC UNv260801 (August 14, 2023)": {
-                "embed_model_name": "text-embedding-004",
-                "embed_dims": 768,
                 "collection_name": "UNSPSC_eng_UNv260801-1_768",
+                "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
     },
@@ -364,18 +364,17 @@ Mounting: DIN rail""",
         "heading": "Find appropriate NAICS codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the standard used by Federal statistical agencies in classifying business establishments for the purpose of collecting, analyzing, and publishing statistical data related to the U.S. business economy.",
         "example": "Example: Software publishers",
-        "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
+        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_dims": 3072,
         "versions": {
             "2022 NAICS": {
-                "embed_model_name": "gemini-embedding-exp-03-07",
-                "embed_dims": 3072,
                 "collection_name": "NAICS_2022_6-digits_eng_3072_exp",
-                "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
+                "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
             },
             "2022 NAICS including all two-through-six-digit categories": {
-                "embed_model_name": "gemini-embedding-exp-03-07",
-                "embed_dims": 3072,
                 "collection_name": "NAICS_2022_eng_3072_exp",
+                "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
+                "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
             },
         },
     },
@@ -384,17 +383,14 @@ Mounting: DIN rail""",
         "heading": "Classify economic activities using the ISIC standard",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is a United Nations industry classification system. Wide use has been made of ISIC in classifying data according to kind of economic activity in the fields of employment and health data.",
         "example": "Example: Manufacture of motor vehicles",
-        # "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
-        # "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
+        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_dims": 3072,
         "versions": {
             "ISIC Rev. 4": {
-                "embed_model_name": "gemini-embedding-exp-03-07",
-                "embed_dims": 3072,
                 "collection_name": "ISIC4_v6",
+                "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
             },
             "ISIC Rev. 5 (forthcoming UN publication)": {
-                "embed_model_name": "gemini-embedding-exp-03-07",
-                "embed_dims": 3072,
                 "collection_name": "ISIC5_v7",
             },
         },
@@ -432,7 +428,7 @@ async def show_classifier_page(request: Request, classifier_type: str):
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
-@limiter.limit("300/minute")  # Apply rate limit to this endpoint
+@limiter.limit("10/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request,
     classifier_type: str,
@@ -490,7 +486,7 @@ async def handle_classify(
     start_total_time = time.perf_counter()
 
     collection_name = version_config["collection_name"]
-    embed_model_name = version_config["embed_model_name"]
+    embed_model_name = config["embed_model_name"]
 
     try:
         # Call the batch classification function with the specific collection name
@@ -534,7 +530,7 @@ async def handle_classify(
             "request": request,
             "query": product_description,
             "results_for_query": classification_results,
-            "base_url": config.get("base_url", ""),
+            "base_url": version_config.get("base_url", ""),
             "tooltip": version_config.get("tooltip", ""),
             "total_request_time": total_request_time,
         },

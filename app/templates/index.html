@@ -74,7 +74,7 @@
             "NAICS industry code search",
             "Semantic search technology",
             "Bulk classification support",
-            "High accuracy AI-powered matching"
+            "High accuracy matching"
         ]
     }
     </script>
@@ -154,18 +154,78 @@
             scrollbar-width: none;
         }
         */
+
+        /* Mobile menu styles */
+        .mobile-menu {
+            display: none;
+        }
+
+        .mobile-menu.active {
+            display: block;
+        }
+
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .hamburger span {
+            width: 24px;
+            height: 2px;
+            background-color: #374151;
+            margin: 3px 0;
+            transition: 0.3s;
+            border-radius: 1px;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(-45deg) translate(-5px, 6px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(45deg) translate(-5px, -6px);
+        }
+
+        @media (max-width: 768px) {
+            .desktop-nav {
+                display: none;
+            }
+
+            .hamburger {
+                display: flex;
+            }
+
+            .mobile-menu {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background-color: white;
+                border-top: 1px solid #e5e7eb;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                z-index: 50;
+            }
+        }
     </style>
 </head>
 
 <body class="bg-white text-gray-800 flex flex-col min-h-screen">
-    <header class="bg-white shadow-sm border-b">
+    <header class="bg-white shadow-sm border-b relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-center">
                 <a href="{{ url_for('read_root') }}" class="flex items-center">
                     <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-blue-600">fast</span>.com</h3>
                 </a>
             </div>
-            <nav>
+
+            <!-- Desktop Navigation -->
+            <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
                             class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a></li>
@@ -176,11 +236,39 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                             class="text-gray-600 hover:text-blue-600 transition-colors">ISIC</a></li>
                     <li><a href="#"
-                            class="bg-blue-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-blue-700 transition-colors">
+                            class="bg-blue-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">
                             Get Started</a></li>
                 </ul>
             </nav>
+
+            <!-- Mobile Hamburger Button -->
+            <button class="hamburger" id="mobile-menu-button" aria-label="Toggle mobile menu" aria-expanded="false">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </div>
+
+        <!-- Mobile Navigation Menu -->
+        <nav class="mobile-menu" id="mobile-menu">
+            <ul class="flex flex-col space-y-0">
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">ETIM</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">UNSPSC</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">NAICS</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">ISIC</a>
+                </li>
+                <li><a href="#"
+                        class="block mx-4 my-3 bg-blue-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-blue-700 transition-colors text-center whitespace-nowrap">
+                        Get Started</a></li>
+            </ul>
+        </nav>
     </header>
 
     <main class="flex-grow">
@@ -197,7 +285,7 @@
                         Any text into categories. <span class="text-blue-600">In 1 second.</span>
                     </h1>
                     <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
-                        Automatically classify your products and services with state-of-the-art accuracy
+                        Automatically classify your products and services with state-of-the-art accuracy.
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
@@ -363,6 +451,53 @@
             </div>
         </div>
     </footer>
+
+    <script>
+        // Mobile menu toggle functionality
+        document.addEventListener('DOMContentLoaded', function () {
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            const hamburger = document.querySelector('.hamburger');
+
+            if (mobileMenuButton && mobileMenu && hamburger) {
+                mobileMenuButton.addEventListener('click', function () {
+                    const isActive = mobileMenu.classList.contains('active');
+
+                    if (isActive) {
+                        mobileMenu.classList.remove('active');
+                        hamburger.classList.remove('active');
+                        mobileMenuButton.setAttribute('aria-expanded', 'false');
+                    } else {
+                        mobileMenu.classList.add('active');
+                        hamburger.classList.add('active');
+                        mobileMenuButton.setAttribute('aria-expanded', 'true');
+                    }
+                });
+
+                // Close mobile menu when clicking on a link
+                const mobileMenuLinks = mobileMenu.querySelectorAll('a');
+                mobileMenuLinks.forEach(link => {
+                    link.addEventListener('click', function () {
+                        mobileMenu.classList.remove('active');
+                        hamburger.classList.remove('active');
+                        mobileMenuButton.setAttribute('aria-expanded', 'false');
+                    });
+                });
+
+                // Close mobile menu when clicking outside
+                document.addEventListener('click', function (event) {
+                    const isClickInsideMenu = mobileMenu.contains(event.target);
+                    const isClickOnButton = mobileMenuButton.contains(event.target);
+
+                    if (!isClickInsideMenu && !isClickOnButton && mobileMenu.classList.contains('active')) {
+                        mobileMenu.classList.remove('active');
+                        hamburger.classList.remove('active');
+                        mobileMenuButton.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 
 </html>

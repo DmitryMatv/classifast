@@ -3,6 +3,12 @@
 .gitignore
 .gitattribute
 
+# Data files (not needed in container)
+data/
+*.xlsx
+*.csv
+*.txt
+
 # Docker
 docker-compose.y*ml
 Dockerfile
@@ -12,11 +18,40 @@ Dockerfile
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
 **/*.py[cod]
+**/*.pyo
+**/*.pyd
+**/*.so
+**/*.egg
+**/*.egg-info/
 
 # Virtual environment
 .env
 .venv/
 venv/
+env/
 
 # VS Code
 .vscode/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
