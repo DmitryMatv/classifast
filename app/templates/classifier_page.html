@@ -204,8 +204,43 @@
                 right: 0;
                 background-color: white;
                 border-top: 1px solid #e5e7eb;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
                 z-index: 50;
+                border-radius: 0 0 12px 12px;
+            }
+
+            .mobile-menu ul {
+                padding: 8px 0;
+            }
+
+            .mobile-menu li {
+                margin: 0;
+            }
+
+            .mobile-menu a {
+                display: block;
+                padding: 16px 20px;
+                margin: 0 8px;
+                border-radius: 8px;
+                transition: all 0.2s ease;
+                font-weight: 500;
+            }
+
+            .mobile-menu a:hover {
+                background-color: #f8fafc;
+                transform: translateX(4px);
+            }
+
+            .mobile-menu .sign-up-btn {
+                margin: 12px 16px 8px 16px;
+                text-align: center;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+            }
+
+            .mobile-menu .sign-up-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
             }
         }
     </style>
@@ -251,27 +286,26 @@
 
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu">
-            <ul class="flex flex-col space-y-0">
+            <ul class="flex flex-col">
                 <li><a href="{{ url_for('read_root') }}"
-                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">Home</a>
+                        class="text-gray-600 hover:text-blue-600 transition-colors">Home</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">ETIM</a>
+                        class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">UNSPSC</a>
+                        class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">NAICS</a>
+                        class="text-gray-600 hover:text-blue-600 transition-colors">NAICS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">ISIC</a>
+                        class="text-gray-600 hover:text-blue-600 transition-colors">ISIC</a>
+                </li>
+                <li><a href="#" class="text-gray-600 hover:text-blue-600 transition-colors">Login</a>
                 </li>
                 <li><a href="#"
-                        class="block px-4 py-3 text-gray-600 hover:text-blue-600 hover:bg-gray-50 transition-colors border-b border-gray-100">Login</a>
-                </li>
-                <li><a href="#"
-                        class="block mx-4 my-3 bg-blue-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-blue-700 transition-colors text-center whitespace-nowrap">
+                        class="sign-up-btn bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
                         Sign Up</a></li>
             </ul>
         </nav>
@@ -312,7 +346,7 @@
                     aria-describedby="description-help"
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 h-[100px] min-h-[100px] max-h-[700px] resize-y"></textarea>
 
-                <div class="flex justify-between items-center">
+                <div class="flex flex-col space-y-3 md:flex-row md:justify-between md:items-center md:space-y-0">
                     <div class="flex justify-start items-center space-x-4">
                         <button type="submit"
                             class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 transform">
@@ -337,7 +371,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center justify-center">
+                    <div class="flex items-center justify-center md:justify-end">
                         <p class="text-gray-600">Results sorted by relevance</p>
                     </div>
                 </div>

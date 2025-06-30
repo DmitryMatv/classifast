@@ -329,12 +329,8 @@ CLASSIFIER_CONFIG = {
         "title": "ETIM Classifier",
         "heading": "Find relevant EC classes from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
-        "example": """Example:
-Miniature circuit breaker
-Current rating: 16A
+        "example": """Example: SH203-C20 Miniature Circuit Breaker 6kA 20A 3P
 Characteristic curve: C-curve
-Number of poles: 1P+N
-Breaking capacity: 6kA
 Mounting: DIN rail""",
         "embed_model_name": "gemini-embedding-exp-03-07",
         "embed_dims": 3072,
@@ -348,7 +344,7 @@ Mounting: DIN rail""",
     "unspsc": {
         "title": "UNSPSC Classifier",
         "heading": "Find the right UNSPSC codes for your products and services",
-        "description": "The United Nations Standard Products and Services Code (UNSPSC), owned by the United Nations Development Programme (UNDP), is an open, global, multi-sector standard for efficient, accurate classification of products and services. It is used by organizations worldwide to facilitate procurement, in spend analysis, and in supply chain management.",
+        "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "embed_model_name": "text-embedding-004",
         "embed_dims": 768,
@@ -362,16 +358,16 @@ Mounting: DIN rail""",
     "naics": {
         "title": "NAICS Classifier",
         "heading": "Find appropriate NAICS codes from the NAICS standard",
-        "description": "The North American Industry Classification System (NAICS) is the standard used by Federal statistical agencies in classifying business establishments for the purpose of collecting, analyzing, and publishing statistical data related to the U.S. business economy.",
+        "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
         "example": "Example: Software publishers",
         "embed_model_name": "gemini-embedding-exp-03-07",
         "embed_dims": 3072,
         "versions": {
-            "2022 NAICS": {
+            "2022 NAICS (only 6-digit categories)": {
                 "collection_name": "NAICS_2022_6-digits_eng_3072_exp",
                 "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
             },
-            "2022 NAICS including all two-through-six-digit categories": {
+            "2022 NAICS (all 2-to-6-digit categories)": {
                 "collection_name": "NAICS_2022_eng_3072_exp",
                 "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
                 "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
@@ -381,7 +377,7 @@ Mounting: DIN rail""",
     "isic": {
         "title": "ISIC Classifier",
         "heading": "Classify economic activities using the ISIC standard",
-        "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is a United Nations industry classification system. Wide use has been made of ISIC in classifying data according to kind of economic activity in the fields of employment and health data.",
+        "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
         "example": "Example: Manufacture of motor vehicles",
         "embed_model_name": "gemini-embedding-exp-03-07",
         "embed_dims": 3072,
@@ -390,8 +386,22 @@ Mounting: DIN rail""",
                 "collection_name": "ISIC4_v6",
                 "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
             },
-            "ISIC Rev. 5 (forthcoming UN publication)": {
+            "ISIC Rev. 5": {
                 "collection_name": "ISIC5_v7",
+            },
+        },
+    },
+    "hs": {
+        "title": "HS Codes Classifier",
+        "heading": "Find the right HS codes for your goods",
+        "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
+        "example": "Example: Electric motor",
+        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_dims": 3072,
+        "versions": {
+            "HS 2022": {
+                "collection_name": "H6-HS_2022_v4",
+                "base_url": "https://www.tariffnumber.com/2025/",
             },
         },
     },
