@@ -3,7 +3,6 @@
 
 <head>
     <meta charset="UTF-8">
-
     {% if classifier_type == 'unspsc' %}
     <title>UNSPSC Classification, Code Lookup, Search | Classifast</title>
     <meta name="description"
@@ -26,12 +25,10 @@
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    <meta name="robots" content="index, follow">
-    <meta name="googlebot" content="index, follow">
-    <link rel="canonical" href="{{ request.url }}">
+    <link rel="canonical" href="https://{{ request.headers.get('host', 'classifast.com') }}/{{ classifier_type }}">
     <link rel="home" href="{{ url_for('read_root') }}">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
@@ -51,9 +48,8 @@
     <meta property="og:description"
         content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
     {% endif %}
-    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:url" content="https://{{ request.headers.get('host', 'classifast.com') }}/{{ classifier_type }}">
     <meta property="og:site_name" content="classifast.com">
-    <meta property="og:locale" content="en_US">
     <meta property="og:image" content="{{ url_for('static', path='images/preview.png') }}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -61,22 +57,20 @@
 
     <meta name="twitter:card" content="summary_large_image">
     {% if classifier_type == 'unspsc' %}
-    <meta name="twitter:title" content="UNSPSC Code Lookup & Classification | Classifast">
+    <meta name="twitter:title" content="UNSPSC Classification, Code Lookup, Search | Classifast">
     <meta name="twitter:description"
-        content="Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services.">
+        content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     {% elif classifier_type == 'etim' %}
-    <meta name="twitter:title" content="ETIM Product Classification & Lookup | Classifast">
+    <meta name="twitter:title" content="ETIM Classification, Code Lookup, Search | Classifast">
     <meta name="twitter:description"
-        content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products.">
+        content="Accurate ETIM product classification. Search and identify ETIM International classes for technical and electrical products.">
     {% else %}
-    <meta name="twitter:title"
-        content="Fast {{ title }} | Classifast - Accurate {{ classifier_type.upper() }} Classification">
+    <meta name="twitter:title" content="{{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast">
     <meta name="twitter:description"
-        content="{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.">
+        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
     {% endif %}
     <meta name="twitter:image" content="{{ url_for('static', path='images/preview.png') }}">
-    <meta name="twitter:site" content="@YourTwitterHandle">
-    <meta name="twitter:creator" content="@DmitryMatv">
+    <meta name="twitter:creator" content="@DimonBitcoin">
 
     <script type="application/ld+json">
     {
@@ -95,7 +89,7 @@
         "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
-        "url": "{{ request.url }}",
+        "url": "https://{{ request.headers.get('host', 'classifast.com') }}/{{ classifier_type }}",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "offers": {
@@ -197,6 +191,10 @@
                 display: flex;
             }
 
+            .mobile-hidden {
+                display: none;
+            }
+
             .mobile-menu {
                 position: absolute;
                 top: 100%;
@@ -247,11 +245,11 @@
 </head>
 
 <body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
-    <header class="bg-white shadow-sm border-b relative">
+    <header class="bg-white relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
                 <a href="{{ url_for('read_root') }}" class="flex items-center">
-                    <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-blue-600">fast</span>.com</h3>
+                    <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</h3>
                 </a>
                 <h1 class="ml-6 text-gray-800 font-semibold hidden md:inline">{{ title }}</h1>
             </div>
@@ -260,18 +258,18 @@
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
                     <li><a href="{{ url_for('read_root') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">Home</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">Home</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">NAICS</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">ISIC</a></li>
-                    <li><a href="#" class="text-gray-600 hover:text-blue-600 transition-colors">Login</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a></li>
+                    <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li>
                     <li><a href="#"
-                            class="bg-blue-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">
+                            class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
                             Sign Up</a></li>
                 </ul>
             </nav>
@@ -288,24 +286,24 @@
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
                 <li><a href="{{ url_for('read_root') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">Home</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">Home</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">NAICS</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">ISIC</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a>
                 </li>
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 transition-colors">Login</a>
+                <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
                 <li><a href="#"
-                        class="sign-up-btn bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
+                        class="sign-up-btn bg-sky-600 text-white font-semibold hover:bg-sky-700 transition-colors">
                         Sign Up</a></li>
             </ul>
         </nav>
@@ -315,7 +313,7 @@
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
             <ol class="flex items-center text-gray-400">
-                <li><a href="{{ url_for('read_root') }}" class="hover:text-blue-600 transition-colors">Home</a></li>
+                <li><a href="{{ url_for('read_root') }}" class="hover:text-sky-600 transition-colors">Home</a></li>
                 <li class="flex items-center">
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-800">{{ title }}</span>
@@ -334,7 +332,7 @@
                 <div class="flex items-center justify-start">
                     <label for="version_selector" class="hidden font-semibold">Select version:</label>
                     <select name="version" id="version_selector"
-                        class="border border-gray-400 rounded-md text-left px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                        class="border border-gray-400 rounded-md text-left px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2">
                         {% for v in versions %}
                         <option value="{{ v }}">{{ v }}</option>
                         {% endfor %}
@@ -344,12 +342,12 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help"
-                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 h-[100px] min-h-[100px] max-h-[700px] resize-y"></textarea>
+                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 h-[100px] min-h-[100px] max-h-[700px] resize-y"></textarea>
 
-                <div class="flex flex-col space-y-3 md:flex-row md:justify-between md:items-center md:space-y-0">
+                <div class="flex justify-between items-center">
                     <div class="flex justify-start items-center space-x-4">
                         <button type="submit"
-                            class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 transform">
                             {% if classifier_type == 'unspsc' %}
                             Similarity Search
                             {% elif classifier_type == 'etim' %}
@@ -359,7 +357,7 @@
                             {% endif %}
                         </button>
                         <select name="top_k" id="show_top_k_categories"
-                            class="text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+                            class="text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2">
                             <option value="5" selected>Top 5</option>
                             <option value="10">Top 10</option>
                             <option value="25">Top 25</option>
@@ -367,12 +365,12 @@
                         </select>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center"
                             aria-label="Processing request">
-                            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 ">
+                            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sky-600 ">
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center justify-center md:justify-end">
-                        <p class="text-gray-600">Results sorted by relevance</p>
+                    <div class="flex items-center justify-center">
+                        <p class="text-gray-600 mobile-hidden">Results sorted by relevance</p>
                     </div>
                 </div>
             </form>
@@ -401,7 +399,7 @@
         </section>
     </main>
 
-    <footer class="bg-gray-900 text-white">
+    <footer class="bg-gray-800 text-white">
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">

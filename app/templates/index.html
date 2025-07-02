@@ -4,32 +4,29 @@
 <head>
     <meta charset="UTF-8">
 
-    <title>Fast classification of industry standards | Classifast</title>
+    <title>Fast classification of any goods and services | Classifast</title>
     <meta name="description"
-        content="Find UNSPSC, NAICS, ISIC, and other classification codes. Semantic search to accurately lookup and classify products and services.">
+        content="Easy to find UNSPSC, NAICS, ISIC, HS, and other standard classification codes. Automated category search to accurately lookup and classify products.">
     <meta name="keywords"
         content="UNSPSC code lookup, UNSPSC code list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification">
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    <meta name="robots" content="index, follow">
-    <meta name="googlebot" content="index, follow">
-    <link rel="canonical" href="{{ request.url }}">
+    <link rel="canonical" href="https://classifast.com/">
     <link rel="home" href="https://classifast.com/">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Fast classification according to many industry standards | Classifast">
+    <meta property="og:title" content="Fast categorization of many industry standards | Classifast">
     <meta property="og:description"
         content="Find UNSPSC, NAICS, ISIC, and other classification codes. Semantic search to accurately lookup and classify products and services.">
     <meta property="og:url" content="https://classifast.com/">
     <meta property="og:site_name" content="classifast.com">
-    <meta property="og:locale" content="en_US">
     <meta property="og:image" content="https://classifast.com/static/images/preview.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -251,11 +248,11 @@
 </head>
 
 <body class="bg-white text-gray-800 flex flex-col min-h-screen">
-    <header class="bg-white shadow-sm border-b relative">
+    <header class="bg-white relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-center">
                 <a href="{{ url_for('read_root') }}" class="flex items-center">
-                    <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-blue-600">fast</span>.com</h3>
+                    <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</h3>
                 </a>
             </div>
 
@@ -263,16 +260,16 @@
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">NAICS</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="text-gray-600 hover:text-blue-600 transition-colors">ISIC</a></li>
-                    <li><a href="#" class="text-gray-600 hover:text-blue-600 transition-colors">Login</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a></li>
+                    <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li>
                     <li><a href="#"
-                            class="bg-blue-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">
+                            class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
                             Get Started</a></li>
                 </ul>
             </nav>
@@ -289,21 +286,21 @@
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">ETIM</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">UNSPSC</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">NAICS</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                        class="text-gray-600 hover:text-blue-600 transition-colors">ISIC</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a>
                 </li>
-                <li><a href="#" class="text-gray-600 hover:text-blue-600 transition-colors">Login</a>
+                <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
                 <li><a href="#"
-                        class="get-started-btn bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
+                        class="get-started-btn bg-sky-600 text-white font-semibold hover:bg-sky-700 transition-colors">
                         Get Started</a></li>
             </ul>
         </nav>
@@ -311,39 +308,39 @@
 
     <main class="flex-grow">
         <!-- Hero Section -->
-        <section class="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
+        <section class="bg-gradient-to-br from-sky-50 to-blue-100 py-20">
             <div class="container mx-auto px-4 max-w-6xl">
                 <div class="text-center">
                     <!--
-                    <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-                        Classify anything. <span class="text-blue-600">Fast.</span> And in bulk.
+                    <h1 class="text-5xl md:text-6xl font-bold text-gray-800 mb-6">
+                        Classify anything. <span class="text-sky-600">Fast.</span> And in bulk.
                     </h1>
                     -->
-                    <h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-                        Any text into categories. <span class="text-blue-600">In 1 second.</span>
+                    <h1 class="text-5xl md:text-6xl font-bold text-gray-800 mb-6">
+                        Any text into categories. <span class="text-sky-600">In 1 second.</span>
                     </h1>
                     <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
-                        Automatically classify your products and services with state-of-the-art accuracy.
+                        Easily classify your products and services with state-of-the-art accuracy.
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
+                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
                             ETIM
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
+                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
                             UNSPSC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
+                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
                             NAICS
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
+                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
                             ISIC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                            class="bg-white text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-md font-semibold hover:bg-blue-50 transition-colors">
+                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
                             HS CODES
                         </a>
                     </div>
@@ -355,8 +352,8 @@
         <section class="py-20 bg-white">
             <div class="container mx-auto px-4 max-w-6xl">
                 <div class="text-center mb-16">
-                    <h2 class="text-4xl font-bold text-gray-900 mb-4">Save months of manual labor.
-                        <span class="text-blue-600">Try for free.</span>
+                    <h2 class="text-4xl font-bold text-gray-800 mb-4">Save months of manual labor.
+                        <span class="text-sky-600">Try for free.</span>
                     </h2>
                 </div>
 
@@ -366,21 +363,21 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                                 stroke="currentColor" class="size-12 text-green-600">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z">
                             </svg>
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Cost-effective</h3>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Cost-effective</h3>
                         <p class="text-gray-600">Automate boring classification without the hefty pricetag.</p>
                     </div>
                     <div class="text-center p-6">
-                        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div class="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor" class="size-12 text-blue-600">
+                                stroke="currentColor" class="size-12 text-sky-600">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+                                    d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z">
                             </svg>
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Fast</h3>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Fast</h3>
                         <p class="text-gray-600">Speed up data processing. Significantly reduce the amount of human
                             work.</p>
                     </div>
@@ -389,10 +386,10 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                                 stroke="currentColor" class="size-12 text-purple-600">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282m0 0h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.904m10.598-9.75H14.25M5.904 18.5c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 0 1-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 9.953 4.167 9.5 5 9.5h1.053c.472 0 .745.556.5.96a8.958 8.958 0 0 0-1.302 4.665c0 1.194.232 2.333.654 3.375Z" />
+                                    d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282m0 0h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.904m10.598-9.75H14.25M5.904 18.5c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 0 1-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 9.953 4.167 9.5 5 9.5h1.053c.472 0 .745.556.5.96a8.958 8.958 0 0 0-1.302 4.665c0 1.194.232 2.333.654 3.375Z">
                             </svg>
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Simple</h3>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Simple</h3>
                         <p class="text-gray-600">Familiar search interface. Advanced semantic search technology under
                             the hood.</p>
                     </div>
@@ -400,10 +397,10 @@
                         <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                                 stroke="currentColor" class="size-12 text-red-600">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5">
                             </svg>
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Accurate</h3>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Accurate</h3>
                         <p class="text-gray-600">Latest embedding models deliver precision at scale and reduce bias.</p>
                     </div>
                 </div>
@@ -460,7 +457,7 @@
         </section>
     </main>
 
-    <footer class="bg-gray-900 text-white">
+    <footer class="bg-gray-800 text-white">
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">

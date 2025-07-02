@@ -21,7 +21,7 @@
                             onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
                             title="Copy ID to clipboard"
                             aria-label="Copy classification ID {{ result.payload.original_id | e }} to clipboard"
-                            class="text-2xl font-mono text-gray-600 hover:text-blue-600 ">
+                            class="text-2xl font-mono text-gray-600 hover:text-sky-600 ">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
                                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                 stroke-linejoin="round"
@@ -32,7 +32,7 @@
                         </button>
                         {% if base_url and base_url.strip() %}
                         <a href="{{ base_url }}{{ result.payload.original_id | e }}" target="_blank"
-                            class="text-gray-600 text-2xl font-bold font-mono hover:text-blue-600 hover:underline"
+                            class="text-gray-600 text-2xl font-bold font-mono hover:text-sky-600 hover:underline"
                             rel="noopener"
                             aria-label="View details for {{ result.payload.original_id | e }} (opens in new tab)">
                             {% else %}
