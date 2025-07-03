@@ -326,8 +326,8 @@ async def read_root(request: Request):
 # Dictionary to map classifier types to their configurations
 CLASSIFIER_CONFIG = {
     "etim": {
-        "title": "ETIM Classifier",
-        "heading": "Find relevant EC classes from the ETIM International standard",
+        "title": "ETIM International Classifier",
+        "heading": "Get relevant EC classes from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
         "example": """Example: SH203-C20 Miniature Circuit Breaker 6kA 20A 3P
 Characteristic curve: C-curve
@@ -343,7 +343,7 @@ Mounting: DIN rail""",
     },
     "unspsc": {
         "title": "UNSPSC Classifier",
-        "heading": "Find the right UNSPSC codes for your products and services",
+        "heading": "Get right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
         "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
         "embed_model_name": "text-embedding-004",
@@ -356,8 +356,8 @@ Mounting: DIN rail""",
         },
     },
     "naics": {
-        "title": "NAICS Classifier",
-        "heading": "Find appropriate NAICS codes from the NAICS standard",
+        "title": "NAICS Business Classifier",
+        "heading": "Get appropriate NAICS codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
         "example": "Example: Software publishers",
         "embed_model_name": "gemini-embedding-exp-03-07",
@@ -376,7 +376,7 @@ Mounting: DIN rail""",
     },
     "isic": {
         "title": "ISIC Classifier",
-        "heading": "Classify economic activities using the ISIC standard",
+        "heading": "Instantly classify economic activities using the UN's ISIC",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
         "example": "Example: Manufacture of motor vehicles",
         "embed_model_name": "gemini-embedding-exp-03-07",
@@ -392,8 +392,8 @@ Mounting: DIN rail""",
         },
     },
     "hs": {
-        "title": "HS Codes Classifier",
-        "heading": "Find the right HS codes for your goods",
+        "title": "Harmonized System (HS) Classifier",
+        "heading": "Instantly get right HS codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example: Electric motor",
         "embed_model_name": "gemini-embedding-exp-03-07",

@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     {% if classifier_type == 'unspsc' %}
-    <title>UNSPSC Classification, Code Lookup, Search | Classifast</title>
+    <title>UNSPSC Classification, Code Lookup, Mapping, Search | Classifast</title>
     <meta name="description"
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     <meta name="keywords"
-        content="UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
+        content="UNSPSC mapping, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
     {% elif classifier_type == 'etim' %}
     <title>ETIM Classification, Code Lookup, Search | Classifast</title>
     <meta name="description"
@@ -16,11 +16,11 @@
     <meta name="keywords"
         content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management">
     {% else %}
-    <title>{{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast</title>
+    <title>{{ classifier_type.upper() }} Classification, Code Lookup, Mapping | Classifast</title>
     <meta name="description"
-        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
+        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification, search, and mapping.">
     <meta name="keywords"
-        content="{{ title }}, {{ classifier_type.upper() }} code, {{ classifier_type.upper() }} code lookup, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} lookup, {{ classifier_type.upper() }} codes, number, categories, search">
+        content="{{ title }}, {{ classifier_type.upper() }} code, {{ classifier_type.upper() }} code lookup, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} lookup, {{ classifier_type.upper() }} codes, number, categories, search">
     {% endif %}
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
@@ -126,23 +126,44 @@
     <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
 
     <style>
-        /* Always show scrollbar on html to prevent layout shift, then hide it */
+        /* Modern approach: Reserve space for scrollbar to prevent layout shift */
         html {
-            overflow-y: scroll;
+            scrollbar-gutter: stable;
+            overflow-y: auto;
         }
 
-        /*         
-        html::-webkit-scrollbar,
-        body::-webkit-scrollbar {
-            display: none;
+        /* Fallback for older browsers */
+        @supports not (scrollbar-gutter: stable) {
+            html {
+                overflow-y: scroll;
+            }
         }
 
-        html,
-        body {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        /* Optional: Style the scrollbar for better appearance */
+        html::-webkit-scrollbar {
+            width: 16px;
         }
-        */
+
+        html::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        html::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+            border: 2px solid #f1f5f9;
+        }
+
+        html::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Ensure consistent container behavior across all browsers */
+        .container {
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
 
         /* HTMX loading indicator styles */
         #loading-indicator.htmx-indicator {
@@ -393,16 +414,9 @@
                         Please include as much relevant and accurate data as possible for the best classification
                         results. The more specific details you include, the more accurate the results will be.
                     </p>
-                    <ul class="text-gray-600 space-y-1 mb-4">
-                        <li>✓ Include specific product names, models, or technical specifications</li>
-                        <li>✓ Mention key features, materials, or intended use</li>
-                        <li>✓ Long multi-line unformatted text or broken tables work fine</li>
-                        <li>✓ All input is accepted as long as it accurately describes what you want to classify</li>
-                    </ul>
                     <p id="description-tips" class="text-gray-600">
-                        You can also ask questions like "What is the code for this product?" or "What class does this
-                        item belong to?" and the classifier will return the most relevant results based on your
-                        free-form description.
+                        Long multi-line unformatted text and broken tables work fine. Any input is accepted as long as
+                        it accurately describes what you want to classify.
                     </p>
                 </div>
             </div>
@@ -414,8 +428,8 @@
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
-                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC,
-                        and other industry classification standards.</p>
+                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
+                        other business classification standards.</p>
                 </div>
 
                 <div>

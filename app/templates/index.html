@@ -6,9 +6,9 @@
 
     <title>Fast classification of any goods and services | Classifast</title>
     <meta name="description"
-        content="Easy to find UNSPSC, NAICS, ISIC, HS, and other standard classification codes. Automated category search to accurately lookup and classify products.">
+        content="Easy to find UNSPSC, NAICS, ISIC, HS, and other standard classification codes. Automated category search to accurately lookup, map, and classify products.">
     <meta name="keywords"
-        content="UNSPSC code lookup, UNSPSC code list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification">
+        content="code lookup, code mapping,  code list, code search, find code, classification, commodity code, UNSPSC, UNSPSC categories, NAICS code, NAICS code search, find NAICS code, NAICS industry code lookup, ETIM classification, product classification, service classification">
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
 
@@ -141,25 +141,44 @@
         data-website-id="92ba1e11-eb38-415a-bbb6-8ef7b783bece"></script>
 
     <style>
-        /* Always show scrollbar on html to prevent layout shift */
+        /* Modern approach: Reserve space for scrollbar to prevent layout shift */
         html {
-            overflow-y: scroll;
+            scrollbar-gutter: stable;
+            overflow-y: auto;
         }
 
-        /* 
-        Commented out to prevent layout shift between pages and make scrollbars consistently visible:
-        
-        html::-webkit-scrollbar,
-        body::-webkit-scrollbar {
-            display: none;
+        /* Fallback for older browsers */
+        @supports not (scrollbar-gutter: stable) {
+            html {
+                overflow-y: scroll;
+            }
         }
 
-        html,
-        body {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        /* Optional: Style the scrollbar for better appearance */
+        html::-webkit-scrollbar {
+            width: 16px;
         }
-        */
+
+        html::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        html::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+            border: 2px solid #f1f5f9;
+        }
+
+        html::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Ensure consistent container behavior across all browsers */
+        .container {
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
 
         /* Mobile menu styles */
         .mobile-menu {
@@ -471,8 +490,8 @@
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
-                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC,
-                        and other industry classification standards.</p>
+                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
+                        other business classification standards.</p>
                 </div>
 
                 <div>
