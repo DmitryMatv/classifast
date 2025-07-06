@@ -13,18 +13,10 @@
     --color-green-600: oklch(62.7% 0.194 149.214);
     --color-sky-50: oklch(97.7% 0.013 236.62);
     --color-sky-100: oklch(95.1% 0.026 236.824);
-    --color-sky-200: oklch(90.1% 0.058 230.902);
     --color-sky-600: oklch(58.8% 0.158 241.966);
     --color-sky-700: oklch(50% 0.134 242.749);
     --color-sky-800: oklch(44.3% 0.11 240.79);
-    --color-blue-50: oklch(97% 0.014 254.604);
     --color-blue-100: oklch(93.2% 0.032 255.585);
-    --color-blue-600: oklch(54.6% 0.245 262.881);
-    --color-blue-700: oklch(48.8% 0.243 264.376);
-    --color-blue-800: oklch(42.4% 0.199 265.638);
-    --color-indigo-50: oklch(96.2% 0.018 272.314);
-    --color-indigo-100: oklch(93% 0.034 272.788);
-    --color-indigo-400: oklch(67.3% 0.182 276.935);
     --color-purple-100: oklch(94.6% 0.033 307.174);
     --color-purple-600: oklch(55.8% 0.288 302.321);
     --color-gray-50: oklch(98.5% 0.002 247.839);
@@ -311,6 +303,9 @@
   .inline {
     display: inline;
   }
+  .table {
+    display: table;
+  }
   .size-12 {
     width: calc(var(--spacing) * 12);
     height: calc(var(--spacing) * 12);
@@ -366,11 +361,17 @@
   .flex-grow {
     flex-grow: 1;
   }
+  .border-collapse {
+    border-collapse: collapse;
+  }
   .transform {
     transform: var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,);
   }
   .animate-spin {
     animation: var(--animate-spin);
+  }
+  .cursor-pointer {
+    cursor: pointer;
   }
   .resize {
     resize: both;
@@ -629,35 +630,44 @@
   .whitespace-pre-wrap {
     white-space: pre-wrap;
   }
-  .text-\[\#3cb44b\] {
-    color: #3cb44b;
+  .text-\[\#3CB44B\] {
+    color: #3CB44B;
+  }
+  .text-\[\#42D4F4\] {
+    color: #42D4F4;
   }
   .text-\[\#000075\] {
     color: #000075;
   }
-  .text-\[\#408c84\] {
-    color: #408c84;
+  .text-\[\#4363D8\] {
+    color: #4363D8;
   }
-  .text-\[\#4363d8\] {
-    color: #4363d8;
+  .text-\[\#800000\] {
+    color: #800000;
+  }
+  .text-\[\#808000\] {
+    color: #808000;
   }
   .text-\[\#999999\] {
     color: #999999;
   }
-  .text-\[\#b025da\] {
-    color: #b025da;
+  .text-\[\#E6194B\] {
+    color: #E6194B;
   }
-  .text-\[\#ba772c\] {
-    color: #ba772c;
+  .text-\[\#F032E6\] {
+    color: #F032E6;
   }
-  .text-\[\#e6194B\] {
-    color: #e6194B;
+  .text-\[\#F58231\] {
+    color: #F58231;
   }
-  .text-\[\#f032e6\] {
-    color: #f032e6;
+  .text-\[\#FABED4\] {
+    color: #FABED4;
   }
-  .text-\[\#f58231\] {
-    color: #f58231;
+  .text-\[\#a9a9a9\] {
+    color: #a9a9a9;
+  }
+  .text-\[\#bfef45\] {
+    color: #bfef45;
   }
   .text-gray-400 {
     color: var(--color-gray-400);
@@ -689,6 +699,9 @@
   .text-white {
     color: var(--color-white);
   }
+  .underline {
+    text-decoration-line: underline;
+  }
   .shadow {
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -696,6 +709,10 @@
   .shadow-sm {
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  .outline {
+    outline-style: var(--tw-outline-style);
+    outline-width: 1px;
   }
   .transition {
     transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, visibility, content-visibility, overlay, pointer-events;
@@ -734,13 +751,6 @@
       }
     }
   }
-  .hover\:text-gray-600 {
-    &:hover {
-      @media (hover: hover) {
-        color: var(--color-gray-600);
-      }
-    }
-  }
   .hover\:text-sky-600 {
     &:hover {
       @media (hover: hover) {
@@ -759,6 +769,13 @@
     &:hover {
       @media (hover: hover) {
         text-decoration-line: underline;
+      }
+    }
+  }
+  .hover\:decoration-sky-600 {
+    &:hover {
+      @media (hover: hover) {
+        text-decoration-color: var(--color-sky-600);
       }
     }
   }
@@ -976,6 +993,11 @@
   inherits: false;
   initial-value: 0 0 #0000;
 }
+@property --tw-outline-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
 @property --tw-duration {
   syntax: "*";
   inherits: false;
@@ -1039,6 +1061,7 @@
       --tw-ring-offset-width: 0px;
       --tw-ring-offset-color: #fff;
       --tw-ring-offset-shadow: 0 0 #0000;
+      --tw-outline-style: solid;
       --tw-duration: initial;
       --tw-ease: initial;
       --tw-scale-x: 1;

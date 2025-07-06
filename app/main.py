@@ -549,4 +549,6 @@ async def handle_classify(
     )
 
 
+# npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch
+
 # uvicorn app.main:app --reload --port 8001
