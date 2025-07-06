@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     QDRANT_URL = os.getenv("QDRANT_URL")
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     try:
-        print(f"Connecting to Qdrant at URL: {QDRANT_URL}")
+        print("Connecting to Qdrant...")
         qdrant_client = AsyncQdrantClient(
             api_key=QDRANT_API_KEY,
             host=QDRANT_URL,
@@ -156,32 +156,35 @@ class BotDetectionMiddleware(BaseHTTPMiddleware):
 app.add_middleware(BotDetectionMiddleware)
 
 
-"""
 # Security Headers Middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
+
         # Set security headers
-        response.headers["X-Content-Type-Options"] = (
-            "nosniff"  # Prevents MIME type sniffing
-        )
-        response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
         response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"  # HSTS
+            "max-age=31536000; includeSubDomains"
         )
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()"
+        )
+
+        # CSP header - updated for your specific needs
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com; "
-            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com; "
-            "script-src-attr 'unsafe-inline'; "  # Allow inline event handlers and script attributes
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com; "
+            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com; "
+            "script-src-attr 'unsafe-inline'; "
             "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-elem 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-attr 'unsafe-inline'; "
-            "img-src 'self' https://*.classifast.com data: /static/images/; "
+            "img-src 'self' https://*.classifast.com data: https://www.googletagmanager.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "connect-src 'self' https://umami.classifast.com; "
+            "connect-src 'self' https://umami.classifast.com https://www.google-analytics.com; "
             "object-src 'none'; "
             "base-uri 'self'; "
             "form-action 'self'; "
@@ -196,7 +199,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
-"""
 
 # Mount static files with caching
 from fastapi.responses import Response
@@ -249,7 +251,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 app.state.limiter = limiter
 
 
-async def custom_rate_limit_exceeded_handler(request: Request, exc: Exception):
+async def custom_rate_limit_exceeded_handler(request, exc: Exception):
     if isinstance(exc, RateLimitExceeded):
         return HTMLResponse(
             content="<p>Rate limit exceeded. Please try again later.</p>",

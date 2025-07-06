@@ -24,11 +24,12 @@
     {% endif %}
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    <link rel="canonical" href="https://{{ request.headers.get('host', 'classifast.com') }}/{{ classifier_type }}">
+    <link rel="canonical" href="https://classifast.com/{{ classifier_type }}">
     <link rel="home" href="{{ url_for('read_root') }}">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
@@ -48,7 +49,7 @@
     <meta property="og:description"
         content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
     {% endif %}
-    <meta property="og:url" content="https://{{ request.headers.get('host', 'classifast.com') }}/{{ classifier_type }}">
+    <meta property="og:url" content="https://classifast.com/{{ classifier_type }}">
     <meta property="og:site_name" content="classifast.com">
     <meta property="og:image" content="{{ url_for('static', path='images/preview.png') }}">
     <meta property="og:image:width" content="1200">
@@ -99,7 +100,7 @@
         "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
-        "url": "https://{{ request.headers.get('host', 'classifast.com') }}/{{ classifier_type }}",
+        "url": "https://classifast.com/{{ classifier_type }}",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "offers": {
