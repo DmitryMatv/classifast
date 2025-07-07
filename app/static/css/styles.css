@@ -313,14 +313,14 @@
   .h-16 {
     height: calc(var(--spacing) * 16);
   }
-  .h-\[100px\] {
-    height: 100px;
+  .h-\[150px\] {
+    height: 150px;
   }
-  .max-h-\[700px\] {
-    max-height: 700px;
+  .max-h-\[800px\] {
+    max-height: 800px;
   }
-  .min-h-\[100px\] {
-    min-height: 100px;
+  .min-h-\[50px\] {
+    min-height: 50px;
   }
   .min-h-screen {
     min-height: 100vh;

@@ -331,7 +331,8 @@ CLASSIFIER_CONFIG = {
         "title": "ETIM International Classifier",
         "heading": "Get relevant EC classes from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
-        "example": """Example: SH203-C20 Miniature Circuit Breaker 6kA 20A 3P
+        "example": """Example:
+SH203-C20 Miniature Circuit Breaker 6kA 20A 3P
 Characteristic curve: C-curve
 Mounting: DIN rail""",
         "embed_model_name": "gemini-embedding-exp-03-07",
