@@ -299,10 +299,10 @@
                             class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a></li>
-                    <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li>
-                    <li><a href="#"
+                    <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
+                    <!-- <li><a href="#"
                             class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
-                            Sign Up</a></li>
+                            Sign Up</a></li> -->
                 </ul>
             </nav>
 
@@ -332,11 +332,11 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a>
                 </li>
-                <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
+                <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
                 <li><a href="#"
                         class="sign-up-btn bg-sky-600 text-white font-semibold hover:bg-sky-700 transition-colors">
-                        Sign Up</a></li>
+                        Sign Up</a></li> -->
             </ul>
         </nav>
     </header>
@@ -375,6 +375,34 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help"
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 h-[100px] min-h-[100px] max-h-[700px] resize-y"></textarea>
+
+                <script>
+                    // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const textarea = document.getElementById('product_description_area');
+                        if (textarea) {
+                            textarea.addEventListener('keydown', function (event) {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault();
+                                    const form = textarea.closest('form');
+                                    if (form) {
+                                        const submitBtn = form.querySelector('button[type="submit"]');
+                                        if (submitBtn) {
+                                            // Add active/pressed classes for visual feedback
+                                            submitBtn.classList.add('active', 'scale-95');
+                                            setTimeout(function () {
+                                                submitBtn.classList.remove('active', 'scale-95');
+                                            }, 150); // Duration matches button's transition
+                                            submitBtn.click();
+                                        } else {
+                                            form.submit();
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    });
+                </script>
 
                 <div class="flex justify-between items-center">
                     <div class="flex justify-start items-center space-x-4">
@@ -438,16 +466,16 @@
                     <ul class="space-y-2">
                         <li><a href="{{ url_for('read_root') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Home</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li>
+                        <!-- <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li> -->
                     </ul>
                 </div>
 
                 <div>
                     <h4 class="text-lg font-semibold mb-4">Account</h4>
                     <ul class="space-y-2">
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li>
+                        <!-- <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li> -->
                     </ul>
                 </div>
             </div>
