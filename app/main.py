@@ -176,15 +176,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # CSP header - updated for your specific needs
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com; "
-            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
+            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
             "script-src-attr 'unsafe-inline'; "
             "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-elem 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-attr 'unsafe-inline'; "
             "img-src 'self' https://*.classifast.com data: https://www.googletagmanager.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "connect-src 'self' https://umami.classifast.com https://www.google-analytics.com; "
+            "connect-src 'self' https://umami.classifast.com https://www.google-analytics.com https://www.googletagmanager.com https://static.cloudflareinsights.com; "
             "object-src 'none'; "
             "base-uri 'self'; "
             "form-action 'self'; "

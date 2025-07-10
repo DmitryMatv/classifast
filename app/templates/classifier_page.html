@@ -436,18 +436,23 @@
             </form>
         </section>
 
-        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto" aria-live="polite">
+        <section id="results-section" class="hidden bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto"
+            aria-live="polite">
             <div id="results-container">
-                <div class="prose max-w-none">
-                    <p id="description-help" class="text-gray-600 mb-4">
-                        Please include as much relevant and accurate data as possible for the best classification
-                        results. The more specific details you include, the more accurate the results will be.
-                    </p>
-                    <p id="description-tips" class="text-gray-600">
-                        Long multi-line unformatted text and broken tables work fine. Any input is accepted as long as
-                        it accurately describes what you want to classify.
-                    </p>
-                </div>
+                <!-- This container will be populated by HTMX -->
+            </div>
+        </section>
+
+        <section id="info-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto mt-4">
+            <div class="prose max-w-none">
+                <p id="description-help" class="text-gray-600 mb-4">
+                    Please include as much relevant and accurate data as possible for the best classification
+                    results. The more specific details you include, the more accurate the results will be.
+                </p>
+                <p id="description-tips" class="text-gray-600">
+                    Long multi-line unformatted text and broken tables work fine. Any input is accepted as long as
+                    it accurately describes what you want to classify.
+                </p>
             </div>
         </section>
     </main>
@@ -529,6 +534,44 @@
                         mobileMenuButton.setAttribute('aria-expanded', 'false');
                     }
                 });
+            }
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const textarea = document.getElementById('product_description_area');
+            const form = textarea ? textarea.closest('form') : null;
+
+            // Check if the textarea is empty and htmx is available
+            if (textarea && form && textarea.value === '' && typeof htmx !== 'undefined') {
+                // Temporarily set the textarea value to the placeholder text
+                const exampleText = textarea.placeholder;
+                textarea.value = exampleText;
+
+                // Trigger the form submission using HTMX
+                htmx.trigger(form, 'submit');
+
+                // Immediately clear the textarea value so the placeholder is visible again
+                // Use a slight delay to ensure the value is captured by HTMX before clearing
+                setTimeout(() => {
+                    textarea.value = '';
+                }, 1000); // A delay of 1000 ms means it runs after the current script block finishes
+
+            } else if (typeof htmx === 'undefined') {
+                console.error('HTMX is not loaded.');
+            }
+            // If textarea is not empty, do nothing (user might have typed or navigated back)
+        });
+    </script>
+
+    <script>
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
+            if (evt.detail.target.id === 'results-container') {
+                var resultsSection = document.getElementById('results-section');
+                if (resultsSection) {
+                    resultsSection.classList.remove('hidden');
+                }
             }
         });
     </script>
