@@ -133,13 +133,6 @@
             overflow-y: auto;
         }
 
-        /* Fallback for older browsers */
-        @supports not (scrollbar-gutter: stable) {
-            html {
-                overflow-y: scroll;
-            }
-        }
-
         /* Optional: Style the scrollbar for better appearance */
         html::-webkit-scrollbar {
             width: 16px;
@@ -436,10 +429,9 @@
             </form>
         </section>
 
-        <section id="results-section" class="hidden bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto"
-            aria-live="polite">
+        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto" aria-live="polite">
             <div id="results-container">
-                <!-- This container will be populated by HTMX -->
+                {% include 'results.html' %}
             </div>
         </section>
 
@@ -457,7 +449,7 @@
         </section>
     </main>
 
-    <footer class="bg-gray-800 text-white">
+    <footer class="bg-gray-800 text-white footer-min-height">
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
@@ -539,34 +531,9 @@
     </script>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const textarea = document.getElementById('product_description_area');
-            const form = textarea ? textarea.closest('form') : null;
-
-            // Check if the textarea is empty and htmx is available
-            if (textarea && form && textarea.value === '' && typeof htmx !== 'undefined') {
-                // Temporarily set the textarea value to the placeholder text
-                const exampleText = textarea.placeholder;
-                textarea.value = exampleText;
-
-                // Trigger the form submission using HTMX
-                htmx.trigger(form, 'submit');
-
-                // Immediately clear the textarea value so the placeholder is visible again
-                // Use a slight delay to ensure the value is captured by HTMX before clearing
-                setTimeout(() => {
-                    textarea.value = '';
-                }, 1000); // A delay of 1000 ms means it runs after the current script block finishes
-
-            } else if (typeof htmx === 'undefined') {
-                console.error('HTMX is not loaded.');
-            }
-            // If textarea is not empty, do nothing (user might have typed or navigated back)
-        });
-    </script>
-
-    <script>
         document.body.addEventListener('htmx:afterSwap', function (evt) {
+            // After a new search, ensure the results section is not hidden
+            // This is mostly redundant now but good for safety.
             if (evt.detail.target.id === 'results-container') {
                 var resultsSection = document.getElementById('results-section');
                 if (resultsSection) {

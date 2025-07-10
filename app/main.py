@@ -176,15 +176,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # CSP header - updated for your specific needs
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
-            "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://umami.classifast.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
+            "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
             "script-src-attr 'unsafe-inline'; "
             "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-elem 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
             "style-src-attr 'unsafe-inline'; "
             "img-src 'self' https://*.classifast.com data: https://www.googletagmanager.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "connect-src 'self' https://umami.classifast.com https://www.google-analytics.com https://www.googletagmanager.com https://static.cloudflareinsights.com; "
+            "connect-src 'self' https://www.google-analytics.com https://www.googletagmanager.com https://static.cloudflareinsights.com; "
             "object-src 'none'; "
             "base-uri 'self'; "
             "form-action 'self'; "
@@ -413,23 +413,72 @@ Mounting: DIN rail""",
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
 async def show_classifier_page(request: Request, classifier_type: str):
-    """Serves the specific classifier page with Cloudflare-friendly caching."""
+    """
+    Serves the specific classifier page, pre-loading it with results
+    for the example query to improve SEO and user experience.
+    """
     config = CLASSIFIER_CONFIG.get(classifier_type)
     if not config:
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
+    # --- SEO Improvement: Pre-load results for the example query ---
+    results_for_query = []
+    total_request_time = 0
+    query = config.get("example", "").replace("Example:", "").strip()
+    base_url = ""
+    tooltip = ""
+
+    if query and embed_client and qdrant_client:
+        start_total_time = time.perf_counter()
+        try:
+            # Get the config for the first available version
+            version_name = next(iter(config.get("versions", {})))
+            version_config = config["versions"][version_name]
+            collection_name = version_config["collection_name"]
+            embed_model_name = config["embed_model_name"]
+            base_url = version_config.get("base_url", "")
+            tooltip = version_config.get("tooltip", "")
+
+            # Use the batch function to get initial results for the example
+            results_for_single_query = await classify_string_batch(
+                qdrant_client=qdrant_client,
+                embed_client=embed_client,
+                embed_model_name=embed_model_name,
+                query_texts=[query],
+                collection_name=collection_name,
+                top_k=5,  # Pre-load top 5 results
+            )
+            if results_for_single_query:
+                results_for_query = results_for_single_query[0]
+
+            end_total_time = time.perf_counter()
+            total_request_time = end_total_time - start_total_time
+            print(
+                f"Pre-loaded results for '{classifier_type}' in {total_request_time:.4f}s"
+            )
+
+        except Exception as e:
+            print(f"Could not pre-load results for '{classifier_type}': {e}")
+    # --- End SEO Improvement ---
+
     response = templates.TemplateResponse(
         "classifier_page.html",
         {
-            "classifier_type": classifier_type,
             "request": request,
+            "classifier_type": classifier_type,
             "title": config["title"],
             "heading": config["heading"],
             "description": config["description"],
             "versions": list(config["versions"].keys()),
             "example": config["example"],
+            # SEO: Pass pre-loaded results to the template with correct variable names
+            "results_for_query": results_for_query,
+            "query": query,
+            "base_url": base_url,
+            "tooltip": tooltip,
+            "total_request_time": total_request_time,
         },
     )
 
@@ -534,7 +583,7 @@ async def handle_classify(
 
     end_total_time = time.perf_counter()  # End timer for total duration
     total_request_time = end_total_time - start_total_time
-    print(f"Total request processing time: {total_request_time:.6f} seconds.")
+    print(f"Total request processing time was {total_request_time:.4f}s")
 
     # Render the results partial
     return templates.TemplateResponse(
