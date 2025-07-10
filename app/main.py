@@ -24,6 +24,8 @@ from .classifier import classify_string_batch
 
 load_dotenv()
 
+PRELOADED_RESULTS_CACHE: Dict[str, Dict[str, Any]] = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -102,10 +104,67 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Error initializing Qdrant client: {e}")
 
-    if not embed_client or not qdrant_client:
+    # --- Pre-load and cache results for all example queries on startup ---
+    if embed_client and qdrant_client:
+        print("Pre-loading example query results for all classifiers...")
+        for classifier_type, config in CLASSIFIER_CONFIG.items():
+            query = config.get("example", "").replace("Example:", "").strip()
+            if not query:
+                continue
+
+            try:
+                start_total_time = time.perf_counter()
+                version_name = next(iter(config.get("versions", {})))
+                version_config = config["versions"][version_name]
+                collection_name = version_config["collection_name"]
+                embed_model_name = config["embed_model_name"]
+                base_url = version_config.get("base_url", "")
+                tooltip = version_config.get("tooltip", "")
+
+                results_for_single_query = await classify_string_batch(
+                    qdrant_client=qdrant_client,
+                    embed_client=embed_client,
+                    embed_model_name=embed_model_name,
+                    query_texts=[query],
+                    collection_name=collection_name,
+                    top_k=5,
+                )
+
+                results_for_query = (
+                    results_for_single_query[0] if results_for_single_query else []
+                )
+                end_total_time = time.perf_counter()
+                total_request_time = end_total_time - start_total_time
+
+                # Store all necessary data for the template in the cache
+                PRELOADED_RESULTS_CACHE[classifier_type] = {
+                    "results_for_query": results_for_query,
+                    "query": query,
+                    "base_url": base_url,
+                    "tooltip": tooltip,
+                    "total_request_time": total_request_time,
+                }
+                print(
+                    f"Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
+                )
+
+            except Exception as e:
+                print(f"Failed to pre-load results for '{classifier_type}': {e}")
+                PRELOADED_RESULTS_CACHE[classifier_type] = {
+                    "results_for_query": [],
+                    "query": query,
+                    "base_url": "",
+                    "tooltip": "",
+                    "total_request_time": 0,
+                }
+    else:
+        print(
+            "Skipping pre-loading of example queries because clients are not initialized."
+        )
         print(
             "Critical Error: One or more clients failed to initialize. The application might not function correctly."
         )
+    # --- End pre-loading ---
 
     yield
 
@@ -310,7 +369,7 @@ async def read_root(request: Request):
     # For HEAD requests, return just headers
     if request.method == "HEAD":
         headers = {
-            "Cache-Control": "public, max-age=86400, s-maxage=86400",
+            "Cache-Control": "public, max-age=86400, s-maxage=604800",
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
         }
@@ -319,7 +378,7 @@ async def read_root(request: Request):
     response = templates.TemplateResponse("index.html", {"request": request})
 
     # Cloudflare-friendly cache headers (same as classifier pages)
-    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
     response.headers["Vary"] = "Accept-Encoding"
 
     return response
@@ -414,8 +473,8 @@ Mounting: DIN rail""",
 @app.get("/{classifier_type}", response_class=HTMLResponse)
 async def show_classifier_page(request: Request, classifier_type: str):
     """
-    Serves the specific classifier page, pre-loading it with results
-    for the example query to improve SEO and user experience.
+    Serves the specific classifier page, using pre-cached results
+    for the example query to ensure fast initial load times.
     """
     config = CLASSIFIER_CONFIG.get(classifier_type)
     if not config:
@@ -423,45 +482,19 @@ async def show_classifier_page(request: Request, classifier_type: str):
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
-    # --- SEO Improvement: Pre-load results for the example query ---
-    results_for_query = []
-    total_request_time = 0
-    query = config.get("example", "").replace("Example:", "").strip()
-    base_url = ""
-    tooltip = ""
-
-    if query and embed_client and qdrant_client:
-        start_total_time = time.perf_counter()
-        try:
-            # Get the config for the first available version
-            version_name = next(iter(config.get("versions", {})))
-            version_config = config["versions"][version_name]
-            collection_name = version_config["collection_name"]
-            embed_model_name = config["embed_model_name"]
-            base_url = version_config.get("base_url", "")
-            tooltip = version_config.get("tooltip", "")
-
-            # Use the batch function to get initial results for the example
-            results_for_single_query = await classify_string_batch(
-                qdrant_client=qdrant_client,
-                embed_client=embed_client,
-                embed_model_name=embed_model_name,
-                query_texts=[query],
-                collection_name=collection_name,
-                top_k=5,  # Pre-load top 5 results
-            )
-            if results_for_single_query:
-                results_for_query = results_for_single_query[0]
-
-            end_total_time = time.perf_counter()
-            total_request_time = end_total_time - start_total_time
-            print(
-                f"Pre-loaded results for '{classifier_type}' in {total_request_time:.4f}s"
-            )
-
-        except Exception as e:
-            print(f"Could not pre-load results for '{classifier_type}': {e}")
-    # --- End SEO Improvement ---
+    # --- Use pre-cached results for the example query ---
+    # The cache is populated on application startup.
+    preloaded_data = PRELOADED_RESULTS_CACHE.get(
+        classifier_type,
+        {
+            "results_for_query": [],
+            "query": config.get("example", "").replace("Example:", "").strip(),
+            "base_url": "",
+            "tooltip": "",
+            "total_request_time": 0,
+        },
+    )
+    # --- End using pre-cached results ---
 
     response = templates.TemplateResponse(
         "classifier_page.html",
@@ -471,14 +504,10 @@ async def show_classifier_page(request: Request, classifier_type: str):
             "title": config["title"],
             "heading": config["heading"],
             "description": config["description"],
-            "versions": list(config["versions"].keys()),
+            "versions": list(config.get("versions", {}).keys()),
             "example": config["example"],
-            # SEO: Pass pre-loaded results to the template with correct variable names
-            "results_for_query": results_for_query,
-            "query": query,
-            "base_url": base_url,
-            "tooltip": tooltip,
-            "total_request_time": total_request_time,
+            # Use the pre-loaded data from the cache
+            **preloaded_data,
         },
     )
 
