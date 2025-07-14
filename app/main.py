@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -193,6 +194,15 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(PerformanceMiddleware)
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://classifast.com", "https://www.classifast.com"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 # Add Gzip compression middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -274,10 +284,37 @@ class CachedStaticFiles(StaticFiles):
             if path.endswith(
                 (".css", ".js", ".png", ".jpg", ".ico", ".woff", ".woff2")
             ):
-                response.headers["Cache-Control"] = "public, max-age=604800"  # 1 week
+                response.headers["Cache-Control"] = (
+                    "public, max-age=604800, s-maxage=604800, "  # 1 week for both browser and CDN
+                    "immutable, "  # Tell browsers it never changes
+                    "stale-while-revalidate=86400"  # Allow serving stale for 1 day while revalidating
+                )
             else:
-                response.headers["Cache-Control"] = "public, max-age=86400"  # 1 day
-            response.headers["ETag"] = f'"{hash(path)}"'
+                response.headers["Cache-Control"] = (
+                    "public, max-age=86400, s-maxage=86400, "  # 1 day for both browser and CDN
+                    "stale-while-revalidate=3600"  # Allow serving stale for 1 hour while revalidating
+                )
+
+            # Add ETag for caching based on file modification time
+            import os
+            import stat
+
+            try:
+                file_path = os.path.join("app/static", path.lstrip("/"))
+                file_stat = os.stat(file_path)
+                response.headers["ETag"] = (
+                    f'"{int(file_stat.st_mtime)}-{file_stat.st_size}"'
+                )
+            except (OSError, FileNotFoundError):
+                response.headers["ETag"] = f'"{hash(path)}"'
+
+            # Add Vary header to correctly cache compressed responses
+            response.headers["Vary"] = "Accept-Encoding"
+
+            # Cloudflare-specific headers for better edge caching
+            response.headers["Cache-Tag"] = "static-files"
+
+            # Let Cloudflare handle compression - don't set Content-Encoding
         return response
 
 
@@ -286,22 +323,50 @@ app.mount("/static", CachedStaticFiles(directory="app/static"), name="static")
 
 @app.get("/favicon.ico", response_class=FileResponse, include_in_schema=False)
 async def favicon():
-    return FileResponse("app/static/images/favicon.ico")
+    response = FileResponse("app/static/images/favicon.ico")
+    response.headers["Cache-Control"] = (
+        "public, max-age=604800, s-maxage=604800"  # 1 week
+    )
+    return response
 
 
 @app.get("/robots.txt", response_class=FileResponse)
 async def robots_txt():
-    return "app/static/robots.txt"
+    response = FileResponse("app/static/robots.txt")
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"  # 1 day
+    return response
 
 
 @app.get("/sitemap.xml", response_class=FileResponse)
 async def sitemap_xml():
-    return "app/static/sitemap.xml"
+    response = FileResponse("app/static/sitemap.xml")
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"  # 1 day
+    return response
 
 
 @app.get("/ads.txt", response_class=FileResponse)
 async def ads_txt():
-    return "app/static/ads.txt"
+    response = FileResponse("app/static/ads.txt")
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"  # 1 day
+    return response
+
+
+@app.get("/static/css/styles.css", response_class=FileResponse)
+async def styles_css():
+    response = FileResponse("app/static/css/styles.css")
+    response.headers["Cache-Control"] = (
+        "public, max-age=604800, s-maxage=604800"  # 1 week, both browser and Cloudflare
+    )
+    return response
+
+
+@app.get("/static/js/htmx.min.js", response_class=FileResponse)
+async def htmx_js():
+    response = FileResponse("app/static/js/htmx.min.js")
+    response.headers["Cache-Control"] = (
+        "public, max-age=604800, s-maxage=604800"  # 1 week, both browser and Cloudflare
+    )
+    return response
 
 
 # Initialize rate limiter
@@ -327,9 +392,9 @@ app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 async def health_check():
     """
     Health check endpoint for Docker/Kubernetes.
+    Returns generic status to avoid information disclosure.
     """
     # Basic check: if we can reach here, the app is running.
-    # More sophisticated checks could be added here (e.g., DB connectivity).
     if embed_client and qdrant_client:
         # Optionally, perform a quick check on clients
         try:
@@ -337,23 +402,17 @@ async def health_check():
             embed_client.models.list()
             # Test qdrant client
             await qdrant_client.get_collections()
-            return {"status": "healthy", "embed_client": "ok", "qdrant_client": "ok"}
+            return {"status": "healthy"}
         except Exception as e:
             raise HTTPException(
                 status_code=503,
-                detail=f"Service Unavailable: Client error - {str(e)}",
+                detail="Service Unavailable",
             )
-    elif not embed_client:
+    else:
         raise HTTPException(
             status_code=503,
-            detail="Service Unavailable: embed_client not initialized",
+            detail="Service Unavailable",
         )
-    elif not qdrant_client:
-        raise HTTPException(
-            status_code=503,
-            detail="Service Unavailable: qdrant_client not initialized",
-        )
-    return {"status": "unhealthy", "detail": "One or more clients are not initialized"}
 
 
 # Setup Jinja2 templates
@@ -372,6 +431,7 @@ async def read_root(request: Request):
             "Cache-Control": "public, max-age=86400, s-maxage=604800",
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
+            "Link": '<https://classifast.com/>; rel="canonical"',
         }
         return Response(headers=headers)
 
@@ -380,6 +440,8 @@ async def read_root(request: Request):
     # Cloudflare-friendly cache headers (same as classifier pages)
     response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
     response.headers["Vary"] = "Accept-Encoding"
+    response.headers["Link"] = '<https://classifast.com/>; rel="canonical"'
+    response.headers["X-Robots-Tag"] = "index, follow"
 
     return response
 
@@ -387,7 +449,7 @@ async def read_root(request: Request):
 # Dictionary to map classifier types to their configurations
 CLASSIFIER_CONFIG = {
     "etim": {
-        "title": "ETIM International Classifier",
+        "title": "ETIM Classifier",
         "heading": "Get relevant EC classes from the ETIM International standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
         "example": """Example:
@@ -454,7 +516,7 @@ Mounting: DIN rail""",
         },
     },
     "hs": {
-        "title": "Harmonized System (HS) Classifier",
+        "title": "HS Code Classifier",
         "heading": "Instantly get right HS codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example: Electric motor",
@@ -471,6 +533,7 @@ Mounting: DIN rail""",
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
+@app.head("/{classifier_type}")
 async def show_classifier_page(request: Request, classifier_type: str):
     """
     Serves the specific classifier page, using pre-cached results
@@ -481,6 +544,16 @@ async def show_classifier_page(request: Request, classifier_type: str):
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
+
+    # For HEAD requests, return just headers
+    if request.method == "HEAD":
+        headers = {
+            "Cache-Control": "public, max-age=86400, s-maxage=604800",
+            "Vary": "Accept-Encoding",
+            "Content-Type": "text/html; charset=utf-8",
+            "Link": f'<https://classifast.com/{classifier_type}>; rel="canonical"',
+        }
+        return Response(headers=headers)
 
     # --- Use pre-cached results for the example query ---
     # The cache is populated on application startup.
@@ -511,9 +584,13 @@ async def show_classifier_page(request: Request, classifier_type: str):
         },
     )
 
-    # Cloudflare-friendly cache headers
-    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"
+    # Cloudflare-friendly cache headers (aligned with homepage)
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
     response.headers["Vary"] = "Accept-Encoding"
+    response.headers["Link"] = (
+        f'<https://classifast.com/{classifier_type}>; rel="canonical"'
+    )
+    response.headers["X-Robots-Tag"] = "index, follow"
 
     return response
 
@@ -565,6 +642,13 @@ async def handle_classify(
                 "query": product_description,  # Pass original (potentially empty) text
                 "results_for_query": [],  # Empty results
             },
+        )
+
+    # Validate input length to prevent DoS attacks
+    if len(product_description) > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail="Product description too long. Maximum 5000 characters allowed.",
         )
 
     # Debug: Print the raw product_description to verify newlines are preserved

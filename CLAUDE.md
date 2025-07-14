@@ -2,137 +2,66 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
-
-Classifast is a FastAPI web application that provides semantic classification of text inputs according to international product and service standards (UNSPSC, NAICS, ISIC, ETIM, HS). It uses Google Gemini embeddings and Qdrant vector database for intelligent categorization.
-
 ## Development Commands
 
+### Running the Application
+- **Development server**: `uvicorn app.main:app --reload --port 8001`
+- **Docker**: `docker-compose up` (serves on port 8001)
+- **Docker build**: `docker build -t classifast .`
+
 ### Environment Setup
-```bash
-# Install dependencies
-pip install -r requirements.txt
+- Install dependencies: `pip install -r requirements.txt`
+- Environment variables required: `GEMINI_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`
+- Use `.env` file for local development
 
-# Set up environment variables (create .env file)
-GEMINI_API_KEY=your_gemini_api_key
-QDRANT_URL=your_qdrant_url
-QDRANT_API_KEY=your_qdrant_api_key
-```
-
-### Development Server
-```bash
-# Run development server with hot reload
-uvicorn app.main:app --reload --port 8001
-
-# Run with specific host binding
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
-```
-
-### Docker Development
-```bash
-# Build and run with Docker Compose
-docker-compose up
-
-# Build specific service
-docker-compose build classifier-app
-
-# Run in detached mode
-docker-compose up -d
-```
-
-### Health Check
-```bash
-# Check application health
-curl http://localhost:8001/health
-```
+### CSS Development
+- **Watch CSS changes**: `npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch`
+- Input CSS: `app/static/css/input.css`
+- Output CSS: `app/static/css/styles.css`
 
 ## Architecture Overview
 
-### Core Components
+### Core Application Structure
+- **FastAPI backend** (`app/main.py`): Main application with lifespan management, middleware, and routing
+- **Classification engine** (`app/classifier.py`): Handles semantic search using Google Gemini embeddings and Qdrant vector database
+- **Templates**: Jinja2 templates in `app/templates/` (index.html, classifier_page.html, results.html)
+- **Static files**: CSS, JS, images in `app/static/`
 
-**FastAPI Application** (`app/main.py`):
-- Async/await FastAPI server with lifecycle management
-- Rate limiting (10 requests/minute for classification endpoints)
-- GZip compression and performance monitoring middleware
-- Bot detection and security headers
+### Key Components
 
-**Classification Engine** (`app/classifier.py`):
-- Semantic search using Google Gemini embeddings
-- Qdrant vector database for similarity search
-- Batch processing with retry mechanisms
-- Confidence scoring for results
+#### Classification System
+- **Multiple standards supported**: UNSPSC, ETIM, NAICS, ISIC, HS codes
+- **Embedding models**: Google Gemini (text-embedding-004, gemini-embedding-exp-03-07)
+- **Vector database**: Qdrant for semantic search with async client
+- **Batch processing**: `classify_string_batch()` function handles multiple queries efficiently
 
-**Frontend** (`app/templates/` + `app/static/`):
-- Server-side rendered Jinja2 templates
-- HTMX for dynamic interactions
-- Tailwind CSS for styling
-- SEO-optimized with structured data
+#### Application Lifecycle
+- **Startup**: Initializes embedding client, Qdrant client, validates collections, pre-loads example query results
+- **Pre-loading**: Caches results for example queries across all classifiers during startup for fast initial page loads
+- **Configuration**: `CLASSIFIER_CONFIG` dict defines all supported classification standards with their versions and settings
 
-### Supported Classification Standards
+#### Performance Features
+- **Caching**: Static file caching, pre-loaded example results, CDN-friendly headers
+- **Middleware**: Gzip compression, security headers, performance monitoring, bot detection
+- **Rate limiting**: 10 requests/minute on classification endpoints using SlowAPI
 
-The application supports multiple international standards:
-- **UNSPSC**: United Nations Standard Products and Services Codes
-- **ETIM**: European Technical Information Model  
-- **NAICS**: North American Industry Classification System
-- **ISIC**: International Standard Industrial Classification
-- **HS**: Harmonized System for customs/trade
+#### Frontend
+- **HTMX**: Dynamic form submission without page refresh
+- **Tailwind CSS**: Utility-first CSS framework
+- **Responsive design**: Mobile-friendly interface with SEO optimization
 
-### Key Directories
+### Data Structure
+- **Collections**: Each classification standard has versioned Qdrant collections
+- **Vector dimensions**: Varies by model (768 for text-embedding-004, 3072 for gemini-embedding-exp-03-07)
+- **Payload structure**: Contains original_id, class_name, and classification metadata
 
-- `app/`: Main FastAPI application package
-- `app/templates/`: Jinja2 HTML templates
-- `app/static/`: CSS, JavaScript, and image assets
-- `data/`: Classification standard data files (CSV, Excel)
-- `utilities/`: Helper scripts for data processing
+### Error Handling
+- **Retry logic**: Tenacity-based retries for embedding API calls
+- **Graceful degradation**: Fallback to empty results on client failures
+- **Health checks**: `/health` endpoint validates both embedding and Qdrant clients
 
-### API Endpoints
-
-- `GET /` - Homepage
-- `GET /{classifier_type}` - Classification interface (etim, unspsc, naics, isic, hs)
-- `POST /{classifier_type}` - Submit classification request
-- `GET /health` - Health check endpoint
-
-### Dependencies
-
-**Core Runtime**:
-- FastAPI with uvicorn ASGI server
-- Google GenAI for embeddings
-- Qdrant client for vector search
-- Jinja2 for templating
-
-**Development**:
-- python-dotenv for environment management
-- slowapi for rate limiting
-- tenacity for retry logic
-
-## Environment Variables
-
-Required environment variables:
-- `GEMINI_API_KEY`: Google GenAI API key for embeddings
-- `QDRANT_URL`: Qdrant vector database URL
-- `QDRANT_API_KEY`: Qdrant authentication key
-
-## Testing
-
-Note: No automated test suite is currently present in the codebase. Consider adding pytest-based tests for:
-- API endpoint testing
-- Classification accuracy validation
-- Vector database operations
-- Error handling scenarios
-
-## Performance Considerations
-
-- Vector embeddings are generated in batches for efficiency
-- Qdrant provides fast similarity search at scale
-- Static assets are optimized with appropriate caching headers
-- Rate limiting prevents API abuse
-- GZip compression reduces response sizes
-
-## Data Processing
-
-Classification data is stored in the `data/` directory:
-- UNSPSC data in Excel format
-- ETIM classes in CSV format
-- Utility scripts in `utilities/` for data manipulation
-
-The application loads and processes this data into vector embeddings for semantic search capabilities.
+### Security
+- **CSP headers**: Content Security Policy for XSS protection
+- **Security middleware**: X-Frame-Options, HSTS, X-Content-Type-Options
+- **Input validation**: Form data sanitization and rate limiting
+- **Non-root containers**: Docker runs as non-root user for security

@@ -117,10 +117,137 @@
             "@type": "Organization",
             "name": "Classifast",
             "url": "https://classifast.com/"
+        },
+        "featureList": [
+            "{{ classifier_type.upper() }} code lookup and classification",
+            "Semantic search technology",
+            "Bulk classification support",
+            "High accuracy matching",
+            "Real-time classification results"
+        ],
+        "mainEntity": {
+            "@type": "Thing",
+            "name": "{{ classifier_type.upper() }} Classification",
+            "description": "{{ description }}"
         }
     }
     </script>
 
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {% if classifier_type == 'unspsc' %}
+            {
+                "@type": "Question",
+                "name": "What is UNSPSC classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "UNSPSC (United Nations Standard Products and Services Code) is a global standard used to organize products and services into hierarchical categories. It helps businesses improve spend analytics, streamline procurement, and enhance data governance."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How accurate is UNSPSC classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Our AI-powered UNSPSC classification uses state-of-the-art embedding models to deliver high accuracy results. Each classification includes a confidence score, and detailed product descriptions typically yield better matches than generic terms."
+                }
+            }
+            {% elif classifier_type == 'etim' %}
+            {
+                "@type": "Question",
+                "name": "What is ETIM classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ETIM (Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector. It provides a uniform classification system for electronic exchange of product data, especially for technical and electrical products."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How does ETIM classification work?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ETIM classification uses semantic search technology to match product descriptions with standardized ETIM classes. The system analyzes product characteristics and returns the most relevant ETIM classes with confidence scores."
+                }
+            }
+            {% elif classifier_type == 'naics' %}
+            {
+                "@type": "Question",
+                "name": "What are NAICS codes used for?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "NAICS (North American Industry Classification System) codes are used to classify businesses by their primary economic activity. They're essential for government contracting, statistical analysis, and business reporting across North America."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How to find the right NAICS code?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Use our AI-powered NAICS classifier to find the right code by describing your business activity. The system will return the most relevant NAICS codes with confidence scores to help you choose the best match."
+                }
+            }
+            {% elif classifier_type == 'isic' %}
+            {
+                "@type": "Question",
+                "name": "What is ISIC classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ISIC (International Standard Industrial Classification) is the global reference classification for economic activities developed by the United Nations Statistics Division. It provides a comprehensive framework for organizing economic data by type of productive activity."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How is ISIC different from NAICS?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ISIC is the international standard used globally, while NAICS is specific to North America. ISIC provides broader international comparability, while NAICS offers more detailed industry breakdowns for the US, Canada, and Mexico."
+                }
+            }
+            {% else %}
+            {
+                "@type": "Question",
+                "name": "What is {{ classifier_type.upper() }} classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "{{ description }}"
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How accurate is {{ classifier_type.upper() }} classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Our AI-powered {{ classifier_type.upper() }} classification uses state-of-the-art embedding models to deliver high accuracy results. Each classification includes a confidence score for transparency."
+                }
+            }
+            {% endif %}
+        ]
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": "https://classifast.com/"
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "{{ title }}",
+                "item": "https://classifast.com/{{ classifier_type }}"
+            }
+        ]
+    }
+    </script>
 
     <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
 
@@ -276,7 +403,7 @@
                 <a href="{{ url_for('read_root') }}" class="flex items-center">
                     <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</h3>
                 </a>
-                <h1 class="ml-6 text-gray-800 font-semibold hidden md:inline">{{ title }}</h1>
+                <h1 class="ml-6 text-gray-800 font-semibold">{{ title }}</h1>
             </div>
 
             <!-- Desktop Navigation -->
@@ -366,7 +493,7 @@
                 {% endif %}
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
-                    aria-describedby="description-help"
+                    aria-describedby="description-help" maxlength="5000"
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 min-h-[50px] h-[150px] max-h-[800px] resize-y"></textarea>
 
                 <script>
