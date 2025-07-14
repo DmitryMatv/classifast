@@ -9,7 +9,6 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -194,14 +193,6 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(PerformanceMiddleware)
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://classifast.com", "https://www.classifast.com"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
-    allow_headers=["*"],
-)
 
 # Add Gzip compression middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -516,8 +507,8 @@ Mounting: DIN rail""",
         },
     },
     "hs": {
-        "title": "HS Code Classifier",
-        "heading": "Instantly get right HS codes for your goods",
+        "title": "HS Code Finder",
+        "heading": "Get HS codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example: Electric motor",
         "embed_model_name": "gemini-embedding-exp-03-07",

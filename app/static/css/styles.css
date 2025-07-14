@@ -799,14 +799,19 @@
       background-color: var(--color-sky-800);
     }
   }
+  .sm\:block {
+    @media (width >= 40rem) {
+      display: block;
+    }
+  }
   .md\:col-span-2 {
     @media (width >= 48rem) {
       grid-column: span 2 / span 2;
     }
   }
-  .md\:inline {
+  .md\:block {
     @media (width >= 48rem) {
-      display: inline;
+      display: block;
     }
   }
   .md\:grid-cols-2 {
