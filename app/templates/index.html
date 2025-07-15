@@ -218,14 +218,17 @@
 
             .mobile-menu {
                 position: absolute;
-                top: 100%;
-                left: 0;
+                top: 110%;
                 right: 0;
+                left: auto;
+                transform: none;
+                width: 95vw;
+                max-width: 400px;
                 background-color: white;
                 border-top: 1px solid #e5e7eb;
                 box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
                 z-index: 50;
-                border-radius: 0 0 12px 12px;
+                border-radius: 0;
             }
 
             .mobile-menu ul {
@@ -334,32 +337,33 @@
                         Classify anything. <span class="text-sky-600">Fast.</span> And in bulk.
                     </h1>
                     -->
-                    <h1 class="text-5xl md:text-6xl font-bold text-gray-800 mb-6">
-                        Any text into industry codes <span class="text-sky-600">in 1 second.</span>
+                    <h1 class="text-5xl md:text-6xl font-bold text-gray-800">
+                        From any description<br>to industry codes
                     </h1>
-                    <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
+                    <p class="text-5xl md:text-6xl font-bold text-sky-600 mb-6">in 1 second</p>
+                    <p class="text-xl text-gray-600 mb-10 max-w-3xl mx-auto">
                         Instantly classify your products and services with state-of-the-art accuracy.
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
-                            Try ETIM
+                            class="bg-white text-sky-600 border-2 border-sky-700 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
+                            ETIM
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
-                            Try UNSPSC
+                            class="bg-white text-sky-600 border-2 border-sky-700 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
+                            UNSPSC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
-                            Try NAICS
+                            class="bg-white text-sky-600 border-2 border-sky-700 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
+                            NAICS
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
-                            Try ISIC
+                            class="bg-white text-sky-600 border-2 border-sky-700 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
+                            ISIC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                            class="bg-white text-sky-600 border-2 border-sky-600 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
-                            Try HS
+                            class="bg-white text-sky-600 border-2 border-sky-700 px-6 py-2 rounded-md font-semibold hover:bg-sky-50 transition-colors">
+                            HS
                         </a>
                     </div>
                 </div>

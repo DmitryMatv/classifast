@@ -349,14 +349,17 @@
 
             .mobile-menu {
                 position: absolute;
-                top: 100%;
-                left: 0;
+                top: 110%;
                 right: 0;
+                left: auto;
+                transform: none;
+                width: 95vw;
+                max-width: 400px;
                 background-color: white;
                 border-top: 1px solid #e5e7eb;
                 box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
                 z-index: 50;
-                border-radius: 0 0 12px 12px;
+                border-radius: 0;
             }
 
             .mobile-menu ul {
@@ -400,11 +403,10 @@
     <header class="bg-white relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
-                <a href="{{ url_for('read_root') }}" class="flex items-center">
-                    <h3 class="text-2xl font-bold text-gray-800 hidden sm:block md:block">classi<span
-                            class="text-sky-600">fast</span>.com</h3>
+                <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
+                    <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</h3>
                 </a>
-                <h1 class="ml-6 text-gray-800 font-semibold">{{ title }}</h1>
+                <h1 class="ml-6 text-gray-800 font-semibold text-xl">{{ title }}</h1>
             </div>
 
             <!-- Desktop Navigation -->
@@ -494,7 +496,7 @@
                 {% endif %}
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
-                    aria-describedby="description-help"
+                    aria-describedby="description-help" maxlength="5000"
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 min-h-[50px] h-[150px] max-h-[800px] resize-y"></textarea>
 
                 <script>
