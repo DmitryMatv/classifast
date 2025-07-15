@@ -1,9 +1,6 @@
-fastapi>=0.115.0,<0.116.0
-slowapi
-uvicorn[standard]>=0.34.0,<0.35.0
 python-dotenv
-python-multipart
+tenacity
+fastapi[standard]>=0.116.0,<0.117.0
+slowapi
 google-genai
 qdrant-client>=1.14.0,<1.15.0
-jinja2
-tenacity
