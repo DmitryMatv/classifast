@@ -3,14 +3,18 @@ from google import genai
 from google.genai import types
 from qdrant_client import AsyncQdrantClient, models
 from dotenv import load_dotenv
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 async def get_embeddings_batch(
-    embed_client, model_name: str, task_type: str, texts: List[str]
+    embed_client,
+    model_name: str,
+    task_type: str,
+    texts: List[str],
+    titles: Optional[List[str]] = None,
 ) -> List[List[float]]:
     """
     Generates embeddings for a batch of texts using the embedding API.
@@ -18,8 +22,9 @@ async def get_embeddings_batch(
     Args:
         embed_client: The Google GenAI client.
         model_name: The name of the embedding model to use.
-        task_type: The task type for the embedding (e.g., "CLASSIFICATION").
+        task_type: The task type for the embedding (e.g., "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY").
         texts: A list of strings to embed.
+        titles: Optional list of titles for documents (only used with task_type="RETRIEVAL_DOCUMENT").
 
     Returns:
         A list of embedding vectors (each a list of floats).
@@ -35,12 +40,38 @@ async def get_embeddings_batch(
         # for i, text in enumerate(texts):
         #     print(f"Text {i+1} length: {len(text)}, newlines: {text.count(chr(10))}")
 
-        response = await embed_client.aio.models.embed_content(
-            model=model_name,
-            contents=texts,
-            config=types.EmbedContentConfig(task_type=task_type),
-            # "CLASSIFICATION" is made for use with ML algorithms, train/test sets, etc.
-        )
+        # Create config with title support for RETRIEVAL_DOCUMENT task type
+        config = types.EmbedContentConfig(task_type=task_type)
+
+        # If titles are provided and task_type is RETRIEVAL_DOCUMENT, process each text with its title
+        if titles and task_type == "RETRIEVAL_DOCUMENT":
+            if len(titles) != len(texts):
+                raise ValueError(
+                    f"Number of titles ({len(titles)}) must match number of texts ({len(texts)})"
+                )
+
+            # Process each text with its corresponding title
+            all_embeddings = []
+            for text, title in zip(texts, titles):
+                config_with_title = types.EmbedContentConfig(
+                    task_type=task_type, title=title
+                )
+                response = await embed_client.aio.models.embed_content(
+                    model=model_name,
+                    contents=[text],
+                    config=config_with_title,
+                )
+                all_embeddings.extend(
+                    [embedding.values for embedding in response.embeddings]
+                )
+            return all_embeddings
+        else:
+            # For queries or when no titles provided, use batch processing without titles
+            response = await embed_client.aio.models.embed_content(
+                model=model_name,
+                contents=texts,
+                config=config,
+            )
         return [embedding.values for embedding in response.embeddings]
     except Exception as e:
         print(f"An unexpected error occurred during embedding generation: {e}")
@@ -123,7 +154,7 @@ async def classify_string_batch(
         # 4. Process and Format Batch Results from QueryResponse objects
         all_formatted_results = []
         # Iterate through the list of QueryResponse objects
-        for i, response in enumerate(batch_results):
+        for response in batch_results:
             # Access the list of ScoredPoint objects via the .points attribute
             formatted_hits = [
                 {
@@ -150,7 +181,7 @@ async def classify_string_batch(
 
 # Example usage of the classify_string_batch function
 async def main():
-    EMBED_MODEL = "text-embedding-004"
+    EMBED_MODEL = "gemini-embedding-001"
 
     QDRANT_DB_PATH = "./qdrant_db"  # Local path to store Qdrant data
     QDRANT_COLLECTION_NAME = "ETIM10_google"  # Name for the Qdrant collection
@@ -179,7 +210,7 @@ async def main():
 
     # Check if collection exists before querying
     try:
-        collection_info = await qdrant_client_instance.get_collection(
+        await qdrant_client_instance.get_collection(
             collection_name=QDRANT_COLLECTION_NAME
         )
         print(f"Collection '{QDRANT_COLLECTION_NAME}' found.")

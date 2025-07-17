@@ -447,9 +447,13 @@ CLASSIFIER_CONFIG = {
 SH203-C20 Miniature Circuit Breaker 6kA 20A 3P
 Characteristic curve: C-curve
 Mounting: DIN rail""",
-        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
+            "ETIM version 10.0 (2024-12-10) new!": {
+                "collection_name": "ETIM_10_eng_new001_v4",
+                "base_url": "https://prod.etim-international.com/Class/Details?classId=",
+            },
             "ETIM version 10.0 (2024-12-10)": {
                 "collection_name": "ETIM_10_eng_3072_exp",
                 "base_url": "https://prod.etim-international.com/Class/Details?classId=",
@@ -475,9 +479,13 @@ Mounting: DIN rail""",
         "heading": "Get appropriate NAICS codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
         "example": "Example: Software publishers",
-        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
+            "2022 NAICS (only 6-digit categories) new!": {
+                "collection_name": "NAICS_2022_SIXdigits_new001_v3",
+                "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
+            },
             "2022 NAICS (only 6-digit categories)": {
                 "collection_name": "NAICS_2022_6-digits_eng_3072_exp",
                 "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
@@ -494,9 +502,13 @@ Mounting: DIN rail""",
         "heading": "Instantly classify economic activities using the UN's ISIC",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
         "example": "Example: Manufacture of motor vehicles",
-        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
+            "ISIC Rev. 4 new!": {
+                "collection_name": "ISIC_4_new001_2",
+                "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
+            },
             "ISIC Rev. 4": {
                 "collection_name": "ISIC4_v6",
                 "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
@@ -511,9 +523,13 @@ Mounting: DIN rail""",
         "heading": "Get HS codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example: Electric motor",
-        "embed_model_name": "gemini-embedding-exp-03-07",
+        "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
+            "HS 2022 new!": {
+                "collection_name": "H6-HS_2022_new001_v2",
+                "base_url": "https://www.tariffnumber.com/2025/",
+            },
             "HS 2022": {
                 "collection_name": "H6-HS_2022_v4",
                 "base_url": "https://www.tariffnumber.com/2025/",
@@ -587,7 +603,7 @@ async def show_classifier_page(request: Request, classifier_type: str):
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
-@limiter.limit("10/minute")  # Apply rate limit to this endpoint
+@limiter.limit("60/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request,
     classifier_type: str,
@@ -636,10 +652,10 @@ async def handle_classify(
         )
 
     # Validate input length to prevent DoS attacks
-    if len(product_description) > 5000:
+    if len(product_description) > 4000:  # Token limit is 2048 for gemini-embedding-001
         raise HTTPException(
             status_code=400,
-            detail="Product description too long. Maximum 5000 characters allowed.",
+            detail="Product description too long. Maximum 4000 characters allowed.",
         )
 
     # Debug: Print the raw product_description to verify newlines are preserved

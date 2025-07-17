@@ -464,7 +464,7 @@
         </nav>
     </header>
 
-    <main class="flex-grow container mx-auto p-4 max-w-screen-md">
+    <main class="flex-grow container mx-auto p-4 max-w-lg">
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
             <ol class="flex items-center text-gray-400">
@@ -496,7 +496,7 @@
                 {% endif %}
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
-                    aria-describedby="description-help" maxlength="5000"
+                    aria-describedby="description-help" maxlength="4000"
                     class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 min-h-[50px] h-[150px] max-h-[800px] resize-y"></textarea>
 
                 <script>
@@ -559,13 +559,13 @@
             </form>
         </section>
 
-        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto" aria-live="polite">
+        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-lg mx-auto" aria-live="polite">
             <div id="results-container">
                 {% include 'results.html' %}
             </div>
         </section>
 
-        <section id="info-section" class="bg-white p-4 rounded-lg shadow max-w-screen-md mx-auto mt-4">
+        <section id="info-section" class="bg-white p-4 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
             <div class="prose max-w-none">
                 <p id="mistakes-warning" class="text-gray-600 mb-4">
                     Classifast can make mistakes. Double-check important data.
@@ -575,7 +575,7 @@
                     The more specific details you include, the more accurate the results will be.
                 </p>
                 <p id="description-tips" class="text-gray-600">
-                    Long multi-line unformatted text and broken tables work fine — any input is accepted
+                    Long multi-line unformatted text and broken tables work fine - any input is accepted
                     as long as it accurately describes what you want to classify.
                 </p>
             </div>
@@ -612,7 +612,8 @@
             </div>
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">
-                <p class="text-gray-400">2025 Dmitry Matv</p>
+                <p class="text-gray-400">2025 <a href="mailto:dmitry.matv@inbox.lv" class="underline">Dmitry Matv</a>
+                </p>
             </div>
         </div>
     </footer>
