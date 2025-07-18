@@ -106,7 +106,7 @@ async def lifespan(app: FastAPI):
 
     # --- Pre-load and cache results for all example queries on startup ---
     if embed_client and qdrant_client:
-        print("Pre-loading example query results for all classifiers...")
+        print("⌛ Pre-loading example query results for all classifiers...")
         for classifier_type, config in CLASSIFIER_CONFIG.items():
             query = config.get("example", "").replace("Example:", "").strip()
             if not query:
@@ -145,7 +145,7 @@ async def lifespan(app: FastAPI):
                     "total_request_time": total_request_time,
                 }
                 print(
-                    f"Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
+                    f"✅ Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
                 )
 
             except Exception as e:
@@ -476,7 +476,7 @@ Mounting: DIN rail""",
     },
     "naics": {
         "title": "NAICS Business Classifier",
-        "heading": "Get appropriate NAICS codes from the NAICS standard",
+        "heading": "Get appropriate codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
         "example": "Example: Software publishers",
         "embed_model_name": "gemini-embedding-001",
@@ -617,7 +617,7 @@ async def handle_classify(
     and returns HTML partial with results.
     """
     print(
-        f"Received query for '{classifier_type}' classification with version '{version}'."
+        f"❓ Received query for '{classifier_type}' classification with version '{version}'."
     )
 
     config = CLASSIFIER_CONFIG.get(classifier_type)
@@ -692,7 +692,7 @@ async def handle_classify(
             classification_results = results_for_single_query[0]
 
         print(
-            f"Results for '{product_description}' in '{collection_name}':\n{classification_results}"
+            f"👉 Results for '{product_description}' in '{collection_name}':\n{classification_results}"
         )
 
     except Exception as e:
@@ -718,7 +718,7 @@ async def handle_classify(
         },
     )
 
-
+# npm install tailwindcss @tailwindcss/cli
 # npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch
 
 # uvicorn app.main:app --reload --port 8001

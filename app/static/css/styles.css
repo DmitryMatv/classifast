@@ -29,7 +29,7 @@
     --color-gray-900: oklch(21% 0.034 264.665);
     --color-white: #fff;
     --spacing: 0.25rem;
-    --breakpoint-md: 48rem;
+    --breakpoint-lg: 64rem;
     --container-2xl: 42rem;
     --container-3xl: 48rem;
     --container-4xl: 56rem;
@@ -313,6 +313,9 @@
   .h-16 {
     height: calc(var(--spacing) * 16);
   }
+  .h-\[40px\] {
+    height: 40px;
+  }
   .h-\[150px\] {
     height: 150px;
   }
@@ -349,8 +352,8 @@
   .max-w-none {
     max-width: none;
   }
-  .max-w-screen-md {
-    max-width: var(--breakpoint-md);
+  .max-w-screen-lg {
+    max-width: var(--breakpoint-lg);
   }
   .flex-1 {
     flex: 1;
@@ -460,10 +463,6 @@
     border-style: var(--tw-border-style);
     border-width: 1px;
   }
-  .border-2 {
-    border-style: var(--tw-border-style);
-    border-width: 2px;
-  }
   .border-t {
     border-top-style: var(--tw-border-style);
     border-top-width: 1px;
@@ -487,9 +486,6 @@
   }
   .border-sky-600 {
     border-color: var(--color-sky-600);
-  }
-  .border-sky-700 {
-    border-color: var(--color-sky-700);
   }
   .bg-gray-50 {
     background-color: var(--color-gray-50);
@@ -642,8 +638,8 @@
   .text-\[\#000075\] {
     color: #000075;
   }
-  .text-\[\#4363D8\] {
-    color: #4363D8;
+  .text-\[\#788FE3\] {
+    color: #788FE3;
   }
   .text-\[\#800000\] {
     color: #800000;
@@ -693,6 +689,9 @@
   .text-white {
     color: var(--color-white);
   }
+  .underline {
+    text-decoration-line: underline;
+  }
   .shadow {
     --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
@@ -723,13 +722,6 @@
   .ease-in-out {
     --tw-ease: var(--ease-in-out);
     transition-timing-function: var(--ease-in-out);
-  }
-  .hover\:bg-sky-50 {
-    &:hover {
-      @media (hover: hover) {
-        background-color: var(--color-sky-50);
-      }
-    }
   }
   .hover\:bg-sky-700 {
     &:hover {

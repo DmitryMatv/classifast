@@ -464,7 +464,7 @@
         </nav>
     </header>
 
-    <main class="flex-grow container mx-auto p-4 max-w-lg">
+    <main class="flex-grow container mx-auto p-4 max-w-screen-lg">
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
             <ol class="flex items-center text-gray-400">
@@ -540,10 +540,10 @@
                             {% endif %}
                         </button>
                         <select name="top_k" id="show_top_k_categories"
-                            class="text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2">
+                            class="h-[40px] text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2">
                             <option value="5" selected>Top 5</option>
                             <option value="10">Top 10</option>
-                            <option value="25">Top 25</option>
+                            <option value="30">Top 30</option>
                             <option value="100">Top 100</option>
                         </select>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center"
@@ -612,7 +612,9 @@
             </div>
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">
-                <p class="text-gray-400">2025 <a href="mailto:dmitry.matv@inbox.lv" class="underline">Dmitry Matv</a>
+                <p class="text-gray-400">
+                    <a href="mailto:dmitry.matv@inbox.lv" class="underline">Dmitry Matv</a><br>
+                    2025
                 </p>
             </div>
         </div>
