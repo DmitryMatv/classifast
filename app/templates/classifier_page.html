@@ -24,12 +24,10 @@
     {% endif %}
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    <link rel="canonical" href="https://classifast.com/{{ classifier_type }}">
     <link rel="home" href="{{ url_for('read_root') }}">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
@@ -404,7 +402,7 @@
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
                 <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
-                    <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</h3>
+                    <p class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</p>
                 </a>
                 <h1 class="ml-6 text-gray-800 font-semibold text-xl">{{ title }}</h1>
             </div>
@@ -497,7 +495,7 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000"
-                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 min-h-[50px] h-[150px] max-h-[800px] resize-y"></textarea>
+                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 min-h-[80px] h-[120px] max-h-[800px] resize-y"></textarea>
 
                 <script>
                     // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
@@ -586,8 +584,8 @@
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
-                    <h3 class="text-2xl font-bold mb-4"><a href="/"
-                            class="hover:text-sky-600 transition-colors">classifast.com</a></h3>
+                    <p class="text-2xl font-bold mb-4"><a href="/"
+                            class="hover:text-sky-600 transition-colors">classifast.com</a></p>
                     <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
                         other business classification standards.</p>
                 </div>

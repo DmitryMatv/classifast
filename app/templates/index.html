@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
 
-    <title>Fast classification of any goods and services | ClassiFast</title>
+    <title>Fast classification of goods and services | Classifast</title>
     <meta name="description"
         content="Classification tool to easily find UNSPSC, NAICS, ISIC, HS, and other standard classification codes. Accurately search, lookup, map, and classify products.">
     <meta name="keywords"
@@ -15,7 +15,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    <link rel="canonical" href="https://classifast.com/">
     <link rel="home" href="https://classifast.com/">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
@@ -53,7 +52,8 @@
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "WebApplication",        "name": "Classifast | AI-Powered UNSPSC Code Lookup, ETIM & NAICS Classification Tool",
+        "@type": "WebApplication",
+        "name": "Classifast | AI-Powered UNSPSC Code Lookup, ETIM & NAICS Classification Tool",
         "url": "https://classifast.com/",
         "description": "AI-powered classification tool providing fast and accurate UNSPSC code lookup, ETIM classification, and NAICS code search. Streamline your product and service categorization with semantic search technology.",
         "author": {
@@ -273,7 +273,7 @@
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-center">
                 <a href="{{ url_for('read_root') }}" class="flex items-center">
-                    <h3 class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</h3>
+                    <p class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</p>
                 </a>
             </div>
 
@@ -341,28 +341,28 @@
                         From any description<br>to industry codes
                     </h1>
                     <p class="text-5xl md:text-6xl font-bold text-sky-600 mb-10">in 1 second.</p>
-                    <p class="text-xl text-gray-600 mb-6 max-w-3xl mx-auto">
+                    <p class="text-xl text-gray-600 mb-10 max-w-3xl mx-auto">
                         Instantly classify your products and services with state-of-the-art accuracy.
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="bg-sky-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-sky-700 transition-colors">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             ETIM
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="bg-sky-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-sky-700 transition-colors">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             UNSPSC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                            class="bg-sky-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-sky-700 transition-colors">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             NAICS
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="bg-sky-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-sky-700 transition-colors">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             ISIC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                            class="bg-sky-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-sky-700 transition-colors">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             HS
                         </a>
                     </div>
@@ -413,8 +413,8 @@
                                     d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282m0 0h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.904m10.598-9.75H14.25M5.904 18.5c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 0 1-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 9.953 4.167 9.5 5 9.5h1.053c.472 0 .745.556.5.96a8.958 8.958 0 0 0-1.302 4.665c0 1.194.232 2.333.654 3.375Z">
                             </svg>
                         </div>
-                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Simple text search</h3>
-                        <p class="text-gray-600">Familiar lookup interface. Advanced semantic search technology in the
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Easy-to-use</h3>
+                        <p class="text-gray-600">Familiar basic lookup UI. Advanced semantic search technology in the
                             backend.</p>
                     </div>
                     <div class="text-center p-6">
@@ -486,28 +486,28 @@
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
-                    <h3 class="text-2xl font-bold mb-4">classifast.com</h3>
+                    <p class="text-2xl font-bold mb-4">classifast.com</p>
                     <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
                         other classification standards.</p>
                 </div>
 
-                <div>
+                <!-- <div>
                     <h4 class="text-lg font-semibold mb-4">Navigation</h4>
                     <ul class="space-y-2">
                         <li><a href="{{ url_for('read_root') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Home</a></li>
-                        <!-- <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li> -->
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li>
                     </ul>
-                </div>
+                </div> -->
 
-                <div>
+                <!-- <div>
                     <h4 class="text-lg font-semibold mb-4">Account</h4>
                     <ul class="space-y-2">
-                        <!-- <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li> -->
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li>
                     </ul>
-                </div>
+                </div> -->
             </div>
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">

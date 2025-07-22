@@ -68,9 +68,12 @@ async def lifespan(app: FastAPI):
         if qdrant_client:
             try:
                 collections_result = await qdrant_client.get_collections()
-                print(
-                    f"Qdrant client initialized. Found collections: {[col.name for col in collections_result.collections]}"
+                collection_names = sorted(
+                    [col.name for col in collections_result.collections]
                 )
+                print("Qdrant client initialized. Found collections:")
+                for i, name in enumerate(collection_names, 1):
+                    print(f"{name}")
             except Exception as e:
                 print(f"Qdrant client initialized, but could not list collections: {e}")
                 # Depending on severity, you might still want to set qdrant_client to None or raise
@@ -162,7 +165,7 @@ async def lifespan(app: FastAPI):
             "Skipping pre-loading of example queries because clients are not initialized."
         )
         print(
-            "Critical Error: One or more clients failed to initialize. The application might not function correctly."
+            "❌ Critical Error: One or more clients failed to initialize. The application might not function correctly."
         )
     # --- End pre-loading ---
 
@@ -527,7 +530,7 @@ Mounting: DIN rail""",
         "embed_dims": 3072,
         "versions": {
             "HS 2022 new!": {
-                "collection_name": "H6-HS_2022_new001_v2",
+                "collection_name": "H6-HS_2022_new001_v4",
                 "base_url": "https://www.tariffnumber.com/2025/",
             },
             "HS 2022": {
@@ -691,12 +694,15 @@ async def handle_classify(
         if results_for_single_query:
             classification_results = results_for_single_query[0]
 
+        original_ids = [
+            result.get("original_id", "N/A") for result in classification_results
+        ]
         print(
-            f"👉 Results for '{product_description}' in '{collection_name}':\n{classification_results}"
+            f"👉 Results for '{product_description}' in '{collection_name}': {f'\n'.join(map(str, original_ids))}"
         )
 
     except Exception as e:
-        print(f"Error during '{classifier_type}' classification: {e}")
+        print(f"❌ Error during '{classifier_type}' classification: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
@@ -717,6 +723,7 @@ async def handle_classify(
             "total_request_time": total_request_time,
         },
     )
+
 
 # npm install tailwindcss @tailwindcss/cli
 # npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch
