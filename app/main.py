@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
                 )
                 print("Qdrant client initialized. Found collections:")
                 for i, name in enumerate(collection_names, 1):
-                    print(f"{name}")
+                    print(f"💿 {name}")
             except Exception as e:
                 print(f"Qdrant client initialized, but could not list collections: {e}")
                 # Depending on severity, you might still want to set qdrant_client to None or raise
@@ -109,7 +109,7 @@ async def lifespan(app: FastAPI):
 
     # --- Pre-load and cache results for all example queries on startup ---
     if embed_client and qdrant_client:
-        print("⌛ Pre-loading example query results for all classifiers...")
+        print("Pre-loading example query results for all classifiers...")
         for classifier_type, config in CLASSIFIER_CONFIG.items():
             query = config.get("example", "").replace("Example:", "").strip()
             if not query:
@@ -453,12 +453,8 @@ Mounting: DIN rail""",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
-            "ETIM version 10.0 (2024-12-10) new!": {
-                "collection_name": "ETIM_10_eng_new001_v4",
-                "base_url": "https://prod.etim-international.com/Class/Details?classId=",
-            },
             "ETIM version 10.0 (2024-12-10)": {
-                "collection_name": "ETIM_10_eng_3072_exp",
+                "collection_name": "ETIM_10_eng_new001_v4",
                 "base_url": "https://prod.etim-international.com/Class/Details?classId=",
             },
         },
@@ -472,7 +468,7 @@ Mounting: DIN rail""",
         "embed_dims": 768,
         "versions": {
             "UNSPSC UNv260801 (August 14, 2023)": {
-                "collection_name": "UNSPSC_eng_UNv260801-1_768",
+                "collection_name": "UNSPSC_UNv260801-1-eng_new001-768_v8",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
@@ -481,16 +477,12 @@ Mounting: DIN rail""",
         "title": "NAICS Business Classifier",
         "heading": "Get appropriate codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
-        "example": "Example: Software publishers",
+        "example": "Example: Gamedev studio",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
-            "2022 NAICS (only 6-digit categories) new!": {
-                "collection_name": "NAICS_2022_SIXdigits_new001_v3",
-                "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
-            },
             "2022 NAICS (only 6-digit categories)": {
-                "collection_name": "NAICS_2022_6-digits_eng_3072_exp",
+                "collection_name": "NAICS_2022_SIXdigits_new001_v3",
                 "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
             },
             "2022 NAICS (all 2-to-6-digit categories)": {
@@ -508,12 +500,8 @@ Mounting: DIN rail""",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
-            "ISIC Rev. 4 new!": {
-                "collection_name": "ISIC_4_new001_2",
-                "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
-            },
             "ISIC Rev. 4": {
-                "collection_name": "ISIC4_v6",
+                "collection_name": "ISIC_4_new001_2",
                 "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
             },
             "ISIC Rev. 5": {
@@ -529,12 +517,8 @@ Mounting: DIN rail""",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
-            "HS 2022 new!": {
-                "collection_name": "H6-HS_2022_new001_v4",
-                "base_url": "https://www.tariffnumber.com/2025/",
-            },
             "HS 2022": {
-                "collection_name": "H6-HS_2022_v4",
+                "collection_name": "H6-HS_2022_new001_v4",
                 "base_url": "https://www.tariffnumber.com/2025/",
             },
         },
@@ -694,11 +678,13 @@ async def handle_classify(
         if results_for_single_query:
             classification_results = results_for_single_query[0]
 
-        original_ids = [
-            result.get("original_id", "N/A") for result in classification_results
+        result_lines = [
+            f"{result['payload'].get('original_id', 'N/A')} - {result['payload'].get('class_name', 'N/A')}"
+            for result in classification_results
         ]
         print(
-            f"👉 Results for '{product_description}' in '{collection_name}': {f'\n'.join(map(str, original_ids))}"
+            f"👇 Results for '{product_description}' in '{collection_name}':\n"
+            + "\n".join(result_lines)
         )
 
     except Exception as e:

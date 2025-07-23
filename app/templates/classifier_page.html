@@ -139,69 +139,126 @@
             {% if classifier_type == 'unspsc' %}
             {
                 "@type": "Question",
-                "name": "What is UNSPSC classification?",
+                "name": "What is UNSPSC classification and how does the hierarchy work?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "UNSPSC (United Nations Standard Products and Services Code) is a global standard used to organize products and services into hierarchical categories. It helps businesses improve spend analytics, streamline procurement, and enhance data governance."
+                    "text": "UNSPSC (United Nations Standard Products and Services Code) is a global standard that organizes products and services into a four-level hierarchical structure: Segment (2 digits), Family (2 digits), Class (2 digits), and Commodity (2 digits). This 8-digit system enables precise categorization across all industries, from raw materials to finished services."
                 }
             },
             {
                 "@type": "Question",
-                "name": "How accurate is UNSPSC classification?",
+                "name": "Which industries and platforms use UNSPSC codes most frequently?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Our AI-powered UNSPSC classification uses state-of-the-art embedding models to deliver high accuracy results. Each classification includes a confidence score, and detailed product descriptions typically yield better matches than generic terms."
+                    "text": "UNSPSC codes are extensively used by e-procurement platforms like SAP Ariba and Coupa, government procurement systems (GSA schedules), healthcare supply chains, manufacturing ERP systems, and B2B marketplaces. They enable spend analysis, vendor management, and cross-industry product standardization."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How often are UNSPSC codes updated and what's the latest version?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "UNSPSC codes are updated semi-annually by GS1 US. The current version (v26.0801 from August 2023) contains over 150,000 active codes covering both products and services across all sectors. Updates include new codes for emerging technologies and market changes."
                 }
             }
             {% elif classifier_type == 'etim' %}
             {
                 "@type": "Question",
-                "name": "What is ETIM classification?",
+                "name": "What is ETIM classification and how do technical product classes work?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "ETIM (Technical Information Model) is an open standard for the unambiguous grouping and specification of products in the technical sector. It provides a uniform classification system for electronic exchange of product data, especially for technical and electrical products."
+                    "text": "ETIM (Technical Information Model) is an open standard specifically designed for technical and electrical products. It uses alphanumeric class codes (like EC000123 for electrical components) combined with detailed attributes and values. Each class includes technical specifications, dimensions, materials, and performance characteristics essential for B2B technical trade."
                 }
             },
             {
                 "@type": "Question",
-                "name": "How does ETIM classification work?",
+                "name": "What's the difference between ETIM International, ETIM US, and ETIM Germany?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "ETIM classification uses semantic search technology to match product descriptions with standardized ETIM classes. The system analyzes product characteristics and returns the most relevant ETIM classes with confidence scores."
+                    "text": "ETIM International provides the global English standard, ETIM US adapts classes for North American electrical codes and standards, while ETIM Germany focuses on German-speaking markets with local technical regulations. Each maintains the core ETIM structure but includes region-specific requirements and translations."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Which types of technical products are classified using ETIM?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ETIM covers electrical installation products, HVAC systems, lighting fixtures, cables and wires, industrial automation equipment, building automation systems, and renewable energy products. It's particularly strong in electrical, climate control, and building technology sectors."
                 }
             }
             {% elif classifier_type == 'naics' %}
             {
                 "@type": "Question",
-                "name": "What are NAICS codes used for?",
+                "name": "How do NAICS codes differ from the older SIC system?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "NAICS (North American Industry Classification System) codes are used to classify businesses by their primary economic activity. They're essential for government contracting, statistical analysis, and business reporting across North America."
+                    "text": "NAICS replaced the Standard Industrial Classification (SIC) in 1997 with significant improvements: 6-digit codes vs 4-digit SIC codes, enhanced service sector coverage, North American trilateral cooperation (US/Canada/Mexico), and regular 5-year updates versus SIC's 1987 final revision."
                 }
             },
             {
                 "@type": "Question",
-                "name": "How to find the right NAICS code?",
+                "name": "How are NAICS codes used in government contracting and SAM.gov?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Use our AI-powered NAICS classifier to find the right code by describing your business activity. The system will return the most relevant NAICS codes with confidence scores to help you choose the best match."
+                    "text": "NAICS codes are mandatory for federal contracting through SAM.gov registration. They're used to determine small business size standards, qualify for SBA certification programs (8(a), HUBZone, SDVOSB), identify contract opportunities, and ensure compliance with federal reporting requirements."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How often are NAICS codes updated and what's the current version?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "NAICS codes are updated every 5 years to reflect economic changes. The current 2022 revision includes 1,170 industries across 20 sectors. The next update is scheduled for 2027. Each revision adds new industries for emerging sectors like renewable energy and digital services."
                 }
             }
             {% elif classifier_type == 'isic' %}
             {
                 "@type": "Question",
-                "name": "What is ISIC classification?",
+                "name": "What is ISIC and how does it enable global economic comparison?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "ISIC (International Standard Industrial Classification) is the global reference classification for economic activities developed by the United Nations Statistics Division. It provides a comprehensive framework for organizing economic data by type of productive activity."
+                    "text": "ISIC (International Standard Industrial Classification) is the UN's global standard for classifying economic activities, maintained by the UN Statistics Division since 1948. It enables consistent GDP comparisons, employment statistics alignment, and trade flow analysis across 200+ countries and territories."
                 }
             },
             {
                 "@type": "Question",
-                "name": "How is ISIC different from NAICS?",
+                "name": "How does ISIC Rev.4 compare to NAICS 2022?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "ISIC is the international standard used globally, while NAICS is specific to North America. ISIC provides broader international comparability, while NAICS offers more detailed industry breakdowns for the US, Canada, and Mexico."
+                    "text": "ISIC Rev.4 provides broader international comparability with 21 sections versus NAICS 2022's 20 sectors. While ISIC focuses on global standardization for UN member states, NAICS offers more granular detail for North American markets. ISIC is updated every 10 years versus NAICS' 5-year cycle."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Which international organizations and countries use ISIC classification?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "ISIC is used by over 200 countries and territories through national statistical offices, the World Bank, IMF, OECD, and other international organizations. It's the foundation for national accounts compilation, development indicators, and cross-country economic policy analysis."
+                }
+            }
+            {% elif classifier_type == 'hs' %}
+            {
+                "@type": "Question",
+                "name": "What are HS codes and why are they essential for international trade?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "HS (Harmonized System) codes are the global standard for classifying traded goods, developed by the World Customs Organization. They're essential for customs duty calculation, import/export licensing, trade statistics, and free trade agreement qualification. Used by 200+ countries, they ensure consistent classification for international commerce."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How is the HS system structured and how often is it updated?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "HS uses a 6-digit hierarchical structure: 21 Sections → 99 Chapters → 1,000+ Headings → 5,000+ Subheadings. Countries add 2-4 digit extensions for specific tariff lines. The system is updated every 5-6 years by the WCO, with the 2022 revision being the latest, containing over 5,000 commodity groups."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What's the difference between HS codes and customs tariff codes?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "HS codes provide the 6-digit international standard, while customs tariff codes include country-specific extensions. For example, the US uses HTS codes (10 digits), EU uses TARIC codes (8-10 digits), and other countries add their own extensions to the base 6-digit HS code for detailed tariff schedules."
                 }
             }
             {% else %}
@@ -397,14 +454,14 @@
     </style>
 </head>
 
-<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen">
-    <header class="bg-white relative">
+<body class="bg-sky-50 text-gray-800 flex flex-col min-h-screen">
+    <header class="bg-sky-50 relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
                 <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
                     <p class="text-2xl font-bold text-gray-800">classi<span class="text-sky-600">fast</span>.com</p>
                 </a>
-                <h1 class="ml-6 text-gray-800 font-semibold text-xl">{{ title }}</h1>
+                <h1 class="ml-6 text-gray-800 font-semibold text-2xl">{{ title }}</h1>
             </div>
 
             <!-- Desktop Navigation -->
@@ -474,7 +531,7 @@
             </ol>
         </nav>
 
-        <section id="classifier-form-section" class="bg-white p-4 rounded-lg shadow mb-4">
+        <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4">
             <h2 class="text-lg font-semibold mb-2">{{ heading }}</h2>
             <p class="mb-8">{{ description }}</p>
 
@@ -483,7 +540,6 @@
 
                 {% if versions %}
                 <div class="flex items-center justify-start">
-                    <label for="version_selector" class="hidden font-semibold">Select version:</label>
                     <select name="version" id="version_selector"
                         class="border border-gray-400 rounded-md text-left px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2">
                         {% for v in versions %}
@@ -557,23 +613,270 @@
             </form>
         </section>
 
-        <section id="results-section" class="bg-white p-4 rounded-lg shadow max-w-screen-lg mx-auto" aria-live="polite">
+        <section id="results-section" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto" aria-live="polite">
             <div id="results-container">
                 {% include 'results.html' %}
             </div>
         </section>
 
-        <section id="info-section" class="bg-white p-4 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <!-- Standard-specific content sections to address Google indexing issues -->
+        {% if classifier_type == 'unspsc' %}
+        <section id="unspsc-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Understanding UNSPSC Classification</h3>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Structure & Hierarchy</h4>
+                    <p class="text-gray-600 mb-2">UNSPSC uses a hierarchical 8-digit code structure divided into four
+                        levels:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li><strong>Segment:</strong> First 2 digits (e.g., 43 - Computer Equipment)</li>
+                        <li><strong>Family:</strong> Next 2 digits (e.g., 43.16 - Computer accessories)</li>
+                        <li><strong>Class:</strong> Next 2 digits (e.g., 43.16.18 - Computer switch boxes)</li>
+                        <li><strong>Commodity:</strong> Final 2 digits (e.g., 43.16.18.01 - KVM switches)</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Industry Applications</h4>
+                    <p class="text-gray-600 mb-2">UNSPSC is widely used across these sectors:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• E-procurement platforms and marketplaces</li>
+                        <li>• Supply chain management systems</li>
+                        <li>• Spend analysis and vendor management</li>
+                        <li>• Government procurement (GSA schedules)</li>
+                        <li>• Healthcare supply chain optimization</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Version History & Updates</h3>
+                <p class="text-gray-600">UNSPSC is maintained by GS1 US and updated regularly. The current version
+                    (v26.0801 from August 2023) includes over 150,000 active codes covering products and services across
+                    all industries.</p>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if classifier_type == 'etim' %}
+        <section id="etim-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">ETIM Technical Classification Guide</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">ETIM Structure Explained</h3>
+                    <p class="text-gray-600 mb-2">ETIM uses alphanumeric class codes with descriptive attributes:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li><strong>Class Code:</strong> Format like "EC000123" (Electrical)</li>
+                        <li><strong>Group Structure:</strong> Technical, Electrical, Climate control</li>
+                        <li><strong>Attributes:</strong> Technical specs, dimensions, materials</li>
+                        <li><strong>Values:</strong> Standardized measurement units</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Regional Variations</h3>
+                    <p class="text-gray-600 mb-2">Different ETIM standards serve specific markets:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• <strong>ETIM International:</strong> Global standard (English)</li>
+                        <li>• <strong>ETIM Germany:</strong> German market focus</li>
+                        <li>• <strong>ETIM US:</strong> North American adaptation</li>
+                        <li>• <strong>ETIM Nordic:</strong> Scandinavian markets</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Technical Product Focus</h3>
+                <p class="text-gray-600">ETIM specializes in technical and electrical products including circuit
+                    breakers, HVAC systems, lighting fixtures, cables, and industrial automation equipment. Each class
+                    includes detailed technical specifications and performance characteristics.</p>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if classifier_type == 'naics' %}
+        <section id="naics-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">NAICS Business Classification System</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">NAICS vs SIC Comparison</h3>
+                    <p class="text-gray-600 mb-2">Key differences from the older Standard Industrial Classification:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• 6-digit codes vs 4-digit SIC codes</li>
+                        <li>• Service sector emphasis (vs manufacturing focus)</li>
+                        <li>• North American trilateral cooperation (US/Canada/Mexico)</li>
+                        <li>• Updated every 5 years (vs SIC's 1987 final update)</li>
+                        <li>• Better alignment with modern economy</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Government Contracting</h3>
+                    <p class="text-gray-600 mb-2">NAICS codes are essential for:</p>
+                    <ul class="  text-gray-600 space-y-1">
+                        <li>• Federal contract opportunities (SAM.gov)</li>
+                        <li>• Small business size standards determination</li>
+                        <li>• SBA certification programs (8(a), HUBZone, etc.)</li>
+                        <li>• Statistical reporting and tax purposes</li>
+                        <li>• Industry benchmarking and analysis</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Code Structure & Hierarchy</h3>
+                <p class="text-gray-600">NAICS uses a hierarchical structure from 2-digit sectors to 6-digit national
+                    industries. The 2022 revision includes 1,170 industries across 20 sectors, updated every 5 years to
+                    reflect economic changes.</p>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if classifier_type == 'isic' %}
+        <section id="isic-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">ISIC: UN's Global Economic Classification</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">UN Statistics Division Role</h3>
+                    <p class="text-gray-600 mb-2">Developed and maintained by the United Nations Statistics Division:
+                    </p>
+                    <ul class="  text-gray-600 space-y-1">
+                        <li>• Global standard since 1948</li>
+                        <li>• Used by 200+ countries and territories</li>
+                        <li>• Foundation for national accounts compilation</li>
+                        <li>• International comparability standard</li>
+                        <li>• Regular 10-year revision cycles</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">International Comparability</h3>
+                    <p class="text-gray-600 mb-2">ISIC enables cross-country economic analysis:</p>
+                    <ul class="  text-gray-600 space-y-1">
+                        <li>• GDP comparison across nations</li>
+                        <li>• Employment statistics alignment</li>
+                        <li>• Trade flow analysis</li>
+                        <li>• Development indicator measurement</li>
+                        <li>• Policy impact assessment</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">ISIC vs NAICS Comparison</h3>
+                <p class="text-gray-600">While ISIC provides global standardization, NAICS offers more detailed industry
+                    breakdowns for North America. ISIC Rev.4 has 21 sections compared to NAICS' 20 sectors, with ISIC
+                    focusing on international comparability versus NAICS' regional specificity.</p>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if classifier_type == 'hs' %}
+        <section id="hs-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Harmonized System (HS) Code Guide</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Customs & Trade Applications</h3>
+                    <p class="text-gray-600 mb-2">HS codes are essential for international trade:</p>
+                    <ul class="  text-gray-600 space-y-1">
+                        <li>• Customs duty calculation and tariff schedules</li>
+                        <li>• Import/export licensing requirements</li>
+                        <li>• Trade statistics and economic analysis</li>
+                        <li>• Anti-dumping and safeguard measures</li>
+                        <li>• Free trade agreement qualification</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Global Implementation</h3>
+                    <p class="text-gray-600 mb-2">Used by customs authorities worldwide:</p>
+                    <ul class="  text-gray-600 space-y-1">
+                        <li>• 200+ countries and territories</li>
+                        <li>• World Customs Organization (WCO) standard</li>
+                        <li>• 6-digit base with national extensions</li>
+                        <li>• Updated every 5-6 years (2022 latest)</li>
+                        <li>• 5,000+ commodity groups</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Structure & Classification</h3>
+                <p class="text-gray-600">HS uses a hierarchical structure: 21 Sections → 99 Chapters → 1,000+ Headings →
+                    5,000+ Subheadings. Each 6-digit code represents a specific commodity, with countries adding 2-4
+                    digit national extensions for detailed tariff lines.</p>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Cross-standard comparison section for enhanced internal linking -->
+        <section id="comparison-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="hidden text-xl font-bold text-gray-800 mb-4">Other Classification Standards</h2>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% if classifier_type != 'unspsc' %}
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                            class="text-sky-600 hover:underline">UNSPSC</a></h3>
+                    <p class="text-gray-600">Global product/service classification for procurement and supply chain
+                        management.</p>
+                </div>
+                {% endif %}
+
+                {% if classifier_type != 'etim' %}
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                            class="text-sky-600 hover:underline">ETIM</a></h3>
+                    <p class="text-gray-600">Technical product classification for electrical and building technology
+                        sectors.</p>
+                </div>
+                {% endif %}
+
+                {% if classifier_type != 'naics' %}
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                            class="text-sky-600 hover:underline">NAICS</a></h3>
+                    <p class="text-gray-600">North American business classification for government contracting and
+                        statistics.</p>
+                </div>
+                {% endif %}
+
+                {% if classifier_type != 'isic' %}
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                            class="text-sky-600 hover:underline">ISIC</a></h3>
+                    <p class="text-gray-600">UN global standard for economic activity classification and international
+                        statistics.</p>
+                </div>
+                {% endif %}
+
+                {% if classifier_type != 'hs' %}
+                <div class="border border-gray-200 rounded-lg p-4">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
+                            class="text-sky-600 hover:underline">HS</a></h3>
+                    <p class="text-gray-600">Harmonized System codes for international trade and customs classification.
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section id="info-section" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
             <div class="prose max-w-none">
-                <p id="mistakes-warning" class="text-gray-600 mb-4">
-                    Classifast can make mistakes. Double-check important data.
-                </p>
-                <p id="description-help" class="text-gray-600 mb-4">
+                <p id="description-help" class="text-gray-600 mb-2">
                     For the best classification results please include as much relevant and accurate data as possible.
-                    The more specific details you include, the more accurate the results will be.
-                </p>
-                <p id="description-tips" class="text-gray-600">
-                    Long multi-line unformatted text and broken tables work fine - any input is accepted
+                    The more specific details you include, the more accurate the results will be. Long multi-line
+                    unformatted text and broken tables work fine - any input is accepted
                     as long as it accurately describes what you want to classify.
                 </p>
             </div>
@@ -587,26 +890,26 @@
                     <p class="text-2xl font-bold mb-4"><a href="/"
                             class="hover:text-sky-600 transition-colors">classifast.com</a></p>
                     <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
-                        other business classification standards.</p>
+                        other classification standards.</p>
                 </div>
 
-                <div>
+                <!-- <div>
                     <h4 class="text-lg font-semibold mb-4">Navigation</h4>
                     <ul class="space-y-2">
                         <li><a href="{{ url_for('read_root') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Home</a></li>
-                        <!-- <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li> -->
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li>
                     </ul>
-                </div>
+                </div> -->
 
-                <div>
+                <!-- <div>
                     <h4 class="text-lg font-semibold mb-4">Account</h4>
                     <ul class="space-y-2">
-                        <!-- <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li> -->
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
+                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li>
                     </ul>
-                </div>
+                </div> -->
             </div>
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">
