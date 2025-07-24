@@ -12,9 +12,10 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 async def get_embeddings_batch(
     embed_client,
     model_name: str,
-    task_type: str,
     texts: List[str],
+    task_type: str,
     titles: Optional[List[str]] = None,
+    embed_dims: Optional[int] = None,
 ) -> List[List[float]]:
     """
     Generates embeddings for a batch of texts using the embedding API.
@@ -41,7 +42,9 @@ async def get_embeddings_batch(
         #     print(f"Text {i+1} length: {len(text)}, newlines: {text.count(chr(10))}")
 
         # Create config with title support for RETRIEVAL_DOCUMENT task type
-        config = types.EmbedContentConfig(task_type=task_type)
+        config = types.EmbedContentConfig(
+            task_type=task_type, output_dimensionality=embed_dims
+        )
 
         # If titles are provided and task_type is RETRIEVAL_DOCUMENT, process each text with its title
         if titles and task_type == "RETRIEVAL_DOCUMENT":
@@ -54,7 +57,7 @@ async def get_embeddings_batch(
             all_embeddings = []
             for text, title in zip(texts, titles):
                 config_with_title = types.EmbedContentConfig(
-                    task_type=task_type, title=title
+                    task_type=task_type, title=title, output_dimensionality=embed_dims
                 )
                 response = await embed_client.aio.models.embed_content(
                     model=model_name,
@@ -84,6 +87,7 @@ async def classify_string_batch(
     embed_model_name: str,  # Add embed_model_name parameter
     query_texts: List[str],
     collection_name: str,
+    embed_dims: Optional[int] = None,
     top_k: int = 5,
 ) -> List[List[Dict[str, Any]]]:
     """
@@ -97,6 +101,8 @@ async def classify_string_batch(
         embed_model_name: The name of the embedding model to use.
         query_texts: A list of input query_texts to classify/find similar items for.
         collection_name: The name of the Qdrant collection to query.
+        embed_dims: The expected dimension size for the embedding model. Used to control
+                   normalization behavior based on vector dimensionality.
         top_k: The number of top similar results to return for each query.
 
     Returns:
@@ -120,6 +126,7 @@ async def classify_string_batch(
             embed_model_name,
             task_type="RETRIEVAL_QUERY",
             texts=query_texts,
+            embed_dims=embed_dims,
         )
 
         if not query_embeddings or len(query_embeddings) != len(query_texts):
@@ -129,6 +136,27 @@ async def classify_string_batch(
             # Return a list of empty lists matching the input size for partial failure?
             # Or return [] for complete failure? Let's return [] for simplicity here.
             return []
+
+        # Normalize embeddings based on the specified dimensions
+        import numpy as np
+
+        query_embeddings_np = np.array(query_embeddings)
+        if len(query_embeddings_np.shape) == 2:
+            # Use embed_dims if provided, otherwise use the actual embedding dimensions
+            target_dims = (
+                embed_dims if embed_dims is not None else query_embeddings_np.shape[1]
+            )
+
+            # Normalize embeddings only if dimensions are less than 3072
+            # This threshold can be adjusted based on your specific requirements
+            if target_dims < 3072:
+                norms = np.linalg.norm(query_embeddings_np, axis=1, keepdims=True)
+                norms = np.where(norms == 0, 1e-9, norms)
+                query_embeddings = (query_embeddings_np / norms).tolist()
+            else:
+                query_embeddings = query_embeddings_np.tolist()
+        else:
+            query_embeddings = query_embeddings_np.tolist()
 
         # 2. Prepare Batch Query Requests for Qdrant using models.QueryRequest
         query_requests = [

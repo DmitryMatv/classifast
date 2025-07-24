@@ -130,6 +130,7 @@ async def lifespan(app: FastAPI):
                     embed_model_name=embed_model_name,
                     query_texts=[query],
                     collection_name=collection_name,
+                    embed_dims=config.get("embed_dims"),
                     top_k=5,
                 )
 
@@ -468,7 +469,7 @@ Mounting: DIN rail""",
         "embed_dims": 768,
         "versions": {
             "UNSPSC UNv260801 (August 14, 2023)": {
-                "collection_name": "UNSPSC_UNv260801-1-eng_new001-768_v8",
+                "collection_name": "UNSPSC_eng_UNv260801-1_768",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
@@ -515,11 +516,24 @@ Mounting: DIN rail""",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example: Electric motor",
         "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
         "versions": {
             "HS 2022": {
                 "collection_name": "H6-HS_2022_new001_v4",
                 "base_url": "https://www.tariffnumber.com/2025/",
+            },
+        },
+    },
+    "test": {
+        "title": "Embedding Test Classifier",
+        "heading": "Get codes for your goods",
+        "description": "Is this really necessary here?",
+        "example": "Example: Electric motor",
+        "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 768,
+        "versions": {
+            "Old UNSPSC collection (text-embedding-004, 768)": {
+                "collection_name": "UUNSPSC_UNv260801-1-eng_new001-768_v8",
+                "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
     },
@@ -670,6 +684,7 @@ async def handle_classify(
                 embed_model_name=embed_model_name,  # Use from config
                 query_texts=[product_description],  # Original text with all formatting
                 collection_name=collection_name,  # Pass the correct collection
+                embed_dims=config.get("embed_dims"),  # Use embed_dims from config
                 top_k=top_k,
             )
         )
