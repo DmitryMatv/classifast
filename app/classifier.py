@@ -137,23 +137,22 @@ async def classify_string_batch(
             # Or return [] for complete failure? Let's return [] for simplicity here.
             return []
 
-        # Normalize embeddings based on the specified dimensions
+        # Normalize embeddings based on Google's recommendations
+        # 3072-dim embeddings are already normalized, others need normalization
         import numpy as np
 
         query_embeddings_np = np.array(query_embeddings)
         if len(query_embeddings_np.shape) == 2:
-            # Use embed_dims if provided, otherwise use the actual embedding dimensions
-            target_dims = (
-                embed_dims if embed_dims is not None else query_embeddings_np.shape[1]
-            )
+            # Get actual embedding dimensions
+            actual_dims = query_embeddings_np.shape[1]
 
-            # Normalize embeddings only if dimensions are less than 3072
-            # This threshold can be adjusted based on your specific requirements
-            if target_dims < 3072:
+            # Normalize all embeddings except 3072-dim (which are already normalized)
+            if actual_dims != 3072:
                 norms = np.linalg.norm(query_embeddings_np, axis=1, keepdims=True)
                 norms = np.where(norms == 0, 1e-9, norms)
                 query_embeddings = (query_embeddings_np / norms).tolist()
             else:
+                # 3072-dim embeddings are already normalized by Google
                 query_embeddings = query_embeddings_np.tolist()
         else:
             query_embeddings = query_embeddings_np.tolist()
@@ -195,13 +194,16 @@ async def classify_string_batch(
             all_formatted_results.append(formatted_hits)
             # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
 
-        print(
-            f"Batch query finished. Returning {len(all_formatted_results)} sets of results."
-        )
+        if all_formatted_results and any(results for results in all_formatted_results):
+            print(
+                f"✅ Batch query finished successfully. Returning {len(all_formatted_results)} sets of results."
+            )
+        else:
+            print(f"⚠️ Batch query finished but returned empty results for all queries.")
         return all_formatted_results
 
     except Exception as e:
-        print(f"An error occurred during batch classification: {e}")
+        print(f"❌ Error during batch classification: {e}")
         # Depending on the desired error handling, you might want to raise
         # the exception or return an empty list.
         return []

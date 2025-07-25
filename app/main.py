@@ -148,9 +148,15 @@ async def lifespan(app: FastAPI):
                     "tooltip": tooltip,
                     "total_request_time": total_request_time,
                 }
-                print(
-                    f"✅ Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
-                )
+
+                if results_for_query:
+                    print(
+                        f"✅ Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
+                    )
+                else:
+                    print(
+                        f"⚠️ Pre-loaded empty results for '{classifier_type}' in {total_request_time:.4f}s"
+                    )
 
             except Exception as e:
                 print(f"Failed to pre-load results for '{classifier_type}': {e}")
@@ -532,7 +538,7 @@ Mounting: DIN rail""",
         "embed_dims": 768,
         "versions": {
             "Old UNSPSC collection (text-embedding-004, 768)": {
-                "collection_name": "UUNSPSC_UNv260801-1-eng_new001-768_v8",
+                "collection_name": "UNSPSC_UNv260801-1-eng_new001-768_v8",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
