@@ -192,7 +192,7 @@
                 "name": "How do NAICS codes differ from the older SIC system?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "NAICS replaced the Standard Industrial Classification (SIC) in 1997 with significant improvements: 6-digit codes vs 4-digit SIC codes, enhanced service sector coverage, North American trilateral cooperation (US/Canada/Mexico), and regular 5-year updates versus SIC's 1987 final revision."
+                    "text": "NAICS replaced the Standard Industrial Classification (SIC) in 1997 with significant improvements: 6-digit codes vs 4-digit SIC codes, enhanced service sector coverage, North American trilateral cooperation (US, Canada, Mexico), and regular 5-year updates versus SIC's 1987 final revision."
                 }
             },
             {
@@ -225,7 +225,7 @@
                 "name": "How does ISIC Rev.4 compare to NAICS 2022?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "ISIC Rev.4 provides broader international comparability with 21 sections versus NAICS 2022's 20 sectors. While ISIC focuses on global standardization for UN member states, NAICS offers more granular detail for North American markets. ISIC is updated every 10 years versus NAICS' 5-year cycle."
+                    "text": "ISIC Rev.4 provides broader international comparability with 21 sections versus NAICS 2022's 20 sectors. While ISIC focuses on global standardization for UN member states, NAICS offers more granular detail for North American markets. ISIC is updated every 10 years versus NAICS 5-year cycle."
                 }
             },
             {
@@ -250,7 +250,7 @@
                 "name": "How is the HS system structured and how often is it updated?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "HS uses a 6-digit hierarchical structure: 21 Sections → 99 Chapters → 1,000+ Headings → 5,000+ Subheadings. Countries add 2-4 digit extensions for specific tariff lines. The system is updated every 5-6 years by the WCO, with the 2022 revision being the latest, containing over 5,000 commodity groups."
+                    "text": "HS uses a 6-digit hierarchical structure: 21 Sections → 99 Chapters → 1000+ Headings → 5000+ Subheadings. Countries add 2-4 digit extensions for specific tariff lines. The system is updated every 5-6 years by the WCO, with the 2022 revision being the latest, containing over 5000 commodity groups."
                 }
             },
             {
@@ -454,7 +454,7 @@
     </style>
 </head>
 
-<body class="bg-sky-50 text-gray-800 flex flex-col min-h-screen">
+<body class="bg-sky-50 text-gray-800">
     <header class="bg-sky-50 relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
@@ -478,6 +478,8 @@
                             class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors">HS</a></li>
                     <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
                     <!-- <li><a href="#"
                             class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
@@ -511,6 +513,9 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a>
                 </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
+                </li>
                 <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
                 <li><a href="#"
@@ -520,7 +525,7 @@
         </nav>
     </header>
 
-    <main class="flex-grow container mx-auto p-3 max-w-screen-lg">
+    <main class="container mx-auto p-3 max-w-screen-lg">
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
             <ol class="flex items-center text-gray-400">
@@ -606,8 +611,8 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center justify-center">
-                        <p class="text-gray-600 mobile-hidden">Results sorted by relevance</p>
+                    <div class="flex">
+                        <p class="text-gray-600 mobile-hidden">Sorted by relevance</p>
                     </div>
                 </div>
             </form>
@@ -630,12 +635,12 @@
                     <p class="text-gray-600 mb-2">UNSPSC uses a hierarchical 8-digit code structure divided into four
                         levels:</p>
                     <ul class="text-gray-600 space-y-1">
-                        <li><strong>Segment:</strong> First 2 digits (e.g., 43 - Information Technology Broadcasting and
+                        <li><strong>Segment:</strong> First 2 digits (e.g. 43 - Information Technology Broadcasting and
                             Telecommunications)</li>
-                        <li><strong>Family:</strong> Next 2 digits (e.g., 43.21 - Computer Equipment and Accessories)
+                        <li><strong>Family:</strong> Next 2 digits (e.g. 43.21 - Computer Equipment and Accessories)
                         </li>
-                        <li><strong>Class:</strong> Next 2 digits (e.g., 43.21.16 - Computer accessories)</li>
-                        <li><strong>Commodity:</strong> Final 2 digits (e.g., 43.21.16.07 - Computer speakers)</li>
+                        <li><strong>Class:</strong> Next 2 digits (e.g. 43.21.16 - Computer accessories)</li>
+                        <li><strong>Commodity:</strong> Final 2 digits (e.g. 43.21.16.07 - Computer speakers)</li>
                     </ul>
                 </div>
 
@@ -655,7 +660,7 @@
             <div class="mt-4">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">Version History & Updates</h3>
                 <p class="text-gray-600">UNSPSC is maintained by GS1 US and updated regularly. The current version
-                    (v26.0801 from August 2023) includes over 150,000 active codes covering products and services across
+                    (v26.0801 from August 2023) includes over 150000 active codes covering products and services across
                     all industries.</p>
             </div>
         </section>
@@ -670,7 +675,7 @@
                     <h3 class="text-lg font-semibold text-gray-800 mb-2">ETIM Structure Explained</h3>
                     <p class="text-gray-600 mb-2">ETIM uses alphanumeric class codes with descriptive attributes:</p>
                     <ul class="text-gray-600 space-y-1">
-                        <li><strong>Class Code:</strong> Format like "EC000123" (Electrical)</li>
+                        <li><strong>Class Code:</strong> Format like EC000123 (Electrical)</li>
                         <li><strong>Group Structure:</strong> Technical, Electrical, Climate control</li>
                         <li><strong>Attributes:</strong> Technical specs, dimensions, materials</li>
                         <li><strong>Values:</strong> Standardized measurement units</li>
@@ -710,7 +715,7 @@
                         <li>• 6-digit codes vs 4-digit SIC codes</li>
                         <li>• Service sector emphasis (vs manufacturing focus)</li>
                         <li>• North American trilateral cooperation (US/Canada/Mexico)</li>
-                        <li>• Updated every 5 years (vs SIC's 1987 final update)</li>
+                        <li>• Updated every 5 years (vs SIC 1987 final update)</li>
                         <li>• Better alignment with modern economy</li>
                     </ul>
                 </div>
@@ -721,7 +726,7 @@
                     <ul class="  text-gray-600 space-y-1">
                         <li>• Federal contract opportunities (SAM.gov)</li>
                         <li>• Small business size standards determination</li>
-                        <li>• SBA certification programs (8(a), HUBZone, etc.)</li>
+                        <li>• SBA certification programs (8(a), HUBZone, etc)</li>
                         <li>• Statistical reporting and tax purposes</li>
                         <li>• Industry benchmarking and analysis</li>
                     </ul>
@@ -731,7 +736,7 @@
             <div class="mt-4">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">Code Structure & Hierarchy</h3>
                 <p class="text-gray-600">NAICS uses a hierarchical structure from 2-digit sectors to 6-digit national
-                    industries. The 2022 revision includes 1,170 industries across 20 sectors, updated every 5 years to
+                    industries. The 2022 revision includes 1170 industries across 20 sectors, updated every 5 years to
                     reflect economic changes.</p>
             </div>
         </section>
@@ -771,8 +776,8 @@
             <div class="mt-4">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">ISIC vs NAICS Comparison</h3>
                 <p class="text-gray-600">While ISIC provides global standardization, NAICS offers more detailed industry
-                    breakdowns for North America. ISIC Rev.4 has 21 sections compared to NAICS' 20 sectors, with ISIC
-                    focusing on international comparability versus NAICS' regional specificity.</p>
+                    breakdowns for North America. ISIC Rev.4 has 21 sections compared to NAICS 20 sectors, with ISIC
+                    focusing on international comparability versus NAICS regional specificity.</p>
             </div>
         </section>
         {% endif %}
@@ -802,7 +807,7 @@
                         <li>• World Customs Organization (WCO) standard</li>
                         <li>• 6-digit base with national extensions</li>
                         <li>• Updated every 5-6 years (2022 latest)</li>
-                        <li>• 5,000+ commodity groups</li>
+                        <li>• 5000+ commodity groups</li>
                     </ul>
                 </div>
             </div>
@@ -810,7 +815,7 @@
             <div class="mt-4">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">Structure & Classification</h3>
                 <p class="text-gray-600">HS uses a hierarchical structure: 21 Sections → 99 Chapters → 1,000+ Headings →
-                    5,000+ Subheadings. Each 6-digit code represents a specific commodity, with countries adding 2-4
+                    5000+ Subheadings. Each 6-digit code represents a specific commodity, with countries adding 2-4
                     digit national extensions for detailed tariff lines.</p>
             </div>
         </section>
@@ -872,51 +877,50 @@
                 {% endif %}
             </div>
         </section>
-
-        <section id="info-section" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
-            <div class="prose max-w-none">
-                <p id="description-help" class="text-gray-600">
-                    For the best classification results please include as much relevant and accurate data as possible.
-                    The more specific details you include, the more accurate the results will be. Long multi-line
-                    unformatted text and broken tables work fine - any input is accepted
-                    as long as it accurately describes what you want to classify.
-                </p>
-            </div>
-        </section>
     </main>
 
-    <footer class="bg-gray-800 text-white footer-min-height">
+    <footer class="bg-gray-800 text-white">
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
-                    <p class="text-2xl font-bold mb-4"><a href="/"
+                    <p class="text-2xl font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors">classifast.com</a></p>
                     <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
                         other classification standards.</p>
                 </div>
 
-                <!-- <div>
-                    <h4 class="text-lg font-semibold mb-4">Navigation</h4>
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Classification Standards</h4>
+                    <ul class="space-y-2">
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                                class="text-gray-400 hover:text-white transition-colors">UNSPSC Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                                class="text-gray-400 hover:text-white transition-colors">ETIM Classification</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                                class="text-gray-400 hover:text-white transition-colors">NAICS Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                                class="text-gray-400 hover:text-white transition-colors">ISIC Classification</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
+                                class="text-gray-400 hover:text-white transition-colors">HS Codes</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-lg font-semibold mb-4">Resources</h4>
                     <ul class="space-y-2">
                         <li><a href="{{ url_for('read_root') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Home</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Pricing</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">About</a></li>
+                        <li><a href="https://github.com/DmitryMatv/classifast" target="_blank" rel="noopener"
+                                class="text-gray-400 hover:text-white transition-colors">GitHub</a></li>
+                        <li><a href="https://github.com/DmitryMatv" target="_blank" rel="noopener"
+                                class="text-gray-400 hover:text-white transition-colors">About</a></li>
                     </ul>
-                </div> -->
-
-                <!-- <div>
-                    <h4 class="text-lg font-semibold mb-4">Account</h4>
-                    <ul class="space-y-2">
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign In</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white transition-colors">Sign Up</a></li>
-                    </ul>
-                </div> -->
+                </div>
             </div>
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">
                 <p class="text-gray-400">
-                    <a href="https://github.com/DmitryMatv" class="underline">Dmitry Matv</a><br>
+                    <a href="https://github.com/DmitryMatv">Dmitry Matv</a><br>
                     2025
                 </p>
             </div>

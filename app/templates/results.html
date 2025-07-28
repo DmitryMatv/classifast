@@ -86,17 +86,19 @@
         </li>
         {% endfor %}
     </ul>
-    <div class="mt-4 flex justify-between items-start">
-        <div class="text-right text-gray-600">
-            {% if total_request_time is not none %}
-            <span>Finished in {{ "%.2f"|format(total_request_time) }} seconds.</span>
-            {% endif %}
-        </div>
-        <div class="prose max-w-none">
-            <p id="mistakes-warning" class="text-gray-600">
-                Classifast can make mistakes. Double-check important data.
-            </p>
-        </div>
+    <div class="mt-4 text-gray-600">
+        {% if total_request_time is not none %}
+        <span>Finished in {{ "%.2f"|format(total_request_time) }} seconds.</span>
+        {% endif %}
+        Classifast can make mistakes. Double-check important data.
+    </div>
+    <div class="mt-4 prose max-w-none">
+        <p id="description-help" class="text-gray-600">
+            For the best classification results please include as much relevant and accurate data as possible. The more
+            specific details you include, the more accurate the results will be. Long multi-line unformatted text and
+            broken tables work fine - any input is accepted as long as it accurately describes what you want to
+            classify.
+        </p>
     </div>
     {% else %}
     <div>
