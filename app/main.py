@@ -131,7 +131,7 @@ async def lifespan(app: FastAPI):
                     query_texts=[query],
                     collection_name=collection_name,
                     embed_dims=config.get("embed_dims"),
-                    top_k=5,
+                    top_k=10,
                 )
 
                 results_for_query = (
