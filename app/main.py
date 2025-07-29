@@ -345,13 +345,6 @@ async def sitemap_xml():
     return response
 
 
-@app.get("/ads.txt", response_class=FileResponse)
-async def ads_txt():
-    response = FileResponse("app/static/ads.txt")
-    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"  # 1 day
-    return response
-
-
 @app.get("/static/css/styles.css", response_class=FileResponse)
 async def styles_css():
     response = FileResponse("app/static/css/styles.css")
