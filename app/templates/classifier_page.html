@@ -3,24 +3,42 @@
 
 <head>
     <meta charset="UTF-8">
+    {% if url_params.query %}
+    <!-- Dynamic SEO for parameterized searches -->
+    <title>{{ classifier_type.upper() }} code for {{ url_params.query.upper() }} | Classifast</title>
+    <meta name="description"
+        content="Find {{ classifier_type.upper() }} codes for {{ url_params.query.upper() }}. Accurate classification results in seconds.">
+    <meta name="keywords"
+        content="{{ classifier_type.upper() }} code for {{ url_params.query.upper() }}, {{ url_params.query.upper() }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.query.upper() }}, {{ classifier_type.lower() }} classification {{ url_params.query.upper() }}">
+    <meta property="og:title"
+        content="{{ classifier_type.upper() }} code for {{ url_params.query.upper() }} | Classifast">
+    <meta property="og:description"
+        content="Find accurate {{ classifier_type.upper() }} codes for {{ url_params.query.upper() }} with our AI-powered classification tool.">
+    <meta name="twitter:title"
+        content="{{ classifier_type.upper() }} code for {{ url_params.query.upper() }} | Classifast">
+    <meta name="twitter:description"
+        content="Find {{ classifier_type.upper() }} codes for {{ url_params.query.upper() }} in seconds">
+    {% else %}
+    <!-- Original SEO for regular pages -->
     {% if classifier_type == 'unspsc' %}
-    <title>UNSPSC Classification, Code Lookup, Map, Search | Classifast</title>
+    <title>UNSPSC Classifier, Code Lookup, Map, Search | Classifast</title>
     <meta name="description"
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     <meta name="keywords"
         content="UNSPSC mapping, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
     {% elif classifier_type == 'etim' %}
-    <title>ETIM Classification, Code Lookup, Search | Classifast</title>
+    <title>ETIM Classifier, Code Lookup, Search | Classifast</title>
     <meta name="description"
         content="Accurate ETIM product classification. Search and identify ETIM International classes for technical and electrical products.">
     <meta name="keywords"
         content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management">
     {% else %}
-    <title>{{ classifier_type.upper() }} Classification, Code Lookup, Mapping | Classifast</title>
+    <title>{{ classifier_type.upper() }} Classifier, Code Lookup, Search | Classifast</title>
     <meta name="description"
         content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification, search, and mapping.">
     <meta name="keywords"
         content="{{ title }}, {{ classifier_type.upper() }} code, {{ classifier_type.upper() }} code lookup, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} code search, {{ classifier_type.upper() }} lookup, {{ classifier_type.upper() }} codes, number, categories, search">
+    {% endif %}
     {% endif %}
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
@@ -85,7 +103,11 @@
     {
         "@context": "https://schema.org",
         "@type": "WebApplication",
-        {% if classifier_type == 'unspsc' %}
+        {% if url_params.query %}
+        "name": "{{ classifier_type.upper() }} Code for {{ url_params.query }} | Classifast",
+        "description": "Find accurate {{ classifier_type.upper() }} codes for {{ url_params.query }} with our AI-powered classification tool. Semantic search technology for precise results.",
+        "keywords": "{{ classifier_type.upper() }} code {{ url_params.query }}, {{ url_params.query }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.query }}, {{ classifier_type.lower() }} classification {{ url_params.query }}, semantic search {{ classifier_type.upper() }}",
+        {% elif classifier_type == 'unspsc' %}
         "name": "UNSPSC Code Lookup & Classification | Classifast",
         "description": "Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.",
         "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification, semantic search",
@@ -98,7 +120,7 @@
         "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
-        "url": "https://classifast.com/{{ classifier_type }}",
+        "url": "https://classifast.com/{{ classifier_type }}{% if url_params.query %}?query={{ url_params.query }}{% if url_params.version %}&version={{ url_params.version }}{% endif %}{% if url_params.top_k != 10 %}&top_k={{ url_params.top_k }}{% endif %}{% endif %}",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "offers": {
@@ -592,11 +614,11 @@
                         <button type="submit"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 transform">
                             {% if classifier_type == 'unspsc' %}
-                            Similarity Search
+                            Classif
                             {% elif classifier_type == 'etim' %}
                             Classify
                             {% else %}
-                            Submit
+                            Classify
                             {% endif %}
                         </button>
                         <select name="top_k" id="show_top_k_categories"
@@ -928,8 +950,89 @@
     </footer>
 
     <script>
+        // URL Parameter Handling and Share Functionality
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                query: params.get('query') || '',
+                version: params.get('version') || '',
+                top_k: parseInt(params.get('top_k') || '10')
+            };
+        }
+
+        function updateUrlParams(query, version, top_k) {
+            const params = new URLSearchParams();
+            if (query) params.set('query', query);
+            if (version) params.set('version', version);
+            if (top_k !== 10) params.set('top_k', top_k.toString());
+
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({ query, version, top_k }, '', newUrl);
+        }
+
+        function populateFromUrl() {
+            const params = getUrlParams();
+            if (params.query) {
+                const textarea = document.getElementById('product_description_area');
+                if (textarea) textarea.value = params.query;
+            }
+            if (params.version) {
+                const versionSelect = document.getElementById('version_selector');
+                if (versionSelect) versionSelect.value = params.version;
+            }
+            if (params.top_k) {
+                const topKSelect = document.getElementById('show_top_k_categories');
+                if (topKSelect) topKSelect.value = params.top_k.toString();
+            }
+        }
+
+        function copyShareableLink() {
+            const url = window.location.href;
+            navigator.clipboard.writeText(url).then(() => {
+                // Show feedback
+                const button = document.getElementById('share-button');
+                if (button) {
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '✓ Copied!';
+                    button.classList.add('bg-green-600', 'hover:bg-green-700');
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    }, 2000);
+                }
+            }).catch(err => {
+                console.error('Could not copy URL: ', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    console.log('URL copied using fallback');
+                } catch (fallbackErr) {
+                    console.error('Fallback copy failed: ', fallbackErr);
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+
         // Mobile menu toggle functionality
         document.addEventListener('DOMContentLoaded', function () {
+            populateFromUrl();
+
+            // Auto-submit if URL has query parameter
+            const params = getUrlParams();
+            if (params.query && params.query.trim()) {
+                // Small delay to ensure page is fully loaded
+                setTimeout(() => {
+                    const form = document.querySelector('form[hx-post]');
+                    if (form) {
+                        htmx.trigger(form, 'submit');
+                    }
+                }, 100);
+            }
+
             const mobileMenuButton = document.getElementById('mobile-menu-button');
             const mobileMenu = document.getElementById('mobile-menu');
             const hamburger = document.querySelector('.hamburger');
@@ -977,12 +1080,24 @@
     <script>
         document.body.addEventListener('htmx:afterSwap', function (evt) {
             // After a new search, ensure the results section is not hidden
-            // This is mostly redundant now but good for safety.
             if (evt.detail.target.id === 'results-container') {
                 var resultsSection = document.getElementById('results-section');
                 if (resultsSection) {
                     resultsSection.classList.remove('hidden');
                 }
+            }
+        });
+
+        // Update URL parameters when form is submitted via HTMX
+        document.body.addEventListener('htmx:beforeRequest', function (evt) {
+            if (evt.detail.elt.tagName === 'FORM' && evt.detail.elt.getAttribute('hx-post')) {
+                const formData = new FormData(evt.detail.elt);
+                const query = formData.get('product_description') || '';
+                const version = formData.get('version') || '';
+                const top_k = parseInt(formData.get('top_k') || '10');
+
+                // Update URL parameters
+                updateUrlParams(query.toString(), version.toString(), top_k);
             }
         });
     </script>

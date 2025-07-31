@@ -2,7 +2,7 @@ import os
 import time
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Callable, Awaitable
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
@@ -26,13 +26,16 @@ load_dotenv()
 
 PRELOADED_RESULTS_CACHE: Dict[str, Dict[str, Any]] = {}
 
+# Global client variables with proper type annotations
+embed_client: Optional[genai.Client] = None
+qdrant_client: Optional[AsyncQdrantClient] = None
+embed_model_name: Optional[str] = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Runs when the application starts
     global embed_client, embed_model_name, qdrant_client
-    embed_client = None  # Initialize to None
-    qdrant_client = None  # Initialize to None
 
     print("FastAPI application startup...")
 
@@ -127,7 +130,7 @@ async def lifespan(app: FastAPI):
                 results_for_single_query = await classify_string_batch(
                     qdrant_client=qdrant_client,
                     embed_client=embed_client,
-                    embed_model_name=embed_model_name,
+                    embed_model_name=str(embed_model_name),
                     query_texts=[query],
                     collection_name=collection_name,
                     embed_dims=config.get("embed_dims"),
@@ -151,11 +154,11 @@ async def lifespan(app: FastAPI):
 
                 if results_for_query:
                     print(
-                        f"✅ Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
+                        f"Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
                     )
                 else:
                     print(
-                        f"⚠️ Pre-loaded empty results for '{classifier_type}' in {total_request_time:.4f}s"
+                        f"Pre-loaded empty results for '{classifier_type}' in {total_request_time:.4f}s"
                     )
 
             except Exception as e:
@@ -297,9 +300,6 @@ class CachedStaticFiles(StaticFiles):
                 )
 
             # Add ETag for caching based on file modification time
-            import os
-            import stat
-
             try:
                 file_path = os.path.join("app/static", path.lstrip("/"))
                 file_stat = os.stat(file_path)
@@ -369,7 +369,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 app.state.limiter = limiter
 
 
-async def custom_rate_limit_exceeded_handler(request, exc: Exception):
+async def custom_rate_limit_exceeded_handler(_request, exc: Exception):
     if isinstance(exc, RateLimitExceeded):
         return HTMLResponse(
             content="<p>Rate limit exceeded. Please try again later.</p>",
@@ -397,7 +397,7 @@ async def health_check():
             # Test qdrant client
             await qdrant_client.get_collections()
             return {"status": "healthy"}
-        except Exception as e:
+        except Exception:
             raise HTTPException(
                 status_code=503,
                 detail="Service Unavailable",
@@ -522,29 +522,21 @@ Mounting: DIN rail""",
             },
         },
     },
-    "test": {
-        "title": "Embedding Test Classifier",
-        "heading": "Get codes for your goods",
-        "description": "Is this really necessary here?",
-        "example": "Example: Electric motor",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 768,
-        "versions": {
-            "Old UNSPSC collection (text-embedding-004, 768)": {
-                "collection_name": "UNSPSC_UNv260801-1-eng_new001-768_v8",
-                "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
-            },
-        },
-    },
 }
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
 @app.head("/{classifier_type}")
-async def show_classifier_page(request: Request, classifier_type: str):
+async def show_classifier_page(
+    request: Request,
+    classifier_type: str,
+    query: str | None = None,
+    version: str | None = None,
+    top_k: int = 10,
+):
     """
-    Serves the specific classifier page, using pre-cached results
-    for the example query to ensure fast initial load times.
+    Serves the specific classifier page, with optional URL parameters for query, version, and top_k.
+    Supports both regular classifier pages and parameterized searches.
     """
     config = CLASSIFIER_CONFIG.get(classifier_type)
     if not config:
@@ -562,18 +554,84 @@ async def show_classifier_page(request: Request, classifier_type: str):
         }
         return Response(headers=headers)
 
-    # --- Use pre-cached results for the example query ---
-    # The cache is populated on application startup.
-    preloaded_data = PRELOADED_RESULTS_CACHE.get(
-        classifier_type,
-        {
-            "results_for_query": [],
-            "query": config.get("example", "").replace("Example:", "").strip(),
-            "base_url": "",
-            "tooltip": "",
-            "total_request_time": 0,
-        },
-    )
+    # Validate top_k parameter
+    if top_k < 1 or top_k > 50:
+        top_k = 10  # Default fallback
+
+    # Use parameterized query if provided, otherwise use pre-cached example
+    if query and query.strip():
+        # Check if clients are available
+        try:
+            # Use the first available version if not specified
+            if not version:
+                version = list(config.get("versions", {}).keys())[0]
+
+            version_config = config.get("versions", {}).get(version)
+            if not version_config:
+                version = list(config.get("versions", {}).keys())[0]
+                version_config = config.get("versions", {}).get(version)
+
+            collection_name = version_config["collection_name"]
+            embed_model_name = config["embed_model_name"]
+
+            start_total_time = time.perf_counter()
+            if (
+                qdrant_client is None
+                or embed_client is None
+                or embed_model_name is None
+            ):
+                results_for_single_query: List[List[Dict[str, Any]]] = []
+            else:
+                results_for_single_query: List[List[Dict[str, Any]]] = (
+                    await classify_string_batch(
+                        qdrant_client=qdrant_client,
+                        embed_client=embed_client,
+                        embed_model_name=embed_model_name,
+                        query_texts=[query],
+                        collection_name=collection_name,
+                        embed_dims=config.get("embed_dims"),
+                        top_k=top_k,
+                    )
+                )
+
+            classification_results = (
+                results_for_single_query[0] if results_for_single_query else []
+            )
+            end_total_time = time.perf_counter()
+            total_request_time = end_total_time - start_total_time
+
+            preloaded_data = {
+                "results_for_query": classification_results,
+                "query": query,
+                "base_url": version_config.get("base_url", ""),
+                "tooltip": version_config.get("tooltip", ""),
+                "total_request_time": total_request_time,
+            }
+        except Exception as e:
+            print(f"Error processing parameterized query: {e}")
+            preloaded_data = PRELOADED_RESULTS_CACHE.get(
+                classifier_type,
+                {
+                    "results_for_query": [],
+                    "query": query,
+                    "base_url": "",
+                    "tooltip": "",
+                    "total_request_time": 0,
+                },
+            )
+    else:
+        # --- Use pre-cached results for the example query ---
+        # The cache is populated on application startup.
+        preloaded_data = PRELOADED_RESULTS_CACHE.get(
+            classifier_type,
+            {
+                "results_for_query": [],
+                "query": config.get("example", "").replace("Example:", "").strip(),
+                "base_url": "",
+                "tooltip": "",
+                "total_request_time": 0,
+            },
+        )
     # --- End using pre-cached results ---
 
     response = templates.TemplateResponse(
@@ -586,7 +644,8 @@ async def show_classifier_page(request: Request, classifier_type: str):
             "description": config["description"],
             "versions": list(config.get("versions", {}).keys()),
             "example": config["example"],
-            # Use the pre-loaded data from the cache
+            "url_params": {"query": query, "version": version, "top_k": top_k},
+            # Use the pre-loaded data from the cache or parameterized search
             **preloaded_data,
         },
     )
