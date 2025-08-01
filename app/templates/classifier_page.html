@@ -3,21 +3,21 @@
 
 <head>
     <meta charset="UTF-8">
-    {% if url_params.query %}
+    {% if url_params.search %}
     <!-- Dynamic SEO for parameterized searches -->
-    <title>{{ classifier_type.upper() }} code for {{ url_params.query.upper() }} | Classifast</title>
+    <title>{{ classifier_type.upper() }} code for {{ url_params.search.upper() }} | Classifast</title>
     <meta name="description"
-        content="Find {{ classifier_type.upper() }} codes for {{ url_params.query.upper() }}. Accurate classification results in seconds.">
+        content="Find {{ classifier_type.upper() }} codes for {{ url_params.search.upper() }}. Accurate classification results in seconds.">
     <meta name="keywords"
-        content="{{ classifier_type.upper() }} code for {{ url_params.query.upper() }}, {{ url_params.query.upper() }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.query.upper() }}, {{ classifier_type.lower() }} classification {{ url_params.query.upper() }}">
+        content="{{ classifier_type.upper() }} code for {{ url_params.search.upper() }}, {{ url_params.search.upper() }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.search.upper() }}, {{ classifier_type.lower() }} classification {{ url_params.search.upper() }}">
     <meta property="og:title"
-        content="{{ classifier_type.upper() }} code for {{ url_params.query.upper() }} | Classifast">
+        content="{{ classifier_type.upper() }} code for {{ url_params.search.upper() }} | Classifast">
     <meta property="og:description"
-        content="Find accurate {{ classifier_type.upper() }} codes for {{ url_params.query.upper() }} with our AI-powered classification tool.">
+        content="Find accurate {{ classifier_type.upper() }} codes for {{ url_params.search.upper() }} with our AI-powered classification tool.">
     <meta name="twitter:title"
-        content="{{ classifier_type.upper() }} code for {{ url_params.query.upper() }} | Classifast">
+        content="{{ classifier_type.upper() }} code for {{ url_params.search.upper() }} | Classifast">
     <meta name="twitter:description"
-        content="Find {{ classifier_type.upper() }} codes for {{ url_params.query.upper() }} in seconds">
+        content="Find {{ classifier_type.upper() }} codes for {{ url_params.search.upper() }} in seconds">
     {% else %}
     <!-- Original SEO for regular pages -->
     {% if classifier_type == 'unspsc' %}
@@ -120,7 +120,7 @@
         "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
-        "url": "https://classifast.com/{{ classifier_type }}{% if url_params.query %}?query={{ url_params.query }}{% if url_params.version %}&version={{ url_params.version }}{% endif %}{% if url_params.top_k != 10 %}&top_k={{ url_params.top_k }}{% endif %}{% endif %}",
+        "url": "https://classifast.com/{{ classifier_type }}{% if url_params.search %}?search={{ url_params.search }}{% if url_params.version %}&version={{ url_params.version }}{% endif %}{% endif %}",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "offers": {
@@ -954,36 +954,32 @@
         function getUrlParams() {
             const params = new URLSearchParams(window.location.search);
             return {
-                query: params.get('query') || '',
-                version: params.get('version') || '',
-                top_k: parseInt(params.get('top_k') || '10')
+                search: params.get('search') || '',
+                version: params.get('version') || ''
             };
         }
 
-        function updateUrlParams(query, version, top_k) {
+        function updateUrlParams(search, version) {
             const params = new URLSearchParams();
-            if (query) params.set('query', query);
+            if (search) params.set('search', search);
             if (version) params.set('version', version);
-            if (top_k !== 10) params.set('top_k', top_k.toString());
+            // Never include top_k in URL - always use frontend default
 
             const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-            window.history.replaceState({ query, version, top_k }, '', newUrl);
+            window.history.replaceState({ search, version }, '', newUrl);
         }
 
         function populateFromUrl() {
             const params = getUrlParams();
-            if (params.query) {
+            if (params.search) {
                 const textarea = document.getElementById('product_description_area');
-                if (textarea) textarea.value = params.query;
+                if (textarea) textarea.value = params.search;
             }
             if (params.version) {
                 const versionSelect = document.getElementById('version_selector');
                 if (versionSelect) versionSelect.value = params.version;
             }
-            if (params.top_k) {
-                const topKSelect = document.getElementById('show_top_k_categories');
-                if (topKSelect) topKSelect.value = params.top_k.toString();
-            }
+            // No longer parse top_k from URL - use frontend default
         }
 
         function copyShareableLink() {
@@ -1021,9 +1017,9 @@
         document.addEventListener('DOMContentLoaded', function () {
             populateFromUrl();
 
-            // Auto-submit if URL has query parameter
+            // Auto-submit if URL has search parameter
             const params = getUrlParams();
-            if (params.query && params.query.trim()) {
+            if (params.search && params.search.trim()) {
                 // Small delay to ensure page is fully loaded
                 setTimeout(() => {
                     const form = document.querySelector('form[hx-post]');
@@ -1094,10 +1090,16 @@
                 const formData = new FormData(evt.detail.elt);
                 const query = formData.get('product_description') || '';
                 const version = formData.get('version') || '';
-                const top_k = parseInt(formData.get('top_k') || '10');
 
-                // Update URL parameters
-                updateUrlParams(query.toString(), version.toString(), top_k);
+                // Get first version from dropdown to check if current is default
+                const versionSelect = document.getElementById('version_selector');
+                const firstVersion = versionSelect ? versionSelect.options[0]?.value : '';
+
+                // Only include version if it's not the first/default
+                const includeVersion = version && version !== firstVersion;
+
+                // Update URL parameters - never include top_k
+                updateUrlParams(query.toString(), includeVersion ? version.toString() : '');
             }
         });
     </script>

@@ -530,12 +530,12 @@ Mounting: DIN rail""",
 async def show_classifier_page(
     request: Request,
     classifier_type: str,
-    query: str | None = None,
+    search: str | None = None,
     version: str | None = None,
     top_k: int = 10,
 ):
     """
-    Serves the specific classifier page, with optional URL parameters for query, version, and top_k.
+    Serves the specific classifier page, with optional URL parameters for search, version, and top_k.
     Supports both regular classifier pages and parameterized searches.
     """
     config = CLASSIFIER_CONFIG.get(classifier_type)
@@ -554,84 +554,26 @@ async def show_classifier_page(
         }
         return Response(headers=headers)
 
-    # Validate top_k parameter
+    # Validate top_k parameter - always use default from frontend
     if top_k < 1 or top_k > 50:
         top_k = 10  # Default fallback
 
-    # Use parameterized query if provided, otherwise use pre-cached example
-    if query and query.strip():
-        # Check if clients are available
-        try:
-            # Use the first available version if not specified
-            if not version:
-                version = list(config.get("versions", {}).keys())[0]
+    # Get first version for default handling
+    versions_list = list(config.get("versions", {}).keys())
+    first_version = versions_list[0] if versions_list else ""
 
-            version_config = config.get("versions", {}).get(version)
-            if not version_config:
-                version = list(config.get("versions", {}).keys())[0]
-                version_config = config.get("versions", {}).get(version)
-
-            collection_name = version_config["collection_name"]
-            embed_model_name = config["embed_model_name"]
-
-            start_total_time = time.perf_counter()
-            if (
-                qdrant_client is None
-                or embed_client is None
-                or embed_model_name is None
-            ):
-                results_for_single_query: List[List[Dict[str, Any]]] = []
-            else:
-                results_for_single_query: List[List[Dict[str, Any]]] = (
-                    await classify_string_batch(
-                        qdrant_client=qdrant_client,
-                        embed_client=embed_client,
-                        embed_model_name=embed_model_name,
-                        query_texts=[query],
-                        collection_name=collection_name,
-                        embed_dims=config.get("embed_dims"),
-                        top_k=top_k,
-                    )
-                )
-
-            classification_results = (
-                results_for_single_query[0] if results_for_single_query else []
-            )
-            end_total_time = time.perf_counter()
-            total_request_time = end_total_time - start_total_time
-
-            preloaded_data = {
-                "results_for_query": classification_results,
-                "query": query,
-                "base_url": version_config.get("base_url", ""),
-                "tooltip": version_config.get("tooltip", ""),
-                "total_request_time": total_request_time,
-            }
-        except Exception as e:
-            print(f"Error processing parameterized query: {e}")
-            preloaded_data = PRELOADED_RESULTS_CACHE.get(
-                classifier_type,
-                {
-                    "results_for_query": [],
-                    "query": query,
-                    "base_url": "",
-                    "tooltip": "",
-                    "total_request_time": 0,
-                },
-            )
-    else:
-        # --- Use pre-cached results for the example query ---
-        # The cache is populated on application startup.
-        preloaded_data = PRELOADED_RESULTS_CACHE.get(
-            classifier_type,
-            {
-                "results_for_query": [],
-                "query": config.get("example", "").replace("Example:", "").strip(),
-                "base_url": "",
-                "tooltip": "",
-                "total_request_time": 0,
-            },
-        )
+    # Use pre-cached results by default - skip classification on GET to avoid double-processing
+    # URL parameters will be passed to the template for HTMX to handle via POST
+    preloaded_data = PRELOADED_RESULTS_CACHE.get(
+        classifier_type,
+        {
+            "results_for_query": [],
+            "query": config.get("example", "").replace("Example:", "").strip(),
+            "base_url": "",
+            "tooltip": "",
+            "total_request_time": 0,
+        },
+    )
     # --- End using pre-cached results ---
 
     response = templates.TemplateResponse(
@@ -644,7 +586,12 @@ async def show_classifier_page(
             "description": config["description"],
             "versions": list(config.get("versions", {}).keys()),
             "example": config["example"],
-            "url_params": {"query": query, "version": version, "top_k": top_k},
+            # Determine if version should be included in URL params
+            "url_params": {
+                "search": search,
+                "version": version if version and version != first_version else "",
+                "top_k": top_k,
+            },
             # Use the pre-loaded data from the cache or parameterized search
             **preloaded_data,
         },
