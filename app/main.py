@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
                     [col.name for col in collections_result.collections]
                 )
                 print("Qdrant client initialized. Found collections:")
-                for i, name in enumerate(collection_names, 1):
+                for name in collection_names:
                     print(f"💿 {name}")
             except Exception as e:
                 print(f"Qdrant client initialized, but could not list collections: {e}")
@@ -530,13 +530,30 @@ Mounting: DIN rail""",
 async def show_classifier_page(
     request: Request,
     classifier_type: str,
-    search: str | None = None,
     version: str | None = None,
     top_k: int = 10,
 ):
     """
-    Serves the specific classifier page, with optional URL parameters for search, version, and top_k.
-    Supports both regular classifier pages and parameterized searches.
+    Serves the base classifier page.
+    """
+    return await show_classifier_page_with_query(
+        request, classifier_type, "", version, top_k
+    )
+
+
+@app.get("/{classifier_type}/{search_query:path}", response_class=HTMLResponse)
+@app.head("/{classifier_type}/{search_query:path}")
+async def show_classifier_page_with_query(
+    request: Request,
+    classifier_type: str,
+    search_query: str = "",
+    version: str | None = None,
+    top_k: int = 10,
+):
+    """
+    Serves the specific classifier page with clean URL structure.
+    Example: /naics/gamedev-studio instead of /naics?search=gamedev-studio
+    Handles both base URLs like /naics and search URLs like /naics/gamedev-studio
     """
     config = CLASSIFIER_CONFIG.get(classifier_type)
     if not config:
@@ -550,31 +567,54 @@ async def show_classifier_page(
             "Cache-Control": "public, max-age=86400, s-maxage=604800",
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
-            "Link": f'<https://classifast.com/{classifier_type}>; rel="canonical"',
+            "Link": f'<https://classifast.com/{classifier_type}/{search_query}>; rel="canonical"',
         }
         return Response(headers=headers)
 
-    # Validate top_k parameter - always use default from frontend
+    # Validate top_k parameter
     if top_k < 1 or top_k > 50:
-        top_k = 10  # Default fallback
+        top_k = 10
 
     # Get first version for default handling
     versions_list = list(config.get("versions", {}).keys())
     first_version = versions_list[0] if versions_list else ""
 
-    # Use pre-cached results by default - skip classification on GET to avoid double-processing
-    # URL parameters will be passed to the template for HTMX to handle via POST
-    preloaded_data = PRELOADED_RESULTS_CACHE.get(
-        classifier_type,
-        {
+    # Handle empty search query for base URLs
+    decoded_search_query = ""
+    if search_query and search_query.strip():
+        from urllib.parse import unquote_plus
+
+        decoded_search_query = unquote_plus(search_query)
+
+    # Use pre-cached results if the query matches the example or is empty (base URL)
+    preloaded_data = None
+    example_text = config.get("example", "").replace("Example:", "").strip()
+
+    if not decoded_search_query.strip() or decoded_search_query.strip() == example_text:
+        preloaded_data = PRELOADED_RESULTS_CACHE.get(classifier_type)
+
+    if not preloaded_data:
+        preloaded_data = {
             "results_for_query": [],
-            "query": config.get("example", "").replace("Example:", "").strip(),
+            "query": decoded_search_query,
             "base_url": "",
             "tooltip": "",
             "total_request_time": 0,
-        },
-    )
-    # --- End using pre-cached results ---
+        }
+
+    # Slugify utility for SEO-friendly URLs
+    def slugify(text):
+        import re
+
+        text = re.sub(r"[^\w\s-]", "", text.lower())
+        text = re.sub(r"[-\s]+", "-", text)
+        return text.strip("-")
+
+    # Build canonical URL
+    canonical_url = f"https://classifast.com/{classifier_type}"
+    if decoded_search_query:
+        slug = slugify(decoded_search_query)
+        canonical_url += f"/{slug}"
 
     response = templates.TemplateResponse(
         "classifier_page.html",
@@ -586,13 +626,11 @@ async def show_classifier_page(
             "description": config["description"],
             "versions": list(config.get("versions", {}).keys()),
             "example": config["example"],
-            # Determine if version should be included in URL params
             "url_params": {
-                "search": search,
+                "search": decoded_search_query,
                 "version": version if version and version != first_version else "",
                 "top_k": top_k,
             },
-            # Use the pre-loaded data from the cache or parameterized search
             **preloaded_data,
         },
     )
@@ -600,9 +638,7 @@ async def show_classifier_page(
     # Cloudflare-friendly cache headers (aligned with homepage)
     response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
     response.headers["Vary"] = "Accept-Encoding"
-    response.headers["Link"] = (
-        f'<https://classifast.com/{classifier_type}>; rel="canonical"'
-    )
+    response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"
 
     return response

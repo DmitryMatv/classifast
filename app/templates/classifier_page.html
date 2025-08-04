@@ -120,7 +120,7 @@
         "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
-        "url": "https://classifast.com/{{ classifier_type }}{% if url_params.search %}?search={{ url_params.search }}{% if url_params.version %}&version={{ url_params.version }}{% endif %}{% endif %}",
+        "url": "https://classifast.com/{{ classifier_type }}{% if url_params.search %}/{{ url_params.search }}{% if url_params.version %}?version={{ url_params.version }}{% endif %}{% endif %}",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "offers": {
@@ -320,7 +320,7 @@
                 "@type": "ListItem",
                 "position": 2,
                 "name": "{{ title }}",
-                "item": "https://classifast.com/{{ classifier_type }}"
+                "item": "https://classifast.com/{{ classifier_type }}{% if url_params.search %}/{{ url_params.search }}{% endif %}"
             }
         ]
     }
@@ -950,22 +950,52 @@
     </footer>
 
     <script>
-        // URL Parameter Handling and Share Functionality
+        // URL Parameter Handling and Share Functionality for clean URLs
         function getUrlParams() {
-            const params = new URLSearchParams(window.location.search);
+            const pathParts = window.location.pathname.split('/');
+            const classifierIndex = pathParts.findIndex(part => ['naics', 'unspsc', 'etim', 'isic', 'hs'].includes(part));
+
+            if (classifierIndex !== -1 && pathParts.length > classifierIndex + 1) {
+                const searchQuery = decodeURIComponent(pathParts.slice(classifierIndex + 1).join('/')).replace(/-/g, ' ');
+                return {
+                    search: searchQuery || '',
+                    version: new URLSearchParams(window.location.search).get('version') || ''
+                };
+            }
+
             return {
-                search: params.get('search') || '',
-                version: params.get('version') || ''
+                search: '',
+                version: new URLSearchParams(window.location.search).get('version') || ''
             };
         }
 
-        function updateUrlParams(search, version) {
-            const params = new URLSearchParams();
-            if (search) params.set('search', search);
-            if (version) params.set('version', version);
-            // Never include top_k in URL - always use frontend default
+        // Slugify function for SEO-friendly URLs
+        function slugify(text) {
+            return text.toString().toLowerCase()
+                .replace(/[^\w\s-]/g, '') // Remove special characters
+                .replace(/[\s_-]+/g, '-') // Replace spaces and underscores with hyphens
+                .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+        }
 
-            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        function updateUrlParams(search, version) {
+            const classifierType = window.location.pathname.split('/')[1];
+            let newUrl;
+
+            if (search && search.trim()) {
+                // Use clean URL format with slug
+                const slug = slugify(search);
+                newUrl = `/${classifierType}/${slug}`;
+                if (version && version !== '') {
+                    newUrl += `?version=${encodeURIComponent(version)}`;
+                }
+            } else {
+                // Use base URL
+                newUrl = `/${classifierType}`;
+                if (version && version !== '') {
+                    newUrl += `?version=${encodeURIComponent(version)}`;
+                }
+            }
+
             window.history.replaceState({ search, version }, '', newUrl);
         }
 
