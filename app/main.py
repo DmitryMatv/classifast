@@ -134,7 +134,7 @@ async def lifespan(app: FastAPI):
                     query_texts=[query],
                     collection_name=collection_name,
                     embed_dims=config.get("embed_dims"),
-                    top_k=10,
+                    top_k=5,
                 )
 
                 results_for_query = (
@@ -531,7 +531,7 @@ async def show_classifier_page(
     request: Request,
     classifier_type: str,
     version: str | None = None,
-    top_k: int = 10,
+    top_k: int = 5,
 ):
     """
     Serves the base classifier page.
@@ -548,7 +548,7 @@ async def show_classifier_page_with_query(
     classifier_type: str,
     search_query: str = "",
     version: str | None = None,
-    top_k: int = 10,
+    top_k: int = 5,
 ):
     """
     Serves the specific classifier page with clean URL structure.
@@ -573,7 +573,7 @@ async def show_classifier_page_with_query(
 
     # Validate top_k parameter
     if top_k < 1 or top_k > 50:
-        top_k = 10
+        top_k = 5
 
     # Get first version for default handling
     versions_list = list(config.get("versions", {}).keys())
