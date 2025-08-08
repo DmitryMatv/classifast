@@ -522,6 +522,20 @@ Mounting: DIN rail""",
             },
         },
     },
+    "test": {
+        "title": "Embedding Test Classifier",
+        "heading": "Get codes for your goods",
+        "description": "Is this really necessary here?",
+        "example": "Example: Electric motor",
+        "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 768,
+        "versions": {
+            "Old UNSPSC collection (text-embedding-004, 768)": {
+                "collection_name": "UNSPSC_UNv260801-1-eng_new001-768_v8",
+                "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
+            },
+        },
+    },
 }
 
 
