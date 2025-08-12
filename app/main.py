@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote_plus
 
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import Response, FileResponse, HTMLResponse
+from fastapi import FastAPI, Form, HTTPException, Request, Depends, APIRouter
+from fastapi.responses import Response, FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.security import APIKeyHeader
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -19,6 +20,7 @@ from starlette.requests import Request
 
 from google import genai
 from qdrant_client import AsyncQdrantClient
+from pydantic import BaseModel, Field
 
 from .classifier import classify_string_batch
 
@@ -191,7 +193,25 @@ async def lifespan(app: FastAPI):
             print(f"Error closing Qdrant client: {e}")
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    title="Classifast API",
+    description="AI-powered product and service classification using multiple international standards (UNSPSC, ETIM, NAICS, ISIC, HS)",
+    version="1.0.0",
+    contact={
+        "name": "Classifast Support",
+        "email": "support@classifast.com",
+    },
+    license_info={
+        "name": "Commercial",
+    },
+    openapi_tags=[
+        {
+            "name": "rapidapi",
+            "description": "RapidAPI endpoints for programmatic access",
+        }
+    ],
+)
 
 
 # Performance monitoring middleware
@@ -272,6 +292,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+
 
 # Mount static files with caching
 class CachedStaticFiles(StaticFiles):
@@ -534,6 +555,242 @@ Mounting: DIN rail""",
         },
     },
 }
+
+# ===== RAPIDAPI INTEGRATION =====
+
+
+# Pydantic models for RapidAPI
+class RapidAPIRequest(BaseModel):
+    query: str = Field(..., description="Product or service description to classify")
+    standard: str = Field(
+        ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
+    )
+    top_k: int = Field(5, ge=1, le=30, description="Number of results to return")
+    version: Optional[str] = Field(
+        None, description="Specific version of the standard to use"
+    )
+
+
+class ClassificationResult(BaseModel):
+    code: str = Field(..., description="Classification code")
+    name: str = Field(..., description="Classification name/description")
+    score: float = Field(..., description="Similarity score (0-1)")
+    url: Optional[str] = Field(None, description="External URL for more information")
+
+
+class RapidAPIResponse(BaseModel):
+    query: str = Field(..., description="Original query")
+    standard: str = Field(..., description="Classification standard used")
+    version: str = Field(..., description="Version of the standard used")
+    results: List[ClassificationResult] = Field(
+        ..., description="Classification results"
+    )
+    processing_time: float = Field(..., description="Processing time in seconds")
+
+
+class RapidAPIError(BaseModel):
+    error: str = Field(..., description="Error message")
+    detail: Optional[str] = Field(None, description="Detailed error information")
+
+
+# RapidAPI configuration
+RAPID_API_SECRET = os.getenv("RAPIDAPI_SECRET", "")
+RAPID_API_KEY_HEADER = "X-RapidAPI-Proxy-Secret"
+
+# API Key security scheme
+api_key_header = APIKeyHeader(name="X-RapidAPI-Key", auto_error=False)
+
+
+# Separate limiter for RapidAPI endpoints
+rapid_limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["5/minute"],  # Stricter limits for external API
+)
+
+
+async def verify_rapidapi_key(api_key: str = Depends(api_key_header)) -> bool:
+    """Verify RapidAPI key and proxy secret"""
+    if not api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="API key required",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    # In production, you might want to validate against a database
+    # For now, just check if key is provided
+    return True
+
+
+async def verify_rapidapi_proxy(request: Request) -> bool:
+    """Verify RapidAPI proxy secret"""
+    if RAPID_API_SECRET:
+        proxy_secret = request.headers.get(RAPID_API_KEY_HEADER)
+        if proxy_secret != RAPID_API_SECRET:
+            raise HTTPException(status_code=401, detail="Invalid proxy secret")
+    return True
+
+
+# Create RapidAPI router
+rapid_router = APIRouter(
+    prefix="/api/v1/rapid",
+    tags=["rapidapi"],
+    dependencies=[Depends(verify_rapidapi_key), Depends(verify_rapidapi_proxy)],
+)
+
+
+# ===== END RAPIDAPI INTEGRATION =====
+
+
+@rapid_router.post("/classify", response_model=RapidAPIResponse)
+@rapid_limiter.limit("5/minute")
+async def rapid_classify(rapid_request: RapidAPIRequest, request: Request):
+    """
+    Classify a product or service description using the specified standard.
+
+    This endpoint provides programmatic access to classification services via RapidAPI.
+    """
+    print(
+        f"🚀 RapidAPI classification request: {rapid_request.standard} - {rapid_request.query[:50]}..."
+    )
+
+    start_time = time.perf_counter()
+
+    # Validate standard
+    config = CLASSIFIER_CONFIG.get(rapid_request.standard.lower())
+    if not config:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid standard '{rapid_request.standard}'. Available: {list(CLASSIFIER_CONFIG.keys())}",
+        )
+
+    # Validate version or use default
+    versions = config.get("versions", {})
+    if rapid_request.version:
+        if rapid_request.version not in versions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid version '{rapid_request.version}'. Available: {list(versions.keys())}",
+            )
+        version_name = rapid_request.version
+    else:
+        version_name = next(iter(versions.keys())) if versions else ""
+
+    version_config = versions[version_name]
+    collection_name = version_config["collection_name"]
+    embed_model_name = config["embed_model_name"]
+
+    # Validate clients
+    if not embed_client or not qdrant_client:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+    # Validate query
+    if not rapid_request.query or not rapid_request.query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    if len(rapid_request.query) > 4000:
+        raise HTTPException(
+            status_code=400, detail="Query too long (max 4000 characters)"
+        )
+
+    try:
+        # Perform classification
+        results_for_single_query = await classify_string_batch(
+            qdrant_client=qdrant_client,
+            embed_client=embed_client,
+            embed_model_name=embed_model_name,
+            query_texts=[rapid_request.query],
+            collection_name=collection_name,
+            embed_dims=config.get("embed_dims"),
+            top_k=rapid_request.top_k,
+        )
+
+        classification_results = (
+            results_for_single_query[0] if results_for_single_query else []
+        )
+
+        # Format results
+        formatted_results = []
+        for result in classification_results:
+            payload = result.get("payload", {})
+            base_url = version_config.get("base_url", "")
+            code = payload.get("original_id", "")
+
+            formatted_result = ClassificationResult(
+                code=code,
+                name=payload.get("class_name", ""),
+                score=result.get("score", 0.0),
+                url=f"{base_url}{code}" if base_url and code else None,
+            )
+            formatted_results.append(formatted_result)
+
+        processing_time = time.perf_counter() - start_time
+
+        return RapidAPIResponse(
+            query=rapid_request.query,
+            standard=rapid_request.standard.lower(),
+            version=version_name,
+            results=formatted_results,
+            processing_time=processing_time,
+        )
+
+    except Exception as e:
+        print(f"❌ RapidAPI classification error: {e}")
+        raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
+
+
+@rapid_router.get("/health")
+@rapid_limiter.limit("10/minute")
+async def rapid_health(request: Request):
+    """Health check endpoint for RapidAPI consumers."""
+    health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
+
+    # Check embedding service
+    if embed_client:
+        try:
+            embed_client.models.list()
+            health_status["services"]["embedding"] = "healthy"
+        except Exception as e:
+            health_status["services"]["embedding"] = f"unhealthy: {str(e)}"
+    else:
+        health_status["services"]["embedding"] = "unhealthy: not initialized"
+
+    # Check Qdrant service
+    if qdrant_client:
+        try:
+            await qdrant_client.get_collections()
+            health_status["services"]["database"] = "healthy"
+        except Exception as e:
+            health_status["services"]["database"] = f"unhealthy: {str(e)}"
+    else:
+        health_status["services"]["database"] = "unhealthy: not initialized"
+
+    # Overall health
+    all_healthy = all(v == "healthy" for v in health_status["services"].values())
+    status_code = 200 if all_healthy else 503
+
+    return JSONResponse(content=health_status, status_code=status_code)
+
+
+@rapid_router.get("/standards")
+@rapid_limiter.limit("10/minute")
+async def rapid_standards(request: Request):
+    """List available classification standards and their versions."""
+    standards_info = {}
+
+    for standard_key, config in CLASSIFIER_CONFIG.items():
+        standards_info[standard_key] = {
+            "title": config["title"],
+            "description": config["description"],
+            "versions": list(config.get("versions", {}).keys()),
+            "example": config["example"].replace("Example: ", ""),
+        }
+
+    return JSONResponse(content={"standards": standards_info, "timestamp": time.time()})
+
+
+# Include the RapidAPI router
+app.include_router(rapid_router)
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
