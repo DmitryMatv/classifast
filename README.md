@@ -1,17 +1,18 @@
-# Classifast
+# Classifast - Fastest classifier for UNSPC, NAICS, ISIC, HS codes, and more
 
-Classifast is a web application that provides easy classification of any text input according to international product and service standards like UNSPSC, NAICS, ISIC, ETIM. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated yet intelligent categorization.
+### Instanly get category codes across many industry standards
+
+Classifast is a web application that provides easy classification of any text input according to international product and service standards like UNSPSC, NAICS, ISIC, ETIM, HS. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated yet intelligent categorization.
 
 ## Features
 
 - 🚀 **Fast Classification**: Semantic search using advanced embedding models
 - 🎯 **High Accuracy**: Confidence scores for each classification result
 - 📊 **Multiple Standards**: Support for UNSPSC, ETIM, and NAICS classification standards
-- 🔄 **Bulk Processing**: Classify large datasets efficiently
 - 🌐 **Modern Interface**: Clean, responsive design built with Tailwind CSS
 - 🔍 **SEO Optimized**: Structured data, meta tags, and performance optimized
 
-## Supported Classification Standards
+## Supported Classification Standards (Top 3 Most Used)
 
 ### UNSPSC (United Nations Standard Products and Services Codes)
 - Global standard for product and service categorization
@@ -61,7 +62,3 @@ Visit the working preview at [classifast.com](https://classifast.com) to try.
 - Breadcrumb navigation
 - Semantic HTML structure
 - Performance optimized loading
-
----
-
-2025 Dmitry Matv

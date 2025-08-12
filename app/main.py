@@ -1,11 +1,11 @@
-import os
-import time
+import os, time, re
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
+from urllib.parse import unquote_plus
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import Response, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
@@ -274,9 +274,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Mount static files with caching
-from fastapi.responses import Response
-
-
 class CachedStaticFiles(StaticFiles):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -463,7 +460,7 @@ Mounting: DIN rail""",
         "title": "UNSPSC Classifier",
         "heading": "Get right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
-        "example": "Example: Laptop computer, 15 inch screen, 8GB RAM",
+        "example": "Example: Office supplies",
         "embed_model_name": "text-embedding-004",
         "embed_dims": 768,
         "versions": {
@@ -566,7 +563,6 @@ async def show_classifier_page_with_query(
 ):
     """
     Serves the specific classifier page with clean URL structure.
-    Example: /naics/gamedev-studio instead of /naics?search=gamedev-studio
     Handles both base URLs like /naics and search URLs like /naics/gamedev-studio
     """
     config = CLASSIFIER_CONFIG.get(classifier_type)
@@ -586,7 +582,7 @@ async def show_classifier_page_with_query(
         return Response(headers=headers)
 
     # Validate top_k parameter
-    if top_k < 1 or top_k > 50:
+    if top_k < 1 or top_k > 30:
         top_k = 5
 
     # Get first version for default handling
@@ -596,9 +592,7 @@ async def show_classifier_page_with_query(
     # Handle empty search query for base URLs
     decoded_search_query = ""
     if search_query and search_query.strip():
-        from urllib.parse import unquote_plus
-
-        decoded_search_query = unquote_plus(search_query)
+        decoded_search_query = unquote_plus(search_query).replace("-", " ")
 
     # Use pre-cached results if the query matches the example or is empty (base URL)
     preloaded_data = None
@@ -618,8 +612,6 @@ async def show_classifier_page_with_query(
 
     # Slugify utility for SEO-friendly URLs
     def slugify(text):
-        import re
-
         text = re.sub(r"[^\w\s-]", "", text.lower())
         text = re.sub(r"[-\s]+", "-", text)
         return text.strip("-")

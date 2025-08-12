@@ -13,7 +13,7 @@
     <meta property="og:title"
         content="{{ classifier_type.upper() }} code for {{ url_params.search.upper() }} | Classifast">
     <meta property="og:description"
-        content="Find accurate {{ classifier_type.upper() }} codes for {{ url_params.search.upper() }} with our AI-powered classification tool.">
+        content="Find accurate {{ classifier_type.upper() }} codes for {{ url_params.search.upper() }} with fastest classification tool.">
     <meta name="twitter:title"
         content="{{ classifier_type.upper() }} code for {{ url_params.search.upper() }} | Classifast">
     <meta name="twitter:description"
@@ -105,7 +105,7 @@
         "@type": "WebApplication",
         {% if url_params.query %}
         "name": "{{ classifier_type.upper() }} Code for {{ url_params.query }} | Classifast",
-        "description": "Find accurate {{ classifier_type.upper() }} codes for {{ url_params.query }} with our AI-powered classification tool. Semantic search technology for precise results.",
+        "description": "Find accurate {{ classifier_type.upper() }} codes for {{ url_params.query }} with fastest classification tool. Semantic search technology for precise results.",
         "keywords": "{{ classifier_type.upper() }} code {{ url_params.query }}, {{ url_params.query }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.query }}, {{ classifier_type.lower() }} classification {{ url_params.query }}, semantic search {{ classifier_type.upper() }}",
         {% elif classifier_type == 'unspsc' %}
         "name": "UNSPSC Code Lookup & Classification | Classifast",
@@ -297,7 +297,7 @@
                 "name": "How accurate is {{ classifier_type.upper() }} classification?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Our AI-powered {{ classifier_type.upper() }} classification uses state-of-the-art embedding models to deliver high accuracy results. Each classification includes a confidence score for transparency."
+                    "text": "Our {{ classifier_type.upper() }} classification uses state-of-the-art embedding models to deliver high accuracy results. Each classification includes a confidence score for transparency."
                 }
             }
             {% endif %}
@@ -614,7 +614,7 @@
                         <button type="submit"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 transform">
                             {% if classifier_type == 'unspsc' %}
-                            Classif
+                            Classify
                             {% elif classifier_type == 'etim' %}
                             Classify
                             {% else %}
@@ -629,7 +629,8 @@
                         </select>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center"
                             aria-label="Processing request">
-                            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sky-600 ">
+                            <div
+                                class="animate-spin rounded-full h-8 w-8 border-4 border-sky-600 border-t-transparent border-b-transparent">
                             </div>
                         </div>
                     </div>
@@ -932,6 +933,9 @@
                     <ul class="space-y-2">
                         <li><a href="{{ url_for('read_root') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Home</a></li>
+                        <li><a href="https://converter.classifast.com" target="_blank" rel="noopener"
+                                class="text-gray-400 hover:text-white transition-colors">
+                                BMEcat to ETIM xChange Converter</a></li>
                         <li><a href="https://github.com/DmitryMatv/classifast" target="_blank" rel="noopener"
                                 class="text-gray-400 hover:text-white transition-colors">GitHub</a></li>
                         <li><a href="https://github.com/DmitryMatv" target="_blank" rel="noopener"
@@ -1019,7 +1023,7 @@
                 const button = document.getElementById('share-button');
                 if (button) {
                     const originalText = button.innerHTML;
-                    button.innerHTML = '✓ Copied!';
+                    button.innerHTML = 'Copied!';
                     button.classList.add('bg-green-600', 'hover:bg-green-700');
                     setTimeout(() => {
                         button.innerHTML = originalText;

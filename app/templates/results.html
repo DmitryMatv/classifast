@@ -86,7 +86,7 @@
         </li>
         {% endfor %}
     </ul>
-    <div class="mt-4 text-gray-600">
+    <div class="mt-8 text-gray-600">
         {% if total_request_time is not none %}
         <span>Finished in {{ "%.2f"|format(total_request_time) }} seconds.</span>
         {% endif %}
@@ -94,10 +94,9 @@
     </div>
     <div class="mt-4 prose max-w-none">
         <p id="description-help" class="text-gray-600">
-            For the best classification results please include as much relevant and accurate data as possible. The more
-            specific details you include, the more accurate the results will be. Long multi-line unformatted text and
-            broken tables work fine - any input is accepted as long as it accurately describes what you want to
-            classify.
+            For the best results, please provide as much relevant and accurate description as possible.
+            Specifications, raw unformatted text, tables and lists - any input is accepted
+            as long as it accurately describes what you want to classify.
         </p>
     </div>
 
@@ -106,14 +105,7 @@
         <button type="button" id="share-button" onclick="copyShareableLink()"
             class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded-md text-md transition-colors duration-150 ease-in-out"
             title="Copy shareable link to clipboard">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="inline mr-6">
-                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
-                <polyline points="16 6 12 2 8 6"></polyline>
-                <line x1="12" y1="2" x2="12" y2="15"></line>
-            </svg>
-            Share Results
+            Copy Link
         </button>
     </div>
     {% else %}
@@ -142,7 +134,7 @@
                 tooltip.style.color = 'white';
                 tooltip.style.padding = '4px 8px';
                 tooltip.style.borderRadius = '4px';
-                tooltip.style.fontSize = '0.75rem'; // text-xs
+                tooltip.style.fontSize = '1.125rem'; // text-base (medium)
                 tooltip.style.zIndex = '1000';     // Ensure it's on top
                 tooltip.style.textAlign = 'center';
 
@@ -177,7 +169,7 @@
                         tooltip.parentNode.removeChild(tooltip);
                     }
                     buttonElement.disabled = false; // Re-enable button
-                }, 500); // Tooltip lasts for 0.5 seconds
+                }, 2000); // Tooltip lasts for 2 seconds
             }
             // --- End Tooltip Function ---
 
