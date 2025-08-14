@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
             embed_client = None  # Ensure it's None if init fails
 
     # Initialize Qdrant Client
-    QDRANT_URL = os.getenv("QDRANT_URL")
+    QDRANT_URL = "qdrant.classifast.com"
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     try:
         print("Connecting to Qdrant...")
@@ -681,7 +681,7 @@ class RapidAPIError(BaseModel):
 
 # RapidAPI configuration
 RAPID_API_SECRET = os.getenv("RAPIDAPI_SECRET", "")
-RAPID_API_KEY_HEADER = "X-RapidAPI-Proxy-Secret"
+RAPID_API_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
 
 # API Key security scheme
 api_key_header = APIKeyHeader(name="X-RapidAPI-Key", auto_error=False)
@@ -711,7 +711,7 @@ async def verify_rapidapi_key(api_key: str = Depends(api_key_header)) -> bool:
 async def verify_rapidapi_proxy(request: Request) -> bool:
     """Verify RapidAPI proxy secret"""
     if RAPID_API_SECRET:
-        proxy_secret = request.headers.get(RAPID_API_KEY_HEADER)
+        proxy_secret = request.headers.get(RAPID_API_SECRET_HEADER)
         if proxy_secret != RAPID_API_SECRET:
             raise HTTPException(status_code=401, detail="Invalid proxy secret")
     return True
