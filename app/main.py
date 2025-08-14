@@ -680,8 +680,8 @@ class RapidAPIError(BaseModel):
 
 
 # RapidAPI configuration
-RAPID_API_SECRET = os.getenv("RAPIDAPI_SECRET", "")
-RAPID_API_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
+RAPIDAPI_SECRET = os.getenv("RAPIDAPI_SECRET")
+RAPIDAPI_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
 
 # API Key security scheme
 api_key_header = APIKeyHeader(name="X-RapidAPI-Key", auto_error=False)
@@ -710,9 +710,9 @@ async def verify_rapidapi_key(api_key: str = Depends(api_key_header)) -> bool:
 
 async def verify_rapidapi_proxy(request: Request) -> bool:
     """Verify RapidAPI proxy secret"""
-    if RAPID_API_SECRET:
-        proxy_secret = request.headers.get(RAPID_API_SECRET_HEADER)
-        if proxy_secret != RAPID_API_SECRET:
+    if RAPIDAPI_SECRET:
+        proxy_secret = request.headers.get(RAPIDAPI_SECRET_HEADER)
+        if proxy_secret != RAPIDAPI_SECRET:
             raise HTTPException(status_code=401, detail="Invalid proxy secret")
     return True
 
@@ -838,7 +838,7 @@ async def rapid_standards(request: Request):
             "title": config["title"],
             "description": config["description"],
             "versions": list(config.get("versions", {}).keys()),
-            "example": config["example"].replace("Example: ", ""),
+            "example": config["example"].replace("Example:", "").strip(),
         }
 
     return JSONResponse(content={"standards": standards_info, "timestamp": time.time()})
