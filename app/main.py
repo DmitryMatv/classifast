@@ -845,7 +845,7 @@ async def rapid_standards(request: Request):
 
 
 # Include the RapidAPI router
-app.include_router(rapid_router)
+app.include_router(rapid_router, prefix="/api/v1/rapid")
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
