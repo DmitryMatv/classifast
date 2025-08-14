@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from urllib.parse import unquote_plus
 
-from fastapi import FastAPI, Form, HTTPException, Request, Depends, APIRouter
+from fastapi import FastAPI, Form, HTTPException, Request, Depends, APIRouter, Query
 from fastapi.responses import Response, FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -126,8 +126,8 @@ async def lifespan(app: FastAPI):
 
                 # Use shared classification service for pre-loading
                 result = await perform_classification(
-                    classifier_type=classifier_type,
                     query=query,
+                    classifier_type=classifier_type,
                     version=version_name,
                     top_k=5,
                 )
@@ -728,27 +728,35 @@ rapid_router = APIRouter(
 # ===== END RAPIDAPI INTEGRATION =====
 
 
-@rapid_router.post("/classify", response_model=RapidAPIResponse)
+@rapid_router.get("/classify", response_model=RapidAPIResponse)
 @rapid_limiter.limit("5/minute")
-async def rapid_classify(rapid_request: RapidAPIRequest, request: Request):
+async def rapid_classify(
+    request: Request,
+    query: str = Query(..., description="Product or service description to classify"),
+    standard: str = Query(
+        ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
+    ),
+    top_k: int = Query(5, ge=1, le=100, description="Number of results to return"),
+    version: Optional[str] = Query(
+        None, description="Specific version of the standard to use"
+    ),
+):
     """
     Classify a product or service description using the specified standard.
 
     This endpoint provides programmatic access to classification services via RapidAPI.
     """
-    print(
-        f"🚀 RapidAPI classification request: {rapid_request.standard} - {rapid_request.query[:50]}..."
-    )
+    print(f"🚀 RapidAPI classification request: {standard} - {query[:50]}...")
 
     start_time = time.perf_counter()
 
     try:
         # Use shared classification service
         result = await perform_classification(
-            classifier_type=rapid_request.standard,
-            query=rapid_request.query,
-            version=rapid_request.version,
-            top_k=rapid_request.top_k or 1,
+            query=query,
+            classifier_type=standard,
+            version=version,
+            top_k=top_k or 1,
         )
 
         classification_results = result["results"]
@@ -771,8 +779,8 @@ async def rapid_classify(rapid_request: RapidAPIRequest, request: Request):
         processing_time = time.perf_counter() - start_time
 
         return RapidAPIResponse(
-            query=rapid_request.query,
-            standard=rapid_request.standard.lower(),
+            query=query,
+            standard=standard.lower(),
             version=result["version_name"],
             results=formatted_results,
             processing_time=processing_time,
@@ -819,7 +827,7 @@ async def rapid_health(request: Request):
     return JSONResponse(content=health_status, status_code=status_code)
 
 
-@rapid_router.get("/standards")
+@app.get("/api/v1/rapid/standards")
 @rapid_limiter.limit("10/minute")
 async def rapid_standards(request: Request):
     """List available classification standards and their versions."""
@@ -988,8 +996,8 @@ async def handle_classify(
     try:
         # Use shared classification service
         result = await perform_classification(
-            classifier_type=classifier_type,
             query=product_description,
+            classifier_type=classifier_type,
             version=version,
             top_k=top_k,
         )
