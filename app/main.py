@@ -123,27 +123,21 @@ async def lifespan(app: FastAPI):
             try:
                 start_total_time = time.perf_counter()
                 version_name = next(iter(config.get("versions", {})))
-                version_config = config["versions"][version_name]
-                collection_name = version_config["collection_name"]
-                embed_model_name = config["embed_model_name"]
-                base_url = version_config.get("base_url", "")
-                tooltip = version_config.get("tooltip", "")
 
-                results_for_single_query = await classify_string_batch(
-                    qdrant_client=qdrant_client,
-                    embed_client=embed_client,
-                    embed_model_name=str(embed_model_name),
-                    query_texts=[query],
-                    collection_name=collection_name,
-                    embed_dims=config.get("embed_dims"),
+                # Use shared classification service for pre-loading
+                result = await perform_classification(
+                    classifier_type=classifier_type,
+                    query=query,
+                    version=version_name,
                     top_k=5,
                 )
 
-                results_for_query = (
-                    results_for_single_query[0] if results_for_single_query else []
-                )
+                results_for_query = result["results"]
                 end_total_time = time.perf_counter()
                 total_request_time = end_total_time - start_total_time
+
+                base_url = result["version_config"].get("base_url", "")
+                tooltip = result["version_config"].get("tooltip", "")
 
                 # Store all necessary data for the template in the cache
                 PRELOADED_RESULTS_CACHE[classifier_type] = {
@@ -556,6 +550,96 @@ Mounting: DIN rail""",
     },
 }
 
+
+async def perform_classification(
+    query: str,
+    classifier_type: str,
+    version: Optional[str] = None,
+    top_k: int = 5,
+) -> Dict[str, Any]:
+    """
+    Shared classification service that handles all common logic between web form and API endpoints.
+
+    Args:
+        classifier_type: The classification standard (e.g., 'unspsc', 'etim', etc.)
+        query: The product/service description to classify
+        version: Optional specific version to use
+        top_k: Number of results to return
+
+    Returns:
+        Dict containing classification results and metadata
+    """
+    # Validate classifier type
+    config = CLASSIFIER_CONFIG.get(classifier_type.lower())
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
+    # Validate version or use default
+    versions = config.get("versions", {})
+    if version:
+        if version not in versions:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Version '{version}' for classifier '{classifier_type}' not found",
+            )
+        version_name = version
+    else:
+        version_name = next(iter(versions.keys())) if versions else ""
+
+    version_config = versions[version_name]
+    collection_name = version_config["collection_name"]
+    embed_model_name = config["embed_model_name"]
+
+    # Validate clients
+    if not embed_client or not qdrant_client:
+        raise HTTPException(
+            status_code=503,
+            detail="Backend services not available. Please check server logs.",
+        )
+
+    # Validate query
+    if not query or not query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    if len(query) > 4000:
+        raise HTTPException(
+            status_code=400, detail="Query too long (max 4000 characters)"
+        )
+
+    try:
+        # Perform classification
+        results_for_single_query = await classify_string_batch(
+            qdrant_client=qdrant_client,
+            embed_client=embed_client,
+            embed_model_name=embed_model_name,
+            query_texts=[query],
+            collection_name=collection_name,
+            embed_dims=config.get("embed_dims"),
+            top_k=top_k,
+        )
+
+        classification_results = (
+            results_for_single_query[0] if results_for_single_query else []
+        )
+
+        return {
+            "results": classification_results,
+            "collection_name": collection_name,
+            "version_name": version_name,
+            "version_config": version_config,
+            "config": config,
+            "query": query,
+        }
+
+    except Exception as e:
+        print(f"❌ Classification error for '{classifier_type}': {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error processing request: {str(e)}"
+        )
+
+
 # ===== RAPIDAPI INTEGRATION =====
 
 
@@ -565,7 +649,9 @@ class RapidAPIRequest(BaseModel):
     standard: str = Field(
         ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
     )
-    top_k: int = Field(5, ge=1, le=30, description="Number of results to return")
+    top_k: Optional[int] = Field(
+        5, ge=1, le=100, description="Number of results to return"
+    )
     version: Optional[str] = Field(
         None, description="Specific version of the standard to use"
     )
@@ -656,70 +742,28 @@ async def rapid_classify(rapid_request: RapidAPIRequest, request: Request):
 
     start_time = time.perf_counter()
 
-    # Validate standard
-    config = CLASSIFIER_CONFIG.get(rapid_request.standard.lower())
-    if not config:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid standard '{rapid_request.standard}'. Available: {list(CLASSIFIER_CONFIG.keys())}",
-        )
-
-    # Validate version or use default
-    versions = config.get("versions", {})
-    if rapid_request.version:
-        if rapid_request.version not in versions:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid version '{rapid_request.version}'. Available: {list(versions.keys())}",
-            )
-        version_name = rapid_request.version
-    else:
-        version_name = next(iter(versions.keys())) if versions else ""
-
-    version_config = versions[version_name]
-    collection_name = version_config["collection_name"]
-    embed_model_name = config["embed_model_name"]
-
-    # Validate clients
-    if not embed_client or not qdrant_client:
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-
-    # Validate query
-    if not rapid_request.query or not rapid_request.query.strip():
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-
-    if len(rapid_request.query) > 4000:
-        raise HTTPException(
-            status_code=400, detail="Query too long (max 4000 characters)"
-        )
-
     try:
-        # Perform classification
-        results_for_single_query = await classify_string_batch(
-            qdrant_client=qdrant_client,
-            embed_client=embed_client,
-            embed_model_name=embed_model_name,
-            query_texts=[rapid_request.query],
-            collection_name=collection_name,
-            embed_dims=config.get("embed_dims"),
-            top_k=rapid_request.top_k,
+        # Use shared classification service
+        result = await perform_classification(
+            classifier_type=rapid_request.standard,
+            query=rapid_request.query,
+            version=rapid_request.version,
+            top_k=rapid_request.top_k or 1,
         )
 
-        classification_results = (
-            results_for_single_query[0] if results_for_single_query else []
-        )
+        classification_results = result["results"]
 
-        # Format results
+        # Format results for API response
         formatted_results = []
-        for result in classification_results:
-            payload = result.get("payload", {})
-            base_url = version_config.get("base_url", "")
+        for r in classification_results:
+            payload = r.get("payload", {})
+            base_url = result["version_config"].get("base_url", "")
             code = payload.get("original_id", "")
 
             formatted_result = ClassificationResult(
                 code=code,
                 name=payload.get("class_name", ""),
-                score=result.get("score", 0.0),
+                score=r.get("score", 0.0),
                 url=f"{base_url}{code}" if base_url and code else None,
             )
             formatted_results.append(formatted_result)
@@ -729,17 +773,20 @@ async def rapid_classify(rapid_request: RapidAPIRequest, request: Request):
         return RapidAPIResponse(
             query=rapid_request.query,
             standard=rapid_request.standard.lower(),
-            version=version_name,
+            version=result["version_name"],
             results=formatted_results,
             processing_time=processing_time,
         )
 
+    except HTTPException:
+        # Let HTTP exceptions propagate to the handler
+        raise
     except Exception as e:
         print(f"❌ RapidAPI classification error: {e}")
         raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
 
 
-@rapid_router.get("/health")
+@rapid_router.get("/ping")
 @rapid_limiter.limit("10/minute")
 async def rapid_health(request: Request):
     """Health check endpoint for RapidAPI consumers."""
@@ -925,94 +972,49 @@ async def handle_classify(
         f"❓ Received query for '{classifier_type}' classification with version '{version}'."
     )
 
-    config = CLASSIFIER_CONFIG.get(classifier_type)
-    if not config:
-        raise HTTPException(
-            status_code=404, detail=f"Classifier '{classifier_type}' not found"
-        )
-
-    version_config = config.get("versions", {}).get(version)
-    if not version_config:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Version '{version}' for classifier '{classifier_type}' not found",
-        )
-
-    if not embed_client or not qdrant_client:
-        raise HTTPException(
-            status_code=503,
-            detail="Backend services not available. Please check server logs.",
-        )
-
-    # Validate input: Check if text is empty or only whitespace
+    # Handle empty query gracefully
     if not product_description or not product_description.strip():
-        # Return the results partial with an empty list or specific message
         return templates.TemplateResponse(
             "results.html",
             {
                 "request": request,
-                "query": product_description,  # Pass original (potentially empty) text
-                "results_for_query": [],  # Empty results
+                "query": product_description,
+                "results_for_query": [],
             },
         )
 
-    # Validate input length to prevent DoS attacks
-    if len(product_description) > 4000:  # Token limit is 2048 for gemini-embedding-001
-        raise HTTPException(
-            status_code=400,
-            detail="Product description too long. Maximum 4000 characters allowed.",
-        )
-
-    # Debug: Print the raw product_description to verify newlines are preserved
-    # print(f"Raw product description (repr): {repr(product_description)}")
-    # print(f"Product description length: {len(product_description)}")
-    # print(f"Number of newlines in description: {product_description.count(chr(10))}")
-    # print(f"Product description (first 200 chars): {product_description[:200]}")
-
-    # Start timer for total duration
     start_total_time = time.perf_counter()
 
-    collection_name = version_config["collection_name"]
-    embed_model_name = config["embed_model_name"]
-
     try:
-        # Call the batch classification function with the specific collection name
-        # IMPORTANT: product_description is passed exactly as received from the form,
-        # preserving all newlines, whitespace, and formatting for accurate embedding.
-        # batch_results is now List[List[Dict[str, Any]]]
-        # where each inner list is the hits for a query.
-        results_for_single_query: List[List[Dict[str, Any]]] = (
-            await classify_string_batch(
-                qdrant_client=qdrant_client,  # Pass qdrant_client
-                embed_client=embed_client,  # Pass embed_client
-                embed_model_name=embed_model_name,  # Use from config
-                query_texts=[product_description],  # Original text with all formatting
-                collection_name=collection_name,  # Pass the correct collection
-                embed_dims=config.get("embed_dims"),  # Use embed_dims from config
-                top_k=top_k,
-            )
+        # Use shared classification service
+        result = await perform_classification(
+            classifier_type=classifier_type,
+            query=product_description,
+            version=version,
+            top_k=top_k,
         )
 
-        classification_results: List[Dict[str, Any]] = []
-        if results_for_single_query:
-            classification_results = results_for_single_query[0]
+        classification_results = result["results"]
 
         result_lines = [
-            f"{result['payload'].get('original_id', 'N/A')} - {result['payload'].get('class_name', 'N/A')}"
-            for result in classification_results
+            f"{r['payload'].get('original_id', 'N/A')} - {r['payload'].get('class_name', 'N/A')}"
+            for r in classification_results
         ]
         print(
-            f"👇 Results for '{product_description}' in '{collection_name}':\n"
+            f"👇 Results for '{product_description}' in '{result['collection_name']}':\n"
             + "\n".join(result_lines)
         )
 
+    except HTTPException:
+        # Let HTTP exceptions propagate to the handler
+        raise
     except Exception as e:
         print(f"❌ Error during '{classifier_type}' classification: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
 
-    end_total_time = time.perf_counter()  # End timer for total duration
+    end_total_time = time.perf_counter()
     total_request_time = end_total_time - start_total_time
     print(f"Total request processing time was {total_request_time:.4f}s")
 
@@ -1023,8 +1025,8 @@ async def handle_classify(
             "request": request,
             "query": product_description,
             "results_for_query": classification_results,
-            "base_url": version_config.get("base_url", ""),
-            "tooltip": version_config.get("tooltip", ""),
+            "base_url": result["version_config"].get("base_url", ""),
+            "tooltip": result["version_config"].get("tooltip", ""),
             "total_request_time": total_request_time,
         },
     )
