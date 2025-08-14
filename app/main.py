@@ -786,7 +786,7 @@ async def rapid_classify(rapid_request: RapidAPIRequest, request: Request):
         raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
 
 
-@rapid_router.get("/ping")
+@app.get("/api/v1/rapid/ping")
 @rapid_limiter.limit("10/minute")
 async def rapid_health(request: Request):
     """Health check endpoint for RapidAPI consumers."""
