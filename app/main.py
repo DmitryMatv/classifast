@@ -683,9 +683,6 @@ class RapidAPIError(BaseModel):
 RAPIDAPI_SECRET = os.getenv("RAPIDAPI_SECRET")
 RAPIDAPI_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
 
-# API Key security scheme
-api_key_header = APIKeyHeader(name="X-RapidAPI-Key", auto_error=False)
-
 
 # Separate limiter for RapidAPI endpoints
 rapid_limiter = Limiter(
@@ -694,8 +691,9 @@ rapid_limiter = Limiter(
 )
 
 
-async def verify_rapidapi_key(api_key: str = Depends(api_key_header)) -> bool:
-    """Verify RapidAPI key and proxy secret"""
+async def verify_rapidapi_key(request: Request) -> bool:
+    """Verify RapidAPI key from header."""
+    api_key = request.headers.get("X-RapidAPI-Key")
     if not api_key:
         raise HTTPException(
             status_code=401,
