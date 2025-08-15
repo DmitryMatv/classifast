@@ -649,11 +649,11 @@ class RapidAPIRequest(BaseModel):
     standard: str = Field(
         ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
     )
-    top_k: Optional[int] = Field(
-        5, ge=1, le=100, description="Number of results to return"
-    )
     version: Optional[str] = Field(
         None, description="Specific version of the standard to use"
+    )
+    top_k: Optional[int] = Field(
+        5, ge=1, le=100, description="Number of results to return"
     )
 
 
@@ -719,7 +719,6 @@ async def verify_rapidapi_proxy(request: Request) -> bool:
 
 # Create RapidAPI router
 rapid_router = APIRouter(
-    prefix="/api/v1/rapid",
     tags=["rapidapi"],
     dependencies=[Depends(verify_rapidapi_key), Depends(verify_rapidapi_proxy)],
 )
@@ -794,7 +793,7 @@ async def rapid_classify(
         raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
 
 
-@app.get("/api/v1/rapid/ping")
+@rapid_router.get("/ping")
 @rapid_limiter.limit("10/minute")
 async def rapid_health(request: Request):
     """Health check endpoint for RapidAPI consumers."""
@@ -827,7 +826,7 @@ async def rapid_health(request: Request):
     return JSONResponse(content=health_status, status_code=status_code)
 
 
-@app.get("/api/v1/rapid/standards")
+@rapid_router.get("/standards")
 @rapid_limiter.limit("10/minute")
 async def rapid_standards(request: Request):
     """List available classification standards and their versions."""
@@ -845,7 +844,7 @@ async def rapid_standards(request: Request):
 
 
 # Include the RapidAPI router
-app.include_router(rapid_router, prefix="/api/v1/rapid")
+app.include_router(rapid_router, prefix="/api/v1/rapid")  # is prefix needed here?
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
