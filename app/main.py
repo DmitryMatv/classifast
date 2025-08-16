@@ -798,6 +798,7 @@ rapid_router = APIRouter(
 @rapid_router.get("/classify", response_model=RapidAPIResponse)
 @rapid_limiter.limit("5/minute")
 async def rapid_classify(
+    request: Request,
     query: str = Query(..., description="Product or service description to classify"),
     standard: str = Query(
         ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
@@ -862,7 +863,7 @@ async def rapid_classify(
 
 @rapid_router.get("/ping")
 @rapid_limiter.limit("10/minute")
-async def rapid_health():
+async def rapid_health(request: Request):
     """Health check endpoint for RapidAPI consumers."""
     health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
 
@@ -894,19 +895,22 @@ async def rapid_health():
 
 
 @rapid_router.get("/debug-headers")
-async def debug_headers():
+async def debug_headers(request: Request):
     """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
+    headers = dict(request.headers)
     return JSONResponse(
         content={
-            "message": "Authentication working - this endpoint is secured by verify_rapidapi_auth",
+            "received_headers": headers,
             "timestamp": time.time(),
+            "host": request.headers.get("host"),
+            "user_agent": request.headers.get("user-agent"),
         }
     )
 
 
 @rapid_router.get("/standards")
 @rapid_limiter.limit("10/minute")
-async def rapid_standards():
+async def rapid_standards(request: Request):
     """List available classification standards and their versions."""
     standards_info = {}
 
