@@ -698,7 +698,8 @@ rapid_limiter = Limiter(
 
 async def verify_rapidapi_key(request: Request) -> bool:
     """Verify RapidAPI key from header with Cloudflare compatibility."""
-    # Check for headers with multiple naming conventions for Cloudflare compatibility
+    # Allow proxy-only authentication - this function now just checks if API key exists
+    # but doesn't enforce it when proxy authentication is used
     api_key = None
     header_variations = [
         "X-RapidAPI-Key",
@@ -712,20 +713,11 @@ async def verify_rapidapi_key(request: Request) -> bool:
         api_key = request.headers.get(header_name)
         if api_key:
             print(f"Found API key in header: {header_name}")
-            break
+            return True  # API key provided - valid
 
-    if not api_key:
-        # Log all headers for debugging
-        print("Available headers:", dict(request.headers))
-        raise HTTPException(
-            status_code=401,
-            detail="API key required - X-RapidAPI-Key header missing",
-            headers={"WWW-Authenticate": "ApiKey"},
-        )
-
-    # In production, you might want to validate against a database
-    # For now, just check if key is provided
-    return True
+    # API key not provided - but this might be proxy-only authentication
+    # Let the proxy verification handle it
+    return False
 
 
 async def verify_rapidapi_proxy(request: Request) -> bool:
@@ -746,6 +738,7 @@ async def verify_rapidapi_proxy(request: Request) -> bool:
         "X_RAPIDAPI_PROXY_SECRET",
         "x_rapidapi_proxy_secret",
         "HTTP_X_RAPIDAPI_PROXY_SECRET",
+        "x-mashape-proxy-secret",  # Alternative name used by RapidAPI
     ]
 
     for header_name in header_variations:
@@ -767,10 +760,35 @@ async def verify_rapidapi_proxy(request: Request) -> bool:
     return True
 
 
+async def verify_rapidapi_auth(request: Request) -> bool:
+    """Combined authentication function that accepts either API key or proxy authentication."""
+    # First, check for proxy authentication (RapidAPI playground mode)
+    try:
+        proxy_valid = await verify_rapidapi_proxy(request)
+        if proxy_valid:
+            # Proxy authentication succeeded - allow access regardless of API key
+            return True
+    except HTTPException:
+        # Proxy authentication failed, check if we have API key
+        pass
+
+    # Then, check for direct API key authentication
+    api_key_valid = await verify_rapidapi_key(request)
+    if api_key_valid:
+        return True
+
+    # Neither authentication method succeeded
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required - provide either X-RapidAPI-Key or valid proxy secret",
+        headers={"WWW-Authenticate": "ApiKey"},
+    )
+
+
 # Create RapidAPI router
 rapid_router = APIRouter(
     tags=["rapidapi"],
-    dependencies=[Depends(verify_rapidapi_key), Depends(verify_rapidapi_proxy)],
+    dependencies=[Depends(verify_rapidapi_auth)],
 )
 
 
@@ -780,7 +798,6 @@ rapid_router = APIRouter(
 @rapid_router.get("/classify", response_model=RapidAPIResponse)
 @rapid_limiter.limit("5/minute")
 async def rapid_classify(
-    request: Request,
     query: str = Query(..., description="Product or service description to classify"),
     standard: str = Query(
         ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
@@ -845,7 +862,7 @@ async def rapid_classify(
 
 @rapid_router.get("/ping")
 @rapid_limiter.limit("10/minute")
-async def rapid_health(request: Request):
+async def rapid_health():
     """Health check endpoint for RapidAPI consumers."""
     health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
 
@@ -877,22 +894,19 @@ async def rapid_health(request: Request):
 
 
 @rapid_router.get("/debug-headers")
-async def debug_headers(request: Request):
+async def debug_headers():
     """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
-    headers = dict(request.headers)
     return JSONResponse(
         content={
-            "received_headers": headers,
+            "message": "Authentication working - this endpoint is secured by verify_rapidapi_auth",
             "timestamp": time.time(),
-            "host": request.headers.get("host"),
-            "user_agent": request.headers.get("user-agent"),
         }
     )
 
 
 @rapid_router.get("/standards")
 @rapid_limiter.limit("10/minute")
-async def rapid_standards(request: Request):
+async def rapid_standards():
     """List available classification standards and their versions."""
     standards_info = {}
 
