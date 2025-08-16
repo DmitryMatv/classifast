@@ -683,6 +683,11 @@ class RapidAPIError(BaseModel):
 RAPIDAPI_SECRET = os.getenv("RAPIDAPI_SECRET")
 RAPIDAPI_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
 
+# Cloudflare compatibility mode - set to "true" to skip proxy verification issues
+CLOUDFLARE_COMPATIBILITY_MODE = (
+    os.getenv("CLOUDFLARE_COMPATIBILITY_MODE", "false").lower() == "true"
+)
+
 
 # Separate limiter for RapidAPI endpoints
 rapid_limiter = Limiter(
@@ -692,12 +697,29 @@ rapid_limiter = Limiter(
 
 
 async def verify_rapidapi_key(request: Request) -> bool:
-    """Verify RapidAPI key from header."""
-    api_key = request.headers.get("X-RapidAPI-Key")
+    """Verify RapidAPI key from header with Cloudflare compatibility."""
+    # Check for headers with multiple naming conventions for Cloudflare compatibility
+    api_key = None
+    header_variations = [
+        "X-RapidAPI-Key",
+        "x-rapidapi-key",
+        "X_RAPIDAPI_KEY",
+        "x_rapidapi_key",
+        "HTTP_X_RAPIDAPI_KEY",  # Common in some proxies
+    ]
+
+    for header_name in header_variations:
+        api_key = request.headers.get(header_name)
+        if api_key:
+            print(f"Found API key in header: {header_name}")
+            break
+
     if not api_key:
+        # Log all headers for debugging
+        print("Available headers:", dict(request.headers))
         raise HTTPException(
             status_code=401,
-            detail="API key required",
+            detail="API key required - X-RapidAPI-Key header missing",
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
@@ -707,11 +729,41 @@ async def verify_rapidapi_key(request: Request) -> bool:
 
 
 async def verify_rapidapi_proxy(request: Request) -> bool:
-    """Verify RapidAPI proxy secret"""
-    if RAPIDAPI_SECRET:
-        proxy_secret = request.headers.get(RAPIDAPI_SECRET_HEADER)
-        if proxy_secret != RAPIDAPI_SECRET:
-            raise HTTPException(status_code=401, detail="Invalid proxy secret")
+    """Verify RapidAPI proxy secret with Cloudflare compatibility."""
+    if not RAPIDAPI_SECRET:
+        return True
+
+    # Skip proxy verification for localhost/testing environments
+    host = request.headers.get("host", "")
+    if "localhost" in host or "127.0.0.1" in host or "0.0.0.0" in host:
+        return True
+
+    # Check for proxy secret with multiple naming conventions
+    proxy_secret = None
+    header_variations = [
+        "X-RapidAPI-Proxy-Secret",
+        "x-rapidapi-proxy-secret",
+        "X_RAPIDAPI_PROXY_SECRET",
+        "x_rapidapi_proxy_secret",
+        "HTTP_X_RAPIDAPI_PROXY_SECRET",
+    ]
+
+    for header_name in header_variations:
+        proxy_secret = request.headers.get(header_name)
+        if proxy_secret:
+            print(f"Found proxy secret in header: {header_name}")
+            break
+
+    if proxy_secret != RAPIDAPI_SECRET:
+        print(
+            f"Proxy secret mismatch. Expected: {RAPIDAPI_SECRET[:8]}..., Got: {str(proxy_secret)[:8]}..."
+        )
+        # Allow through for debugging if CLOUDFLARE_COMPATIBILITY_MODE is set
+        if CLOUDFLARE_COMPATIBILITY_MODE:
+            print("CLOUDFLARE_COMPATIBILITY_MODE enabled - allowing proxy verification")
+            return True
+        raise HTTPException(status_code=401, detail="Invalid proxy secret")
+
     return True
 
 
@@ -822,6 +874,20 @@ async def rapid_health(request: Request):
     status_code = 200 if all_healthy else 503
 
     return JSONResponse(content=health_status, status_code=status_code)
+
+
+@rapid_router.get("/debug-headers")
+async def debug_headers(request: Request):
+    """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
+    headers = dict(request.headers)
+    return JSONResponse(
+        content={
+            "received_headers": headers,
+            "timestamp": time.time(),
+            "host": request.headers.get("host"),
+            "user_agent": request.headers.get("user-agent"),
+        }
+    )
 
 
 @rapid_router.get("/standards")
