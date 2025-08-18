@@ -9,11 +9,9 @@ from fastapi.responses import Response, FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.security import APIKeyHeader
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from starlette.requests import Request
@@ -55,8 +53,8 @@ async def lifespan(app: FastAPI):
             print(f"Error initializing Google GenAI Client: {e}")
             embed_client = None  # Ensure it's None if init fails
 
-    # Initialize Qdrant Client
-    QDRANT_URL = "qdrant.classifast.com"
+    # Initialize Qdrant Client with connection pooling
+    QDRANT_URL = os.getenv("QDRANT_URL", "qdrant.classifast.com")
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     try:
         print("Connecting to Qdrant...")
@@ -187,25 +185,7 @@ async def lifespan(app: FastAPI):
             print(f"Error closing Qdrant client: {e}")
 
 
-app = FastAPI(
-    lifespan=lifespan,
-    title="Classifast API",
-    description="AI-powered product and service classification using multiple international standards (UNSPSC, ETIM, NAICS, ISIC, HS)",
-    version="1.0.0",
-    contact={
-        "name": "Classifast Support",
-        "email": "support@classifast.com",
-    },
-    license_info={
-        "name": "Commercial",
-    },
-    openapi_tags=[
-        {
-            "name": "rapidapi",
-            "description": "RapidAPI endpoints for programmatic access",
-        }
-    ],
-)
+app = FastAPI(lifespan=lifespan)
 
 
 # Performance monitoring middleware
@@ -260,28 +240,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "geolocation=(), microphone=(), camera=()"
         )
 
-        # CSP header - updated for your specific needs
+        # Cloudflare-optimized security headers
+        # Simplified CSP since Cloudflare handles most security
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
-            "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
-            "script-src-attr 'unsafe-inline'; "
-            "style-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
-            "style-src-elem 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
-            "style-src-attr 'unsafe-inline'; "
-            "img-src 'self' https://*.classifast.com data: https://www.googletagmanager.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "img-src 'self' data: https:; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "connect-src 'self' https://www.google-analytics.com https://www.googletagmanager.com https://static.cloudflareinsights.com; "
+            "connect-src 'self' https:; "
             "object-src 'none'; "
-            "base-uri 'self'; "
-            "form-action 'self'; "
             "frame-ancestors 'none'; "
-            "frame-src 'none'; "
-            "media-src 'none'; "
-            "manifest-src 'self'; "
-            "worker-src 'none'; "
             "upgrade-insecure-requests;"
         )
+
+        # Cloudflare-specific headers
+        response.headers["CF-Cache-Status"] = "DYNAMIC"
+        response.headers["CF-Ray"] = ""  # Will be populated by Cloudflare
         return response
 
 
@@ -744,9 +719,6 @@ rapid_router = APIRouter(
 )
 
 
-# ===== END RAPIDAPI INTEGRATION =====
-
-
 @rapid_router.get("/classify", response_model=RapidAPIResponse)
 @rapid_limiter.limit("5/minute")
 async def rapid_classify(
@@ -765,7 +737,7 @@ async def rapid_classify(
 
     This endpoint provides programmatic access to classification services via RapidAPI.
     """
-    print(f"🚀 RapidAPI classification request: {standard} - {query[:50]}...")
+    print(f"🚀 RapidAPI classification request: {standard} <- {query}")
 
     start_time = time.perf_counter()
 
@@ -833,10 +805,31 @@ async def rapid_standards(request: Request):
 @rapid_router.get("/debug-headers")
 async def debug_headers(request: Request):
     """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
+    # Only allow in development mode
+    if os.getenv("DEBUG_MODE", "false").lower() != "true":
+        raise HTTPException(status_code=404, detail="Debug endpoint not available")
+
+    # Sanitize sensitive headers
     headers = dict(request.headers)
+    sensitive_headers = {
+        "authorization",
+        "cookie",
+        "x-api-key",
+        "x-rapidapi-key",
+        "x-rapidapi-proxy-secret",
+    }
+
+    sanitized_headers = {}
+    for key, value in headers.items():
+        key_lower = key.lower()
+        if key_lower in sensitive_headers:
+            sanitized_headers[key] = "[REDACTED]"
+        else:
+            sanitized_headers[key] = value
+
     return JSONResponse(
         content={
-            "received_headers": headers,
+            "received_headers": sanitized_headers,
             "timestamp": time.time(),
             "host": request.headers.get("host"),
             "user_agent": request.headers.get("user-agent"),
@@ -880,6 +873,9 @@ async def rapid_health_public(request: Request):
     status_code = 200 if all_healthy else 503
 
     return JSONResponse(content=health_status, status_code=status_code)
+
+
+# ===== END RAPIDAPI INTEGRATION =====
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
@@ -939,6 +935,8 @@ async def show_classifier_page_with_query(
     decoded_search_query = ""
     if search_query and search_query.strip():
         decoded_search_query = unquote_plus(search_query).replace("-", " ")
+        # Sanitize the decoded query
+        decoded_search_query = re.sub(r'[<>&"\']', "", decoded_search_query)[:4000]
 
     # Use pre-cached results if the query matches the example or is empty (base URL)
     preloaded_data = None
@@ -958,6 +956,10 @@ async def show_classifier_page_with_query(
 
     # Slugify utility for SEO-friendly URLs
     def slugify(text):
+        if not text:
+            return ""
+        # Sanitize input: limit length and remove harmful characters
+        text = str(text)[:200]  # Limit to 200 chars max
         text = re.sub(r"[^\w\s-]", "", text.lower())
         text = re.sub(r"[-\s]+", "-", text)
         return text.strip("-")

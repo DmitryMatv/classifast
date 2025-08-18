@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from google import genai
 from google.genai import types
 from qdrant_client import AsyncQdrantClient, models
@@ -139,8 +140,6 @@ async def classify_string_batch(
 
         # Normalize embeddings based on Google's recommendations
         # 3072-dim embeddings are already normalized, others need normalization
-        import numpy as np
-
         query_embeddings_np = np.array(query_embeddings)
         if len(query_embeddings_np.shape) == 2:
             # Get actual embedding dimensions
