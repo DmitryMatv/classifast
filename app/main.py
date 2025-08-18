@@ -683,11 +683,6 @@ class RapidAPIError(BaseModel):
 RAPIDAPI_SECRET = os.getenv("RAPIDAPI_SECRET")
 RAPIDAPI_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
 
-# Cloudflare compatibility mode - set to "true" to skip proxy verification issues
-CLOUDFLARE_COMPATIBILITY_MODE = (
-    os.getenv("CLOUDFLARE_COMPATIBILITY_MODE", "false").lower() == "true"
-)
-
 
 # Separate limiter for RapidAPI endpoints
 rapid_limiter = Limiter(
@@ -697,64 +692,21 @@ rapid_limiter = Limiter(
 
 
 async def verify_rapidapi_key(request: Request) -> bool:
-    """Verify RapidAPI key from header with Cloudflare compatibility."""
-    # Allow proxy-only authentication - this function now just checks if API key exists
-    # but doesn't enforce it when proxy authentication is used
-    api_key = None
-    header_variations = [
-        "X-RapidAPI-Key",
-        "x-rapidapi-key",
-        "X_RAPIDAPI_KEY",
-        "x_rapidapi_key",
-        "HTTP_X_RAPIDAPI_KEY",  # Common in some proxies
-    ]
-
-    for header_name in header_variations:
-        api_key = request.headers.get(header_name)
-        if api_key:
-            print(f"Found API key in header: {header_name}")
-            return True  # API key provided - valid
-
-    # API key not provided - but this might be proxy-only authentication
-    # Let the proxy verification handle it
+    """Verify RapidAPI key from header."""
+    api_key = request.headers.get("X-RapidAPI-Key")
+    if api_key:
+        return True  # API key provided - valid
     return False
 
 
 async def verify_rapidapi_proxy(request: Request) -> bool:
-    """Verify RapidAPI proxy secret with Cloudflare compatibility."""
+    """Verify RapidAPI proxy secret."""
     if not RAPIDAPI_SECRET:
         return True
 
-    # Skip proxy verification for localhost/testing environments
-    host = request.headers.get("host", "")
-    if "localhost" in host or "127.0.0.1" in host or "0.0.0.0" in host:
-        return True
-
-    # Check for proxy secret with multiple naming conventions
-    proxy_secret = None
-    header_variations = [
-        "X-RapidAPI-Proxy-Secret",
-        "x-rapidapi-proxy-secret",
-        "X_RAPIDAPI_PROXY_SECRET",
-        "x_rapidapi_proxy_secret",
-        "HTTP_X_RAPIDAPI_PROXY_SECRET",
-        "x-mashape-proxy-secret",  # Alternative name used by RapidAPI
-    ]
-
-    for header_name in header_variations:
-        proxy_secret = request.headers.get(header_name)
-        if proxy_secret:
-            print(f"Found proxy secret in header: {header_name}")
-            break
+    proxy_secret = request.headers.get("X-RapidAPI-Proxy-Secret")
 
     if proxy_secret != RAPIDAPI_SECRET:
-        print(
-            f"Proxy secret mismatch. Expected: {RAPIDAPI_SECRET[:8]}..., Got: {str(proxy_secret)[:8]}..."
-        )
-        # Allow through for debugging if CLOUDFLARE_COMPATIBILITY_MODE is set
-        if CLOUDFLARE_COMPATIBILITY_MODE:
-            print("CLOUDFLARE_COMPATIBILITY_MODE enabled - allowing proxy verification")
-            return True
         raise HTTPException(status_code=401, detail="Invalid proxy secret")
 
     return True
@@ -861,10 +813,46 @@ async def rapid_classify(
         raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
 
 
-@rapid_router.get("/ping")
+@rapid_router.get("/standards")
 @rapid_limiter.limit("10/minute")
-async def rapid_health(request: Request):
-    """Health check endpoint for RapidAPI consumers."""
+async def rapid_standards(request: Request):
+    """List available classification standards and their versions."""
+    standards_info = {}
+
+    for standard_key, config in CLASSIFIER_CONFIG.items():
+        standards_info[standard_key] = {
+            "title": config["title"],
+            "description": config["description"],
+            "versions": list(config.get("versions", {}).keys()),
+            "example": config["example"].replace("Example:", "").strip(),
+        }
+
+    return JSONResponse(content={"standards": standards_info, "timestamp": time.time()})
+
+
+@rapid_router.get("/debug-headers")
+async def debug_headers(request: Request):
+    """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
+    headers = dict(request.headers)
+    return JSONResponse(
+        content={
+            "received_headers": headers,
+            "timestamp": time.time(),
+            "host": request.headers.get("host"),
+            "user_agent": request.headers.get("user-agent"),
+        }
+    )
+
+
+# Include the RapidAPI router
+app.include_router(rapid_router, prefix="/api/v1/rapid")  # is prefix needed here?
+
+
+# Public API health check endpoint (bypasses RapidAPI authentication)
+@app.get("/api/v1/rapid/ping")
+@rapid_limiter.limit("10/minute")
+async def rapid_health_public(request: Request):
+    """Public health check endpoint for RapidAPI consumers."""
     health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
 
     # Check embedding service
@@ -892,41 +880,6 @@ async def rapid_health(request: Request):
     status_code = 200 if all_healthy else 503
 
     return JSONResponse(content=health_status, status_code=status_code)
-
-
-@rapid_router.get("/debug-headers")
-async def debug_headers(request: Request):
-    """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
-    headers = dict(request.headers)
-    return JSONResponse(
-        content={
-            "received_headers": headers,
-            "timestamp": time.time(),
-            "host": request.headers.get("host"),
-            "user_agent": request.headers.get("user-agent"),
-        }
-    )
-
-
-@rapid_router.get("/standards")
-@rapid_limiter.limit("10/minute")
-async def rapid_standards(request: Request):
-    """List available classification standards and their versions."""
-    standards_info = {}
-
-    for standard_key, config in CLASSIFIER_CONFIG.items():
-        standards_info[standard_key] = {
-            "title": config["title"],
-            "description": config["description"],
-            "versions": list(config.get("versions", {}).keys()),
-            "example": config["example"].replace("Example:", "").strip(),
-        }
-
-    return JSONResponse(content={"standards": standards_info, "timestamp": time.time()})
-
-
-# Include the RapidAPI router
-app.include_router(rapid_router, prefix="/api/v1/rapid")  # is prefix needed here?
 
 
 @app.get("/{classifier_type}", response_class=HTMLResponse)
