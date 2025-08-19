@@ -662,7 +662,7 @@ RAPIDAPI_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
 # Separate limiter for RapidAPI endpoints
 rapid_limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["5/minute"],  # Stricter limits for external API
+    default_limits=["60/minute"],  # Stricter limits for external API
 )
 
 
@@ -720,7 +720,7 @@ rapid_router = APIRouter(
 
 
 @rapid_router.get("/classify", response_model=RapidAPIResponse)
-@rapid_limiter.limit("5/minute")
+@rapid_limiter.limit("600/minute")
 async def rapid_classify(
     request: Request,
     query: str = Query(..., description="Product or service description to classify"),
@@ -786,7 +786,7 @@ async def rapid_classify(
 
 
 @rapid_router.get("/standards")
-@rapid_limiter.limit("10/minute")
+@rapid_limiter.limit("600/minute")
 async def rapid_standards(request: Request):
     """List available classification standards and their versions."""
     standards_info = {}
@@ -843,7 +843,7 @@ app.include_router(rapid_router, prefix="/api/v1/rapid")  # is prefix needed her
 
 # Public API health check endpoint (bypasses RapidAPI authentication)
 @app.get("/api/v1/rapid/ping")
-@rapid_limiter.limit("10/minute")
+@rapid_limiter.limit("600/minute")
 async def rapid_health_public(request: Request):
     """Public health check endpoint for RapidAPI consumers."""
     health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
@@ -999,7 +999,7 @@ async def show_classifier_page_with_query(
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
-@limiter.limit("60/minute")  # Apply rate limit to this endpoint
+@limiter.limit("6/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request,
     classifier_type: str,
