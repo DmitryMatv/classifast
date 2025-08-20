@@ -67,7 +67,7 @@
     {% endif %}
     <meta property="og:url" content="https://classifast.com/{{ classifier_type }}">
     <meta property="og:site_name" content="classifast.com">
-    <meta property="og:image" content="{{ url_for('static', path='images/preview.png') }}">
+    <meta property="og:image" content="{{ url_for('static', path='images/preview_classifybox.png') }}">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="{{ classifier_type.upper() }} Automatic Classification">
@@ -86,7 +86,7 @@
     <meta name="twitter:description"
         content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
     {% endif %}
-    <meta name="twitter:image" content="{{ url_for('static', path='images/preview.png') }}">
+    <meta name="twitter:image" content="{{ url_for('static', path='images/preview_classifybox.png') }}">
     <meta name="twitter:creator" content="@DimonBitcoin">
 
     <!-- Google tag (gtag.js) -->
@@ -490,8 +490,6 @@
             <!-- Desktop Navigation -->
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
-                    <li><a href="{{ url_for('read_root') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">Home</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
@@ -502,6 +500,8 @@
                             class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">HS</a></li>
+                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast" target="_blank" rel="noopener"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a></li>
                     <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
                     <!-- <li><a href="#"
                             class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
@@ -520,9 +520,6 @@
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
-                <li><a href="{{ url_for('read_root') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">Home</a>
-                </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
                 </li>
@@ -537,6 +534,9 @@
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
+                </li>
+                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast" target="_blank" rel="noopener"
+                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
                 </li>
                 <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
@@ -933,13 +933,13 @@
                     <ul class="space-y-2">
                         <li><a href="{{ url_for('read_root') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Home</a></li>
+                        <li><a href="https://rapidapi.com/DmitryMatv/api/classifast" target="_blank" rel="noopener"
+                                class="text-gray-400 hover:text-white transition-colors">API on RapidAPI</a></li>
+                        <li><a href="https://github.com/DmitryMatv/classifast" target="_blank" rel="noopener"
+                                class="text-gray-400 hover:text-white transition-colors">Code on GitHub</a></li>
                         <li><a href="https://converter.classifast.com" target="_blank" rel="noopener"
                                 class="text-gray-400 hover:text-white transition-colors">
                                 BMEcat to ETIM xChange Converter</a></li>
-                        <li><a href="https://github.com/DmitryMatv/classifast" target="_blank" rel="noopener"
-                                class="text-gray-400 hover:text-white transition-colors">GitHub</a></li>
-                        <li><a href="https://github.com/DmitryMatv" target="_blank" rel="noopener"
-                                class="text-gray-400 hover:text-white transition-colors">About</a></li>
                     </ul>
                 </div>
             </div>
