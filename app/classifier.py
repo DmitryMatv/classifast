@@ -156,40 +156,92 @@ async def classify_string_batch(
         else:
             query_embeddings = query_embeddings_np.tolist()
 
-        # 2. Prepare Batch Query Requests for Qdrant using models.QueryRequest
-        query_requests = [
-            models.QueryRequest(
-                query=embedding,  # Pass the embedding vector as the 'query'
-                limit=top_k,
-                with_payload=True,  # To get the original data back
-                # with_vectors=False,  # Usually not needed in the response
+        # 2. Check if collection has quantization enabled
+        try:
+            collection_info = await qdrant_client.get_collection(collection_name)
+            has_quantization = collection_info.config.quantization_config is not None
+            print(
+                f"Collection '{collection_name}' quantization enabled: {has_quantization}"
             )
-            for embedding in query_embeddings
-        ]
+        except Exception as e:
+            print(
+                f"Warning: Could not check collection configuration for '{collection_name}': {e}"
+            )
+            has_quantization = False
 
-        # 3. Execute the Batch Search Query
-        print(
-            f"Querying collection '{collection_name}' with a batch of {len(query_requests)} requests..."
-        )
-        batch_results = await qdrant_client.query_batch_points(
-            collection_name=collection_name,
-            requests=query_requests,
-            # consistency=models.ReadConsistencyType.MAJORITY, # Optional: Adjust consistency
-        )
+        # 3. Prepare Search Parameters conditionally based on quantization
+        if has_quantization:
+            search_params = models.SearchParams(
+                quantization=models.QuantizationSearchParams(
+                    ignore=False,  # Enable quantization
+                    rescore=True,  # Enable rescoring for better accuracy
+                    oversampling=2.0,  # Oversampling factor for improved recall
+                )
+            )
+            print(
+                f"Using quantization search parameters (rescore=True, oversampling=2.0)"
+            )
+        else:
+            search_params = None  # Use default search parameters
+            print(f"Using default search parameters (no quantization)")
 
-        # 4. Process and Format Batch Results from QueryResponse objects
+        # 4. Execute Individual Search Queries with appropriate parameters
+        search_type = "quantized" if has_quantization else "standard"
+
+        # Calculate internal top_k for better rescore/oversampling accuracy
+        if has_quantization:
+            internal_top_k = max(
+                100, top_k * 2
+            )  # Ensure sufficient candidates for rescore
+            print(
+                f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})..."
+                f" Internal top_k: {internal_top_k}, User top_k: {top_k}"
+            )
+        else:
+            internal_top_k = top_k
+            print(
+                f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})..."
+            )
+
+        # Use individual searches with conditional parameters
+        batch_results = []
+        for embedding in query_embeddings:
+            if isinstance(embedding, list) and len(embedding) > 0:
+                search_kwargs = {
+                    "collection_name": collection_name,
+                    "query_vector": embedding,
+                    "query_filter": None,  # No additional filters
+                    "limit": internal_top_k,
+                    "with_payload": True,
+                    "with_vectors": False,  # Usually not needed in the response
+                }
+
+                # Only add search_params if quantization is enabled
+                if has_quantization:
+                    search_kwargs["search_params"] = search_params
+
+                search_result = await qdrant_client.search(**search_kwargs)
+                batch_results.append(search_result)
+            else:
+                # Handle edge case: empty or invalid embedding
+                batch_results.append([])
+
+        # 4. Process and Format Search Results from individual searches
         all_formatted_results = []
-        # Iterate through the list of QueryResponse objects
-        for response in batch_results:
-            # Access the list of ScoredPoint objects via the .points attribute
+        # Iterate through the list of search results (each is a list of ScoredPoint)
+        for search_result in batch_results:
             formatted_hits = [
                 {
                     "score": hit.score,
                     "payload": hit.payload,  # Return the whole payload
                 }
-                # Iterate through the points within *this* response object
-                for hit in response.points
+                for hit in search_result  # search_result is already a list of ScoredPoint
             ]
+
+            # Filter to user-requested top_k when quantization is enabled
+            if has_quantization:
+                formatted_hits = formatted_hits[:top_k]
+
             all_formatted_results.append(formatted_hits)
             # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
 
