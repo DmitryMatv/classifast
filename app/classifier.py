@@ -172,11 +172,13 @@ async def classify_string_batch(
         # 3. Prepare Search Parameters conditionally based on quantization
         if has_quantization:
             search_params = models.SearchParams(
+                hnsw_ef=128,
+                exact=False,  # Ensure ANN index is used
                 quantization=models.QuantizationSearchParams(
                     ignore=False,  # Enable quantization
                     rescore=True,  # Enable rescoring for better accuracy
                     oversampling=2.0,  # Oversampling factor for improved recall
-                )
+                ),
             )
             print(
                 f"Using quantization search parameters (rescore=True, oversampling=2.0)"

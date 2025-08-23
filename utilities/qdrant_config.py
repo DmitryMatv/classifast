@@ -1,0 +1,69 @@
+import os
+from dotenv import load_dotenv
+from qdrant_client import QdrantClient, models
+
+load_dotenv()
+QDRANT_REMOTE_URL = os.getenv("QDRANT_URL")
+QDRANT_REMOTE_API_KEY = os.getenv("QDRANT_API_KEY")
+
+# Your existing client setup
+client = QdrantClient(
+    host=QDRANT_REMOTE_URL,
+    port=443,
+    api_key=QDRANT_REMOTE_API_KEY,
+    https=True,
+    prefer_grpc=False,
+    timeout=60,
+)
+
+# --- Add the code below ---
+
+# Define your collection name
+COLLECTION_NAME = (
+    "UNSPSC_UNv260801-1-eng_new001-3072_v1"  # <--- IMPORTANT: Change this!
+)
+
+# 1. & 2. Update Quantization and HNSW Config
+# This operation tells Qdrant to update the collection's configuration.
+# It will start a background process to re-index all the vectors.
+# This might take a while depending on the size of your collection.
+print(f"Updating configuration for collection: {COLLECTION_NAME}")
+
+client.update_collection(
+    collection_name=COLLECTION_NAME,
+    # HNSW config: Increase m to 16 and ef_construct to 100
+    hnsw_config=models.HnswConfigDiff(m=16, ef_construct=100),
+    # Quantization config: Change to binary quantization with always_ram
+    quantization_config=models.BinaryQuantization(
+        binary=models.BinaryQuantizationConfig(always_ram=True),
+    ),
+)
+
+print("Collection configuration update initiated successfully.")
+print("Please monitor the collection status. Re-indexing may take some time.")
+
+# 3. Set hnsw_ef at Search Time
+# hnsw_ef is NOT a collection parameter. It's a search parameter.
+# You provide it with each search request to balance speed and accuracy.
+
+print("\n--- Example of how to set hnsw_ef during a search ---")
+
+# A placeholder for your 3072-dimensional query vector
+query_vector = [0.1] * 3072
+
+# A reasonable starting value for hnsw_ef is 128.
+# You can increase it for higher accuracy or decrease it for faster searches.
+search_params = models.SearchParams(
+    hnsw_ef=128, exact=False  # Ensure ANN index is used
+)
+
+# Perform the search with the specified search parameters
+search_result = client.search(
+    collection_name=COLLECTION_NAME,
+    query_vector=query_vector,
+    search_params=search_params,
+    limit=10,  # How many results to return
+)
+
+print("\nExample search results:")
+print(search_result)

@@ -515,10 +515,10 @@ Mounting: DIN rail""",
         "description": "Is this really necessary here?",
         "example": "Example: Electric motor",
         "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 768,
+        "embed_dims": 3072,
         "versions": {
             "Old UNSPSC collection (text-embedding-004, 768)": {
-                "collection_name": "UNSPSC_UNv260801-1-eng_new001-768_v8",
+                "collection_name": "UNSPSC_UNv260801-1-eng_new001-3072_v1",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
