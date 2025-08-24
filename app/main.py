@@ -451,11 +451,11 @@ Mounting: DIN rail""",
         "heading": "Get right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
         "example": "Example: Office supplies",
-        "embed_model_name": "text-embedding-004",
-        "embed_dims": 768,
+        "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 3072,
         "versions": {
-            "UNSPSC UNv260801 (August 14, 2023)": {
-                "collection_name": "UNSPSC_eng_UNv260801-1_768",
+            "UNSPSC UNv260801.1 (18 March 2025)": {
+                "collection_name": "UNSPSC_UNv260801-1-eng_new001-3072_v1",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
@@ -514,11 +514,11 @@ Mounting: DIN rail""",
         "heading": "Get codes for your goods",
         "description": "Is this really necessary here?",
         "example": "Example: Electric motor",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
+        "embed_model_name": "text-embedding-004",
+        "embed_dims": 768,
         "versions": {
             "Old UNSPSC collection (text-embedding-004, 768)": {
-                "collection_name": "UNSPSC_UNv260801-1-eng_new001-3072_v1",
+                "collection_name": "UNSPSC_eng_UNv260801-1_768",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
@@ -530,7 +530,7 @@ async def perform_classification(
     query: str,
     classifier_type: str,
     version: Optional[str] = None,
-    top_k: int = 5,
+    top_k: int = 3,
 ) -> Dict[str, Any]:
     """
     Shared classification service that handles all common logic between web form and API endpoints.
@@ -727,7 +727,7 @@ async def rapid_classify(
     standard: str = Query(
         ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
     ),
-    top_k: int = Query(5, ge=1, le=100, description="Number of results to return"),
+    top_k: int = Query(3, ge=1, le=100, description="Number of results to return"),
     version: Optional[str] = Query(
         None, description="Specific version of the standard to use"
     ),
@@ -924,8 +924,8 @@ async def show_classifier_page_with_query(
         return Response(headers=headers)
 
     # Validate top_k parameter
-    if top_k < 1 or top_k > 30:
-        top_k = 5
+    if top_k < 1 or top_k > 100:
+        top_k = 3
 
     # Get first version for default handling
     versions_list = list(config.get("versions", {}).keys())

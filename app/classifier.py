@@ -89,7 +89,7 @@ async def classify_string_batch(
     query_texts: List[str],
     collection_name: str,
     embed_dims: Optional[int] = None,
-    top_k: int = 5,
+    top_k: int = 3,
 ) -> List[List[Dict[str, Any]]]:
     """
     Takes a list of string inputs, gets their embeddings in a batch,
@@ -138,23 +138,8 @@ async def classify_string_batch(
             # Or return [] for complete failure? Let's return [] for simplicity here.
             return []
 
-        # Normalize embeddings based on Google's recommendations
-        # 3072-dim embeddings are already normalized, others need normalization
         query_embeddings_np = np.array(query_embeddings)
-        if len(query_embeddings_np.shape) == 2:
-            # Get actual embedding dimensions
-            actual_dims = query_embeddings_np.shape[1]
-
-            # Normalize all embeddings except 3072-dim (which are already normalized)
-            if actual_dims != 3072:
-                norms = np.linalg.norm(query_embeddings_np, axis=1, keepdims=True)
-                norms = np.where(norms == 0, 1e-9, norms)
-                query_embeddings = (query_embeddings_np / norms).tolist()
-            else:
-                # 3072-dim embeddings are already normalized by Google
-                query_embeddings = query_embeddings_np.tolist()
-        else:
-            query_embeddings = query_embeddings_np.tolist()
+        query_embeddings = query_embeddings_np.tolist()
 
         # 2. Check if collection has quantization enabled
         try:
