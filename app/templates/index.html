@@ -281,15 +281,8 @@
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
                     <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">CN</a></li>
-                    <li><a href="{{ url_for('read_root') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">Other</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API on RapidAPI</a>
+                    </li>
                 </ul>
             </nav>
 
@@ -305,7 +298,7 @@
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
                 <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API on RapidAPI</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
@@ -522,18 +515,18 @@
                     <ul class="space-y-2">
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                                 class="text-gray-400 hover:text-white transition-colors">UNSPSC Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                                class="text-gray-400 hover:text-white transition-colors">ETIM Classification</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                                 class="text-gray-400 hover:text-white transition-colors">NAICS Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                                class="text-gray-400 hover:text-white transition-colors">ISIC Classification</a></li>
+                                class="text-gray-400 hover:text-white transition-colors">ISIC Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                                class="text-gray-400 hover:text-white transition-colors">ETIM Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                                 class="text-gray-400 hover:text-white transition-colors">HS Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                                 class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
-                                class="text-gray-400 hover:text-white transition-colors">NACE Classification</a></li>
+                                class="text-gray-400 hover:text-white transition-colors">NACE Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
                                 class="text-gray-400 hover:text-white transition-colors">CPV Codes</a></li>
                     </ul>
@@ -542,8 +535,6 @@
                 <div>
                     <h4 class="text-lg font-semibold mb-4">Resources</h4>
                     <ul class="space-y-2">
-                        <li><a href="{{ url_for('read_root') }}"
-                                class="text-gray-400 hover:text-white transition-colors">Home</a></li>
                         <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
                                 class="text-gray-400 hover:text-white transition-colors">API on RapidAPI</a></li>
                         <li><a href="https://github.com/DmitryMatv/classifast" target="_blank" rel="noopener"
