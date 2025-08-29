@@ -490,18 +490,16 @@
             <!-- Desktop Navigation -->
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a></li>
+                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">HS</a></li>
-                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors">CN</a></li>
+                    <li><a href="{{ url_for('read_root') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors">Other</a></li>
                     <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
                     <!-- <li><a href="#"
                             class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
@@ -520,8 +518,8 @@
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
+                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
+                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
@@ -529,14 +527,23 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
                 </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">CN</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
+                </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
                 </li>
-                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">NACE</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">CPV</a>
                 </li>
                 <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
@@ -569,7 +576,7 @@
                 {% if versions %}
                 <div class="flex items-center justify-start">
                     <select name="version" id="version_selector"
-                        class="border border-gray-400 rounded-md text-left px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2">
+                        class="border border-gray-400 rounded-md text-left px-2 py-2">
                         {% for v in versions %}
                         <option value="{{ v }}">{{ v }}</option>
                         {% endfor %}
@@ -579,7 +586,7 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" autofocus
-                    class="w-full p-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 min-h-[80px] h-[120px] max-h-[800px] resize-y"></textarea>
+                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[120px] max-h-[800px] resize-y"></textarea>
 
                 <script>
                     // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
@@ -612,7 +619,7 @@
                 <div class="flex justify-between items-center">
                     <div class="flex justify-start items-center space-x-4">
                         <button type="submit"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2 transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             {% if classifier_type == 'unspsc' %}
                             Classify
                             {% elif classifier_type == 'etim' %}
@@ -622,7 +629,7 @@
                             {% endif %}
                         </button>
                         <select name="top_k" id="show_top_k_categories"
-                            class="h-[40px] text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2 focus:outline-none focus:ring-2 focus:ring-sky-600 focus:ring-offset-2">
+                            class="h-[40px] text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2">
                             <option value="3">Top 3</option>
                             <option value="5" selected>Top 5</option>
                             <option value="10">Top 10</option>
@@ -845,6 +852,124 @@
         </section>
         {% endif %}
 
+        {% if classifier_type == 'cn' %}
+        <section id="cn-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Combined Nomenclature (CN) Code Guide</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">EU Customs & Trade Applications</h3>
+                    <p class="text-gray-600 mb-2">CN codes are essential for European Union trade:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• EU customs declarations and tariff schedules</li>
+                        <li>• Import/export duty calculation within EU</li>
+                        <li>• Intrastat reporting for intra-EU trade</li>
+                        <li>• Common Customs Tariff (CCT) compliance</li>
+                        <li>• TARIC system integration</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Structure & Hierarchy</h3>
+                    <p class="text-gray-600 mb-2">CN extends HS codes with EU-specific details:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• 8-digit EU extension of 6-digit HS codes</li>
+                        <li>• Annual updates aligned with EU trade policy</li>
+                        <li>• Chapter (2 digits), heading (4 digits), subheading (6 digits)</li>
+                        <li>• CN subheadings (8 digits) for EU-specific needs</li>
+                        <li>• TARIC codes (10 digits) for additional measures</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">European Union Implementation</h3>
+                <p class="text-gray-600">CN is mandatory for all EU member states and serves as the legal basis for
+                    customs tariffs and trade statistics across the European Union. It provides the common language for
+                    customs procedures and ensures consistent classification throughout the single market.</p>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if classifier_type == 'nace' %}
+        <section id="nace-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">NACE: EU Economic Activity Classification</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">EU Statistical Framework</h3>
+                    <p class="text-gray-600 mb-2">NACE is the statistical classification of economic activities in the
+                        EU:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• European statistical system foundation</li>
+                        <li>• National accounts and GDP calculations</li>
+                        <li>• Business registers and company surveys</li>
+                        <li>• Employment and labor market statistics</li>
+                        <li>• Structural business statistics (SBS)</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Harmonized EU Standards</h3>
+                    <p class="text-gray-600 mb-2">NACE ensures consistency across EU member states:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• Compatible with ISIC Rev.4 international standard</li>
+                        <li>• 4-level hierarchical structure (21 sections)</li>
+                        <li>• Regular updates every 5-10 years</li>
+                        <li>• Multilingual implementation across EU</li>
+                        <li>• Cross-country economic comparisons</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Business & Policy Applications</h3>
+                <p class="text-gray-600">NACE codes are used by Eurostat, national statistical institutes, and EU
+                    policymakers for economic analysis, regional development planning, and monitoring of economic
+                    performance across different sectors and regions.</p>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if classifier_type == 'cpv' %}
+        <section id="cpv-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">CPV: Common Procurement Vocabulary Guide</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">EU Public Procurement</h3>
+                    <p class="text-gray-600 mb-2">CPV is essential for EU public procurement:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• EU public procurement directives</li>
+                        <li>• TED (Tenders Electronic Daily) system</li>
+                        <li>• e-Procurement platforms across EU</li>
+                        <li>• Contract award notices and tender documents</li>
+                        <li>• Procurement statistics and market analysis</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Structure & Classification</h3>
+                    <p class="text-gray-600 mb-2">CPV provides comprehensive procurement categories:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• 9-digit hierarchical code structure</li>
+                        <li>• Main vocabulary with 45,000+ categories</li>
+                        <li>• Supplementary vocabulary for specialized needs</li>
+                        <li>• Divisions, groups, classes, and categories</li>
+                        <li>• Multilingual EU-wide standardization</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Transparency & Competition</h3>
+                <p class="text-gray-600">CPV enables transparent and competitive public procurement across the European
+                    Union, facilitating cross-border tendering and ensuring equal access to public contracts for all EU
+                    businesses.</p>
+            </div>
+        </section>
+        {% endif %}
+
         <!-- Cross-standard comparison section for enhanced internal linking -->
         <section id="comparison-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
             <h2 class="hidden text-xl font-bold text-gray-800 mb-4">Other Classification Standards</h2>
@@ -899,6 +1024,35 @@
                     </p>
                 </div>
                 {% endif %}
+
+                {% if classifier_type != 'cn' %}
+                <div class="border border-gray-200 rounded-lg p-3">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                            class="text-sky-600 hover:underline">CN</a></h3>
+                    <p class="text-gray-600">EU Combined Nomenclature for customs and trade within the European Union.
+                    </p>
+                </div>
+                {% endif %}
+
+                {% if classifier_type != 'nace' %}
+                <div class="border border-gray-200 rounded-lg p-3">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                            class="text-sky-600 hover:underline">NACE</a></h3>
+                    <p class="text-gray-600">EU statistical classification of economic activities for business
+                        statistics.</p>
+                </div>
+                {% endif %}
+
+                {% if classifier_type != 'cpv' %}
+                <div class="border border-gray-200 rounded-lg p-3">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                            class="text-sky-600 hover:underline">CPV</a></h3>
+                    <p class="text-gray-600">Common Procurement Vocabulary for EU public procurement and tenders.</p>
+                </div>
+                {% endif %}
             </div>
         </section>
     </main>
@@ -926,6 +1080,12 @@
                                 class="text-gray-400 hover:text-white transition-colors">ISIC Classification</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                                 class="text-gray-400 hover:text-white transition-colors">HS Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                                class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                                class="text-gray-400 hover:text-white transition-colors">NACE Classification</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                                class="text-gray-400 hover:text-white transition-colors">CPV Codes</a></li>
                     </ul>
                 </div>
 

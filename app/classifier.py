@@ -157,7 +157,7 @@ async def classify_string_batch(
         # 3. Prepare Search Parameters conditionally based on quantization
         if has_quantization:
             search_params = models.SearchParams(
-                hnsw_ef=128,
+                hnsw_ef=64,
                 exact=False,  # Ensure ANN index is used
                 quantization=models.QuantizationSearchParams(
                     ignore=False,  # Enable quantization
@@ -178,7 +178,7 @@ async def classify_string_batch(
         # Calculate internal top_k for better rescore/oversampling accuracy
         if has_quantization:
             internal_top_k = max(
-                100, top_k * 2
+                50, top_k * 2
             )  # Ensure sufficient candidates for rescore
             print(
                 f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})..."

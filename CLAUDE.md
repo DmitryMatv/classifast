@@ -19,6 +19,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Input CSS: `app/static/css/input.css`
 - Output CSS: `app/static/css/styles.css`
 
+### Testing & Debugging
+- **Health check**: `curl http://localhost:8001/health`
+- **Manual classification test**: Use the web interface or POST to `/{classifier_type}` endpoints
+- **Check Qdrant collections**: Use utilities in `utilities/qdrant_config.py`
+
 ## Architecture Overview
 
 ### Core Application Structure

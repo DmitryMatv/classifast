@@ -509,6 +509,45 @@ Mounting: DIN rail""",
             },
         },
     },
+    "cn": {
+        "title": "CN Classification & Code Lookup",
+        "heading": "Get CN codes for EU customs and trade",
+        "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
+        "example": "Example: Stainless steel sheets, 304 grade, 2mm thickness",
+        "embed_model_name": "gemini-embedding-001",
+        "versions": {
+            "CN 2025": {
+                "collection_name": "CN2025_v2",
+                "base_url": "https://www.tariffnumber.com/2025/",
+            },
+        },
+    },
+    "nace": {
+        "title": "NACE Business Activity Classification",
+        "heading": "Classify economic activities with EU's NACE standard",
+        "description": "NACE (Nomenclature statistique des activités économiques) is the European Union's statistical classification of economic activities, developed by Eurostat to ensure harmonized economic analysis across all EU member states. This comprehensive framework enables consistent business registration, national accounts compilation, employment statistics, and cross-country economic comparisons, serving as the foundation for EU policy-making, regional development planning, and structural business statistics.",
+        "example": "Example: Software development and programming activities",
+        "embed_model_name": "gemini-embedding-001",
+        "versions": {
+            "NACE Rev. 2.1": {
+                "collection_name": "NACErev2-1_v1",
+                # "base_url": "https://www.tariffnumber.com/2025/",
+            },
+        },
+    },
+    "cpv": {
+        "title": "CPV Public Procurement Classification",
+        "heading": "Find CPV codes for EU public procurement",
+        "description": "The Common Procurement Vocabulary (CPV) is the European Union's standardized classification system for public procurement, established to ensure transparency and equal access to public contracts across the single market. This 9-digit hierarchical code structure is mandatory for all EU public procurement procedures, enabling consistent tender documentation, contract award notices in the TED system, and comprehensive market analysis while facilitating cross-border bidding and ensuring compliance with EU procurement directives.",
+        "example": "Example: Computer software development services",
+        "embed_model_name": "gemini-embedding-001",
+        "versions": {
+            "CPV 2008 (ver. 2013)": {
+                "collection_name": "cpv_2008_ver_2013_v2",
+                # "base_url": "https://www.tariffnumber.com/2025/",
+            },
+        },
+    },
     "test": {
         "title": "Embedding Test Classifier",
         "heading": "Get codes for your goods",

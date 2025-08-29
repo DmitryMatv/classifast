@@ -280,22 +280,16 @@
             <!-- Desktop Navigation -->
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a></li>
+                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors">HS</a></li>
-                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a></li>
-                    <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
-                    <!-- <li><a href="#"
-                            class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
-                            Get Started</a></li> -->
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors">CN</a></li>
+                    <li><a href="{{ url_for('read_root') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors">Other</a></li>
                 </ul>
             </nav>
 
@@ -310,8 +304,8 @@
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
+                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
+                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
@@ -319,14 +313,23 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
                 </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">CN</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
+                </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
                 </li>
-                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">NACE</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">CPV</a>
                 </li>
                 <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
@@ -350,11 +353,11 @@
                     <h1 class="text-5xl md:text-6xl font-bold text-gray-800">
                         From any description<br>to category code
                     </h1>
-                    <p class="text-5xl md:text-6xl font-bold text-sky-600 mb-10">in 1 second.</p>
+                    <p class="text-5xl md:text-6xl font-bold text-sky-600 mb-10">in 1 second</p>
                     <p class="text-xl text-gray-600 mb-10 max-w-3xl mx-auto">
                         Classify anything, instantly, and with state-of-the-art accuracy.
                     </p>
-                    <div class="flex flex-wrap justify-center gap-4 max-w-2xl mx-auto">
+                    <div class="flex flex-wrap justify-center gap-4 max-w-3xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             ETIM
@@ -374,6 +377,18 @@
                         <a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             HS
+                        </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            CN
+                        </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            NACE
+                        </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            CPV
                         </a>
                     </div>
                 </div>
@@ -515,6 +530,12 @@
                                 class="text-gray-400 hover:text-white transition-colors">ISIC Classification</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                                 class="text-gray-400 hover:text-white transition-colors">HS Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                                class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                                class="text-gray-400 hover:text-white transition-colors">NACE Classification</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                                class="text-gray-400 hover:text-white transition-colors">CPV Codes</a></li>
                     </ul>
                 </div>
 
