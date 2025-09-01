@@ -491,7 +491,8 @@
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
                     <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API on RapidAPI</a></li>
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
+                    </li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
@@ -519,7 +520,7 @@
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
                 <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API on RapidAPI</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
@@ -586,8 +587,7 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" autofocus
-                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[120px] max-h-[800px] resize-y focus:outline-none">
-                </textarea>
+                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[120px] max-h-[800px] resize-y focus:outline-none"></textarea>
 
                 <script>
                     // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
@@ -1075,31 +1075,31 @@
                                 class="text-gray-400 hover:text-white transition-colors">UNSPSC Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                                 class="text-gray-400 hover:text-white transition-colors">NAICS Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                                class="text-gray-400 hover:text-white transition-colors">ISIC Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                                class="text-gray-400 hover:text-white transition-colors">ETIM Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                                class="text-gray-400 hover:text-white transition-colors">HS Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
-                                class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
                                 class="text-gray-400 hover:text-white transition-colors">NACE Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                                class="text-gray-400 hover:text-white transition-colors">ETIM Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                                class="text-gray-400 hover:text-white transition-colors">ISIC Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
                                 class="text-gray-400 hover:text-white transition-colors">CPV Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                                class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
+                                class="text-gray-400 hover:text-white transition-colors">HS Codes</a></li>
                     </ul>
                 </div>
 
                 <div>
                     <h4 class="text-lg font-semibold mb-4">Resources</h4>
                     <ul class="space-y-2">
-                        <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                                class="text-gray-400 hover:text-white transition-colors">API on RapidAPI</a></li>
                         <li><a href="https://github.com/DmitryMatv/classifast" target="_blank" rel="noopener"
                                 class="text-gray-400 hover:text-white transition-colors">Code on GitHub</a></li>
+                        <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
+                                class="text-gray-400 hover:text-white transition-colors">API on RapidAPI</a></li>
                         <li><a href="https://converter.classifast.com" target="_blank" rel="noopener"
                                 class="text-gray-400 hover:text-white transition-colors">
-                                BMEcat to ETIM xChange Converter</a></li>
+                                BMEcat to xChange Converter</a></li>
                     </ul>
                 </div>
             </div>
