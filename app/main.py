@@ -546,6 +546,10 @@ Mounting: DIN rail""",
                 "collection_name": "cpv_2008_ver_2013_v3",
                 # "base_url": "https://www.tariffnumber.com/2025/",
             },
+            "CPV 2008 Supplementary codes": {
+                "collection_name": "cpv_2008_ver_2013_Supplementary_codes_v2",
+                # "base_url": "https://www.tariffnumber.com/2025/",
+            },
         },
     },
     "test": {
