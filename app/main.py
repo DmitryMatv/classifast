@@ -356,11 +356,11 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 app.state.limiter = limiter
 
 
-async def custom_rate_limit_exceeded_handler(_request, exc: Exception):
+async def custom_rate_limit_exceeded_handler(request, exc: Exception):
     if isinstance(exc, RateLimitExceeded):
-        return HTMLResponse(
-            content="<p>Rate limit exceeded. Please try again later.</p>",
-            status_code=429,
+        templates = Jinja2Templates(directory="app/templates")
+        return templates.TemplateResponse(
+            "rate_limit_warning.html", {"request": request}, status_code=429
         )
     return HTMLResponse(content="Internal Server Error", status_code=500)
 
@@ -617,22 +617,23 @@ async def perform_classification(
             detail="Backend services not available. Please check server logs.",
         )
 
-    # Validate query
-    if not query or not query.strip():
+    # Validate and normalize query
+    normalized_query = query.strip()
+    if not normalized_query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-    if len(query) > 4000:
+    if len(normalized_query) > 4000:
         raise HTTPException(
             status_code=400, detail="Query too long (max 4000 characters)"
         )
 
     try:
-        # Perform classification
+        # Perform classification with normalized query
         results_for_single_query = await classify_string_batch(
             qdrant_client=qdrant_client,
             embed_client=embed_client,
             embed_model_name=embed_model_name,
-            query_texts=[query],
+            query_texts=[normalized_query],
             collection_name=collection_name,
             embed_dims=config.get("embed_dims"),
             top_k=top_k,
@@ -648,7 +649,7 @@ async def perform_classification(
             "version_name": version_name,
             "version_config": version_config,
             "config": config,
-            "query": query,
+            "query": normalized_query,
         }
 
     except Exception as e:
@@ -780,14 +781,15 @@ async def rapid_classify(
 
     This endpoint provides programmatic access to classification services via RapidAPI.
     """
-    print(f"🚀 RapidAPI classification request: {standard} <- {query}")
+    normalized_query = query.strip()
+    print(f"🚀 RapidAPI classification request: {standard} <- {normalized_query}")
 
     start_time = time.perf_counter()
 
     try:
         # Use shared classification service
         result = await perform_classification(
-            query=query,
+            query=normalized_query,
             classifier_type=standard,
             version=version,
             top_k=top_k or 1,
@@ -813,7 +815,7 @@ async def rapid_classify(
         processing_time = time.perf_counter() - start_time
 
         return RapidAPIResponse(
-            query=query,
+            query=normalized_query,
             standard=standard.lower(),
             version=result["version_name"],
             results=formatted_results,
@@ -977,15 +979,17 @@ async def show_classifier_page_with_query(
     # Handle empty search query for base URLs
     decoded_search_query = ""
     if search_query and search_query.strip():
-        decoded_search_query = unquote_plus(search_query).replace("-", " ")
+        decoded_search_query = unquote_plus(search_query).replace("-", " ").strip()
         # Sanitize the decoded query
-        decoded_search_query = re.sub(r'[<>&"\']', "", decoded_search_query)[:4000]
+        decoded_search_query = re.sub(r'[<>&"\']', "", decoded_search_query)[
+            :4000
+        ].strip()
 
     # Use pre-cached results if the query matches the example or is empty (base URL)
     preloaded_data = None
     example_text = config.get("example", "").replace("Example:", "").strip()
 
-    if not decoded_search_query.strip() or decoded_search_query.strip() == example_text:
+    if not decoded_search_query or decoded_search_query == example_text:
         preloaded_data = PRELOADED_RESULTS_CACHE.get(classifier_type)
 
     if not preloaded_data:
@@ -1042,7 +1046,7 @@ async def show_classifier_page_with_query(
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
-@limiter.limit("6/minute")  # Apply rate limit to this endpoint
+@limiter.limit("2/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request,
     classifier_type: str,
@@ -1060,7 +1064,8 @@ async def handle_classify(
     )
 
     # Handle empty query gracefully
-    if not product_description or not product_description.strip():
+    normalized_description = product_description.strip()
+    if not normalized_description:
         return templates.TemplateResponse(
             "results.html",
             {
@@ -1075,7 +1080,7 @@ async def handle_classify(
     try:
         # Use shared classification service
         result = await perform_classification(
-            query=product_description,
+            query=normalized_description,
             classifier_type=classifier_type,
             version=version,
             top_k=top_k,

@@ -1287,6 +1287,28 @@
             }
         });
 
+        // Handle rate limit responses (429 status)
+        document.body.addEventListener('htmx:responseError', function (evt) {
+            if (evt.detail.xhr.status === 429) {
+                // Rate limit reached - display the warning
+                if (evt.detail.target.id === 'results-container') {
+                    evt.detail.target.innerHTML = evt.detail.xhr.response;
+
+                    // Ensure results section is visible
+                    var resultsSection = document.getElementById('results-section');
+                    if (resultsSection) {
+                        resultsSection.classList.remove('hidden');
+                    }
+
+                    // Stop the loading indicator
+                    var loadingIndicator = document.getElementById('loading-indicator');
+                    if (loadingIndicator) {
+                        loadingIndicator.classList.add('htmx-indicator');
+                    }
+                }
+            }
+        });
+
         // Update URL parameters when form is submitted via HTMX
         document.body.addEventListener('htmx:beforeRequest', function (evt) {
             if (evt.detail.elt.tagName === 'FORM' && evt.detail.elt.getAttribute('hx-post')) {
