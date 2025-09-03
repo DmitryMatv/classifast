@@ -1046,7 +1046,7 @@ async def show_classifier_page_with_query(
 
 
 @app.post("/{classifier_type}", response_class=HTMLResponse)
-@limiter.limit("2/minute")  # Apply rate limit to this endpoint
+@limiter.limit("20/minute")  # Apply rate limit to this endpoint
 async def handle_classify(
     request: Request,
     classifier_type: str,
