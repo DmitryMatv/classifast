@@ -552,6 +552,19 @@ Mounting: DIN rail""",
             },
         },
     },
+    "nsn": {
+        "title": "NATO Stock Number (NSN) Classification",
+        "heading": "Find NSN codes for military procurement",
+        "description": "The Nato Supply Number (13 digits) consists of material group, material class, country code, and NIIN (National Item Identification Number). The NSN is a unique identifier for items of supply recognized by all NATO countries. The NSN is used to identify and manage supplies, ensuring that all member nations can effectively procure and utilize military equipment and materials. This classification system facilitates logistics, inventory management, and standardization across NATO forces.",
+        "example": "Example: 1000W 120V AC power supply",
+        "embed_model_name": "gemini-embedding-001",
+        "versions": {
+            "NSN extract (February 22, 2023)": {
+                "collection_name": "nsn-extract-2-21-23_v3",
+                # "base_url": "https://www.tariffnumber.com/2025/",
+            },
+        },
+    },
     "test": {
         "title": "Embedding Test Classifier",
         "heading": "Get codes for your goods",
