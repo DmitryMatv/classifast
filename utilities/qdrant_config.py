@@ -31,17 +31,31 @@ print(f"Updating configuration for collection: {COLLECTION_NAME}")
 
 client.update_collection(
     collection_name=COLLECTION_NAME,
-    # HNSW config: Increase m to 16 and ef_construct to 100
-    hnsw_config=models.HnswConfigDiff(m=16, ef_construct=100),
-    # Quantization config: Change to binary quantization with always_ram
-    quantization_config=models.BinaryQuantization(
-        binary=models.BinaryQuantizationConfig(always_ram=True),
+    # Vector configuration: Update on_disk parameter
+    vectors_config={
+        # To put vector data on disk for a collection that does not have named vectors, use "" as name:
+        "": models.VectorParamsDiff(
+            on_disk=False,  # Change to False to enable RAM storage
+            hnsw_config=models.HnswConfigDiff(
+                m=24, ef_construct=150, max_indexing_threads=3
+            ),
+        )
+    },
+    # Global HNSW config
+    hnsw_config=models.HnswConfigDiff(m=24, ef_construct=150, max_indexing_threads=3),
+    # Quantization config
+    quantization_config=models.ScalarQuantization(
+        scalar=models.ScalarQuantizationConfig(
+            type=models.ScalarType.INT8, quantile=0.99, always_ram=True
+        ),
     ),
+    optimizer_config=models.OptimizersConfigDiff(max_optimization_threads=3),
 )
 
 print("Collection configuration update initiated successfully.")
 print("Please monitor the collection status. Re-indexing may take some time.")
 
+"""
 # 3. Set hnsw_ef at Search Time
 # hnsw_ef is NOT a collection parameter. It's a search parameter.
 # You provide it with each search request to balance speed and accuracy.
@@ -67,3 +81,4 @@ search_result = client.search(
 
 print("\nExample search results:")
 print(search_result)
+"""
