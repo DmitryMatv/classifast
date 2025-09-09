@@ -492,7 +492,7 @@ Mounting: DIN rail""",
                 "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
             },
             "ISIC Rev. 5": {
-                "collection_name": "ISIC5_v7",
+                "collection_name": "ISIC_5_new001_v2",
             },
         },
     },
@@ -1137,7 +1137,8 @@ async def handle_classify(
     )
 
 
-# npm install tailwindcss @tailwindcss/cli
-# npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch
-
-# uvicorn app.main:app --reload --port 8001
+"""
+npm install tailwindcss @tailwindcss/cli
+npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch
+uvicorn app.main:app --reload --port 8001
+"""

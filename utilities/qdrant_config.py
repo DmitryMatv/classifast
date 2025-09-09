@@ -37,19 +37,30 @@ client.update_collection(
         "": models.VectorParamsDiff(
             on_disk=False,  # Change to False to enable RAM storage
             hnsw_config=models.HnswConfigDiff(
-                m=24, ef_construct=150, max_indexing_threads=3
+                m=32,
+                ef_construct=200,
+                max_indexing_threads=3,
+                on_disk=False,
             ),
         )
     },
     # Global HNSW config
-    hnsw_config=models.HnswConfigDiff(m=24, ef_construct=150, max_indexing_threads=3),
+    hnsw_config=models.HnswConfigDiff(
+        m=32,
+        ef_construct=200,
+        max_indexing_threads=3,
+        on_disk=False,
+    ),
     # Quantization config
     quantization_config=models.ScalarQuantization(
         scalar=models.ScalarQuantizationConfig(
-            type=models.ScalarType.INT8, quantile=0.99, always_ram=True
+            type=models.ScalarType.INT8, quantile=0.998, always_ram=True
         ),
     ),
-    optimizer_config=models.OptimizersConfigDiff(max_optimization_threads=3),
+    optimizer_config=models.OptimizersConfigDiff(
+        memmap_threshold=50000,
+        max_optimization_threads=3,
+    ),
 )
 
 print("Collection configuration update initiated successfully.")

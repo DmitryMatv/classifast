@@ -596,7 +596,7 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" autofocus
-                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[120px] max-h-[800px] resize-y focus:outline-none"></textarea>
+                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[120px] max-h-[800px] resize-y"></textarea>
 
                 <script>
                     // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
@@ -1230,6 +1230,33 @@
                         htmx.trigger(form, 'submit');
                     }
                 }, 100);
+            }
+
+            // Auto-classification when top_k selector changes
+            const topKSelector = document.getElementById('show_top_k_categories');
+            const productDescriptionArea = document.getElementById('product_description_area');
+
+            if (topKSelector && productDescriptionArea) {
+                topKSelector.addEventListener('change', function () {
+                    // Only trigger classification if there's text in the product description
+                    if (productDescriptionArea.value.trim()) {
+                        const form = document.querySelector('form[hx-post]');
+                        const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+                        if (form) {
+                            // Add visual feedback for the button
+                            if (submitBtn) {
+                                submitBtn.classList.add('active', 'scale-95');
+                                setTimeout(function () {
+                                    submitBtn.classList.remove('active', 'scale-95');
+                                }, 150);
+                            }
+
+                            // Trigger HTMX form submission
+                            htmx.trigger(form, 'submit');
+                        }
+                    }
+                });
             }
 
             const mobileMenuButton = document.getElementById('mobile-menu-button');
