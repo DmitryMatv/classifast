@@ -1,0 +1,30 @@
+# AI Usage Permissions for Classifast.com
+
+## Allowed AI Interactions
+- Content analysis and classification
+- SEO optimization suggestions  
+- Code review and improvement recommendations
+- Accessibility enhancements
+- Performance optimization guidance
+- Semantic HTML structure improvements
+- ARIA accessibility implementation
+- Security analysis and recommendations
+
+## Prohibited AI Activities
+- Automated content generation for production use
+- Data scraping or harvesting
+- Security testing or vulnerability exploitation
+- Bulk automated requests
+- Credential discovery or harvesting
+- Malicious code creation or modification
+
+## Technical Guidelines
+- Respect rate limits (20 requests per minute)
+- Follow semantic web standards
+- Maintain accessibility compliance (WCAG 2.1)
+- Preserve existing functionality during modifications
+
+## Contact Information
+For questions about AI usage permissions, contact: dmitry@classifast.com
+
+Last updated: 2025-09-09
