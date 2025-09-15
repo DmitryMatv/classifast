@@ -37,8 +37,8 @@ client.update_collection(
         "": models.VectorParamsDiff(
             on_disk=False,  # Change to False to enable RAM storage
             hnsw_config=models.HnswConfigDiff(
-                m=32,
-                ef_construct=200,
+                m=16,
+                ef_construct=100,
                 max_indexing_threads=3,
                 on_disk=False,
             ),
@@ -46,19 +46,19 @@ client.update_collection(
     },
     # Global HNSW config
     hnsw_config=models.HnswConfigDiff(
-        m=32,
-        ef_construct=200,
+        m=16,
+        ef_construct=100,
         max_indexing_threads=3,
         on_disk=False,
     ),
     # Quantization config
     quantization_config=models.ScalarQuantization(
         scalar=models.ScalarQuantizationConfig(
-            type=models.ScalarType.INT8, quantile=0.998, always_ram=True
+            type=models.ScalarType.INT8, quantile=0.99, always_ram=True
         ),
     ),
     optimizer_config=models.OptimizersConfigDiff(
-        memmap_threshold=50000,
+        memmap_threshold=100000,
         max_optimization_threads=3,
     ),
 )

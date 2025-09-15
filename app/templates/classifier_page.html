@@ -481,7 +481,7 @@
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
                 <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
-                    <p class="text-2xl font-bold text-gray-800 mr-6">classi<span class="text-sky-600">fast</span>.com
+                    <p class="text-2xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span>
                     </p>
                 </a>
                 <h1 class="text-gray-800 font-semibold text-2xl">{{ title }}</h1>
@@ -490,14 +490,6 @@
             <!-- Desktop Navigation -->
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
-                    <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold" role="link"
-                            aria-label="Blog">Blog</a>
-                    </li>
-                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold" role="link"
-                            aria-label="API Documentation">API</a>
-                    </li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="UNSPSC Classification">UNSPSC</a></li>
@@ -506,9 +498,17 @@
                             aria-label="NAICS Classification">NAICS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="CN Classification">CN</a></li>
+                            aria-label="CN Classification">Combined Nomenclature</a></li>
                     <li><a href="{{ url_for('read_root') }}" class="text-gray-600 hover:text-sky-600 transition-colors"
                             role="link" aria-label="Other Classification Standards">Other</a></li>
+                    <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold" role="link"
+                            aria-label="Blog">Blog</a>
+                    </li>
+                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold" role="link"
+                            aria-label="API Documentation">API</a>
+                    </li>
                     <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
                     <!-- <li><a href="#"
                             class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
@@ -527,12 +527,6 @@
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
-                <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">Blog</a>
-                </li>
-                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
-                </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
                 </li>
@@ -540,22 +534,13 @@
                         class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">CN</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">Combined Nomenclature</a>
                 </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">ETIM</a>
+                <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
+                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">Blog</a>
                 </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">ISIC</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">NACE</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">CPV</a>
+                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
+                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
                 </li>
                 <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
@@ -1097,7 +1082,7 @@
                 <div class="md:col-span-2">
                     <p class="text-2xl font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors" role="link"
-                            aria-label="Classifast Homepage">classifast.com</a></p>
+                            aria-label="Classifast Homepage">Classifast</a></p>
                     <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
                         other classification standards.</p>
                 </div>
@@ -1128,7 +1113,7 @@
                     <h4 class="text-lg font-semibold mb-4">Resources</h4>
                     <ul class="space-y-2">
                         <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                                class="text-gray-400 hover:text-white transition-colors">Blog</a></li>
+                                class="text-gray-400 hover:text-white transition-colors">Classifast Blog</a></li>
                         <li><a href="https://github.com/DmitryMatv/classifast" target="_blank" rel="noopener"
                                 class="text-gray-400 hover:text-white transition-colors">Code on GitHub</a></li>
                         <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
