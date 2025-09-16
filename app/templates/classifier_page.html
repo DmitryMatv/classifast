@@ -484,7 +484,7 @@
                     <p class="text-2xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span>
                     </p>
                 </a>
-                <h1 class="text-gray-800 font-semibold text-2xl">{{ title }}</h1>
+                <h1 class="text-gray-800 font-semibold text-xl">{{ title }}</h1>
             </div>
 
             <!-- Desktop Navigation -->
@@ -499,14 +499,15 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">Combined Nomenclature</a></li>
-                    <li><a href="{{ url_for('read_root') }}" class="text-gray-600 hover:text-sky-600 transition-colors"
-                            role="link" aria-label="Other Classification Standards">Other</a></li>
+                    <li><a href="{{ url_for('read_root') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
+                            aria-label="Other Classification Standards">Home</a></li>
                     <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold" role="link"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
                             aria-label="Blog">Blog</a>
                     </li>
                     <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-bold" role="link"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
                             aria-label="API Documentation">API</a>
                     </li>
                     <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
@@ -980,6 +981,49 @@
         </section>
         {% endif %}
 
+        {% if classifier_type == 'nsn' %}
+        <section id="nsn-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">NSN: NATO Stock Number Classification Guide</h2>
+
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Structure & Format</h3>
+                    <p class="text-gray-600 mb-2">NSN uses a standardized 13-digit identification format:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• <strong>4-digit FSC:</strong> Federal Supply Class (e.g. 1005 - Guns, 75mm through 125mm)
+                        </li>
+                        <li>• <strong>2-digit NCB:</strong> NATO Country Code (e.g. 00-09 for USA, 99 for UK)</li>
+                        <li>• <strong>7-digit NIIN:</strong> National Item Identification Number</li>
+                        <li>• <strong>Complete NSN:</strong> 1234-00-123-4567 format</li>
+                        <li>• <strong>Unique identification:</strong> Every item has one NSN globally</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">NATO & Military Applications</h3>
+                    <p class="text-gray-600 mb-2">NSN is essential for defense and military logistics:</p>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• NATO standardization agreements (STANAGs)</li>
+                        <li>• Military supply chain management</li>
+                        <li>• Defense procurement and contracting</li>
+                        <li>• Allied interoperability programs</li>
+                        <li>• Weapon systems and equipment tracking</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Global Standardization</h3>
+                <p class="text-gray-600">NSN enables seamless logistics across NATO member nations and partner
+                    countries.
+                    The system provides universal identification for over 6 million items, facilitating joint
+                    operations,
+                    equipment sharing, and multinational defense procurement while maintaining supply chain visibility
+                    and inventory control.</p>
+            </div>
+        </section>
+        {% endif %}
+
         <!-- Cross-standard comparison section for enhanced internal linking -->
         <section id="comparison-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4"
             role="complementary" aria-label="Other Classification Standards">
@@ -1072,6 +1116,16 @@
                     <p class="text-gray-600">Common Procurement Vocabulary for EU public procurement and tenders.</p>
                 </article>
                 {% endif %}
+
+                {% if classifier_type != 'nsn' %}
+                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                            class="text-sky-600 hover:underline" role="link"
+                            aria-label="NSN Classification Tool">NSN</a></h3>
+                    <p class="text-gray-600">NATO Stock Number classification for defense and military logistics.</p>
+                </article>
+                {% endif %}
             </div>
         </section>
     </main>
@@ -1083,7 +1137,7 @@
                     <p class="text-2xl font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors" role="link"
                             aria-label="Classifast Homepage">Classifast</a></p>
-                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
+                    <p class="text-gray-400 mb-4">Instant category search and classifier for UNSPSC, NAICS, ISIC, and
                         other classification standards.</p>
                 </div>
 
@@ -1102,6 +1156,8 @@
                                 class="text-gray-400 hover:text-white transition-colors">ISIC Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
                                 class="text-gray-400 hover:text-white transition-colors">CPV Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                                class="text-gray-400 hover:text-white transition-colors">NSN Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                                 class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"

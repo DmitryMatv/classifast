@@ -281,11 +281,11 @@
             <nav class="desktop-nav" role="navigation" aria-label="Main navigation">
                 <ul class="flex space-x-6 items-center">
                     <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
                             aria-label="Blog">Blog</a>
                     </li>
                     <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
+                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
                             aria-label="API Documentation">API</a>
                     </li>
                 </ul>
@@ -334,6 +334,9 @@
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">CPV</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">NSN</a>
                 </li>
                 <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
                 </li>
@@ -393,6 +396,10 @@
                         <a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             CPV
+                        </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            NSN
                         </a>
                     </div>
                 </div>
@@ -518,7 +525,7 @@
                     <p class="text-2xl font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors" role="link"
                             aria-label="Classifast Homepage">Classifast</a></p>
-                    <p class="text-gray-400 mb-4">Instant classifier and category search for UNSPSC, NAICS, ISIC, and
+                    <p class="text-gray-400 mb-4">Instant category search and classifier for UNSPSC, NAICS, ISIC, and
                         other classification standards.</p>
                 </div>
 
@@ -537,6 +544,8 @@
                                 class="text-gray-400 hover:text-white transition-colors">ISIC Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
                                 class="text-gray-400 hover:text-white transition-colors">CPV Codes</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                                class="text-gray-400 hover:text-white transition-colors">NSN Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                                 class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
