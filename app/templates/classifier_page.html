@@ -481,7 +481,7 @@
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
                 <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
-                    <p class="text-2xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span>
+                    <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span>
                     </p>
                 </a>
                 <h1 class="text-gray-800 font-semibold text-xl">{{ title }}</h1>
@@ -1134,7 +1134,7 @@
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
-                    <p class="text-2xl font-bold mb-4"><a href="{{ url_for('read_root') }}"
+                    <p class="text-xl font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors" role="link"
                             aria-label="Classifast Homepage">Classifast</a></p>
                     <p class="text-gray-400 mb-4">Instant category search and classifier for UNSPSC, NAICS, ISIC, and
@@ -1194,7 +1194,7 @@
         // URL Parameter Handling and Share Functionality for clean URLs
         function getUrlParams() {
             const pathParts = window.location.pathname.split('/');
-            const classifierIndex = pathParts.findIndex(part => ['naics', 'unspsc', 'etim', 'isic', 'hs'].includes(part));
+            const classifierIndex = pathParts.findIndex(part => ['etim', 'unspsc', 'naics', 'isic', 'hs', 'cn', 'nace', 'cpv', 'nsn'].includes(part));
 
             if (classifierIndex !== -1 && pathParts.length > classifierIndex + 1) {
                 const searchQuery = decodeURIComponent(pathParts.slice(classifierIndex + 1).join('/')).replace(/-/g, ' ');
