@@ -484,7 +484,7 @@
                     <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span>
                     </p>
                 </a>
-                <h1 class="text-gray-800 font-semibold text-xl">{{ title }}</h1>
+                <h1 class="text-xl font-bold text-gray-800">{{ title }}</h1>
             </div>
 
             <!-- Desktop Navigation -->
@@ -498,7 +498,7 @@
                             aria-label="NAICS Classification">NAICS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="CN Classification">Combined Nomenclature</a></li>
+                            aria-label="CN Classification">CN</a></li>
                     <li><a href="{{ url_for('read_root') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
                             aria-label="Other Classification Standards">Home</a></li>
@@ -1134,9 +1134,9 @@
         <div class="container mx-auto max-w-6xl px-4 py-12">
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
-                    <p class="text-xl font-bold mb-4"><a href="{{ url_for('read_root') }}"
+                    <p class="text-lg font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors" role="link"
-                            aria-label="Classifast Homepage">Classifast</a></p>
+                            aria-label="Classifast Homepage">classifast.com</a></p>
                     <p class="text-gray-400 mb-4">Instant category search and classifier for UNSPSC, NAICS, ISIC, and
                         other classification standards.</p>
                 </div>
