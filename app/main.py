@@ -475,11 +475,11 @@ Mounting: DIN rail""",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
-            "2022 NAICS (only 6-digit categories)": {
+            "2022 NAICS": {
                 "collection_name": "NAICS_2022_SIXdigits_new001_v3",
                 "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
             },
-            "2022 NAICS (all 2-to-6-digit categories)": {
+            "2022 NAICS with all lower-digit broad categories": {
                 "collection_name": "NAICS_2022_eng_3072_exp",
                 "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
                 "tooltip": "T = Canadian, Mexican, and United States industries are comparable",

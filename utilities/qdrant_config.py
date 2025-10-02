@@ -35,19 +35,19 @@ client.update_collection(
     vectors_config={
         # To put vector data on disk for a collection that does not have named vectors, use "" as name:
         "": models.VectorParamsDiff(
-            on_disk=False,  # Change to False to enable RAM storage
             hnsw_config=models.HnswConfigDiff(
                 m=16,
-                ef_construct=100,
+                ef_construct=200,
                 max_indexing_threads=3,
-                on_disk=False,
+                on_disk=True,
             ),
+            on_disk=True,  # Change to False to enable RAM storage
         )
     },
     # Global HNSW config
     hnsw_config=models.HnswConfigDiff(
         m=16,
-        ef_construct=100,
+        ef_construct=200,
         max_indexing_threads=3,
         on_disk=False,
     ),
@@ -59,6 +59,7 @@ client.update_collection(
     ),
     optimizer_config=models.OptimizersConfigDiff(
         memmap_threshold=100000,
+        indexing_threshold=10000,
         max_optimization_threads=3,
     ),
 )
