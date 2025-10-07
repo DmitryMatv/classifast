@@ -1,4 +1,4 @@
-/*! tailwindcss v4.1.13 | MIT License | https://tailwindcss.com */
+/*! tailwindcss v4.1.14 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -15,7 +15,6 @@
     --color-green-100: oklch(96.2% 0.044 156.743);
     --color-green-600: oklch(62.7% 0.194 149.214);
     --color-green-700: oklch(52.7% 0.154 150.069);
-    --color-sky-50: oklch(97.7% 0.013 236.62);
     --color-sky-100: oklch(95.1% 0.026 236.824);
     --color-sky-600: oklch(58.8% 0.158 241.966);
     --color-sky-700: oklch(50% 0.134 242.749);
@@ -542,9 +541,6 @@
   .bg-red-100 {
     background-color: var(--color-red-100);
   }
-  .bg-sky-50 {
-    background-color: var(--color-sky-50);
-  }
   .bg-sky-100 {
     background-color: var(--color-sky-100);
   }
@@ -647,35 +643,32 @@
   .whitespace-pre-wrap {
     white-space: pre-wrap;
   }
+  .text-\[\#00CED1\] {
+    color: #00CED1;
+  }
+  .text-\[\#2E8B57\] {
+    color: #2E8B57;
+  }
   .text-\[\#3CB44B\] {
     color: #3CB44B;
   }
-  .text-\[\#42D4F4\] {
-    color: #42D4F4;
+  .text-\[\#6495ED\] {
+    color: #6495ED;
   }
-  .text-\[\#000075\] {
-    color: #000075;
+  .text-\[\#191970\] {
+    color: #191970;
   }
-  .text-\[\#788FE3\] {
-    color: #788FE3;
+  .text-\[\#B03060\] {
+    color: #B03060;
   }
-  .text-\[\#800000\] {
-    color: #800000;
+  .text-\[\#E9967A\] {
+    color: #E9967A;
   }
-  .text-\[\#808000\] {
-    color: #808000;
+  .text-\[\#FF00FF\] {
+    color: #FF00FF;
   }
-  .text-\[\#E6194B\] {
-    color: #E6194B;
-  }
-  .text-\[\#F032E6\] {
-    color: #F032E6;
-  }
-  .text-\[\#F58231\] {
-    color: #F58231;
-  }
-  .text-\[\#a9a9a9\] {
-    color: #a9a9a9;
+  .text-\[\#FF4500\] {
+    color: #FF4500;
   }
   .text-amber-400 {
     color: var(--color-amber-400);

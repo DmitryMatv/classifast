@@ -534,24 +534,32 @@
                 <div>
                     <h4 class="text-lg font-semibold mb-4" role="heading" aria-level="2">Classification Standards</h4>
                     <ul class="space-y-2">
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                                class="text-gray-400 hover:text-white transition-colors">UNSPSC Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                                class="text-gray-400 hover:text-white transition-colors">NAICS Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
-                                class="text-gray-400 hover:text-white transition-colors">NACE Codes</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                                class="text-gray-400 hover:text-white transition-colors">ETIM Codes</a></li>
+                                class="text-gray-400 hover:text-white transition-colors">ETIM Technical Information
+                                Model</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                                class="text-gray-400 hover:text-white transition-colors">United Nations Standard
+                                Products and Services Code (UNSPSC)</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                                class="text-gray-400 hover:text-white transition-colors">North American Industry
+                                Classification System (NAICS)</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                                class="text-gray-400 hover:text-white transition-colors">ISIC Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
-                                class="text-gray-400 hover:text-white transition-colors">CPV Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
-                                class="text-gray-400 hover:text-white transition-colors">NSN Codes</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
-                                class="text-gray-400 hover:text-white transition-colors">CN Codes</a></li>
+                                class="text-gray-400 hover:text-white transition-colors">International Standard
+                                Industrial Classification of All Economic Activities (ISIC)</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                                class="text-gray-400 hover:text-white transition-colors">HS Codes</a></li>
+                                class="text-gray-400 hover:text-white transition-colors">Harmonized System (HS)</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                                class="text-gray-400 hover:text-white transition-colors">Combined Nomenclature (CN)</a>
+                        </li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                                class="text-gray-400 hover:text-white transition-colors">Statistical Classification of
+                                Economic Activities in the European Community (NACE)</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                                class="text-gray-400 hover:text-white transition-colors">Common Procurement Vocabulary
+                                (CPV)</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                                class="text-gray-400 hover:text-white transition-colors">NATO Stock Number or National
+                                Stock Number (NSN)</a></li>
                     </ul>
                 </div>
 

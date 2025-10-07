@@ -40,22 +40,22 @@
                                 {% endif %}
                                 {%- set id_str = result.payload.original_id | string -%}
                                 {%- set digit_colors = {
-                                '0': 'text-[#a9a9a9]',
-                                '1': 'text-[#42D4F4]',
-                                '2': 'text-[#788FE3]',
-                                '3': 'text-[#000075]',
-                                '4': 'text-[#800000]',
-                                '5': 'text-[#F032E6]',
-                                '6': 'text-[#E6194B]',
-                                '7': 'text-[#F58231]',
-                                '8': 'text-[#3CB44B]',
-                                '9': 'text-[#808000]',
+                                '0': 'text-gray-400',
+                                '1': 'text-[#00CED1]',
+                                '2': 'text-[#6495ED]',
+                                '3': 'text-[#191970]',
+                                '4': 'text-[#B03060]',
+                                '5': 'text-[#FF00FF]',
+                                '6': 'text-[#2E8B57]',
+                                '7': 'text-[#3CB44B]',
+                                '8': 'text-[#E9967A]',
+                                '9': 'text-[#FF4500]',
                                 } -%}
                                 {%- for char_item in id_str -%}
                                 {%- if char_item in digit_colors -%}
                                 <span class="{{ digit_colors[char_item] }}">{{ char_item }}</span>
                                 {%- else -%}
-                                <span class="text-gray-600">{{ char_item }}</span>
+                                <span class="text-gray-400">{{ char_item }}</span>
                                 {%- endif -%}
                                 {%- endfor -%}
                                 {% if base_url and base_url.strip() %}<svg xmlns="http://www.w3.org/2000/svg" width="24"
