@@ -595,7 +595,7 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" autofocus role="textbox"
                     aria-label="Product description"
-                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[120px] max-h-[800px] resize-y"></textarea>
+                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[100px] max-h-[800px] resize-y"></textarea>
 
                 <script>
                     // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
@@ -640,9 +640,8 @@
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show"
                             class="h-[40px] text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2">
-                            <option value="3">Top 3</option>
-                            <option value="5" selected>Top 5</option>
-                            <option value="10">Top 10</option>
+                            <option value="5">Top 3</option>
+                            <option value="10" selected>Top 10</option>
                             <option value="30">Top 30</option>
                         </select>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center" role="status"

@@ -127,7 +127,7 @@ async def lifespan(app: FastAPI):
                     query=query,
                     classifier_type=classifier_type,
                     version=version_name,
-                    top_k=5,
+                    top_k=10,
                 )
 
                 results_for_query = result["results"]
@@ -476,13 +476,13 @@ Mounting: DIN rail""",
         "embed_dims": 3072,
         "versions": {
             "2022 NAICS": {
-                "collection_name": "NAICS_2022_SIXdigits_new001_v3",
-                "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
-            },
-            "2022 NAICS with all lower-digit broad categories": {
-                "collection_name": "NAICS_2022_eng_3072_exp",
-                "base_url": "https://www.naics.com/naics-code-description/?v=2022&code=",
+                "collection_name": "NAICS_2022_eng_new001_v1",
+                "base_url": "https://www.naics.com/code-search/?trms=",
                 "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
+            },
+            "2022 NAICS (only 6-digit codes)": {
+                "collection_name": "NAICS_2022_SIXdigits_new001_v3",
+                "base_url": "https://www.naics.com/naics-code-description/?code=",
             },
         },
     },
@@ -949,7 +949,7 @@ async def show_classifier_page(
     request: Request,
     classifier_type: str,
     version: str | None = None,
-    top_k: int = 5,
+    top_k: int = 10,
 ):
     """
     Serves the base classifier page.
@@ -966,7 +966,7 @@ async def show_classifier_page_with_query(
     classifier_type: str,
     search_query: str = "",
     version: str | None = None,
-    top_k: int = 5,
+    top_k: int = 10,
 ):
     """
     Serves the specific classifier page with clean URL structure.
@@ -1071,7 +1071,7 @@ async def handle_classify(
     request: Request,
     classifier_type: str,
     product_description: str = Form(...),
-    top_k: int = Form(5),
+    top_k: int = Form(10),
     version: str = Form(...),
 ):
     """
