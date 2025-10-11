@@ -1,7 +1,7 @@
 # --- Stage 1: Builder ---
 # This stage builds Python wheels for our dependencies
 # and creates a virtual environment to keep things clean.
-FROM python:3.13.5-slim-bookworm AS builder
+FROM python:3.13-slim-bookworm AS builder
 
 # Set environment variables for builder
 ENV PYTHONUNBUFFERED=1
@@ -19,7 +19,7 @@ RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 # --- Stage 2: Final ---
 # This stage takes the installed dependencies and application code
 # to create a lean production image.
-FROM python:3.13.5-slim-bookworm AS final
+FROM python:3.13-slim-bookworm AS final
 
 # Set environment variables for the final image
 ENV PYTHONUNBUFFERED=1 \

@@ -538,7 +538,7 @@ Mounting: DIN rail""",
         "versions": {
             "NACE Rev. 2.1": {
                 "collection_name": "NACErev2-1_v2",
-                # "base_url": "https://www.tariffnumber.com/2025/",
+                "base_url": "https://showvoc.op.europa.eu/#/datasets/ESTAT_Statistical_Classification_of_Economic_Activities_in_the_European_Community_Rev._2.1._%28NACE_2.1%29/data?resId=http:%2F%2Fdata.europa.eu%2Fux2%2Fnace2.1%2F",
             },
         },
     },
