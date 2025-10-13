@@ -496,6 +496,9 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="NAICS Classification">NAICS</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
+                            aria-label="HTS Classification">HTS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">CN</a></li>
@@ -533,6 +536,9 @@
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">HTS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">Combined Nomenclature</a>
@@ -593,8 +599,7 @@
                 {% endif %}
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
-                    aria-describedby="description-help" maxlength="4000" autofocus role="textbox"
-                    aria-label="Product description"
+                    aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
                     class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[100px] max-h-[800px] resize-y"></textarea>
 
                 <script>
@@ -1084,6 +1089,18 @@
                 </article>
                 {% endif %}
 
+                {% if classifier_type != 'hts' %}
+                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                            class="text-sky-600 hover:underline" role="link"
+                            aria-label="HTS Classification Tool">HTS</a>
+                    </h3>
+                    <p class="text-gray-600">Harmonized Tariff Schedule codes for US imports and customs classification.
+                    </p>
+                </article>
+                {% endif %}
+
                 {% if classifier_type != 'cn' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
@@ -1157,6 +1174,10 @@
                                 Industrial Classification of All Economic Activities (ISIC)</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Harmonized System (HS)</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                                class="text-gray-400 hover:text-white transition-colors">Harmonized Tariff Schedule
+                                (HTS)</a>
+                        </li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Combined Nomenclature (CN)</a>
                         </li>
@@ -1201,7 +1222,7 @@
         // URL Parameter Handling and Share Functionality for clean URLs
         function getUrlParams() {
             const pathParts = window.location.pathname.split('/');
-            const classifierIndex = pathParts.findIndex(part => ['etim', 'unspsc', 'naics', 'isic', 'hs', 'cn', 'nace', 'cpv', 'nsn'].includes(part));
+            const classifierIndex = pathParts.findIndex(part => ['etim', 'unspsc', 'naics', 'isic', 'hs', 'hts', 'cn', 'nace', 'cpv', 'nsn'].includes(part));
 
             if (classifierIndex !== -1 && pathParts.length > classifierIndex + 1) {
                 const searchQuery = decodeURIComponent(pathParts.slice(classifierIndex + 1).join('/')).replace(/-/g, ' ');

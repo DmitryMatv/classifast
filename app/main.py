@@ -437,8 +437,8 @@ async def read_root(request: Request):
 # Dictionary to map classifier types to their configurations
 CLASSIFIER_CONFIG = {
     "etim": {
-        "title": "ETIM Classifier",
-        "heading": "Get relevant EC classes from the ETIM International standard",
+        "title": "ETIM International Classifier",
+        "heading": "Get relevant EC classes from the ETIM standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
         "example": """Example:
 SH203-C20 Miniature Circuit Breaker 6kA 20A 3P
@@ -454,7 +454,7 @@ Mounting: DIN rail""",
         },
     },
     "unspsc": {
-        "title": "UNSPSC Classifier",
+        "title": "UNSPSC Classifier & Code Search",
         "heading": "Get right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
         "example": "Example: Office supplies",
@@ -468,7 +468,7 @@ Mounting: DIN rail""",
         },
     },
     "naics": {
-        "title": "NAICS Business Classifier",
+        "title": "NAICS Business Classifier & Lookup",
         "heading": "Get appropriate codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
         "example": "Example: Gamedev studio",
@@ -487,7 +487,7 @@ Mounting: DIN rail""",
         },
     },
     "isic": {
-        "title": "ISIC Classifier",
+        "title": "ISIC Classifier & Code Search",
         "heading": "Instantly classify economic activities using the UN's ISIC",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
         "example": "Example: Manufacture of motor vehicles",
@@ -495,17 +495,17 @@ Mounting: DIN rail""",
         "embed_dims": 3072,
         "versions": {
             "ISIC Rev. 4": {
-                "collection_name": "ISIC_4_new001_2",
+                "collection_name": "ISIC_4_new001_3corr",
                 "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
             },
             "ISIC Rev. 5": {
-                "collection_name": "ISIC_5_new001_v2",
+                "collection_name": "ISIC_5_new001_v3corr",
             },
         },
     },
     "hs": {
         "title": "HS Code Finder",
-        "heading": "Get HS codes for your goods",
+        "heading": "Search HS codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example: Electric motor",
         "embed_model_name": "gemini-embedding-001",
@@ -517,7 +517,7 @@ Mounting: DIN rail""",
         },
     },
     "cn": {
-        "title": "CN Classification & Code Lookup",
+        "title": "CN Code Search & Classifier",
         "heading": "Get CN codes for EU customs and trade",
         "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
         "example": "Example: Stainless steel sheets, 304 grade, 2mm thickness",
@@ -569,6 +569,20 @@ Mounting: DIN rail""",
             "NSN extract (February 22, 2023)": {
                 "collection_name": "nsn-extract-2-21-23_v3",
                 # "base_url": "https://www.tariffnumber.com/2025/",
+            },
+        },
+    },
+    "hts": {
+        "title": "HTS Code Search",
+        "heading": "Get Harmonized Tariff Schedule codes for US imports",
+        "description": "The Harmonized Tariff Schedule (HTS) is the United States' comprehensive customs classification system for imported goods, extending the international Harmonized System (HS) with country-specific provisions. This 10-digit hierarchical code structure is mandatory for all US customs declarations and serves as the legal basis for determining applicable duties, taxes, trade restrictions, and regulatory requirements. The HTS is essential for importers, customs brokers, freight forwarders, and compliance professionals to ensure accurate classification and smooth customs clearance for goods entering the United States.",
+        "example": "Example: Smartphone",
+        "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 3072,
+        "versions": {
+            "HTS 2024": {
+                "collection_name": "HTS_v4",
+                "base_url": "https://hts.usitc.gov/search?query=",
             },
         },
     },

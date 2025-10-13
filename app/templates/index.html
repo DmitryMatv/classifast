@@ -331,6 +331,9 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
                 </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">HTS</a>
+                </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">NACE</a>
                 </li>
@@ -367,10 +370,6 @@
                         Classify anything, instantly, and with state-of-the-art accuracy.
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-xl mx-auto">
-                        <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
-                            ETIM
-                        </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             UNSPSC
@@ -387,9 +386,17 @@
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             NACE
                         </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            ETIM
+                        </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             HS
+                        </a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            HTS
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
@@ -469,55 +476,6 @@
                 </div>
             </div>
         </section>
-
-        <!-- FAQ Section -->
-        <section class="hidden">
-            <div class="container mx-auto px-4 max-w-4xl py-20">
-                <div class="text-center mb-16">
-                    <h3 class="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h3>
-                    <p class="text-xl text-gray-600">Everything you need to know about classification standards</p>
-                </div>
-
-                <div class="space-y-8">
-                    <div class="bg-gray-50 p-6 rounded-lg">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-4">What is UNSPSC classification?</h3>
-                        <p class="text-gray-700">UNSPSC (United Nations Standard Products and Services Code) is a global
-                            standard used to organize products and services into hierarchical categories. It helps
-                            businesses improve spend analytics, streamline procurement, and enhance data governance.</p>
-                    </div>
-
-                    <div class="bg-gray-50 p-6 rounded-lg">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-4">How does ETIM classification work?</h3>
-                        <p class="text-gray-700">ETIM (Technical Information Model) is an open standard for the
-                            unambiguous grouping and specification of products in the technical sector. It provides a
-                            uniform classification system for electronic exchange of product data, especially for
-                            technical and electrical products.</p>
-                    </div>
-
-                    <div class="bg-gray-50 p-6 rounded-lg">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-4">What are NAICS codes used for?</h3>
-                        <p class="text-gray-700">NAICS (North American Industry Classification System) codes are used to
-                            classify businesses by their primary economic activity. They're essential for government
-                            contracting, statistical analysis, and business reporting across North America.</p>
-                    </div>
-
-                    <div class="bg-gray-50 p-6 rounded-lg">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-4">How accurate is AI-powered classification?
-                        </h3>
-                        <p class="text-gray-700">Our AI-powered classification uses state-of-the-art embedding models to
-                            deliver high accuracy results. Each classification includes a confidence score, and detailed
-                            product descriptions typically yield better matches than generic terms.</p>
-                    </div>
-
-                    <div class="bg-gray-50 p-6 rounded-lg">
-                        <h3 class="text-xl font-semibold text-gray-900 mb-4">Can I classify products in bulk?</h3>
-                        <p class="text-gray-700">Yes, Classifast supports bulk classification for large datasets. This
-                            feature is perfect for businesses looking to categorize their entire product catalog or
-                            service offerings efficiently.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
     </main>
 
     <footer class="bg-gray-800 text-white" role="contentinfo" aria-label="Site footer">
@@ -548,6 +506,10 @@
                                 Industrial Classification of All Economic Activities (ISIC)</a></li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Harmonized System (HS)</a></li>
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                                class="text-gray-400 hover:text-white transition-colors">Harmonized Tariff Schedule
+                                (HTS)</a>
+                        </li>
                         <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Combined Nomenclature (CN)</a>
                         </li>
