@@ -1,9 +1,24 @@
 @import "tailwindcss";
 
-/* Import Inter font from Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 /* Configure Inter as the default font family */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+/* Official Inter implementation */
+:root {
+  font-family: Inter, sans-serif;
+  font-feature-settings: 'liga' 1, 'calt' 1; /* fix for Chrome */
+}
+
+@supports (font-variation-settings: normal) {
+  :root { 
+    font-family: InterVariable, sans-serif; 
+  }
+}
+
+/* Apply Inter font to body and ensure proper inheritance */
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: 'liga' 1, 'calt' 1;
 }

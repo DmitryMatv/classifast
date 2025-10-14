@@ -815,7 +815,19 @@
     }
   }
 }
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root {
+  font-family: Inter, sans-serif;
+  font-feature-settings: 'liga' 1, 'calt' 1;
+}
+@supports (font-variation-settings: normal) {
+  :root {
+    font-family: InterVariable, sans-serif;
+  }
+}
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: 'liga' 1, 'calt' 1;
+}
 @property --tw-scale-x {
   syntax: "*";
   inherits: false;
