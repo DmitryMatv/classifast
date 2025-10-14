@@ -42,7 +42,7 @@
                                 {% endif %}
                                 {%- set id_str = result.payload.original_id | string -%}
                                 {%- set digit_colors = {
-                                '0': 'text-gray-600',
+                                '0': 'text-gray-500',
                                 '1': 'text-[#00CED1]',
                                 '2': 'text-[#6495ED]',
                                 '3': 'text-[#191970]',
@@ -104,7 +104,7 @@
     <!-- Share Button -->
     <div class="mt-8">
         <button type="button" id="share-button" onclick="copyShareableLink()"
-            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded-md text-md transition-colors duration-150 ease-in-out"
+            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-1 rounded-md text-md transition-colors duration-150 ease-in-out"
             title="Copy shareable link to clipboard">
             Copy link
         </button>

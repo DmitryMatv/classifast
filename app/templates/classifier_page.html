@@ -484,7 +484,7 @@
                 <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
                     <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
                 </a>
-                <h1 class="text-xl font-bold text-gray-800">{{ title }}</h1>
+                <h1 class="text-xl font-semibold text-gray-800">{{ title }}</h1>
             </div>
 
             <!-- Desktop Navigation -->
@@ -503,19 +503,19 @@
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">CN</a></li>
                     <li><a href="{{ url_for('read_root') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
+                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="Other Classification Standards">Home</a></li>
                     <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
+                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="Blog">Blog</a>
                     </li>
                     <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors font-semibold" role="link"
+                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="API Documentation">API</a>
                     </li>
                     <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a></li> -->
                     <!-- <li><a href="#"
-                            class="bg-sky-600 text-white px-4 py-2 font-semibold rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
+                            class="bg-sky-600 text-white px-4 py-1 rounded-md hover:bg-sky-700 transition-colors whitespace-nowrap">
                             Sign Up</a></li> -->
                 </ul>
             </nav>
@@ -561,10 +561,10 @@
     <main class="container mx-auto p-3 max-w-screen-lg">
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
-            <ol class="flex items-center text-gray-400">
+            <ol class="flex items-center text-gray-500">
                 <li><a href="{{ url_for('read_root') }}" class="hover:text-sky-600 transition-colors">Home</a></li>
                 <li class="flex items-center">
-                    <span class="mx-2 text-gray-400">/</span>
+                    <span class="mx-2 text-gray-500">/</span>
                     <span class="text-gray-800">{{ title }}</span>
                 </li>
             </ol>
@@ -572,25 +572,28 @@
 
         <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4" role="form"
             aria-label="Product Classification Form">
-            <div class="flex items-center mb-4">
-                <h2 class="text-xl font-bold">{{ heading }}</h2>
+            <div class="flex items-center mb-2">
+                <h2 class="text-lg font-bold">{{ heading }}</h2>
                 {% if classifier_type == 'naics' %}
                 <img src="{{ url_for('static', path='images/naics-logo.png') }}" alt="NAICS Logo"
                     class="h-8 md:h-12 w-auto ml-auto mr-4" loading="lazy">
                 {% elif classifier_type == 'unspsc' %}
                 <img src="{{ url_for('static', path='images/unspc-logo.png') }}" alt="UNSPSC Logo"
                     class="h-8 md:h-12 w-auto ml-auto mr-4" loading="lazy">
+                {% elif classifier_type == 'hts' %}
+                <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="HTS Logo"
+                    class="h-8 md:h-12 w-auto ml-auto mr-4" loading="lazy">
                 {% endif %}
             </div>
             <p class="mb-8">{{ description }}</p>
 
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" class="space-y-2">
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
 
                 {% if versions %}
-                <div class="flex items-center justify-start">
+                <div class="flex items-center justify-start mb-2">
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
-                        class="border border-gray-400 rounded-md text-left px-2 py-2">
+                        class="border border-gray-400 rounded-md text-left px-4 py-1">
                         {% for v in versions %}
                         <option value="{{ v }}">{{ v }}</option>
                         {% endfor %}
@@ -601,7 +604,6 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
                     class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[100px] max-h-[800px] resize-y"></textarea>
-
                 <script>
                     // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
                     document.addEventListener('DOMContentLoaded', function () {
@@ -630,8 +632,8 @@
                     });
                 </script>
 
-                <div class="flex justify-between items-center">
-                    <div class="flex justify-start items-center space-x-4">
+                <div class="flex justify-between items-center mt-0.5">
+                    <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Classify product description"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
                             {% if classifier_type == 'unspsc' %}
@@ -644,7 +646,7 @@
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show"
-                            class="h-[40px] text-gray-800 border border-gray-400 rounded-md text-left px-2 py-2">
+                            class="text-gray-800 border border-gray-400 rounded-md text-left px-4 py-2">
                             <option value="5">Top 3</option>
                             <option value="10" selected>Top 10</option>
                             <option value="30">Top 30</option>

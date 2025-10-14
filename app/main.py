@@ -440,10 +440,7 @@ CLASSIFIER_CONFIG = {
         "title": "ETIM International Classifier",
         "heading": "Get relevant EC classes from the ETIM standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
-        "example": """Example:
-SH203-C20 Miniature Circuit Breaker 6kA 20A 3P
-Characteristic curve: C-curve
-Mounting: DIN rail""",
+        "example": "Example: SH203-C20 Miniature Circuit Breaker 6kA 20A 3P",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -543,7 +540,7 @@ Mounting: DIN rail""",
         },
     },
     "cpv": {
-        "title": "CPV Public Procurement Classification",
+        "title": "CPV Classifier & Code Search",
         "heading": "Find CPV codes for EU public procurement",
         "description": "The Common Procurement Vocabulary (CPV) is the European Union's standardized classification system for public procurement, established to ensure transparency and equal access to public contracts across the single market. This 9-digit hierarchical code structure is mandatory for all EU public procurement procedures, enabling consistent tender documentation, contract award notices in the TED system, and comprehensive market analysis while facilitating cross-border bidding and ensuring compliance with EU procurement directives.",
         "example": "Example: Indie gamedev studio",
@@ -575,7 +572,7 @@ Mounting: DIN rail""",
     "hts": {
         "title": "HTS Code Search",
         "heading": "Get Harmonized Tariff Schedule codes for US imports",
-        "description": "The Harmonized Tariff Schedule (HTS) is the United States' comprehensive customs classification system for imported goods, extending the international Harmonized System (HS) with country-specific provisions. This 10-digit hierarchical code structure is mandatory for all US customs declarations and serves as the legal basis for determining applicable duties, taxes, trade restrictions, and regulatory requirements. The HTS is essential for importers, customs brokers, freight forwarders, and compliance professionals to ensure accurate classification and smooth customs clearance for goods entering the United States.",
+        "description": "Harmonized Tariff Schedule (HTS) is the United States comprehensive customs classification system for imported goods, extending the international Harmonized System (HS) with country-specific provisions. This 10-digit hierarchical code structure is mandatory for all US customs declarations and serves as the legal basis for determining applicable duties, taxes, trade restrictions, and regulatory requirements. The HTS is essential for importers, customs brokers, freight forwarders, and compliance professionals to ensure accurate classification and smooth customs clearance for goods entering the United States.",
         "example": "Example: Smartphone",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
@@ -1160,6 +1157,6 @@ async def handle_classify(
 
 """
 npm install tailwindcss @tailwindcss/cli
-npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch
+npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css
 uvicorn app.main:app --reload --port 8001
 """
