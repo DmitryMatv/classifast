@@ -332,6 +332,7 @@
     </script>
 
     <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', path='/css/custom.css') }}" rel="stylesheet">
 
     <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
 
@@ -481,7 +482,8 @@
     </style>
 </head>
 
-<body class="bg-sky-100 text-gray-800" style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
+<body class="bg-sky-100 text-gray-800"
+    style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
     <header class="bg-sky-100 relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-baseline">
@@ -506,9 +508,8 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">CN</a></li>
-                    <li><a href="{{ url_for('read_root') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="Other Classification Standards">Home</a></li>
+                    <li><a href="{{ url_for('read_root') }}" class="text-gray-600 hover:text-sky-600 transition-colors"
+                            role="link" aria-label="Other Classification Standards">Home</a></li>
                     <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="Blog">Blog</a>
@@ -597,7 +598,7 @@
                 {% if versions %}
                 <div class="flex items-center justify-start mb-2">
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
-                        class="border border-gray-400 rounded-md text-left px-4 py-1">
+                        class="border border-gray-400 rounded-md text-left px-2 py-1">
                         {% for v in versions %}
                         <option value="{{ v }}">{{ v }}</option>
                         {% endfor %}
@@ -636,10 +637,10 @@
                     });
                 </script>
 
-                <div class="flex justify-between items-center mt-0.5">
+                <div class="flex justify-between items-center mt-2">
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Classify product description"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-8 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold h-10 px-8 py-2 rounded-md text-base transition-all duration-150 flex items-center justify-center">
                             {% if classifier_type == 'unspsc' %}
                             Classify
                             {% elif classifier_type == 'etim' %}
@@ -650,7 +651,7 @@
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show"
-                            class="text-gray-800 border border-gray-400 rounded-md text-left px-4 py-2">
+                            class="text-gray-800 border border-gray-400 rounded-md text-base h-10 px-4 py-2 bg-white">
                             <option value="5">Top 3</option>
                             <option value="10" selected>Top 10</option>
                             <option value="30">Top 30</option>
@@ -663,7 +664,7 @@
                         </div>
                     </div>
                     <div class="flex">
-                        <p class="text-gray-600 mobile-hidden">Sorted by relevance</p>
+                        <p class="text-gray-600 mobile-hidden mr-6">Sorted by relevance</p>
                     </div>
                 </div>
             </form>

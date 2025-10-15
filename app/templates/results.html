@@ -41,6 +41,10 @@
                             <span class="text-gray-600 text-2xl font-bold font-mono">
                                 {% endif %}
                                 {%- set id_str = result.payload.original_id | string -%}
+                                {# Group visually every 2 characters for UNSPSC and NAICS only #}
+                                {%- set should_group = ('unspsc' in request.url.path) or ('naics' in request.url.path)
+                                or ('hs' in request.url.path) or ('cn' in request.url.path)
+                                -%}
                                 {%- set digit_colors = {
                                 '0': 'text-gray-500',
                                 '1': 'text-[#00CED1]',
@@ -48,7 +52,7 @@
                                 '3': 'text-[#191970]',
                                 '4': 'text-[#B03060]',
                                 '5': 'text-[#FF00FF]',
-                                '6': 'text-[#2E8B57]',
+                                '6': 'text-[#228B22]',
                                 '7': 'text-[#3CB44B]',
                                 '8': 'text-[#E9967A]',
                                 '9': 'text-[#FF4500]',
@@ -58,6 +62,12 @@
                                 <span class="{{ digit_colors[char_item] }}">{{ char_item }}</span>
                                 {%- else -%}
                                 <span class="text-gray-400">{{ char_item }}</span>
+                                {%- endif -%}
+                                {# Insert a small visual-only separator after every 2 characters for better readability.
+                                The separator is aria-hidden and will not affect the value copied by the copy button
+                                because the copy button uses the raw original_id passed into JS. #}
+                                {%- if should_group and not loop.last and ((loop.index0 + 1) % 2) == 0 -%}
+                                <span aria-hidden="true" class="code-spacer-halfs"></span>
                                 {%- endif -%}
                                 {%- endfor -%}
                                 {% if base_url and base_url.strip() %}<svg xmlns="http://www.w3.org/2000/svg" width="24"
@@ -104,7 +114,7 @@
     <!-- Share Button -->
     <div class="mt-8">
         <button type="button" id="share-button" onclick="copyShareableLink()"
-            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-1 rounded-md text-md transition-colors duration-150 ease-in-out"
+            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-8 py-2 rounded-md text-md transition-colors duration-150 ease-in-out"
             title="Copy shareable link to clipboard">
             Copy link
         </button>
