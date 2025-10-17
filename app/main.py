@@ -245,9 +245,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com; "
-            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://rsms.me; "
+            "style-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://rsms.me; "
             "img-src 'self' data: https:; "
-            "font-src 'self' https://fonts.gstatic.com; "
+            "font-src 'self' https://fonts.gstatic.com https://rsms.me; "
             "connect-src 'self' https:; "
             "object-src 'none'; "
             "frame-ancestors 'none'; "
