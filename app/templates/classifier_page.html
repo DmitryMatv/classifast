@@ -5,20 +5,20 @@
     <meta charset="UTF-8">
     {% if url_params.search %}
     <!-- Dynamic SEO for parameterized searches -->
-    <title>{{ classifier_type.upper() }} category codes for &quot;{{ url_params.search.title() }}&quot; | Classifast
+    <title>{{ classifier_type.upper() }} code for &quot;{{ url_params.search.title() }}&quot; | Classifast
     </title>
     <meta name="description"
-        content="Find {{ classifier_type.upper() }} code for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
+        content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
     <meta name="keywords"
         content="{{ classifier_type.upper() }} code for {{ url_params.search.upper() }}, {{ url_params.search.upper() }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.search.upper() }}, {{ classifier_type.lower() }} classification {{ url_params.search.upper() }}">
     <meta property="og:title"
-        content=">{{ classifier_type.upper() }} category codes for &quot;{{ url_params.search.title() }}&quot; | Classifast">
+        content=">{{ classifier_type.upper() }} code for &quot;{{ url_params.search.title() }}&quot; | Classifast">
     <meta property="og:description"
-        content="Find {{ classifier_type.upper() }} code for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
+        content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
     <meta name="twitter:title"
-        content=">{{ classifier_type.upper() }} category codes for &quot;{{ url_params.search.title() }}&quot; | Classifast">
+        content=">{{ classifier_type.upper() }} code for &quot;{{ url_params.search.title() }}&quot; | Classifast">
     <meta name="twitter:description"
-        content="Find {{ classifier_type.upper() }} code for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
+        content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
     {% else %}
     <!-- Original SEO for regular pages -->
     {% if classifier_type == 'unspsc' %}
@@ -75,17 +75,13 @@
 
     <meta name="twitter:card" content="summary_large_image">
     {% if classifier_type == 'unspsc' %}
-    <meta name="twitter:title" content="UNSPSC Classification, Code Lookup, Search | Classifast">
+    <meta name="twitter:title" content="UNSPSC Code Lookup, Classification, Search | Classifast">
     <meta name="twitter:description"
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
-    {% elif classifier_type == 'etim' %}
-    <meta name="twitter:title" content="ETIM Classification, Code Lookup, Search | Classifast">
-    <meta name="twitter:description"
-        content="Accurate ETIM product classification. Search and identify ETIM International classes for technical and electrical products.">
     {% else %}
-    <meta name="twitter:title" content="{{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast">
+    <meta name="twitter:title" content="{{ classifier_type.upper() }} Code Lookup, Classification, Search | Classifast">
     <meta name="twitter:description"
-        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
+        content="Find {{ classifier_type.upper() }} codes quickly. Precise and quick {{ classifier_type.upper() }} standard classification with semantic search.">
     {% endif %}
     <meta name="twitter:image" content="{{ url_for('static', path='images/preview_classifybox.png') }}">
     <meta name="twitter:creator" content="@DimonBitcoin">

@@ -1011,7 +1011,9 @@ async def show_classifier_page_with_query(
     # Handle empty search query for base URLs
     decoded_search_query = ""
     if search_query and search_query.strip():
-        decoded_search_query = unquote_plus(search_query).replace("-", " ").strip()
+        decoded_search_query = (
+            unquote_plus(search_query).rstrip("/").replace("-", " ").strip()
+        )
         # Sanitize the decoded query
         decoded_search_query = re.sub(r'[<>&"\']', "", decoded_search_query)[
             :4000
