@@ -1,39 +1,117 @@
-<?xml version="1.0" encoding="UTF-8"?> 
-<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9"> 
-<url>
-<loc>https://classifast.com/</loc>
-</url>
-<url>
-<loc>https://blog.classifast.com/</loc>
-</url>
-<url>
-<loc>https://blog.classifast.com/unspsc/unspsc-classification</loc>
-</url>
-<url>
-<loc>https://classifast.com/etim</loc>
-</url>
-<url>
-<loc>https://classifast.com/unspsc</loc>
-</url>
-<url>
-<loc>https://classifast.com/naics</loc>
-</url>
-<url>
-<loc>https://classifast.com/isic</loc>
-</url>
-<url>
-<loc>https://classifast.com/hs</loc>
-</url>
-<url>
-<loc>https://classifast.com/hts</loc>
-</url>
-<url>
-<loc>https://classifast.com/cn</loc>
-</url>
-<url>
-<loc>https://classifast.com/nace</loc>
-</url>
-<url>
-<loc>https://classifast.com/cpv</loc>
-</url>
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+    xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+    <!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
+
+
+    <url>
+        <loc>https://classifast.com/</loc>
+        <lastmod>2025-10-17T12:04:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>1.0000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/unspsc/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/naics/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/cn/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/etim/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/isic/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/hs/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/hts/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/nace/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/cpv/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/nsn/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://blog.classifast.com/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://blog.classifast.com/2025/09/unspsc-lookup/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://blog.classifast.com/2025/09/unspsc-mapping/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://blog.classifast.com/2025/09/hs-code-list/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://blog.classifast.com/2025/09/naics-classification/</loc>
+        <lastmod>2025-10-20T12:22:25+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/unspsc/laptop-computer/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.6400</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/naics/short-term-rentals/</loc>
+        <lastmod>2025-10-20T12:22:24+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.6400</priority>
+    </url>
 </urlset>
