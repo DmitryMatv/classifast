@@ -578,16 +578,16 @@
                 <h2 class="text-xl font-bold">{{ heading }}</h2>
                 {% if classifier_type == 'naics' %}
                 <img src="{{ url_for('static', path='images/naics-logo.png') }}" alt=""
-                    class="pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto" loading="lazy"
-                    aria-hidden="true">
+                    class="hidden md:block pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto"
+                    loading="lazy" aria-hidden="true">
                 {% elif classifier_type == 'unspsc' %}
                 <img src="{{ url_for('static', path='images/unspc-logo.png') }}" alt=""
-                    class="pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto" loading="lazy"
-                    aria-hidden="true">
+                    class="hidden md:block pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto"
+                    loading="lazy" aria-hidden="true">
                 {% elif classifier_type == 'hts' %}
                 <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt=""
-                    class="pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto" loading="lazy"
-                    aria-hidden="true">
+                    class="hidden md:block pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto"
+                    loading="lazy" aria-hidden="true">
                 {% endif %}
             </div>
             <button id="description-toggle" type="button" aria-expanded="false"
