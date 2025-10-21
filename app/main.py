@@ -452,7 +452,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "unspsc": {
-        "title": "UNSPSC Classifier & Code Search",
+        "title": "UNSPSC Code Finder",
         "heading": "Get right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
         "example": "Example: Office supplies",
@@ -466,7 +466,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "naics": {
-        "title": "NAICS Business Classifier & Lookup",
+        "title": "NAICS Code Finder",
         "heading": "Get appropriate codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
         "example": "Example: Gamedev studio",
@@ -485,7 +485,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "isic": {
-        "title": "ISIC Classifier & Code Search",
+        "title": "ISIC Classifier",
         "heading": "Instantly classify economic activities using the UN's ISIC",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
         "example": "Example: Manufacture of motor vehicles",
@@ -515,7 +515,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "cn": {
-        "title": "CN Code Search & Classifier",
+        "title": "CN Code Finder",
         "heading": "Get CN codes for EU customs and trade",
         "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
         "example": "Example: Stainless steel sheets, 304 grade, 2mm thickness",
@@ -528,7 +528,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "nace": {
-        "title": "NACE Business Activity Classification",
+        "title": "NACE Business Activity Classifier",
         "heading": "Classify economic activities with EU's NACE standard",
         "description": "NACE (Nomenclature statistique des activités économiques) is the European Union's statistical classification of economic activities, developed by Eurostat to ensure harmonized economic analysis across all EU member states. This comprehensive framework enables consistent business registration, national accounts compilation, employment statistics, and cross-country economic comparisons, serving as the foundation for EU policy-making, regional development planning, and structural business statistics.",
         "example": "Example: Nuclear power plant (NPP)",
@@ -541,7 +541,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "cpv": {
-        "title": "CPV Classifier & Code Search",
+        "title": "CPV Code Finder",
         "heading": "Find CPV codes for EU public procurement",
         "description": "The Common Procurement Vocabulary (CPV) is the European Union's standardized classification system for public procurement, established to ensure transparency and equal access to public contracts across the single market. This 9-digit hierarchical code structure is mandatory for all EU public procurement procedures, enabling consistent tender documentation, contract award notices in the TED system, and comprehensive market analysis while facilitating cross-border bidding and ensuring compliance with EU procurement directives.",
         "example": "Example: Indie gamedev studio",
@@ -558,7 +558,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "nsn": {
-        "title": "NATO Stock Number (NSN) Classification",
+        "title": "NATO Stock Number (NSN) Classifier",
         "heading": "Find NSN codes for military procurement",
         "description": "The NATO Stock Number (13 digits) consists of material group, material class, country code, and NIIN (National Item Identification Number). The NSN is a unique identifier for items of supply recognized by all NATO countries. The NSN is used to identify and manage supplies, ensuring that all member nations can effectively procure and utilize military equipment and materials. This classification system facilitates logistics, inventory management, and standardization across NATO forces.",
         "example": "Example: 1000W 120V AC power supply",
@@ -571,7 +571,7 @@ CLASSIFIER_CONFIG = {
         },
     },
     "hts": {
-        "title": "HTS Code Search",
+        "title": "HTS Code Finder",
         "heading": "Get Harmonized Tariff Schedule codes for US imports",
         "description": "Harmonized Tariff Schedule (HTS) is the United States comprehensive customs classification system for imported goods, extending the international Harmonized System (HS) with country-specific provisions. This 10-digit hierarchical code structure is mandatory for all US customs declarations and serves as the legal basis for determining applicable duties, taxes, trade restrictions, and regulatory requirements. The HTS is essential for importers, customs brokers, freight forwarders, and compliance professionals to ensure accurate classification and smooth customs clearance for goods entering the United States.",
         "example": "Example: Smartphone",

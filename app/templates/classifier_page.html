@@ -22,13 +22,13 @@
     {% else %}
     <!-- Original SEO for regular pages -->
     {% if classifier_type == 'unspsc' %}
-    <title>UNSPSC Codes Lookup, Search, Classify, Map | Classifast</title>
+    <title>UNSPSC Code Lookup, Search, Classify, Map | Classifast</title>
     <meta name="description"
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     <meta name="keywords"
         content="UNSPSC mapping, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
     {% elif classifier_type == 'etim' %}
-    <title>ETIM Codes Lookup, Search, Classify, Map | Classifast</title>
+    <title>ETIM Code Lookup, Search, Classify, Map | Classifast</title>
     <meta name="description"
         content="Accurate ETIM product classification. Search and identify ETIM International classes for technical and electrical products.">
     <meta name="keywords"
@@ -486,7 +486,8 @@
                 <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
                     <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
                 </a>
-                <h1 class="text-xl font-semibold text-gray-800">{{ title }}</h1>
+                <a href="{{ url_for('read_root') }}"
+                    class="text-xl font-semibold text-gray-800 hover:text-sky-600 transition-colors">{{ title }}</a>
             </div>
 
             <!-- Desktop Navigation -->
@@ -573,20 +574,37 @@
 
         <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4" role="form"
             aria-label="Product Classification Form">
-            <div class="flex items-center mb-2">
-                <h2 class="text-lg font-bold">{{ heading }}</h2>
+            <div class="relative mb-2">
+                <h2 class="text-xl font-bold">{{ heading }}</h2>
                 {% if classifier_type == 'naics' %}
-                <img src="{{ url_for('static', path='images/naics-logo.png') }}" alt="NAICS Logo"
-                    class="h-8 md:h-12 w-auto ml-auto mr-4" loading="lazy">
+                <img src="{{ url_for('static', path='images/naics-logo.png') }}" alt=""
+                    class="pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto" loading="lazy"
+                    aria-hidden="true">
                 {% elif classifier_type == 'unspsc' %}
-                <img src="{{ url_for('static', path='images/unspc-logo.png') }}" alt="UNSPSC Logo"
-                    class="h-8 md:h-12 w-auto ml-auto mr-4" loading="lazy">
+                <img src="{{ url_for('static', path='images/unspc-logo.png') }}" alt=""
+                    class="pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto" loading="lazy"
+                    aria-hidden="true">
                 {% elif classifier_type == 'hts' %}
-                <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="HTS Logo"
-                    class="h-8 md:h-12 w-auto ml-auto mr-4" loading="lazy">
+                <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt=""
+                    class="pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto" loading="lazy"
+                    aria-hidden="true">
                 {% endif %}
             </div>
-            <p class="mb-8">{{ description }}</p>
+            <button id="description-toggle" type="button" aria-expanded="false"
+                class="bg-transparent text-sky-600 hover:text-sky-700 focus:outline-none"
+                aria-controls="description-content">
+                Learn more
+            </button>
+
+            <!-- Description is completely hidden by default and shown when the button is pressed -->
+            <div id="description-container" class="mb-4">
+                <div id="description-content" style="display: none;" aria-hidden="true">
+                    {{ description }}
+                </div>
+                <noscript>
+                    {{ description }}
+                </noscript>
+            </div>
 
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
@@ -1453,6 +1471,49 @@
                 updateUrlParams(query.toString(), includeVersion ? version.toString() : '');
             }
         });
+    </script>
+
+    <script>
+        // Simple show/hide toggle for description
+        (function () {
+            function qs(id) { return document.getElementById(id); }
+
+            var toggle = qs('description-toggle');
+            var content = qs('description-content');
+            var container = qs('description-container');
+
+            if (!toggle || !content || !container) return;
+
+            // Hide entire block if description empty
+            var text = content.textContent || content.innerText || '';
+            if (!text.trim()) {
+                toggle.style.display = 'none';
+                container.style.display = 'none';
+                return;
+            }
+
+            // Initialize state: hidden
+            content.style.display = 'none';
+            content.setAttribute('aria-hidden', 'true');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.innerText = 'Learn more';
+
+            toggle.addEventListener('click', function (e) {
+                e.preventDefault();
+                var isHidden = content.style.display === 'none' || content.style.display === '';
+                if (isHidden) {
+                    content.style.display = 'block';
+                    content.setAttribute('aria-hidden', 'false');
+                    toggle.setAttribute('aria-expanded', 'true');
+                    toggle.innerText = 'Show less';
+                } else {
+                    content.style.display = 'none';
+                    content.setAttribute('aria-hidden', 'true');
+                    toggle.setAttribute('aria-expanded', 'false');
+                    toggle.innerText = 'Learn more';
+                }
+            });
+        })();
     </script>
 </body>
 
