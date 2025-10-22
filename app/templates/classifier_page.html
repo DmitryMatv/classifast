@@ -574,26 +574,26 @@
 
         <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4" role="form"
             aria-label="Product Classification Form">
-            <div class="relative mb-2">
+            <div class="relative mb-1">
                 <h2 class="text-xl font-bold">{{ heading }}</h2>
                 {% if classifier_type == 'naics' %}
-                <img src="{{ url_for('static', path='images/naics-logo.png') }}" alt=""
-                    class="hidden md:block pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto"
+                <img src="{{ url_for('static', path='images/naics-logo.png') }}" alt="" data-classifier-logo="true"
+                    class="hidden lg:block pointer-events-none absolute right-2 top-0 h-12 lg:h-16 w-auto"
                     loading="lazy" aria-hidden="true">
                 {% elif classifier_type == 'unspsc' %}
-                <img src="{{ url_for('static', path='images/unspc-logo.png') }}" alt=""
-                    class="hidden md:block pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto"
+                <img src="{{ url_for('static', path='images/unspc-logo.png') }}" alt="" data-classifier-logo="true"
+                    class="hidden lg:block pointer-events-none absolute right-2 top-0 h-12 lg:h-16 w-auto"
                     loading="lazy" aria-hidden="true">
                 {% elif classifier_type == 'hts' %}
-                <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt=""
-                    class="hidden md:block pointer-events-none absolute right-2 top-0 h-12 md:h-16 w-auto"
+                <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="" data-classifier-logo="true"
+                    class="hidden lg:block pointer-events-none absolute right-2 top-0 h-12 lg:h-16 w-auto"
                     loading="lazy" aria-hidden="true">
                 {% endif %}
             </div>
             <button id="description-toggle" type="button" aria-expanded="false"
                 class="bg-transparent text-sky-600 hover:text-sky-700 focus:outline-none"
                 aria-controls="description-content">
-                Learn more
+                Learn more about {{ classifier_type.upper() }}
             </button>
 
             <!-- Description is completely hidden by default and shown when the button is pressed -->
@@ -650,8 +650,7 @@
                         }
                     });
                 </script>
-
-                <div class="flex justify-between items-center mt-2">
+                <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Classify product description"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold h-10 px-8 py-2 rounded-md text-base transition-all duration-150 flex items-center justify-center">
@@ -1481,6 +1480,7 @@
             var toggle = qs('description-toggle');
             var content = qs('description-content');
             var container = qs('description-container');
+            var logos = document.querySelectorAll('[data-classifier-logo]');
 
             if (!toggle || !content || !container) return;
 
@@ -1496,7 +1496,10 @@
             content.style.display = 'none';
             content.setAttribute('aria-hidden', 'true');
             toggle.setAttribute('aria-expanded', 'false');
-            toggle.innerText = 'Learn more';
+            var learnLabel = 'Learn more about {{ classifier_type.upper() }}';
+            var showLessLabel = 'Show less';
+
+            toggle.innerText = learnLabel;
 
             toggle.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -1505,12 +1508,22 @@
                     content.style.display = 'block';
                     content.setAttribute('aria-hidden', 'false');
                     toggle.setAttribute('aria-expanded', 'true');
-                    toggle.innerText = 'Show less';
+                    toggle.innerText = showLessLabel;
+                    logos.forEach(function (logo) {
+                        if (!logo.dataset.originalDisplay) {
+                            logo.dataset.originalDisplay = logo.style.display || '';
+                        }
+                        logo.style.display = 'none';
+                    });
                 } else {
                     content.style.display = 'none';
                     content.setAttribute('aria-hidden', 'true');
                     toggle.setAttribute('aria-expanded', 'false');
-                    toggle.innerText = 'Learn more';
+                    toggle.innerText = learnLabel;
+                    logos.forEach(function (logo) {
+                        var original = logo.dataset.originalDisplay || '';
+                        logo.style.display = original;
+                    });
                 }
             });
         })();

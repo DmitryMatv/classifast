@@ -270,6 +270,9 @@
   .mr-6 {
     margin-right: calc(var(--spacing) * 6);
   }
+  .mb-1 {
+    margin-bottom: calc(var(--spacing) * 1);
+  }
   .mb-2 {
     margin-bottom: calc(var(--spacing) * 2);
   }
@@ -813,11 +816,6 @@
       grid-column: span 2 / span 2;
     }
   }
-  .md\:h-16 {
-    @media (width >= 48rem) {
-      height: calc(var(--spacing) * 16);
-    }
-  }
   .md\:grid-cols-2 {
     @media (width >= 48rem) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -842,6 +840,16 @@
     @media (width >= 48rem) {
       font-size: var(--text-6xl);
       line-height: var(--tw-leading, var(--text-6xl--line-height));
+    }
+  }
+  .lg\:block {
+    @media (width >= 64rem) {
+      display: block;
+    }
+  }
+  .lg\:h-16 {
+    @media (width >= 64rem) {
+      height: calc(var(--spacing) * 16);
     }
   }
   .lg\:grid-cols-3 {
