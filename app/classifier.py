@@ -303,32 +303,34 @@ async def classify_string_batch(
             )
             has_quantization = False
 
-        # 3. Prepare Search Parameters conditionally based on quantization
+        # 3. Prepare Search Parameters with consistent hnsw_ef, adding quantization settings when available
+        search_params = models.SearchParams(
+            hnsw_ef=256,
+            exact=False,  # Ensure ANN index is used
+            quantization=(
+                models.QuantizationSearchParams(
+                    ignore=False,
+                    rescore=False,
+                    oversampling=2.0,
+                )
+                if has_quantization
+                else None
+            ),
+        )
+
         if has_quantization:
-            search_params = models.SearchParams(
-                hnsw_ef=256,
-                exact=False,  # Ensure ANN index is used
-                quantization=models.QuantizationSearchParams(
-                    ignore=False,  # Enable quantization
-                    rescore=True,  # Enable rescoring for better accuracy
-                    oversampling=2.0,  # Oversampling factor for improved recall
-                ),
-            )
             print(
-                f"Using quantization search parameters (rescore=True, oversampling=2.0)"
+                f"Using quantization search parameters (hnsw_ef=256, rescore=True, oversampling=2.0)"
             )
         else:
-            search_params = None  # Use default search parameters
-            print(f"Using default search parameters (no quantization)")
+            print(f"Using default search parameters (hnsw_ef=256, no quantization)")
 
         # 4. Execute Individual Search Queries with appropriate parameters
         search_type = "quantized" if has_quantization else "standard"
 
         # Calculate internal top_k for better rescore/oversampling accuracy
         if has_quantization:
-            internal_top_k = max(
-                50, top_k * 2
-            )  # Ensure sufficient candidates for rescore
+            internal_top_k = 100  # Ensure sufficient candidates for rescore
             print(
                 f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})..."
                 f" Internal top_k: {internal_top_k}, User top_k: {top_k}"
@@ -352,9 +354,7 @@ async def classify_string_batch(
                     "with_vectors": False,  # Usually not needed in the response
                 }
 
-                # Only add search_params if quantization is enabled
-                if has_quantization:
-                    search_kwargs["search_params"] = search_params
+                search_kwargs["search_params"] = search_params
 
                 search_result = await qdrant_client.search(**search_kwargs)
                 batch_results.append(search_result)
