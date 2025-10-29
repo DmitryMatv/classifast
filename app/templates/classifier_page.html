@@ -5,20 +5,20 @@
     <meta charset="UTF-8">
     {% if url_params.search %}
     <!-- Dynamic SEO for parameterized searches -->
-    <title>{{ classifier_type.upper() }} code for &quot;{{ url_params.search.title() }}&quot; | Classifast
+    <title>Lookup &quot;{{ url_params.search.title() }}&quot; code from {{ classifier_type.upper() }} | Classifast
     </title>
     <meta name="description"
-        content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
+        content="Find the right {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     <meta name="keywords"
-        content="{{ classifier_type.upper() }} code for {{ url_params.search.upper() }}, {{ url_params.search.upper() }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.search.upper() }}, {{ classifier_type.lower() }} classification {{ url_params.search.upper() }}">
+        content="{{ classifier_type.upper() }} codes for {{ url_params.search.upper() }}, {{ url_params.search.upper() }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} codes {{ url_params.search.upper() }}, {{ classifier_type.lower() }} classification {{ url_params.search.upper() }}">
     <meta property="og:title"
-        content=">{{ classifier_type.upper() }} code for &quot;{{ url_params.search.title() }}&quot; | Classifast">
+        content="Lookup &quot;{{ url_params.search.title() }}&quot; code from {{ classifier_type.upper() }} | Classifast">
     <meta property="og:description"
-        content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
+        content="Find the right {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     <meta name="twitter:title"
-        content=">{{ classifier_type.upper() }} code for &quot;{{ url_params.search.title() }}&quot; | Classifast">
+        content="Lookup &quot;{{ url_params.search.title() }}&quot; code from {{ classifier_type.upper() }} | Classifast">
     <meta name="twitter:description"
-        content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
+        content="Find the right {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     {% else %}
     <!-- Original SEO for regular pages -->
     {% if classifier_type == 'unspsc' %}
@@ -27,12 +27,6 @@
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     <meta name="keywords"
         content="UNSPSC mapping, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
-    {% elif classifier_type == 'etim' %}
-    <title>ETIM Code Lookup, Search, Classify, Map | Classifast</title>
-    <meta name="description"
-        content="Accurate ETIM product classification. Search and identify ETIM International classes for technical and electrical products.">
-    <meta name="keywords"
-        content="ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management">
     {% else %}
     <title>{{ classifier_type.upper() }} Code Lookup, Search, Classify, Map | Classifast</title>
     <meta name="description"
@@ -54,17 +48,13 @@
 
     <meta property="og:type" content="website">
     {% if classifier_type == 'unspsc' %}
-    <meta property="og:title" content="UNSPSC Code Lookup & Classification | Classifast">
+    <meta property="og:title" content="UNSPSC Code Lookup, Search, Classify, Map | Classifast">
     <meta property="og:description"
-        content="Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services.">
-    {% elif classifier_type == 'etim' %}
-    <meta property="og:title" content="ETIM Product Classification & Lookup | Classifast">
-    <meta property="og:description"
-        content="Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products.">
+        content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     {% else %}
-    <meta property="og:title" content="{{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast">
+    <meta property="og:title" content="{{ classifier_type.upper() }} Code Lookup, Search, Classify, Map | Classifast">
     <meta property="og:description"
-        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification with semantic search.">
+        content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification, search, and mapping.">
     {% endif %}
     <meta property="og:url" content="https://classifast.com/{{ classifier_type }}">
     <meta property="og:site_name" content="classifast.com">
@@ -72,19 +62,6 @@
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="{{ classifier_type.upper() }} Automatic Classification">
-
-    <meta name="twitter:card" content="summary_large_image">
-    {% if classifier_type == 'unspsc' %}
-    <meta name="twitter:title" content="UNSPSC Code Lookup, Classification, Search | Classifast">
-    <meta name="twitter:description"
-        content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
-    {% else %}
-    <meta name="twitter:title" content="{{ classifier_type.upper() }} Code Lookup, Classification, Search | Classifast">
-    <meta name="twitter:description"
-        content="Find {{ classifier_type.upper() }} codes quickly. Precise and quick {{ classifier_type.upper() }} standard classification with semantic search.">
-    {% endif %}
-    <meta name="twitter:image" content="{{ url_for('static', path='images/preview_classifybox.png') }}">
-    <meta name="twitter:creator" content="@DimonBitcoin">
 
     <!-- Inter font from official documentation -->
     <link rel="preconnect" href="https://rsms.me/" crossorigin>
@@ -482,9 +459,9 @@
     style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
     <header class="bg-sky-100 relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
-            <a href="{{ url_for('read_root') }}" class="flex items-center mobile-hidden">
+            <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <h1 class="text-xl font-semibold text-gray-800">{{ title }}</h1>
+                <h1 class="text-xl font-semibold text-gray-800 mobile-hidden">{{ title }}</h1>
             </a>
 
             <!-- Desktop Navigation -->
@@ -557,7 +534,7 @@
         </nav>
     </header>
 
-    <main class="container mx-auto p-3 max-w-screen-lg">
+    <main class="container mx-auto p-3 max-w-5xl">
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
             <ol class="flex items-center text-gray-500">
@@ -598,9 +575,6 @@
                 <div id="description-content" style="display: none;" aria-hidden="true">
                     {{ description }}
                 </div>
-                <noscript>
-                    {{ description }}
-                </noscript>
             </div>
 
             <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
@@ -609,7 +583,7 @@
                 {% if versions %}
                 <div class="flex items-center justify-start mb-2">
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
-                        class="border border-gray-400 rounded-md text-left px-2 py-1">
+                        class="border border-gray-400 rounded text-left px-2 py-1 focus:outline-nones">
                         {% for v in versions %}
                         <option value="{{ v }}">{{ v }}</option>
                         {% endfor %}
@@ -619,7 +593,7 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
-                    class="w-full p-2 border border-gray-400 rounded-md min-h-[80px] h-[100px] max-h-[800px] resize-y"></textarea>
+                    class="w-full p-2 border border-gray-400 rounded min-h-20 h-[100px] max-h-[800px] resize-y"></textarea>
                 <script>
                     // Custom Enter/Shift+Enter behavior for textarea with button visual feedback
                     document.addEventListener('DOMContentLoaded', function () {
@@ -650,7 +624,7 @@
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Classify product description"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold h-10 px-8 py-2 rounded-md text-base transition-all duration-150 flex items-center justify-center">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold h-10 px-8 py-2 rounded text-base transition-all duration-150 flex items-center justify-center">
                             {% if classifier_type == 'unspsc' %}
                             Classify
                             {% elif classifier_type == 'etim' %}
@@ -661,10 +635,12 @@
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show"
-                            class="text-gray-800 border border-gray-400 rounded-md text-base h-10 px-4 py-2 bg-white">
-                            <option value="5">Top 3</option>
+                            class="text-gray-800 border border-gray-400 rounded text-base h-10 px-4 py-2 bg-white focus:outline-none">
+                            <option value="3">Top 3</option>
+                            <option value="5">Top 5</option>
                             <option value="10" selected>Top 10</option>
                             <option value="30">Top 30</option>
+                            <option value="100">Top 100</option>
                         </select>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center" role="status"
                             aria-label="Processing request" aria-live="polite">
@@ -680,7 +656,7 @@
             </form>
         </section>
 
-        <section id="results-section" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto" aria-live="polite"
+        <section id="results-section" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto" aria-live="polite"
             role="region" aria-label="Classification Results">
             <div id="results-container" role="main">
                 {% include 'results.html' %}
@@ -689,7 +665,7 @@
 
         <!-- Standard-specific content sections to address Google indexing issues -->
         {% if classifier_type == 'unspsc' %}
-        <section id="unspsc-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="unspsc-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Understanding UNSPSC Classification</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -730,7 +706,7 @@
         {% endif %}
 
         {% if classifier_type == 'etim' %}
-        <section id="etim-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="etim-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">ETIM Technical Classification Guide</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -767,7 +743,7 @@
         {% endif %}
 
         {% if classifier_type == 'naics' %}
-        <section id="naics-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="naics-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">NAICS Business Classification System</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -806,7 +782,7 @@
         {% endif %}
 
         {% if classifier_type == 'isic' %}
-        <section id="isic-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="isic-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">ISIC: UN's Global Economic Classification</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -846,7 +822,7 @@
         {% endif %}
 
         {% if classifier_type == 'hs' %}
-        <section id="hs-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="hs-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Harmonized System (HS) Code Guide</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -885,7 +861,7 @@
         {% endif %}
 
         {% if classifier_type == 'cn' %}
-        <section id="cn-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="cn-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Combined Nomenclature (CN) Code Guide</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -924,7 +900,7 @@
         {% endif %}
 
         {% if classifier_type == 'nace' %}
-        <section id="nace-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="nace-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">NACE: EU Economic Activity Classification</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -964,7 +940,7 @@
         {% endif %}
 
         {% if classifier_type == 'cpv' %}
-        <section id="cpv-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="cpv-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">CPV: Common Procurement Vocabulary Guide</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -1003,7 +979,7 @@
         {% endif %}
 
         {% if classifier_type == 'nsn' %}
-        <section id="nsn-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4">
+        <section id="nsn-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">NSN: NATO Stock Number Classification Guide</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
@@ -1046,7 +1022,7 @@
         {% endif %}
 
         <!-- Cross-standard comparison section for enhanced internal linking -->
-        <section id="comparison-guide" class="bg-white p-6 rounded-lg shadow max-w-screen-lg mx-auto mt-4"
+        <section id="comparison-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4"
             role="complementary" aria-label="Other Classification Standards">
             <h2 class="hidden text-xl font-bold text-gray-800 mb-4">Other Classification Standards</h2>
 
@@ -1170,8 +1146,8 @@
                     <p class="text-lg font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors" role="link"
                             aria-label="Classifast Homepage">Classifast.com</a></p>
-                    <p class="text-gray-400 mb-4">Instant category code search and classifier for UNSPSC, NAICS, HS, CN and
-                        other classification standards.</p>
+                    <p class="text-gray-400 mb-4">Instant category code search and classifier for UNSPSC, NAICS, HS, CN
+                        and other classification standards.</p>
                 </div>
 
                 <div>

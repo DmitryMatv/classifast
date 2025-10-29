@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
 
-    <title>Instantly classify any goods and services | Classifast</title>
+    <title>Instant classification of goods and services | Classifast</title>
     <meta name="description"
-        content="Classification tool to easily find UNSPSC, NAICS, ISIC, HS, and other standard classification codes. Accurately search, lookup, map, and classify products.">
+        content="Simple finder for UNSPSC, NAICS, ISIC, HS, CN, and other standard codes. Accurate category search, lookup, mapping, and classification of products and services.">
     <meta name="keywords"
         content="code lookup, code mapping, code crosswalk, code search, find code, classification, commodity code, UNSPSC categories, NAICS code search, find NAICS code, NAICS industry code lookup, product classification">
     <meta name="author" content="Dmitry Matv">
@@ -21,9 +21,9 @@
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Fast categorization of many industry standards | Classifast">
+    <meta property="og:title" content="Instant classification of goods and services | Classifast">
     <meta property="og:description"
-        content="Find UNSPSC, NAICS, ISIC, and other classification codes. Semantic search to accurately lookup and classify products and services.">
+        content="Simple finder for UNSPSC, NAICS, ISIC, HS, CN, and other standard codes. Accurate category search, lookup, mapping, and classification of products and services.">
     <meta property="og:url" content="https://classifast.com/">
     <meta property="og:site_name" content="classifast.com">
     <meta property="og:image" content="https://classifast.com/static/images/preview.png">
@@ -296,6 +296,9 @@
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="API Documentation">API</a>
                     </li>
+                    <!-- <li id="desktop-auth-container">
+                         Clerk authentication will be mounted here
+                    </li> -->
                 </ul>
             </nav>
 
@@ -349,16 +352,14 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">NSN</a>
                 </li>
-                <!-- <li><a href="#" class="text-gray-600 hover:text-sky-600 transition-colors">Login</a>
-                </li>
-                <li><a href="#"
-                        class="get-started-btn bg-sky-600 text-white font-semibold hover:bg-sky-700 transition-colors">
-                        Get Started</a></li> -->
+                <!-- <li id="mobile-auth-container">
+                     Clerk authentication will be mounted here
+                </li> -->
             </ul>
         </nav>
     </header>
 
-    <main class="flex-grow">
+    <main class="grow">
         <!-- Hero Section -->
         <section class="bg-sky-100 pt-6 md:pt-20 pb-8 md:pb-20">
             <div class="container mx-auto px-4 max-w-6xl">
@@ -377,43 +378,43 @@
                     </p>
                     <div class="flex flex-wrap justify-center gap-4 max-w-xl mx-auto">
                         <a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             UNSPSC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             NAICS
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             ISIC
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             NACE
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             ETIM
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             HS
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             HTS
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             CN
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             CPV
                         </a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded-md text-base transition-all duration-150 ease-in-out transform">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             NSN
                         </a>
                     </div>
@@ -491,8 +492,8 @@
                     <p class="text-lg font-bold mb-4"><a href="{{ url_for('read_root') }}"
                             class="hover:text-sky-600 transition-colors" role="link"
                             aria-label="Classifast Homepage">Classifast.com</a></p>
-                    <p class="text-gray-400 mb-4">Instant category code search and classifier for UNSPSC, NAICS, HS, CN and
-                        other classification standards.</p>
+                    <p class="text-gray-400 mb-4">Instant category code search and classifier for UNSPSC, NAICS, HS, CN
+                        and other classification standards.</p>
                 </div>
 
                 <div>
@@ -555,6 +556,85 @@
             </div>
         </div>
     </footer>
+
+    <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->
+    <script data-clerk-publishable-key="pk_test_ZGFybGluZy1zZWFndWxsLTM0LmNsZXJrLmFjY291bnRzLmRldiQ"
+        src="https://darling-seagull-34.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+        crossorigin="anonymous" type="text/javascript"></script>
+
+    <script>
+        // Clerk initialization - wait for DOM to be ready and Clerk to load
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('DOM loaded');
+
+            // Check and retry if Clerk is not ready yet
+            function tryInitClerk() {
+                if (typeof Clerk !== 'undefined') {
+                    console.log('Clerk detected, initializing...');
+                    initClerkAuth();
+                } else {
+                    console.log('Clerk not yet loaded, retrying...');
+                    setTimeout(tryInitClerk, 100);
+                }
+            }
+
+            tryInitClerk();
+        });
+
+        async function initClerkAuth() {
+            try {
+                await Clerk.load();
+                console.log('Clerk loaded successfully, isSignedIn:', Clerk.isSignedIn);
+
+                // Get the auth containers
+                const desktopAuthContainer = document.getElementById('desktop-auth-container');
+                const mobileAuthContainer = document.getElementById('mobile-auth-container');
+                console.log('Found containers:', { desktop: !!desktopAuthContainer, mobile: !!mobileAuthContainer });
+
+                if (Clerk.isSignedIn) {
+                    // User is signed in - show user button in both desktop and mobile
+                    if (desktopAuthContainer) {
+                        desktopAuthContainer.innerHTML = '<div id="desktop-user-button"></div>';
+                        const desktopUserButtonDiv = document.getElementById('desktop-user-button');
+                        Clerk.mountUserButton(desktopUserButtonDiv);
+                    }
+
+                    if (mobileAuthContainer) {
+                        mobileAuthContainer.innerHTML = '<div id="mobile-user-button"></div>';
+                        const mobileUserButtonDiv = document.getElementById('mobile-user-button');
+                        Clerk.mountUserButton(mobileUserButtonDiv);
+                    }
+                } else {
+                    // User is not signed in - show sign-in component
+                    if (desktopAuthContainer) {
+                        desktopAuthContainer.innerHTML = '<div id="desktop-sign-in"></div>';
+                        const desktopSignInDiv = document.getElementById('desktop-sign-in');
+                        Clerk.mountSignIn(desktopSignInDiv);
+                    }
+
+                    if (mobileAuthContainer) {
+                        mobileAuthContainer.innerHTML = '<div id="mobile-sign-in"></div>';
+                        const mobileSignInDiv = document.getElementById('mobile-sign-in');
+                        Clerk.mountSignIn(mobileSignInDiv);
+                    }
+                }
+            } catch (error) {
+                console.error('Error initializing Clerk:', error);
+                // Fallback: show basic sign-in button
+                const containers = [desktopAuthContainer, mobileAuthContainer];
+                containers.forEach(container => {
+                    if (container) {
+                        container.innerHTML = `
+                            <a href="https://darling-seagull-34.clerk.accounts.dev/sign-in?redirect_url=${window.location.href}"
+                               class="bg-sky-600 text-white px-4 py-2 rounded hover:bg-sky-700 transition-colors">
+                                Sign In
+                            </a>
+                        `;
+                    }
+                });
+            }
+        }
+    </script>
 
     <script>
         // Mobile menu toggle functionality
