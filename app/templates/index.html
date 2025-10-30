@@ -142,7 +142,8 @@
 
 
     <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
-    <link href="{{ url_for('static', path='/css/custom.css') }}" rel="stylesheet">
+
+    <script src="{{ url_for('static', path='/js/common.js') }}"></script>
 
     <style>
         /* Modern approach: Reserve space for scrollbar to prevent layout shift */
@@ -550,7 +551,7 @@
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">
                 <p class="text-gray-400">
-                    <a href="https://github.com/DmitryMatv">Dmitry Matv</a><br>
+                    <a href="https://github.com/DmitryMatv" class="hover:text-white">Dmitry Matv</a><br>
                     2025
                 </p>
             </div>
@@ -636,52 +637,6 @@
         }
     </script>
 
-    <script>
-        // Mobile menu toggle functionality
-        document.addEventListener('DOMContentLoaded', function () {
-            const mobileMenuButton = document.getElementById('mobile-menu-button');
-            const mobileMenu = document.getElementById('mobile-menu');
-            const hamburger = document.querySelector('.hamburger');
-
-            if (mobileMenuButton && mobileMenu && hamburger) {
-                mobileMenuButton.addEventListener('click', function () {
-                    const isActive = mobileMenu.classList.contains('active');
-
-                    if (isActive) {
-                        mobileMenu.classList.remove('active');
-                        hamburger.classList.remove('active');
-                        mobileMenuButton.setAttribute('aria-expanded', 'false');
-                    } else {
-                        mobileMenu.classList.add('active');
-                        hamburger.classList.add('active');
-                        mobileMenuButton.setAttribute('aria-expanded', 'true');
-                    }
-                });
-
-                // Close mobile menu when clicking on a link
-                const mobileMenuLinks = mobileMenu.querySelectorAll('a');
-                mobileMenuLinks.forEach(link => {
-                    link.addEventListener('click', function () {
-                        mobileMenu.classList.remove('active');
-                        hamburger.classList.remove('active');
-                        mobileMenuButton.setAttribute('aria-expanded', 'false');
-                    });
-                });
-
-                // Close mobile menu when clicking outside
-                document.addEventListener('click', function (event) {
-                    const isClickInsideMenu = mobileMenu.contains(event.target);
-                    const isClickOnButton = mobileMenuButton.contains(event.target);
-
-                    if (!isClickInsideMenu && !isClickOnButton && mobileMenu.classList.contains('active')) {
-                        mobileMenu.classList.remove('active');
-                        hamburger.classList.remove('active');
-                        mobileMenuButton.setAttribute('aria-expanded', 'false');
-                    }
-                });
-            }
-        });
-    </script>
 </body>
 
 </html>
