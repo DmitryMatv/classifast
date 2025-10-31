@@ -1,9 +1,9 @@
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 from google import genai
 from google.genai import types
 from qdrant_client import AsyncQdrantClient, models
-from typing import List, Dict, Any, Optional
-
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 
@@ -47,7 +47,7 @@ def validate_embedding_correspondence(
             )
 
     print(
-        f"[OK] Embedding validation passed{context_str}: "
+        f"🆗 Embedding validation passed{context_str}: "
         f"{len(embeddings)} embeddings, {expected_dim} dimensions each"
     )
     return True
@@ -83,7 +83,7 @@ async def get_embeddings_batch(
     try:
         # Enhanced logging for embedding generation
         print(
-            f"[START] Embedding generation: {len(texts)} texts, model={model_name}, task_type={task_type}"
+            f"✨ Embedding generation: {len(texts)} texts, model={model_name}, task_type={task_type}"
         )
         if embed_dims:
             print(f"   Target dimensions: {embed_dims}")
@@ -108,7 +108,7 @@ async def get_embeddings_batch(
                     f"Number of titles ({len(titles)}) must match number of texts ({len(texts)})"
                 )
 
-            print(f"   Using individual API calls to preserve order with title context")
+            print("   Using individual API calls to preserve order with title context")
             # Process each text with its corresponding title while preserving order
             embeddings_by_index = {}  # Use dict to preserve index ordering
             successful_indices = []
@@ -131,7 +131,7 @@ async def get_embeddings_batch(
                     if len(response.embeddings) != 1:
                         failed_indices.append(index)
                         print(
-                            f"[WARN] Embedding API returned {len(response.embeddings)} embeddings for text at index {index}, expected 1"
+                            f"⚠️ Embedding API returned {len(response.embeddings)} embeddings for text at index {index}, expected 1"
                         )
                         continue
 
@@ -142,7 +142,7 @@ async def get_embeddings_batch(
                     # Log successful embedding generation
                     if index < 3:  # Only log first few to avoid spam
                         print(
-                            f"   [OK] Embedding {index+1}/{len(texts)}: {len(embedding_vector)} dimensions, title='{title[:30]}...'"
+                            f"   🆗 Embedding {index + 1}/{len(texts)}: {len(embedding_vector)} dimensions, title='{title[:30]}...'"
                         )
                     elif index == 3:
                         print(
@@ -152,14 +152,14 @@ async def get_embeddings_batch(
                 except Exception as e:
                     failed_indices.append(index)
                     print(
-                        f"[WARN] Failed to generate embedding for text at index {index}: {e}"
+                        f"⚠️ Failed to generate embedding for text at index {index}: {e}"
                     )
                     continue
 
             # Validate order preservation and handle partial failures
             if failed_indices:
                 print(
-                    f"[WARN] Embedding generation completed with {len(failed_indices)} failures out of {len(texts)} total texts"
+                    f"⚠️ Embedding generation completed with {len(failed_indices)} failures out of {len(texts)} total texts"
                 )
                 print(f"Failed indices: {failed_indices}")
 
@@ -181,13 +181,8 @@ async def get_embeddings_batch(
                         f"Failed to generate embedding for text at index {i}: {texts[i][:50]}..."
                     )
 
-            # Validate embedding-text correspondence for ordered embeddings
-            validate_embedding_correspondence(
-                texts, ordered_embeddings, "document with titles"
-            )
-
             print(
-                f"   [OK] Completed individual embeddings: {len(ordered_embeddings)} embeddings generated"
+                f"   🆗 Completed individual embeddings: {len(ordered_embeddings)} embeddings generated"
             )
             return ordered_embeddings
         else:
@@ -199,7 +194,7 @@ async def get_embeddings_batch(
                 config=config,
             )
 
-            print(f"   [OK] Batch API returned {len(response.embeddings)} embeddings")
+            print(f"   🆗 Batch API returned {len(response.embeddings)} embeddings")
 
             # Validate batch response preserves order
             if len(response.embeddings) != len(texts):
@@ -210,11 +205,8 @@ async def get_embeddings_batch(
 
             raw_embeddings = [embedding.values for embedding in response.embeddings]
 
-            # Validate embedding-text correspondence
-            validate_embedding_correspondence(texts, raw_embeddings, "batch query")
-
             print(
-                f"   [OK] Completed batch embedding: {len(raw_embeddings)} embeddings generated"
+                f"   🆗 Completed batch embedding: {len(raw_embeddings)} embeddings generated"
             )
             return raw_embeddings
     except Exception as e:
@@ -257,10 +249,9 @@ async def classify_string_batch(
         return []
 
     try:
-
         # 1. Get Embeddings for the Query Texts in a Single Batch Call
         print(
-            f"Generating embeddings for {len(query_texts)} queries using model {embed_model_name}..."
+            f"\nGenerating embeddings for {len(query_texts)} queries using model {embed_model_name}..."
         )
         query_embeddings = await get_embeddings_batch(
             embed_client,
@@ -284,7 +275,7 @@ async def classify_string_batch(
             # Instead of returning empty list, we could return partial results or handle more gracefully
             return []
 
-        # Validate embeddings before proceeding
+        # Validate embeddings before proceeding (single validation point)
         validate_embedding_correspondence(query_texts, query_embeddings, "queries")
 
         query_embeddings_np = np.array(query_embeddings)
@@ -320,10 +311,10 @@ async def classify_string_batch(
 
         if has_quantization:
             print(
-                f"Using quantization search parameters (hnsw_ef=256, rescore=True, oversampling=2.0)"
+                "Using quantization search parameters (hnsw_ef=256, rescore=True, oversampling=2.0)"
             )
         else:
-            print(f"Using default search parameters (hnsw_ef=256, no quantization)")
+            print("Using default search parameters (hnsw_ef=256, no quantization)")
 
         # 4. Execute Individual Search Queries with appropriate parameters
         search_type = "quantized" if has_quantization else "standard"
@@ -332,8 +323,8 @@ async def classify_string_batch(
         if has_quantization:
             internal_top_k = 100  # Ensure sufficient candidates for rescore
             print(
-                f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})..."
-                f" Internal top_k: {internal_top_k}, User top_k: {top_k}"
+                f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})... "
+                f"Internal top_k: {internal_top_k}, User top_k: {top_k}"
             )
         else:
             internal_top_k = top_k
@@ -383,16 +374,14 @@ async def classify_string_batch(
 
         if all_formatted_results and any(results for results in all_formatted_results):
             print(
-                f"[OK] Batch query finished successfully. Returning {len(all_formatted_results)} sets of results."
+                f"🆗 Batch query finished successfully. Returning {len(all_formatted_results)} sets of results."
             )
         else:
-            print(
-                f"[WARN] Batch query finished but returned empty results for all queries."
-            )
+            print("⚠️ Batch query finished but returned empty results for all queries.")
         return all_formatted_results
 
     except Exception as e:
-        print(f"[ERROR] Error during batch classification: {e}")
+        print(f"❌ Error during batch classification: {e}")
         # Depending on the desired error handling, you might want to raise
         # the exception or return an empty list.
         return []
