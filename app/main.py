@@ -238,6 +238,12 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
     }
 
     async def dispatch(self, request: Request, call_next):
+        # Check URL path for suspicious encoding (catches path-based attacks)
+        url_path = request.url.path or ""
+        if url_path and self._is_suspicious_encoding(url_path):
+            print(f"Suspicious URL encoding detected in path: {url_path[:100]}...")
+            return self._create_error_response()
+
         # Early check for URL query parameters (most efficient first)
         if request.query_params:
             for param_name, param_value in request.query_params.items():
