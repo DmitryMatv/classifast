@@ -222,6 +222,107 @@ class BotDetectionMiddleware(BaseHTTPMiddleware):
 app.add_middleware(BotDetectionMiddleware)
 
 
+# URL Encoding Validation Middleware
+class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
+    # Pre-compile regex patterns for performance
+    _double_encoding_pattern = re.compile(r"%25{3,}")
+    _encoding_pattern = re.compile(r"%[0-9A-Fa-f]{2}")
+    _overlong_25_pattern = re.compile(r"(%25){2,}")
+    _consecutive_encoding_pattern = re.compile(r"%[0-9A-Fa-f]{2}(%[0-9A-Fa-f]{2}){5,}")
+    _suspicious_sequences = {
+        r"%2525",  # Double-encoded %
+        r"%2520",  # Double-encoded space
+        r"%2522",  # Double-encoded quote
+        r"%253c",  # Double-encoded <
+        r"%253e",  # Double-encoded >
+    }
+
+    async def dispatch(self, request: Request, call_next):
+        # Early check for URL query parameters (most efficient first)
+        if request.query_params:
+            for param_name, param_value in request.query_params.items():
+                if self._is_suspicious_encoding(param_value):
+                    print(
+                        f"Suspicious URL encoding detected in query param '{param_name}': {param_value[:100]}..."
+                    )
+                    return self._create_error_response()
+
+        # Check URL query string for suspicious encoding (especially for POST requests with spam patterns)
+        # Use query part only for better performance and accuracy
+        url_query = request.url.query or ""
+        if url_query and self._is_suspicious_encoding(url_query):
+            print(
+                f"Suspicious URL encoding detected in query string: {url_query[:100]}..."
+            )
+            return self._create_error_response()
+
+        # Special handling for POST/PUT/PATCH - only check content-type headers
+        # Avoid reading body to prevent consuming it for downstream handlers
+        if request.method in ["POST", "PUT", "PATCH"]:
+            # Additional check: reject very large content lengths (DoS prevention)
+            content_length = request.headers.get("content-length")
+            if content_length:
+                try:
+                    length = int(content_length)
+                    if length > 10000000:  # 10MB limit
+                        print(f"Suspicious: Very large content length {length} bytes")
+                        return self._create_error_response()
+                except ValueError:
+                    pass  # Invalid content-length header, let downstream handle it
+
+        # All checks passed - proceed with request
+        response = await call_next(request)
+        return response
+
+    def _is_suspicious_encoding(self, text: str) -> bool:
+        """Optimized check for suspicious URL encoding patterns"""
+        if not text or len(text) > 4000:
+            return len(text) > 4000  # Reject overlong strings
+
+        # Fast path: Check for most obvious spam patterns first
+        if "%2525" in text.lower():
+            return True
+
+        # Check for repeated %25 patterns (double encoding)
+        if self._double_encoding_pattern.search(text):
+            return True
+
+        # Check for excessive URL encoding
+        encoding_count = len(self._encoding_pattern.findall(text))
+        if encoding_count > 10:
+            total_chars = len(text)
+            if total_chars > 0 and encoding_count / total_chars > 0.3:
+                return True
+
+        # Check for other suspicious patterns
+        if self._overlong_25_pattern.search(text):
+            return True
+
+        if self._consecutive_encoding_pattern.search(text):
+            return True
+
+        # Check for suspicious sequences
+        text_lower = text.lower()
+        for pattern in self._suspicious_sequences:
+            if pattern in text_lower:
+                return True
+
+        return False
+
+    def _create_error_response(self) -> JSONResponse:
+        """Create standardized error response"""
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": "Request rejected due to suspicious URL encoding patterns",
+                "error": "INVALID_ENCODING",
+            },
+        )
+
+
+app.add_middleware(URLEncodingValidationMiddleware)
+
+
 # Security Headers Middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
