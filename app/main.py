@@ -289,6 +289,13 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         if "%2525" in text.lower():
             return True
 
+        # Check for decoded double-encoding patterns (e.g., "2525", "2520")
+        text_lower = text.lower()
+        decoded_spam_patterns = ["252525", "252520", "253c", "253e", "2522"]
+        for pattern in decoded_spam_patterns:
+            if pattern in text_lower:
+                return True
+
         # Check for repeated %25 patterns (double encoding)
         if self._double_encoding_pattern.search(text):
             return True
@@ -300,6 +307,20 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
             if total_chars > 0 and encoding_count / total_chars > 0.3:
                 return True
 
+        # Check for long sequences of consecutive digits (15+)
+        digit_sequence = re.search(r"\d{15,}", text)
+        if digit_sequence:
+            return True
+
+        # Check for repeating character patterns (any char repeated 10+ times)
+        if re.search(r"(.)\1{9,}", text):
+            return True
+
+        # Check digit density (>60% digits is suspicious)
+        digit_count = sum(c.isdigit() for c in text)
+        if len(text) > 0 and digit_count / len(text) > 0.6:
+            return True
+
         # Check for other suspicious patterns
         if self._overlong_25_pattern.search(text):
             return True
@@ -308,7 +329,6 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
             return True
 
         # Check for suspicious sequences
-        text_lower = text.lower()
         for pattern in self._suspicious_sequences:
             if pattern in text_lower:
                 return True

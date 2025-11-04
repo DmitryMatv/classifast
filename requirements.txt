@@ -1,5 +1,8 @@
 python-dotenv
-fastapi[standard]>=0.118.0,<0.119.0
+python-multipart
+fastapi>=0.121.0,<0.122.0
+uvicorn[standard]
 slowapi
 google-genai<=2.0.0
 qdrant-client>=1.15.0,<1.16.0
+Jinja2>=3.1.0,<4.0.0
