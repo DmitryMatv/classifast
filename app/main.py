@@ -370,13 +370,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Simplified CSP since Cloudflare handles most security
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://darling-seagull-34.clerk.accounts.dev https://*.clerk.accounts.dev https://*.clerk.com; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com; "
             "worker-src 'self' blob:; "
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
             "style-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
             "img-src 'self' data: https:; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "connect-src 'self' https: https://darling-seagull-34.clerk.accounts.dev https://*.clerk.accounts.dev https://*.clerk.com; "
+            "connect-src 'self' https: https://*.clerk.com; "
             "object-src 'none'; "
             "frame-ancestors 'none'; "
             "upgrade-insecure-requests;"

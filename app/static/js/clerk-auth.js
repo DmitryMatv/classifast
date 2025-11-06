@@ -129,7 +129,7 @@
                 [desktopAuthContainer, mobileAuthContainer].forEach(container => {
                     if (!container) return;
                     container.innerHTML = `
-                        <a href="https://darling-seagull-34.clerk.accounts.dev/sign-in?redirect_url=${window.location.href}"
+                        <a href="https://clerk.classifast.com/sign-in?redirect_url=${window.location.href}"
                            class="bg-sky-600 text-white px-4 py-2 rounded hover:bg-sky-700 transition-colors block text-center">
                             Sign In
                         </a>
