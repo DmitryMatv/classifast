@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
     if embed_client and qdrant_client:
         print("Pre-loading example query results for all classifiers...")
         for classifier_type, config in CLASSIFIER_CONFIG.items():
-            query = config.get("example", "").replace("Example:", "").strip()
+            query = config.get("example", "").replace("Example:\n", "").strip()
             if not query:
                 continue
 
@@ -565,7 +565,7 @@ CLASSIFIER_CONFIG = {
         "title": "ETIM International Classifier",
         "heading": "Get relevant EC classes from the ETIM standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
-        "example": "Example: SH203-C20 Miniature Circuit Breaker 6kA 20A 3P",
+        "example": "Example:\nSH203-C20 Miniature Circuit Breaker 6kA 20A 3P",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -579,7 +579,7 @@ CLASSIFIER_CONFIG = {
         "title": "UNSPSC Code Finder",
         "heading": "Get right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
-        "example": "Example: Office supplies",
+        "example": "Example:\nOffice supplies",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -593,7 +593,7 @@ CLASSIFIER_CONFIG = {
         "title": "NAICS Code Finder",
         "heading": "Get appropriate codes from the NAICS standard",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
-        "example": "Example: Gamedev studio",
+        "example": "Example:\nGamedev studio",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -612,7 +612,7 @@ CLASSIFIER_CONFIG = {
         "title": "ISIC Classifier",
         "heading": "Instantly classify economic activities using the UN's ISIC",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
-        "example": "Example: Manufacture of motor vehicles",
+        "example": "Example:\nManufacture of motor vehicles",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -629,7 +629,7 @@ CLASSIFIER_CONFIG = {
         "title": "HS Code Finder",
         "heading": "Search HS codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
-        "example": "Example: Electric motor",
+        "example": "Example:\nElectric motor",
         "embed_model_name": "gemini-embedding-001",
         "versions": {
             "HS 2022": {
@@ -642,7 +642,7 @@ CLASSIFIER_CONFIG = {
         "title": "CN Code Finder",
         "heading": "Get CN codes for EU customs and trade",
         "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
-        "example": "Example: Stainless steel sheets, 304 grade, 2mm thickness",
+        "example": "Example:\nStainless steel sheets, 304 grade, 2mm thickness",
         "embed_model_name": "gemini-embedding-001",
         "versions": {
             "CN 2025": {
@@ -655,7 +655,7 @@ CLASSIFIER_CONFIG = {
         "title": "NACE Business Activity Classifier",
         "heading": "Classify economic activities with EU's NACE standard",
         "description": "NACE (Nomenclature statistique des activités économiques) is the European Union's statistical classification of economic activities, developed by Eurostat to ensure harmonized economic analysis across all EU member states. This comprehensive framework enables consistent business registration, national accounts compilation, employment statistics, and cross-country economic comparisons, serving as the foundation for EU policy-making, regional development planning, and structural business statistics.",
-        "example": "Example: Nuclear power plant (NPP)",
+        "example": "Example:\nNuclear power plant operation",
         "embed_model_name": "gemini-embedding-001",
         "versions": {
             "NACE Rev. 2.1": {
@@ -668,7 +668,7 @@ CLASSIFIER_CONFIG = {
         "title": "CPV Code Finder",
         "heading": "Find CPV codes for EU public procurement",
         "description": "The Common Procurement Vocabulary (CPV) is the European Union's standardized classification system for public procurement, established to ensure transparency and equal access to public contracts across the single market. This 9-digit hierarchical code structure is mandatory for all EU public procurement procedures, enabling consistent tender documentation, contract award notices in the TED system, and comprehensive market analysis while facilitating cross-border bidding and ensuring compliance with EU procurement directives.",
-        "example": "Example: Indie gamedev studio",
+        "example": "Example:\nIndie gamedev studio",
         "embed_model_name": "gemini-embedding-001",
         "versions": {
             "CPV 2008 (ver. 2013)": {
@@ -685,7 +685,7 @@ CLASSIFIER_CONFIG = {
         "title": "NATO Stock Number (NSN) Classifier",
         "heading": "Find NSN codes for military procurement",
         "description": "The NATO Stock Number (13 digits) consists of material group, material class, country code, and NIIN (National Item Identification Number). The NSN is a unique identifier for items of supply recognized by all NATO countries. The NSN is used to identify and manage supplies, ensuring that all member nations can effectively procure and utilize military equipment and materials. This classification system facilitates logistics, inventory management, and standardization across NATO forces.",
-        "example": "Example: 1000W 120V AC power supply",
+        "example": "Example:\n1000W 120V AC power supply",
         "embed_model_name": "gemini-embedding-001",
         "versions": {
             "NSN extract (February 22, 2023)": {
@@ -698,7 +698,7 @@ CLASSIFIER_CONFIG = {
         "title": "HTS Code Finder",
         "heading": "Get Harmonized Tariff Schedule codes for US imports",
         "description": "Harmonized Tariff Schedule (HTS) is the United States comprehensive customs classification system for imported goods, extending the international Harmonized System (HS) with country-specific provisions. This 10-digit hierarchical code structure is mandatory for all US customs declarations and serves as the legal basis for determining applicable duties, taxes, trade restrictions, and regulatory requirements. The HTS is essential for importers, customs brokers, freight forwarders, and compliance professionals to ensure accurate classification and smooth customs clearance for goods entering the United States.",
-        "example": "Example: Smartphone",
+        "example": "Example:\nSmartphone",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -712,7 +712,7 @@ CLASSIFIER_CONFIG = {
         "title": "Embedding Test Classifier",
         "heading": "Get codes for your goods",
         "description": "Is this really necessary here?",
-        "example": "Example: Electric motor",
+        "example": "Example:\nElectric motor",
         "embed_model_name": "text-embedding-004",
         "embed_dims": 768,
         "versions": {
@@ -773,8 +773,8 @@ async def perform_classification(
             detail="Backend services not available. Please check server logs.",
         )
 
-    # Validate and normalize query
-    normalized_query = query.strip()
+    # Validate and normalize query - remove trailing slashes and replace with spaces
+    normalized_query = query.replace("/", " ").strip()
     if not normalized_query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
@@ -1136,7 +1136,11 @@ async def show_classifier_page_with_query(
     decoded_search_query = ""
     if search_query and search_query.strip():
         decoded_search_query = (
-            unquote_plus(search_query).rstrip("/").replace("-", " ").strip()
+            unquote_plus(search_query)
+            .rstrip("/")
+            .replace("/", " ")
+            .replace("-", " ")
+            .strip()
         )
         # Sanitize the decoded query
         decoded_search_query = re.sub(r'[<>&"\']', "", decoded_search_query)[
@@ -1145,9 +1149,8 @@ async def show_classifier_page_with_query(
 
     # Use pre-cached results if the query matches the example or is empty (base URL)
     preloaded_data = None
-    example_text = config.get("example", "").replace("Example:", "").strip()
 
-    if not decoded_search_query or decoded_search_query == example_text:
+    if not decoded_search_query:
         preloaded_data = PRELOADED_RESULTS_CACHE.get(classifier_type)
 
     if not preloaded_data:
@@ -1165,7 +1168,8 @@ async def show_classifier_page_with_query(
             return ""
         # Sanitize input: limit length and remove harmful characters
         text = str(text)[:200]  # Limit to 200 chars max
-        text = re.sub(r"[^\w\s-]", "", text.lower())
+        # Preserve periods and commas while removing other special characters
+        text = re.sub(r"[^\w\s.,-]", "", text.lower())
         text = re.sub(r"[-\s]+", "-", text)
         return text.strip("-")
 
@@ -1221,8 +1225,8 @@ async def handle_classify(
         f"❓ Received query for '{classifier_type}' classification with version '{version}'."
     )
 
-    # Handle empty query gracefully
-    normalized_description = product_description.strip()
+    # Handle empty query gracefully - also remove trailing slashes and replace with spaces
+    normalized_description = product_description.replace("/", " ").strip()
     if not normalized_description:
         return templates.TemplateResponse(
             "results.html",

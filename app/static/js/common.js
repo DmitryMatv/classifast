@@ -65,9 +65,12 @@ class UrlUtils {
         );
 
         if (classifierIndex !== -1 && pathParts.length > classifierIndex + 1) {
+            // Filter out empty strings to handle trailing slashes, then join with spaces and decode
             const searchQuery = decodeURIComponent(
-                pathParts.slice(classifierIndex + 1).join('/')
-            ).replace(/-/g, ' ');
+                pathParts.slice(classifierIndex + 1)
+                    .filter(part => part.length > 0)  // Remove empty strings from trailing slashes
+                    .join(' ')
+            ).replace(/-/g, ' ').trim();  // Replace hyphens with spaces, then trim
             return {
                 search: searchQuery || '',
                 version: new URLSearchParams(window.location.search).get('version') || ''
@@ -83,7 +86,7 @@ class UrlUtils {
     // Slugify function for SEO-friendly URLs
     static slugify(text) {
         return text.toString().toLowerCase()
-            .replace(/[^\w\s-]/g, '') // Remove special characters
+            .replace(/[^\w\s.,-]/g, '') // Remove special characters but preserve periods and commas
             .replace(/[\s_-]+/g, '-') // Replace spaces and underscores with hyphens
             .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
     }

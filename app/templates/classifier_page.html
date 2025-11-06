@@ -565,7 +565,6 @@
             <button id="description-toggle" type="button" aria-expanded="false"
                 class="bg-transparent text-sky-600 hover:text-sky-700 focus:outline-none"
                 aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button">
-                Learn more about {{ classifier_type.upper() }}
             </button>
 
             <!-- Description is completely hidden by default and shown when the button is pressed -->
@@ -581,7 +580,7 @@
                 {% if versions %}
                 <div class="flex items-center justify-start mb-2">
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
-                        class="border border-gray-400 rounded text-left px-2 py-1 focus:outline-nones">
+                        class="border border-gray-400 rounded text-left px-1 py-1 mb-1">
                         {% for v in versions %}
                         <option value="{{ v }}">{{ v }}</option>
                         {% endfor %}
@@ -591,12 +590,13 @@
 
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
-                    class="w-full p-2 border border-gray-400 rounded min-h-20 h-[100px] max-h-[800px] resize-y"></textarea>
+                    autofocus
+                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-[120px] max-h-[800px] resize-y mb-1"></textarea>
                 <!-- Textarea enhancer is initialized inline at the bottom -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Classify product description"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold h-10 px-8 py-2 rounded text-base transition-all duration-150 flex items-center justify-center">
+                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-10 py-2 rounded text-base">
                             {% if classifier_type == 'unspsc' %}
                             Classify
                             {% elif classifier_type == 'etim' %}
@@ -607,7 +607,7 @@
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show"
-                            class="text-gray-800 border border-gray-400 rounded text-base h-10 px-4 py-2 bg-white focus:outline-none">
+                            class="border border-gray-400 rounded text-left px-1 py-2">
                             <option value="3">Top 3</option>
                             <option value="10" selected>Top 10</option>
                             <option value="30">Top 30</option>
@@ -621,7 +621,7 @@
                         </div>
                     </div>
                     <div class="flex">
-                        <p class="text-gray-600 mobile-hidden">Sorted by relevance</p>
+                        <p class="text-gray-600 mobile-hidden">Results are sorted by relevance</p>
                     </div>
                 </div>
             </form>
