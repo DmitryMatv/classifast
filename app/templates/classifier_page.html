@@ -532,7 +532,7 @@
         </nav>
     </header>
 
-    <main class="container mx-auto p-3 max-w-5xl">
+    <main class="container mx-auto p-3 max-w-5xl mb-4">
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
             <ol class="flex items-center text-gray-500">
@@ -549,17 +549,20 @@
             <div class="relative mb-1">
                 <h2 class="text-xl font-bold">{{ heading }}</h2>
                 {% if classifier_type == 'naics' %}
-                <img src="{{ url_for('static', path='images/naics-logo.png') }}" alt="" data-classifier-logo="true"
+                <img src="{{ url_for('static', path='images/naics-logo.png') }}"
+                    alt="NAICS classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-2 top-0 h-12 lg:h-16 w-auto"
-                    loading="lazy" aria-hidden="true">
+                    loading="lazy">
                 {% elif classifier_type == 'unspsc' %}
-                <img src="{{ url_for('static', path='images/unspc-logo.png') }}" alt="" data-classifier-logo="true"
+                <img src="{{ url_for('static', path='images/unspc-logo.png') }}"
+                    alt="UNSPSC classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-2 top-0 h-12 lg:h-16 w-auto"
-                    loading="lazy" aria-hidden="true">
+                    loading="lazy">
                 {% elif classifier_type == 'hts' %}
-                <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="" data-classifier-logo="true"
+                <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="HTS classification standard logo"
+                    data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-2 top-0 h-12 lg:h-16 w-auto"
-                    loading="lazy" aria-hidden="true">
+                    loading="lazy">
                 {% endif %}
             </div>
             <button id="description-toggle" type="button" aria-expanded="false"
