@@ -111,7 +111,7 @@ async def lifespan(app: FastAPI):
 
     # --- Pre-load and cache results for all example queries on startup ---
     if embed_client and qdrant_client:
-        print("Pre-loading example query results for all classifiers...")
+        print("\nPre-loading example query results for all classifiers...")
         for classifier_type, config in CLASSIFIER_CONFIG.items():
             query = config.get("example", "").replace("Example:\n", "").strip()
             if not query:
@@ -147,11 +147,11 @@ async def lifespan(app: FastAPI):
 
                 if results_for_query:
                     print(
-                        f"Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f}s"
+                        f"Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f} seconds.\n"
                     )
                 else:
                     print(
-                        f"Pre-loaded empty results for '{classifier_type}' in {total_request_time:.4f}s"
+                        f"Pre-loaded empty results for '{classifier_type}' in {total_request_time:.4f} seconds.\n"
                     )
 
             except Exception as e:
@@ -241,7 +241,7 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         # Check URL path for suspicious encoding (catches path-based attacks)
         url_path = request.url.path or ""
         if url_path and self._is_suspicious_encoding(url_path):
-            print(f"Suspicious URL encoding detected in path: {url_path[:100]}...")
+            print(f"\nSuspicious URL encoding detected in path: {url_path[:100]}...")
             return self._create_error_response()
 
         # Early check for URL query parameters (most efficient first)
@@ -249,7 +249,7 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
             for param_name, param_value in request.query_params.items():
                 if self._is_suspicious_encoding(param_value):
                     print(
-                        f"Suspicious URL encoding detected in query param '{param_name}': {param_value[:100]}..."
+                        f"\nSuspicious URL encoding detected in query param '{param_name}': {param_value[:100]}..."
                     )
                     return self._create_error_response()
 
@@ -258,7 +258,7 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         url_query = request.url.query or ""
         if url_query and self._is_suspicious_encoding(url_query):
             print(
-                f"Suspicious URL encoding detected in query string: {url_query[:100]}..."
+                f"\nSuspicious URL encoding detected in query string: {url_query[:100]}..."
             )
             return self._create_error_response()
 
@@ -1222,7 +1222,7 @@ async def handle_classify(
     and returns HTML partial with results.
     """
     print(
-        f"❓ Received query for '{classifier_type}' classification with version '{version}'."
+        f"\n❓ Received query for '{classifier_type}' classification with version '{version}'."
     )
 
     # Handle empty query gracefully - also remove trailing slashes and replace with spaces

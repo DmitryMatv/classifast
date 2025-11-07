@@ -251,7 +251,7 @@ async def classify_string_batch(
     try:
         # 1. Get Embeddings for the Query Texts in a Single Batch Call
         print(
-            f"\nGenerating embeddings for {len(query_texts)} queries using model {embed_model_name}..."
+            f"Generating embeddings for {len(query_texts)} queries using model {embed_model_name}..."
         )
         query_embeddings = await get_embeddings_batch(
             embed_client,
