@@ -627,10 +627,11 @@ CLASSIFIER_CONFIG = {
     },
     "hs": {
         "title": "HS Code Finder",
-        "heading": "Search HS codes for your goods",
+        "heading": "Search HS (Harmonized System) codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example:\nElectric motor",
         "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 3072,
         "versions": {
             "HS 2022": {
                 "collection_name": "H6-HS_2022_new001_v4",
@@ -640,10 +641,11 @@ CLASSIFIER_CONFIG = {
     },
     "cn": {
         "title": "CN Code Finder",
-        "heading": "Get CN codes for EU customs and trade",
+        "heading": "Get CN (Combined Nomenclature) codes for EU customs and trade",
         "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
         "example": "Example:\nStainless steel sheets, 304 grade, 2mm thickness",
         "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 3072,
         "versions": {
             "CN 2025": {
                 "collection_name": "CN2025_v2",
@@ -657,6 +659,7 @@ CLASSIFIER_CONFIG = {
         "description": "NACE (Nomenclature statistique des activités économiques) is the European Union's statistical classification of economic activities, developed by Eurostat to ensure harmonized economic analysis across all EU member states. This comprehensive framework enables consistent business registration, national accounts compilation, employment statistics, and cross-country economic comparisons, serving as the foundation for EU policy-making, regional development planning, and structural business statistics.",
         "example": "Example:\nNuclear power plant operation",
         "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 3072,
         "versions": {
             "NACE Rev. 2.1": {
                 "collection_name": "NACErev2-1_v2",
@@ -670,6 +673,7 @@ CLASSIFIER_CONFIG = {
         "description": "The Common Procurement Vocabulary (CPV) is the European Union's standardized classification system for public procurement, established to ensure transparency and equal access to public contracts across the single market. This 9-digit hierarchical code structure is mandatory for all EU public procurement procedures, enabling consistent tender documentation, contract award notices in the TED system, and comprehensive market analysis while facilitating cross-border bidding and ensuring compliance with EU procurement directives.",
         "example": "Example:\nIndie gamedev studio",
         "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 3072,
         "versions": {
             "CPV 2008 (ver. 2013)": {
                 "collection_name": "cpv_2008_ver_2013_v3",
@@ -683,10 +687,11 @@ CLASSIFIER_CONFIG = {
     },
     "nsn": {
         "title": "NATO Stock Number (NSN) Classifier",
-        "heading": "Find NSN codes for military procurement",
+        "heading": "Find NSN (NATO Stock Number) codes for military procurement",
         "description": "The NATO Stock Number (13 digits) consists of material group, material class, country code, and NIIN (National Item Identification Number). The NSN is a unique identifier for items of supply recognized by all NATO countries. The NSN is used to identify and manage supplies, ensuring that all member nations can effectively procure and utilize military equipment and materials. This classification system facilitates logistics, inventory management, and standardization across NATO forces.",
         "example": "Example:\n1000W 120V AC power supply",
         "embed_model_name": "gemini-embedding-001",
+        "embed_dims": 3072,
         "versions": {
             "NSN extract (February 22, 2023)": {
                 "collection_name": "nsn-extract-2-21-23_v3",
