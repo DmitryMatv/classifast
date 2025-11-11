@@ -468,6 +468,8 @@
             <!-- Desktop Navigation -->
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
+                    <li><a href="{{ url_for('read_root') }}" class="text-gray-600 hover:text-sky-600 transition-colors"
+                            role="link" aria-label="Other Classification Standards">Home</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="UNSPSC Classification">UNSPSC</a></li>
@@ -480,19 +482,13 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">CN</a></li>
-                    <li><a href="{{ url_for('read_root') }}" class="text-gray-600 hover:text-sky-600 transition-colors"
-                            role="link" aria-label="Other Classification Standards">Home</a></li>
                     <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="Blog">Blog</a>
-                    </li>
+                            aria-label="Blog">Blog</a></li>
                     <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="API Documentation">API</a>
-                    </li>
-                    <li id="desktop-auth-container">
-                        <!-- Clerk authentication will be mounted here -->
-                    </li>
+                            aria-label="API Documentation">API</a></li>
+                    <li id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></li>
                 </ul>
             </nav>
 
@@ -525,11 +521,11 @@
                 <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
                         class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
                 </li>
-                <li id="mobile-auth-container">
-                    <!-- Clerk authentication will be mounted here -->
-                </li>
+                <li id="mobile-auth-container"><!-- Clerk authentication will be mounted here --></li>
             </ul>
         </nav>
+        <!-- Google One Tap -->
+        <div id="google-one-tap" class="absolute top-20 right-4 z-50"></div>
     </header>
 
     <main class="container mx-auto p-3 max-w-5xl mb-4">
@@ -590,7 +586,7 @@
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
 
                 {% if versions %}
-                <div class="flex items-center justify-start mb-2">
+                <div class="flex items-center justify-start">
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
                         class="border border-gray-400 rounded text-left px-1 py-1 mb-1">
                         {% for v in versions %}
@@ -1343,7 +1339,7 @@
         src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js" type="text/javascript">
         </script>
 
-    <script src="{{ url_for('static', path='/js/clerk-auth.js') }}"></script>
+    <script src="{{ url_for('static', path='/js/clerk-auth-simple.js') }}"></script>
 </body>
 
 </html>

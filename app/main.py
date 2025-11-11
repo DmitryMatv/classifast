@@ -1295,4 +1295,5 @@ async def handle_classify(
 npm install tailwindcss @tailwindcss/cli
 npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css
 uvicorn app.main:app --reload --port 8001
+pkill -f "uvicorn"
 """
