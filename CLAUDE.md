@@ -8,12 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Development server**: `uvicorn app.main:app --reload --port 8001`
 - **Docker**: `docker build -t classifast . && docker run -p 8001:8001 classifast`
-- **Production**: `uvicorn app.main:app --host 0.0.0.0 --port 8001`
+- **Docker Compose**: `docker-compose up -d` (includes health checks)
 
 ### Environment Setup
 
 - Install Python dependencies: `pip install -r requirements.txt`
-- Install Node dependencies: `npm install` (for Tailwind CSS)
+- Install Node dependencies: `npm install` (for Tailwind CSS development)
 - Environment variables required: `GEMINI_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`
 - Optional: `RAPIDAPI_SECRET` for API authentication
 - Use `.env` file for local development
@@ -30,8 +30,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Health check**: `curl http://localhost:8001/health`
 - **RapidAPI health**: `curl http://localhost:8001/api/v1/rapid/ping`
 - **Manual classification test**: Use web interface or POST to `/{classifier_type}` endpoints
-- **Qdrant collection management**: Use `utilities/qdrant_config.py` for configuration updates
-- **Test utilities**: Run scripts in `utilities/` directory for testing specific functionality
+- **Test utilities**: Run scripts directly with `python utilities/test_rapidapi.py` etc.
+  - `test_rapidapi.py`: Test RapidAPI endpoints
+  - `test_embedding_ordering.py`: Validate embedding generation order
+  - `test_cloudflare_headers.py`: Verify CDN header configuration
+  - `test_title_functionality.py`: Test embedding with document titles
+  - `check_match.py`: Verify classification accuracy for specific queries
+  - `count_codes.py`: Analyze collection statistics
 
 ## Architecture Overview
 
@@ -48,7 +53,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 #### Classification System
 
-- **11 classification standards supported**: UNSPSC, ETIM, NAICS, ISIC, HS, CN, NACE, CPV, NSN, plus test classifier
+- **11 classification standards supported**: UNSPSC, ETIM, NAICS, ISIC, HS, CN, NACE, CPV, NSN, HTS, plus test classifier
 - **Embedding models**: Google Gemini (text-embedding-004, gemini-embedding-001) with configurable dimensions
 - **Vector database**: Qdrant for semantic search with async client and quantization support
 - **Batch processing**: `classify_string_batch()` function handles multiple queries efficiently
@@ -108,13 +113,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Non-root containers**: Docker runs as non-root user for security
 - **Bot detection**: Middleware for logging and analyzing bot traffic patterns
 
-### Development & Operations
-
-- **Docker support**: Multi-stage build with non-root user and optimized dependencies
-- **Static asset management**: Cached static files with ETag and CDN-friendly headers
-- **Performance monitoring**: Response time headers and bot detection logging
-- **Configuration utilities**: Scripts for Qdrant collection management and testing
-
 ## Important Implementation Details
 
 ### URL Structure & SEO
@@ -133,10 +131,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Search Performance
 
-- **Quantization**: Collections use INT8 scalar quantization with rescore=true
-- **HNSW parameters**: Configurable hnsw_ef (currently 512) for search accuracy
+- **Quantization**: Collections use INT8 scalar quantization with rescore=true and oversampling=2.0
+- **HNSW parameters**: Configurable hnsw_ef (currently 256) for search accuracy/responsiveness balance
 - **Batch processing**: Efficient batch embedding and search operations
 - **Conditional search**: Adapts search parameters based on collection configuration
+- **Result filtering**: Returns top_k results with optional rescoring for improved quality
 
 ### API Integration Patterns
 
