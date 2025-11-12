@@ -3,7 +3,7 @@
     'use strict';
 
     // Helper: wait for an element to appear in the DOM using MutationObserver with timeout
-    const DEFAULT_WAIT_MS = 3000;
+    const DEFAULT_WAIT_MS = 500;
     function waitForElement(idOrSelector, timeoutMs = DEFAULT_WAIT_MS) {
         return new Promise((resolve, reject) => {
             // finder tries getElementById first (caller often passes id without '#'), then querySelector
@@ -302,13 +302,7 @@
         },
 
         renderGoogleOneTap() {
-            console.log('🎯 Attempting to mount Google One Tap...');
-            const googleOneTapContainer = document.getElementById('google-one-tap');
-
-            if (!googleOneTapContainer) {
-                console.log('⚠️ Google One Tap container not found');
-                return;
-            }
+            console.log('🎯 Attempting to open Google One Tap...');
 
             if (typeof window.Clerk === 'undefined') {
                 console.error('❌ Clerk not available for Google One Tap');
@@ -316,24 +310,27 @@
             }
 
             try {
-                // Clear any existing content
-                googleOneTapContainer.innerHTML = '';
-
                 // Check if user is signed in - don't show Google One Tap if already signed in
                 if (window.Clerk.isSignedIn) {
                     console.log('ℹ️ User already signed in, skipping Google One Tap');
                     return;
                 }
 
-                // Mount Google One Tap
-                if (window.Clerk.mountGoogleOneTap) {
-                    window.Clerk.mountGoogleOneTap(googleOneTapContainer);
-                    console.log('✅ Google One Tap mounted successfully');
+                // Open Google One Tap with proper configuration
+                if (window.Clerk.openGoogleOneTap) {
+                    const params = {
+                        cancelOnTapOutside: false,
+                        itpSupport: true,
+                        fedCmSupport: true
+                    };
+
+                    window.Clerk.openGoogleOneTap(params);
+                    console.log('✅ Google One Tap opened successfully with params:', params);
                 } else {
-                    console.log('⚠️ Google One Tap method not available in this Clerk version');
+                    console.log('⚠️ Google One Tap openGoogleOneTap method not available in this Clerk version');
                 }
             } catch (error) {
-                console.error('❌ Google One Tap failed to mount:', error);
+                console.error('❌ Google One Tap failed to open:', error);
                 console.log('📋 Error details:', error.message || error);
             }
         },
