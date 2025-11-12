@@ -8,7 +8,13 @@ from urllib.parse import unquote_plus
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from google import genai
@@ -1098,7 +1104,15 @@ async def show_classifier_page(
 ):
     """
     Serves the base classifier page.
+    Redirects URLs without trailing slash to versions with trailing slash for SEO consistency.
     """
+    # Redirect classifier URLs without trailing slash to versions with trailing slash
+    if classifier_type in CLASSIFIER_CONFIG:
+        # Check if this is a direct access without trailing slash (not a redirect)
+        original_path = request.url.path
+        if not original_path.endswith("/"):
+            return RedirectResponse(url=f"/{classifier_type}/", status_code=301)
+
     return await show_classifier_page_with_query(
         request, classifier_type, "", version, top_k
     )
