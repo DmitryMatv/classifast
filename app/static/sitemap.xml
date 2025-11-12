@@ -3,9 +3,6 @@
     xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
-    <!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
-
-
     <url>
         <loc>https://classifast.com/</loc>
         <lastmod>2025-10-17T12:04:25+00:00</lastmod>
@@ -14,121 +11,121 @@
     </url>
     <url>
         <loc>https://classifast.com/unspsc/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.9000</priority>
     </url>
     <url>
         <loc>https://classifast.com/unspsc</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.9000</priority>
     </url>
     <url>
         <loc>https://classifast.com/naics/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.9000</priority>
     </url>
     <url>
         <loc>https://classifast.com/naics</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.9000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/hs/</loc>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.9000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/hs</loc>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.9000</priority>
     </url>
     <url>
         <loc>https://classifast.com/cn/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.8500</priority>
     </url>
     <url>
         <loc>https://classifast.com/cn</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.8500</priority>
     </url>
     <url>
         <loc>https://classifast.com/etim/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/etim</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/isic/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/isic</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/hs/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/hs</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/hts/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/hts</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/nace/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/nace</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
-        <priority>1.0000</priority>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/hts/</loc>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/hts</loc>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/cpv/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/cpv</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/nsn/</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.8000</priority>
     </url>
     <url>
         <loc>https://classifast.com/nsn</loc>
-        <lastmod>2025-11-12T12:00:00+00:00</lastmod>
+        <lastmod>2025-11-12T21:54:02+00:00</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.8000</priority>
     </url>

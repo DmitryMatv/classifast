@@ -1111,7 +1111,11 @@ async def show_classifier_page(
         # Check if this is a direct access without trailing slash (not a redirect)
         original_path = request.url.path
         if not original_path.endswith("/"):
-            return RedirectResponse(url=f"/{classifier_type}/", status_code=301)
+            # Preserve query parameters in the redirect
+            query_string = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse(
+                url=f"/{classifier_type}/{query_string}", status_code=301
+            )
 
     return await show_classifier_page_with_query(
         request, classifier_type, "", version, top_k
