@@ -202,11 +202,9 @@
                 return;
             }
 
-            // Create sign-in button for signed-out users
-
-            // Create user button for signed-in users
-            const userButtonHTML = '<div id="clerk-user-button-desktop" class="clerk-user-button"></div>';
-            const mobileUserButtonHTML = '<div id="clerk-user-button-mobile" class="clerk-user-button"></div>';
+            // Create user button for signed-in users with smooth transition
+            const userButtonHTML = '<div id="clerk-user-button-desktop" class="clerk-user-button auth-loaded"></div>';
+            const mobileUserButtonHTML = '<div id="clerk-user-button-mobile" class="clerk-user-button auth-loaded"></div>';
 
             if (desktopContainer) {
                 desktopContainer.innerHTML = userButtonHTML;
@@ -287,17 +285,9 @@
                 return;
             }
 
-            // Clear any existing content first
-            if (desktopContainer) {
-                desktopContainer.innerHTML = '';
-            }
-            if (mobileContainer) {
-                mobileContainer.innerHTML = '';
-            }
-
-            // Create sign-in button for signed-out users
-            const signInButtonHTML = '<div id="clerk-sign-in-button-desktop" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer">Sign In</div>';
-            const mobileSignInButtonHTML = '<div id="clerk-sign-in-button-mobile" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2">Sign In</div>';
+            // Create sign-in button for signed-out users with smooth transition
+            const signInButtonHTML = '<div id="clerk-sign-in-button-desktop" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded">Sign In</div>';
+            const mobileSignInButtonHTML = '<div id="clerk-sign-in-button-mobile" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2 auth-loaded">Sign In</div>';
 
             if (desktopContainer) {
                 desktopContainer.innerHTML = signInButtonHTML;
@@ -401,8 +391,8 @@
             const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
             const fallbackHTML = isDevelopment
-                ? '<a href="https://accounts.classifast.com/sign-in" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform">Sign In</a>'
-                : '<a href="https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href) + '" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform">Sign In</a>';
+                ? '<a href="https://accounts.classifast.com/sign-in" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded">Sign In</a>'
+                : '<a href="https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href) + '" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded">Sign In</a>';
 
             if (desktopContainer) {
                 desktopContainer.innerHTML = fallbackHTML;
@@ -415,8 +405,16 @@
         }
     };
 
-    // Initialize when script loads (no need to wait for DOM since we handle it internally)
+    // Initialize immediately and also ensure skeleton is visible
     window.ClerkAuth.init();
+
+    // Fallback: If Clerk fails to load after 10 seconds, show fallback
+    setTimeout(() => {
+        if (typeof window.Clerk === 'undefined') {
+            console.warn('⚠️ Clerk not loaded after 10s, showing fallback');
+            window.ClerkAuth.renderFallbackAuth();
+        }
+    }, 10000);
 
     // Cleanup on page unload to prevent memory leaks
     window.addEventListener('beforeunload', () => {
