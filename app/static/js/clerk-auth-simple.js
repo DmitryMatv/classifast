@@ -286,8 +286,8 @@
             }
 
             // Create sign-in button for signed-out users with smooth transition
-            const signInButtonHTML = '<div id="clerk-sign-in-button-desktop" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded">Sign In</div>';
-            const mobileSignInButtonHTML = '<div id="clerk-sign-in-button-mobile" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2 auth-loaded">Sign In</div>';
+            const signInButtonHTML = '<div id="clerk-sign-in-button-desktop" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded">Sign In</div>';
+            const mobileSignInButtonHTML = '<div id="clerk-sign-in-button-mobile" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2 auth-loaded">Sign In</div>';
 
             if (desktopContainer) {
                 desktopContainer.innerHTML = signInButtonHTML;
@@ -351,6 +351,9 @@
         },
 
         renderGoogleOneTap() {
+            // TEMPORARILY DISABLED - Return early to prevent Google One Tap from showing
+            return;
+            
             console.log('🎯 Attempting to open Google One Tap...');
 
             if (typeof window.Clerk === 'undefined') {
@@ -391,8 +394,8 @@
             const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
             const fallbackHTML = isDevelopment
-                ? '<a href="https://accounts.classifast.com/sign-in" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded">Sign In</a>'
-                : '<a href="https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href) + '" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded">Sign In</a>';
+                ? '<a href="https://accounts.classifast.com/sign-in" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded">Sign In</a>'
+                : '<a href="https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href) + '" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded">Sign In</a>';
 
             if (desktopContainer) {
                 desktopContainer.innerHTML = fallbackHTML;
