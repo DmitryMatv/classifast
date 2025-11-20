@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import time
@@ -28,9 +29,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from .classifier import classify_string_batch
 from .classifier_config import CLASSIFIER_CONFIG
 
-load_dotenv()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
-PRELOADED_RESULTS_CACHE: Dict[str, Dict[str, Any]] = {}
+load_dotenv()
 
 # Global client variables with proper type annotations
 embed_client: Optional[genai.Client] = None
@@ -43,27 +49,27 @@ async def lifespan(app: FastAPI):
     # Runs when the application starts
     global embed_client, embed_model_name, qdrant_client
 
-    print("FastAPI application startup...")
+    logger.info("FastAPI application startup...")
 
     # Initialize Embedding Client (Google GenAI)
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     if not GEMINI_API_KEY:
-        print("Error: GEMINI_API_KEY not found in environment variables.")
+        logger.error("Error: GEMINI_API_KEY not found in environment variables.")
         # In a real app, you might raise an exception or handle this more gracefully
     else:
         try:
             embed_client = genai.Client(api_key=GEMINI_API_KEY)
             embed_client.models.list()  # Test connection
-            print("Google GenAI Client initialized successfully.")
+            logger.info("Google GenAI Client initialized successfully.")
         except Exception as e:
-            print(f"Error initializing Google GenAI Client: {e}")
+            logger.error("Error initializing Google GenAI Client: %s", e)
             embed_client = None  # Ensure it's None if init fails
 
     # Initialize Qdrant Client with connection pooling
     QDRANT_URL = os.getenv("QDRANT_URL", "qdrant.classifast.com")
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     try:
-        print("Connecting to Qdrant...")
+        logger.info("Connecting to Qdrant...")
         qdrant_client = AsyncQdrantClient(
             api_key=QDRANT_API_KEY,
             host=QDRANT_URL,
@@ -74,20 +80,24 @@ async def lifespan(app: FastAPI):
         )
 
         # Check if Qdrant client can list collections as a health check
+        existing_collections = set()
         if qdrant_client:
             try:
                 collections_result = await qdrant_client.get_collections()
-                collection_names = sorted(
-                    [col.name for col in collections_result.collections]
+                existing_collections = {
+                    col.name for col in collections_result.collections
+                }
+                collection_names = sorted(list(existing_collections))
+                logger.info(
+                    "Qdrant client initialized. Found collections: %s", collection_names
                 )
-                print("Qdrant client initialized. Found collections:")
-                for name in collection_names:
-                    print(f"💿 {name}")
             except Exception as e:
-                print(f"Qdrant client initialized, but could not list collections: {e}")
+                logger.error(
+                    "Qdrant client initialized, but could not list collections: %s", e
+                )
                 # Depending on severity, you might still want to set qdrant_client to None or raise
         else:
-            print("Qdrant client could not be initialized.")
+            logger.error("Qdrant client could not be initialized.")
 
         # Verify collections exist and store their vector sizes
         for classifier_type, config in CLASSIFIER_CONFIG.items():
@@ -96,9 +106,14 @@ async def lifespan(app: FastAPI):
                 collection_name = version_config.get("collection_name")
                 if not collection_name:
                     continue
-                if not await qdrant_client.collection_exists(collection_name):
-                    print(
-                        f"Warning: Collection {collection_name} for {classifier_type} version {version} does not exist."
+
+                # Check against the set of existing collections instead of making a new API call
+                if collection_name not in existing_collections:
+                    logger.warning(
+                        "Warning: Collection %s for %s version %s does not exist.",
+                        collection_name,
+                        classifier_type,
+                        version,
                     )
                     continue
 
@@ -109,86 +124,28 @@ async def lifespan(app: FastAPI):
                 if isinstance(vector_params, dict) and "size" in vector_params:
                     vector_size = vector_params["size"]
                     if vector_size != embed_dims:
-                        print(
-                            f"Warning: Collection {collection_name} has vector size {vector_size} but config specifies {embed_dims}"
+                        logger.warning(
+                            "Warning: Collection %s has vector size %d but config specifies %d",
+                            collection_name,
+                            vector_size,
+                            embed_dims,
                         )
 
     except Exception as e:
-        print(f"Error initializing Qdrant client: {e}")
+        logger.error("Error initializing Qdrant client: %s", e)
 
-    # --- Pre-load and cache results for all example queries on startup ---
-    if embed_client and qdrant_client:
-        print("\nPre-loading example query results for all classifiers...")
-        for classifier_type, config in CLASSIFIER_CONFIG.items():
-            query = config.get("example", "").replace("Example:\n", "").strip()
-            if not query:
-                continue
-
-            try:
-                start_total_time = time.perf_counter()
-                version_name = next(iter(config.get("versions", {})))
-
-                # Use shared classification service for pre-loading
-                result = await perform_classification(
-                    query=query,
-                    classifier_type=classifier_type,
-                    version=version_name,
-                    top_k=10,
-                )
-
-                results_for_query = result["results"]
-                end_total_time = time.perf_counter()
-                total_request_time = end_total_time - start_total_time
-
-                base_url = result["version_config"].get("base_url", "")
-                tooltip = result["version_config"].get("tooltip", "")
-
-                # Store all necessary data for the template in the cache
-                PRELOADED_RESULTS_CACHE[classifier_type] = {
-                    "results_for_query": results_for_query,
-                    "query": query,
-                    "base_url": base_url,
-                    "tooltip": tooltip,
-                    "total_request_time": total_request_time,
-                }
-
-                if results_for_query:
-                    print(
-                        f"Successfully pre-loaded and cached results for '{classifier_type}' in {total_request_time:.4f} seconds.\n"
-                    )
-                else:
-                    print(
-                        f"Pre-loaded empty results for '{classifier_type}' in {total_request_time:.4f} seconds.\n"
-                    )
-
-            except Exception as e:
-                print(f"Failed to pre-load results for '{classifier_type}': {e}")
-                PRELOADED_RESULTS_CACHE[classifier_type] = {
-                    "results_for_query": [],
-                    "query": query,
-                    "base_url": "",
-                    "tooltip": "",
-                    "total_request_time": 0,
-                }
-    else:
-        print(
-            "Skipping pre-loading of example queries because clients are not initialized."
-        )
-        print(
-            "❌ Critical Error: One or more clients failed to initialize. The application might not function correctly."
-        )
-    # --- End pre-loading ---
+    # --- Pre-loading removed ---
 
     yield
 
     # Runs when the application is shutting down
-    print("FastAPI application shutdown...")
+    logger.info("FastAPI application shutdown...")
     if qdrant_client:
         try:
             await qdrant_client.close()
-            print("Qdrant client closed.")
+            logger.info("Qdrant client closed.")
         except Exception as e:
-            print(f"Error closing Qdrant client: {e}")
+            logger.error("Error closing Qdrant client: %s", e)
 
 
 app = FastAPI(lifespan=lifespan)
@@ -230,15 +187,19 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         # Check URL path for suspicious encoding (catches path-based attacks)
         url_path = request.url.path or ""
         if url_path and self._is_suspicious_encoding(url_path):
-            print(f"\nSuspicious URL encoding detected in path: {url_path[:100]}...")
+            logger.warning(
+                "Suspicious URL encoding detected in path: %s...", url_path[:100]
+            )
             return self._create_error_response()
 
         # Early check for URL query parameters (most efficient first)
         if request.query_params:
             for param_name, param_value in request.query_params.items():
                 if self._is_suspicious_encoding(param_value):
-                    print(
-                        f"\nSuspicious URL encoding detected in query param '{param_name}': {param_value[:100]}..."
+                    logger.warning(
+                        "Suspicious URL encoding detected in query param '%s': %s...",
+                        param_name,
+                        param_value[:100],
                     )
                     return self._create_error_response()
 
@@ -246,8 +207,9 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         # Use query part only for better performance and accuracy
         url_query = request.url.query or ""
         if url_query and self._is_suspicious_encoding(url_query):
-            print(
-                f"\nSuspicious URL encoding detected in query string: {url_query[:100]}..."
+            logger.warning(
+                "Suspicious URL encoding detected in query string: %s...",
+                url_query[:100],
             )
             return self._create_error_response()
 
@@ -260,7 +222,9 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
                 try:
                     length = int(content_length)
                     if length > 10000000:  # 10MB limit
-                        print(f"Suspicious: Very large content length {length} bytes")
+                        logger.warning(
+                            "Suspicious: Very large content length %d bytes", length
+                        )
                         return self._create_error_response()
                 except ValueError:
                     pass  # Invalid content-length header, let downstream handle it
@@ -640,7 +604,7 @@ async def perform_classification(
         }
 
     except Exception as e:
-        print(f"❌ Classification error for '{classifier_type}': {e}")
+        logger.error("Classification error for '%s': %s", classifier_type, e)
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
@@ -770,7 +734,7 @@ async def rapid_classify(
     This endpoint provides programmatic access to classification services via RapidAPI.
     """
     normalized_query = query.strip()
-    print(f"🚀 RapidAPI classification request: {standard} <- {normalized_query}")
+    logger.info("RapidAPI classification request: %s <- %s", standard, normalized_query)
 
     start_time = time.perf_counter()
 
@@ -814,7 +778,7 @@ async def rapid_classify(
         # Let HTTP exceptions propagate to the handler
         raise
     except Exception as e:
-        print(f"❌ RapidAPI classification error: {e}")
+        logger.error("RapidAPI classification error: %s", e)
         raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
 
 
@@ -993,20 +957,41 @@ async def show_classifier_page_with_query(
 
         decoded_search_query = decoded_search_query.strip()
 
-    # Use pre-cached results if the query matches the example or is empty (base URL)
-    preloaded_data = None
+    # Initialize results data structure
+    results_data = {
+        "results_for_query": [],
+        "query": decoded_search_query,
+        "base_url": "",
+        "tooltip": "",
+        "total_request_time": 0,
+    }
 
+    # If no search query (base URL), load example results on-demand
     if not decoded_search_query:
-        preloaded_data = PRELOADED_RESULTS_CACHE.get(classifier_type)
+        example_query = config.get("example", "").replace("Example:", "").strip()
+        if example_query:
+            try:
+                start_time = time.perf_counter()
+                # Use shared classification service for example
+                # We use the first version implicitly if not specified, which matches original behavior
+                result = await perform_classification(
+                    query=example_query,
+                    classifier_type=classifier_type,
+                    version=version,  # Use requested version if any, or default
+                    top_k=10,
+                )
 
-    if not preloaded_data:
-        preloaded_data = {
-            "results_for_query": [],
-            "query": decoded_search_query,
-            "base_url": "",
-            "tooltip": "",
-            "total_request_time": 0,
-        }
+                results_data["results_for_query"] = result["results"]
+                results_data["query"] = example_query
+                results_data["base_url"] = result["version_config"].get("base_url", "")
+                results_data["tooltip"] = result["version_config"].get("tooltip", "")
+                results_data["total_request_time"] = time.perf_counter() - start_time
+
+            except Exception as e:
+                logger.error(
+                    "Failed to load example results for '%s': %s", classifier_type, e
+                )
+                # Keep defaults (empty results)
 
     # Slugify utility for SEO-friendly URLs
     def slugify(text):
@@ -1040,7 +1025,7 @@ async def show_classifier_page_with_query(
                 "version": version if version and version != first_version else "",
                 "top_k": top_k,
             },
-            **preloaded_data,
+            **results_data,
         },
     )
 
@@ -1067,8 +1052,10 @@ async def handle_classify(
     classifies it using the correct Qdrant collection,
     and returns HTML partial with results.
     """
-    print(
-        f"\n❓ Received query for '{classifier_type}' classification with version '{version}'."
+    logger.info(
+        "Received query for '%s' classification with version '%s'.",
+        classifier_type,
+        version,
     )
 
     # Handle empty query gracefully - also remove trailing slashes and replace with spaces
@@ -1100,23 +1087,25 @@ async def handle_classify(
             f"{r['payload'].get('original_id', 'N/A')} - {r['payload'].get('class_name', 'N/A')}"
             for r in classification_results
         ]
-        print(
-            f"👇 Results for '{product_description}' in '{result['collection_name']}':\n"
-            + "\n".join(result_lines)
+        logger.info(
+            "Results for '%s' in '%s':\n%s",
+            product_description,
+            result["collection_name"],
+            "\n".join(result_lines),
         )
 
     except HTTPException:
         # Let HTTP exceptions propagate to the handler
         raise
     except Exception as e:
-        print(f"❌ Error during '{classifier_type}' classification: {e}")
+        logger.error("Error during '%s' classification: %s", classifier_type, e)
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
 
     end_total_time = time.perf_counter()
     total_request_time = end_total_time - start_total_time
-    print(f"Total request processing time was {total_request_time:.4f}s")
+    logger.info("Total request processing time was %.4fs", total_request_time)
 
     # Render the results partial
     return templates.TemplateResponse(

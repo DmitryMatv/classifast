@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -5,6 +6,8 @@ from google import genai
 from google.genai import types
 from qdrant_client import AsyncQdrantClient, models
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+logger = logging.getLogger(__name__)
 
 
 def validate_embedding_correspondence(
@@ -78,19 +81,16 @@ async def get_embeddings_batch(
 
     try:
         # Enhanced logging for embedding generation
-        print(
-            f"✨ Embedding generation: {len(texts)} texts, model={model_name}, task_type={task_type}"
+        logger.info(
+            "Embedding generation: %d texts, model=%s, task_type=%s",
+            len(texts),
+            model_name,
+            task_type,
         )
         if embed_dims:
-            print(f"   Target dimensions: {embed_dims}")
+            logger.info("Target dimensions: %d", embed_dims)
         if titles:
-            print(f"   Processing with titles: {len(titles)} titles provided")
-
-        # Debug: Log the texts being sent to embedding API to verify newlines
-        # print(f"Embedding API input texts (repr): {[repr(text) for text in texts]}")
-        # print(f"Total texts to embed: {len(texts)}")
-        # for i, text in enumerate(texts):
-        #     print(f"Text {i+1} length: {len(text)}, newlines: {text.count(chr(10))}")
+            logger.info("Processing with titles: %d titles provided", len(titles))
 
         # Create config with title support for RETRIEVAL_DOCUMENT task type
         config = types.EmbedContentConfig(
@@ -104,7 +104,9 @@ async def get_embeddings_batch(
                     f"Number of titles ({len(titles)}) must match number of texts ({len(texts)})"
                 )
 
-            print("   Using individual API calls to preserve order with title context")
+            logger.info(
+                "Using individual API calls to preserve order with title context"
+            )
             # Process each text with its corresponding title while preserving order
             embeddings_by_index = {}  # Use dict to preserve index ordering
             successful_indices = []
@@ -126,8 +128,10 @@ async def get_embeddings_batch(
                     # Validate response contains exactly one embedding
                     if len(response.embeddings) != 1:
                         failed_indices.append(index)
-                        print(
-                            f"⚠️ Embedding API returned {len(response.embeddings)} embeddings for text at index {index}, expected 1"
+                        logger.warning(
+                            "Embedding API returned %d embeddings for text at index %d, expected 1",
+                            len(response.embeddings),
+                            index,
                         )
                         continue
 
@@ -137,27 +141,35 @@ async def get_embeddings_batch(
 
                     # Log successful embedding generation
                     if index < 3:  # Only log first few to avoid spam
-                        print(
-                            f"   🆗 Embedding {index + 1}/{len(texts)}: {len(embedding_vector)} dimensions, title='{title[:30]}...'"
+                        logger.info(
+                            "Embedding %d/%d: %d dimensions, title='%s...'",
+                            index + 1,
+                            len(texts),
+                            len(embedding_vector),
+                            title[:30],
                         )
                     elif index == 3:
-                        print(
-                            f"   ... (processing remaining {len(texts) - 3} embeddings)"
+                        logger.info(
+                            "... (processing remaining %d embeddings)", len(texts) - 3
                         )
 
                 except Exception as e:
                     failed_indices.append(index)
-                    print(
-                        f"⚠️ Failed to generate embedding for text at index {index}: {e}"
+                    logger.error(
+                        "Failed to generate embedding for text at index %d: %s",
+                        index,
+                        e,
                     )
                     continue
 
             # Validate order preservation and handle partial failures
             if failed_indices:
-                print(
-                    f"⚠️ Embedding generation completed with {len(failed_indices)} failures out of {len(texts)} total texts"
+                logger.warning(
+                    "Embedding generation completed with %d failures out of %d total texts",
+                    len(failed_indices),
+                    len(texts),
                 )
-                print(f"Failed indices: {failed_indices}")
+                logger.warning("Failed indices: %s", failed_indices)
 
                 # For critical applications, we might want to raise an error or implement retry logic
                 # For now, we'll proceed with successful embeddings but document the issue
@@ -177,20 +189,21 @@ async def get_embeddings_batch(
                         f"Failed to generate embedding for text at index {i}: {texts[i][:50]}..."
                     )
 
-            print(
-                f"   🆗 Completed individual embeddings: {len(ordered_embeddings)} embeddings generated"
+            logger.info(
+                "Completed individual embeddings: %d embeddings generated",
+                len(ordered_embeddings),
             )
             return ordered_embeddings
         else:
             # For queries or when no titles provided, use batch processing without titles
-            print(f"   Using batch API call for {len(texts)} texts without titles")
+            logger.info("Using batch API call for %d texts without titles", len(texts))
             response = await embed_client.aio.models.embed_content(
                 model=model_name,
                 contents=texts,
                 config=config,
             )
 
-            print(f"   🆗 Batch API returned {len(response.embeddings)} embeddings")
+            logger.info("Batch API returned %d embeddings", len(response.embeddings))
 
             # Validate batch response preserves order
             if len(response.embeddings) != len(texts):
@@ -201,12 +214,13 @@ async def get_embeddings_batch(
 
             raw_embeddings = [embedding.values for embedding in response.embeddings]
 
-            print(
-                f"   🆗 Completed batch embedding: {len(raw_embeddings)} embeddings generated"
+            logger.info(
+                "Completed batch embedding: %d embeddings generated",
+                len(raw_embeddings),
             )
             return raw_embeddings
     except Exception as e:
-        print(f"An unexpected error occurred during embedding generation: {e}")
+        logger.error("An unexpected error occurred during embedding generation: %s", e)
         return []  # Return empty list on error
 
 
@@ -241,12 +255,14 @@ async def classify_string_batch(
     """
 
     if not query_texts:
-        print("Input query list is empty.")
+        logger.warning("Input query list is empty.")
         return []
 
     # 1. Get Embeddings for the Query Texts in a Single Batch Call
-    print(
-        f"Generating embeddings for {len(query_texts)} queries using model {embed_model_name}..."
+    logger.info(
+        "Generating embeddings for %d queries using model %s...",
+        len(query_texts),
+        embed_model_name,
     )
     query_embeddings = await get_embeddings_batch(
         embed_client,
@@ -257,14 +273,16 @@ async def classify_string_batch(
     )
 
     if not query_embeddings:
-        print("Error: Could not generate any embeddings for the query batch.")
+        logger.error("Could not generate any embeddings for the query batch.")
         return []
 
     if len(query_embeddings) != len(query_texts):
-        print(
-            f"Error: Embedding count mismatch. Got {len(query_embeddings)} embeddings for {len(query_texts)} queries."
+        logger.error(
+            "Embedding count mismatch. Got %d embeddings for %d queries.",
+            len(query_embeddings),
+            len(query_texts),
         )
-        print(
+        logger.error(
             "This indicates a serious issue with embedding ordering or API response handling."
         )
         # Instead of returning empty list, we could return partial results or handle more gracefully
@@ -280,12 +298,14 @@ async def classify_string_batch(
     try:
         collection_info = await qdrant_client.get_collection(collection_name)
         has_quantization = collection_info.config.quantization_config is not None
-        print(
-            f"Collection '{collection_name}' quantization enabled: {has_quantization}"
+        logger.info(
+            "Collection '%s' quantization enabled: %s",
+            collection_name,
+            has_quantization,
         )
     except Exception as e:
-        print(
-            f"Warning: Could not check collection configuration for '{collection_name}': {e}"
+        logger.warning(
+            "Could not check collection configuration for '%s': %s", collection_name, e
         )
         has_quantization = False
 
@@ -305,11 +325,11 @@ async def classify_string_batch(
     )
 
     if has_quantization:
-        print(
+        logger.info(
             "Using quantization search parameters (hnsw_ef=256, rescore=True, oversampling=2.0)"
         )
     else:
-        print("Using default search parameters (hnsw_ef=256, no quantization)")
+        logger.info("Using default search parameters (hnsw_ef=256, no quantization)")
 
     # 4. Execute Individual Search Queries with appropriate parameters
     search_type = "quantized" if has_quantization else "standard"
@@ -317,14 +337,21 @@ async def classify_string_batch(
     # Calculate internal top_k for better rescore/oversampling accuracy
     if has_quantization:
         internal_top_k = 100  # Ensure sufficient candidates for rescore
-        print(
-            f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})... "
-            f"Internal top_k: {internal_top_k}, User top_k: {top_k}"
+        logger.info(
+            "Querying collection '%s' with %d individual searches (%s)... Internal top_k: %d, User top_k: %d",
+            collection_name,
+            len(query_embeddings),
+            search_type,
+            internal_top_k,
+            top_k,
         )
     else:
         internal_top_k = top_k
-        print(
-            f"Querying collection '{collection_name}' with {len(query_embeddings)} individual searches ({search_type})..."
+        logger.info(
+            "Querying collection '%s' with %d individual searches (%s)...",
+            collection_name,
+            len(query_embeddings),
+            search_type,
         )
 
     # Use individual searches with conditional parameters
@@ -365,12 +392,15 @@ async def classify_string_batch(
             formatted_hits = formatted_hits[:top_k]
 
         all_formatted_results.append(formatted_hits)
-        # print(f"Query '{query_texts[i][:50]}...': Found {len(formatted_hits)} results.")
+        # logger.debug("Query '%s...': Found %d results.", query_texts[i][:50], len(formatted_hits))
 
     if all_formatted_results and any(results for results in all_formatted_results):
-        print(
-            f"🆗 Batch query finished successfully. Returning {len(all_formatted_results)} sets of results."
+        logger.info(
+            "Batch query finished successfully. Returning %d sets of results.",
+            len(all_formatted_results),
         )
     else:
-        print("⚠️ Batch query finished but returned empty results for all queries.")
+        logger.warning(
+            "Batch query finished but returned empty results for all queries."
+        )
     return all_formatted_results
