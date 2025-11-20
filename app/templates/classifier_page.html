@@ -98,7 +98,7 @@
         "keywords": "ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management, semantic search",
         {% else %}
         "name": "Fast {{ classifier_type.upper() }} Classification, Code Lookup, Search | Classifast",
-        "description": "{{ description }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
+        "description": "{{ description | e }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
         "url": "https://classifast.com/{{ classifier_type }}{% if url_params.search %}/{{ url_params.search }}{% if url_params.version %}?version={{ url_params.version }}{% endif %}{% endif %}",
@@ -129,7 +129,7 @@
         "mainEntity": {
             "@type": "Thing",
             "name": "{{ classifier_type.upper() }} Classification",
-            "description": "{{ description }}"
+            "description": "{{ description | e }}"
         }
     }
     </script>
@@ -270,7 +270,7 @@
                 "name": "What is {{ classifier_type.upper() }} classification?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "{{ description }}"
+                    "text": "{{ description | e }}"
                 }
             },
             {
@@ -578,7 +578,7 @@
             <!-- Description is completely hidden by default and shown when the button is pressed -->
             <div id="description-container" class="mb-4">
                 <div id="description-content" style="display: none;" aria-hidden="true">
-                    {{ description }}
+                    {{ description | e }}
                 </div>
             </div>
 

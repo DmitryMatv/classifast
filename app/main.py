@@ -26,6 +26,7 @@ from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .classifier import classify_string_batch
+from .classifier_config import CLASSIFIER_CONFIG
 
 load_dotenv()
 
@@ -208,24 +209,6 @@ app.add_middleware(PerformanceMiddleware)
 
 # Add Gzip compression middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-
-# Add this middleware to log user agents and help debug bot access
-class BotDetectionMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        user_agent = request.headers.get("user-agent", "")
-
-        # Log bot visits
-        if any(
-            bot in user_agent.lower() for bot in ["googlebot", "bingbot", "crawler"]
-        ):
-            print(f"Bot detected: {user_agent} accessing {request.url}")
-
-        response = await call_next(request)
-        return response
-
-
-app.add_middleware(BotDetectionMiddleware)
 
 
 # URL Encoding Validation Middleware
@@ -500,7 +483,7 @@ app.state.limiter = limiter
 
 async def custom_rate_limit_exceeded_handler(request, exc: Exception):
     if isinstance(exc, RateLimitExceeded):
-        templates = Jinja2Templates(directory="app/templates")
+        # Use global templates instance instead of creating a new one
         return templates.TemplateResponse(
             "rate_limit_warning.html", {"request": request}, status_code=429
         )
@@ -570,174 +553,7 @@ async def read_root(request: Request):
 
 
 # Dictionary to map classifier types to their configurations
-CLASSIFIER_CONFIG = {
-    "etim": {
-        "title": "ETIM International Classifier",
-        "heading": "Get relevant EC classes from the ETIM standard",
-        "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
-        "example": "Example:\nSH203-C20 Miniature Circuit Breaker 6kA 20A 3P",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "ETIM version 10.0 (2024-12-10)": {
-                "collection_name": "ETIM_10_eng_new001_v4",
-                "base_url": "https://prod.etim-international.com/Class/Details?classId=",
-            },
-        },
-    },
-    "unspsc": {
-        "title": "UNSPSC Code Finder",
-        "heading": "Get right UNSPSC codes for your products and services",
-        "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
-        "example": "Example:\nOffice supplies",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "UNSPSC UNv260801.1 (18 March 2025)": {
-                "collection_name": "UNSPSC_UNv260801-1-eng_new001-3072_v1",
-                "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
-            },
-        },
-    },
-    "naics": {
-        "title": "NAICS Code Finder",
-        "heading": "Get appropriate codes from the NAICS standard",
-        "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
-        "example": "Example:\nGamedev studio",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "2022 NAICS": {
-                "collection_name": "NAICS_2022_eng_new001_v1",
-                "base_url": "https://www.naics.com/code-search/?trms=",
-                "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
-            },
-            "2022 NAICS (only 6-digit codes)": {
-                "collection_name": "NAICS_2022_SIXdigits_new001_v3",
-                "base_url": "https://www.naics.com/naics-code-description/?code=",
-            },
-        },
-    },
-    "isic": {
-        "title": "ISIC Classifier",
-        "heading": "Instantly classify economic activities using the UN's ISIC",
-        "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
-        "example": "Example:\nManufacture of motor vehicles",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "ISIC Rev. 4": {
-                "collection_name": "ISIC_4_new001_3corr",
-                "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
-            },
-            "ISIC Rev. 5": {
-                "collection_name": "ISIC_5_new001_v3corr",
-            },
-        },
-    },
-    "hs": {
-        "title": "HS Code Finder",
-        "heading": "Search HS (Harmonized System) codes for your goods",
-        "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
-        "example": "Example:\nElectric motor",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "HS 2022": {
-                "collection_name": "H6-HS_2022_new001_v4",
-                "base_url": "https://www.tariffnumber.com/2025/",
-            },
-        },
-    },
-    "cn": {
-        "title": "CN Code Finder",
-        "heading": "Get CN (Combined Nomenclature) codes for EU customs and trade",
-        "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
-        "example": "Example:\nStainless steel sheets, 304 grade, 2mm thickness",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "CN 2025": {
-                "collection_name": "CN2025_v2",
-                "base_url": "https://www.tariffnumber.com/2025/",
-            },
-        },
-    },
-    "nace": {
-        "title": "NACE Business Activity Classifier",
-        "heading": "Classify economic activities with EU's NACE standard",
-        "description": "NACE (Nomenclature statistique des activités économiques) is the European Union's statistical classification of economic activities, developed by Eurostat to ensure harmonized economic analysis across all EU member states. This comprehensive framework enables consistent business registration, national accounts compilation, employment statistics, and cross-country economic comparisons, serving as the foundation for EU policy-making, regional development planning, and structural business statistics.",
-        "example": "Example:\nNuclear power plant operation",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "NACE Rev. 2.1": {
-                "collection_name": "NACErev2-1_v2",
-                "base_url": "https://showvoc.op.europa.eu/#/datasets/ESTAT_Statistical_Classification_of_Economic_Activities_in_the_European_Community_Rev._2.1._%28NACE_2.1%29/data?resId=http:%2F%2Fdata.europa.eu%2Fux2%2Fnace2.1%2F",
-            },
-        },
-    },
-    "cpv": {
-        "title": "CPV Code Finder",
-        "heading": "Find CPV codes for EU public procurement",
-        "description": "The Common Procurement Vocabulary (CPV) is the European Union's standardized classification system for public procurement, established to ensure transparency and equal access to public contracts across the single market. This 9-digit hierarchical code structure is mandatory for all EU public procurement procedures, enabling consistent tender documentation, contract award notices in the TED system, and comprehensive market analysis while facilitating cross-border bidding and ensuring compliance with EU procurement directives.",
-        "example": "Example:\nIndie gamedev studio",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "CPV 2008 (ver. 2013)": {
-                "collection_name": "cpv_2008_ver_2013_v3",
-                # "base_url": "https://www.tariffnumber.com/2025/",
-            },
-            "CPV 2008 Supplementary codes": {
-                "collection_name": "cpv_2008_ver_2013_Supplementary_codes_v2",
-                # "base_url": "https://www.tariffnumber.com/2025/",
-            },
-        },
-    },
-    "nsn": {
-        "title": "NATO Stock Number (NSN) Classifier",
-        "heading": "Find NSN (NATO Stock Number) codes for military procurement",
-        "description": "The NATO Stock Number (13 digits) consists of material group, material class, country code, and NIIN (National Item Identification Number). The NSN is a unique identifier for items of supply recognized by all NATO countries. The NSN is used to identify and manage supplies, ensuring that all member nations can effectively procure and utilize military equipment and materials. This classification system facilitates logistics, inventory management, and standardization across NATO forces.",
-        "example": "Example:\n1000W 120V AC power supply",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "NSN extract (February 22, 2023)": {
-                "collection_name": "nsn-extract-2-21-23_v3",
-                # "base_url": "https://www.tariffnumber.com/2025/",
-            },
-        },
-    },
-    "hts": {
-        "title": "HTS Code Finder",
-        "heading": "Get Harmonized Tariff Schedule codes for US imports",
-        "description": "Harmonized Tariff Schedule (HTS) is the United States comprehensive customs classification system for imported goods, extending the international Harmonized System (HS) with country-specific provisions. This 10-digit hierarchical code structure is mandatory for all US customs declarations and serves as the legal basis for determining applicable duties, taxes, trade restrictions, and regulatory requirements. The HTS is essential for importers, customs brokers, freight forwarders, and compliance professionals to ensure accurate classification and smooth customs clearance for goods entering the United States.",
-        "example": "Example:\nSmartphone",
-        "embed_model_name": "gemini-embedding-001",
-        "embed_dims": 3072,
-        "versions": {
-            "HTS 2024": {
-                "collection_name": "HTS_v4",
-                "base_url": "https://hts.usitc.gov/search?query=",
-            },
-        },
-    },
-    "test": {
-        "title": "Embedding Test Classifier",
-        "heading": "Get codes for your goods",
-        "description": "Is this really necessary here?",
-        "example": "Example:\nElectric motor",
-        "embed_model_name": "text-embedding-004",
-        "embed_dims": 768,
-        "versions": {
-            "Old UNSPSC collection (text-embedding-004, 768)": {
-                "collection_name": "UNSPSC_eng_UNv260801-1_768",
-                "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
-            },
-        },
-    },
-}
+# CLASSIFIER_CONFIG is imported from .classifier_config
 
 
 async def perform_classification(
@@ -891,8 +707,9 @@ async def verify_rapidapi_key(request: Request) -> bool:
 
 async def verify_rapidapi_proxy(request: Request) -> bool:
     """Verify RapidAPI proxy secret."""
+    # Security fix: Do not default to True if secret is missing
     if not RAPIDAPI_SECRET:
-        return True
+        return False
 
     proxy_secret = request.headers.get("X-RapidAPI-Proxy-Secret")
 
@@ -1170,9 +987,11 @@ async def show_classifier_page_with_query(
             .strip()
         )
         # Sanitize the decoded query
-        decoded_search_query = re.sub(r'[<>&"\']', "", decoded_search_query)[
-            :4000
-        ].strip()
+        # Relaxed sanitization: allow characters like apostrophes, but keep length limit
+        if len(decoded_search_query) > 4000:
+            decoded_search_query = decoded_search_query[:4000]
+
+        decoded_search_query = decoded_search_query.strip()
 
     # Use pre-cached results if the query matches the example or is empty (base URL)
     preloaded_data = None
