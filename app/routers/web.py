@@ -1,0 +1,299 @@
+import logging
+import re
+import time
+from urllib.parse import unquote_plus, urlencode
+
+from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
+
+from ..classifier import perform_classification
+from ..classifier_config import CLASSIFIER_CONFIG
+from ..dependencies import limiter, templates
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+def slugify(text: str) -> str:
+    """
+    Slugify utility for SEO-friendly URLs.
+    Matches the logic used in show_classifier_page_with_query and frontend JS.
+    """
+    if not text:
+        return ""
+    # Sanitize input: limit length and remove harmful characters
+    text = str(text)[:200]  # Limit to 200 chars max
+    # Preserve periods and commas while removing other special characters
+    text = re.sub(r"[^\w\s.,-]", "", text.lower())
+    text = re.sub(r"[-\s]+", "-", text)
+    return text.strip("-")
+
+
+# Serve the main homepage
+@router.get("/", response_class=HTMLResponse)
+@router.head("/")  # Add HEAD support
+async def read_root(request: Request):
+    """Serves the main homepage with Cloudflare-friendly caching."""
+
+    # For HEAD requests, return just headers
+    if request.method == "HEAD":
+        headers = {
+            "Cache-Control": "public, max-age=86400, s-maxage=604800",
+            "Vary": "Accept-Encoding",
+            "Content-Type": "text/html; charset=utf-8",
+            "Link": '<https://classifast.com/>; rel="canonical"',
+        }
+        return Response(headers=headers)
+
+    response = templates.TemplateResponse("index.html", {"request": request})
+
+    # Cloudflare-friendly cache headers (same as classifier pages)
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
+    response.headers["Vary"] = "Accept-Encoding"
+    response.headers["Link"] = '<https://classifast.com/>; rel="canonical"'
+    response.headers["X-Robots-Tag"] = "index, follow"
+
+    return response
+
+
+@router.get("/{classifier_type}", response_class=HTMLResponse)
+@router.head("/{classifier_type}")
+async def show_classifier_page(
+    request: Request,
+    classifier_type: str,
+    version: str | None = None,
+    top_k: int = 10,
+):
+    """
+    Serves the base classifier page.
+    Redirects URLs without trailing slash to versions with trailing slash for SEO consistency.
+    """
+    # Redirect classifier URLs without trailing slash to versions with trailing slash
+    if classifier_type in CLASSIFIER_CONFIG:
+        # Check if this is a direct access without trailing slash (not a redirect)
+        original_path = request.url.path
+        if not original_path.endswith("/"):
+            # Preserve query parameters in the redirect
+            query_string = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse(
+                url=f"/{classifier_type}/{query_string}", status_code=301
+            )
+
+    return await show_classifier_page_with_query(
+        request, classifier_type, "", version, top_k
+    )
+
+
+@router.get("/{classifier_type}/fragment", response_class=HTMLResponse)
+@limiter.limit("60/minute")
+async def get_classification_fragment(
+    request: Request,
+    classifier_type: str,
+    product_description: str = Query(..., alias="product_description"),
+    top_k: int = Query(10),
+    version: str = Query(...),
+):
+    """
+    GET endpoint for retrieving classification results as an HTML fragment.
+    Optimized for HTMX lazy loading and caching.
+    """
+    logger.info(
+        "Received GET fragment request for '%s' with version '%s'.",
+        classifier_type,
+        version,
+    )
+
+    # Reuse the logic from handle_classify but adapted for GET
+    # Handle empty query gracefully - also remove trailing slashes and replace with spaces
+    normalized_description = product_description.replace("/", " ").strip()
+    if not normalized_description:
+        return templates.TemplateResponse(
+            "results.html",
+            {
+                "request": request,
+                "query": product_description,
+                "results_for_query": [],
+            },
+        )
+
+    start_total_time = time.perf_counter()
+
+    try:
+        # Use shared classification service
+        result = await perform_classification(
+            embed_client=request.app.state.embed_client,
+            qdrant_client=request.app.state.qdrant_client,
+            query=normalized_description,
+            classifier_type=classifier_type,
+            version=version,
+            top_k=top_k,
+        )
+
+        classification_results = result["results"]
+
+    except HTTPException:
+        # Let HTTP exceptions propagate
+        raise
+    except Exception as e:
+        logger.error(
+            "Error during '%s' fragment classification: %s", classifier_type, e
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Error processing request: {str(e)}"
+        )
+
+    end_total_time = time.perf_counter()
+    total_request_time = end_total_time - start_total_time
+
+    # Render the results partial
+    response = templates.TemplateResponse(
+        "results.html",
+        {
+            "request": request,
+            "query": product_description,
+            "results_for_query": classification_results,
+            "base_url": result["version_config"].get("base_url", ""),
+            "tooltip": result["version_config"].get("tooltip", ""),
+            "total_request_time": total_request_time,
+        },
+    )
+
+    # Add strong caching headers for this fragment
+    # This is safe because it's for specific query/version combinations
+    response.headers["Cache-Control"] = (
+        "public, max-age=86400, s-maxage=604800, stale-while-revalidate=3600"
+    )
+    response.headers["Vary"] = "Accept-Encoding"
+
+    # Calculate new URL for HTMX to push (server-side URL updating)
+    slug = slugify(product_description)
+    new_url = f"/{classifier_type}"
+    if slug:
+        new_url += f"/{slug}"
+
+    # Handle version query param
+    config = CLASSIFIER_CONFIG.get(classifier_type)
+    if config:
+        versions_list = list(config.get("versions", {}).keys())
+        default_version = versions_list[0] if versions_list else None
+
+        # Only append version if it's not the default one
+        if version and version != default_version:
+            new_url += f"?{urlencode({'version': version})}"
+
+    # Set HTMX header to update URL in browser address bar
+    response.headers["HX-Push-Url"] = new_url
+
+    return response
+
+
+@router.get("/{classifier_type}/{search_query:path}", response_class=HTMLResponse)
+@router.head("/{classifier_type}/{search_query:path}")
+async def show_classifier_page_with_query(
+    request: Request,
+    classifier_type: str,
+    search_query: str = "",
+    version: str | None = None,
+    top_k: int = 10,
+):
+    """
+    Serves the specific classifier page with clean URL structure.
+    Handles both base URLs like /naics and search URLs like /naics/gamedev-studio
+    """
+    config = CLASSIFIER_CONFIG.get(classifier_type)
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
+    # For HEAD requests, return just headers
+    if request.method == "HEAD":
+        headers = {
+            "Cache-Control": "public, max-age=86400, s-maxage=604800",
+            "Vary": "Accept-Encoding",
+            "Content-Type": "text/html; charset=utf-8",
+            "Link": f'<https://classifast.com/{classifier_type}/{search_query}>; rel="canonical"',
+        }
+        return Response(headers=headers)
+
+    # Validate top_k parameter
+    if top_k < 1 or top_k > 100:
+        top_k = 3
+
+    # Get first version for default handling
+    versions_list = list(config.get("versions", {}).keys())
+    first_version = versions_list[0] if versions_list else ""
+
+    # Handle empty search query for base URLs
+    decoded_search_query = ""
+    if search_query and search_query.strip():
+        decoded_search_query = (
+            unquote_plus(search_query)
+            .rstrip("/")
+            .replace("/", " ")
+            .replace("-", " ")
+            .strip()
+        )
+        # Sanitize the decoded query
+        # Relaxed sanitization: allow characters like apostrophes, but keep length limit
+        if len(decoded_search_query) > 4000:
+            decoded_search_query = decoded_search_query[:4000]
+
+        decoded_search_query = decoded_search_query.strip()
+
+    # Initialize results data structure
+    results_data = {
+        "results_for_query": [],
+        "query": decoded_search_query,
+        "base_url": "",
+        "tooltip": "",
+        "total_request_time": 0,
+    }
+
+    # Determine if we should trigger a search on load
+    # This is true if we have a URL search query OR if we're falling back to the example
+    trigger_search_on_load = False
+
+    if decoded_search_query:
+        trigger_search_on_load = True
+    else:
+        # If no search query (base URL), use example query
+        example_query = config.get("example", "").replace("Example:", "").strip()
+        if example_query:
+            results_data["query"] = example_query
+            trigger_search_on_load = True
+
+    # Build canonical URL
+    canonical_url = f"https://classifast.com/{classifier_type}"
+    if decoded_search_query:
+        slug = slugify(decoded_search_query)
+        canonical_url += f"/{slug}"
+
+    response = templates.TemplateResponse(
+        "classifier_page.html",
+        {
+            "request": request,
+            "classifier_type": classifier_type,
+            "title": config["title"],
+            "heading": config["heading"],
+            "description": config["description"],
+            "versions": list(config.get("versions", {}).keys()),
+            "example": config["example"],
+            "url_params": {
+                "search": decoded_search_query,
+                "version": version if version and version != first_version else "",
+                "top_k": top_k,
+            },
+            "trigger_search_on_load": trigger_search_on_load,
+            **results_data,
+        },
+    )
+
+    # Cloudflare-friendly cache headers (aligned with homepage)
+    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=604800"
+    response.headers["Vary"] = "Accept-Encoding"
+    response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
+    response.headers["X-Robots-Tag"] = "index, follow"
+
+    return response

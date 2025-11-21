@@ -2,10 +2,13 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from fastapi import HTTPException
 from google import genai
 from google.genai import types
 from qdrant_client import AsyncQdrantClient, models
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+from .classifier_config import CLASSIFIER_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -404,3 +407,97 @@ async def classify_string_batch(
             "Batch query finished but returned empty results for all queries."
         )
     return all_formatted_results
+
+
+async def perform_classification(
+    embed_client: genai.Client,
+    qdrant_client: AsyncQdrantClient,
+    query: str,
+    classifier_type: str,
+    version: Optional[str] = None,
+    top_k: int = 3,
+) -> Dict[str, Any]:
+    """
+    Shared classification service that handles all common logic between web form and API endpoints.
+
+    Args:
+        embed_client: The Google GenAI client.
+        qdrant_client: The Qdrant client.
+        classifier_type: The classification standard (e.g., 'unspsc', 'etim', etc.)
+        query: The product/service description to classify
+        version: Optional specific version to use
+        top_k: Number of results to return
+
+    Returns:
+        Dict containing classification results and metadata
+    """
+    # Validate classifier type
+    config = CLASSIFIER_CONFIG.get(classifier_type.lower())
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
+    # Validate version or use default
+    versions = config.get("versions", {})
+    if version:
+        if version not in versions:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Version '{version}' for classifier '{classifier_type}' not found",
+            )
+        version_name = version
+    else:
+        version_name = next(iter(versions.keys())) if versions else ""
+
+    version_config = versions[version_name]
+    collection_name = version_config["collection_name"]
+    embed_model_name = config["embed_model_name"]
+
+    # Validate clients
+    if not embed_client or not qdrant_client:
+        raise HTTPException(
+            status_code=503,
+            detail="Backend services not available. Please check server logs.",
+        )
+
+    # Validate and normalize query - remove trailing slashes and replace with spaces
+    normalized_query = query.replace("/", " ").strip()
+    if not normalized_query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    if len(normalized_query) > 4000:
+        raise HTTPException(
+            status_code=400, detail="Query too long (max 4000 characters)"
+        )
+
+    try:
+        # Perform classification with normalized query
+        results_for_single_query = await classify_string_batch(
+            qdrant_client=qdrant_client,
+            embed_client=embed_client,
+            embed_model_name=embed_model_name,
+            query_texts=[normalized_query],
+            collection_name=collection_name,
+            embed_dims=config.get("embed_dims"),
+            top_k=top_k,
+        )
+
+        classification_results = (
+            results_for_single_query[0] if results_for_single_query else []
+        )
+
+        return {
+            "results": classification_results,
+            "collection_name": collection_name,
+            "version_name": version_name,
+            "version_config": version_config,
+            "config": config,
+            "query": normalized_query,
+        }
+
+    except Exception as e:
+        logger.error("Classification error for '%s': %s", classifier_type, e)
+        raise HTTPException(
+            status_code=500, detail=f"Error processing request: {str(e)}"
+        )

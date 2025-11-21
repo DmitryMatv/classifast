@@ -582,7 +582,7 @@
                 </div>
             </div>
 
-            <form hx-post="{{ url_for('handle_classify', classifier_type=classifier_type) }}"
+            <form hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
 
                 {% if versions %}
@@ -641,6 +641,13 @@
                 {% include 'results.html' %}
             </div>
         </section>
+
+        {% if trigger_search_on_load and versions %}
+        <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}" hx-trigger="load"
+            hx-target="#results-container" hx-swap="innerHTML"
+            hx-vals='{"product_description": {{ query | tojson }}, "version": "{{ versions[0] }}", "top_k": 10}'>
+        </div>
+        {% endif %}
 
         <!-- Standard-specific content sections to address Google indexing issues -->
         {% if classifier_type == 'unspsc' %}
