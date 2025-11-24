@@ -211,9 +211,6 @@
   .pointer-events-none {
     pointer-events: none;
   }
-  .visible {
-    visibility: visible;
-  }
   .absolute {
     position: absolute;
   }
@@ -870,9 +867,6 @@
 }
 body {
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-}
-.header-fixed-height {
-  height: 64px;
 }
 @property --tw-scale-x {
   syntax: "*";

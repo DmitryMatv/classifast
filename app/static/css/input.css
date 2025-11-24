@@ -4,9 +4,3 @@
 body {
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
-
-/* Prevent layout shift when authentication elements appear */
-.header-fixed-height {
-  height: 64px;
-  /* Fixed height to reserve space for auth elements */
-}
