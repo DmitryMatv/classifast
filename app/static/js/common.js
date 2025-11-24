@@ -53,66 +53,6 @@ class MobileMenu {
     }
 }
 
-// URL parameter handling utilities
-class UrlUtils {
-    // Extract URL parameters (simplified, hardcoded list for reliability)
-    static getUrlParams() {
-        const pathParts = window.location.pathname.split('/');
-        // Hardcoded list of supported classifiers for reliability
-        const supportedClassifiers = ['etim', 'unspsc', 'naics', 'isic', 'hs', 'hts', 'cn', 'nace', 'cpv', 'nsn'];
-        const classifierIndex = pathParts.findIndex(part =>
-            supportedClassifiers.includes(part)
-        );
-
-        if (classifierIndex !== -1 && pathParts.length > classifierIndex + 1) {
-            // Filter out empty strings to handle trailing slashes, then join with spaces and decode
-            const searchQuery = decodeURIComponent(
-                pathParts.slice(classifierIndex + 1)
-                    .filter(part => part.length > 0)  // Remove empty strings from trailing slashes
-                    .join(' ')
-            ).replace(/-/g, ' ').trim();  // Replace hyphens with spaces, then trim
-            return {
-                search: searchQuery || '',
-                version: new URLSearchParams(window.location.search).get('version') || ''
-            };
-        }
-
-        return {
-            search: '',
-            version: new URLSearchParams(window.location.search).get('version') || ''
-        };
-    }
-
-    // Slugify function for SEO-friendly URLs
-    static slugify(text) {
-        return text.toString().toLowerCase()
-            .replace(/[^\w\s.,-]/g, '') // Remove special characters but preserve periods and commas
-            .replace(/[\s_-]+/g, '-') // Replace spaces and underscores with hyphens
-            .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
-    }
-
-    // Update URL parameters
-    static updateUrlParams(search, version) {
-        const classifierType = window.location.pathname.split('/')[1];
-        let newUrl;
-
-        if (search && search.trim()) {
-            const slug = this.slugify(search);
-            newUrl = `/${classifierType}/${slug}`;
-            if (version && version !== '') {
-                newUrl += `?version=${encodeURIComponent(version)}`;
-            }
-        } else {
-            newUrl = `/${classifierType}`;
-            if (version && version !== '') {
-                newUrl += `?version=${encodeURIComponent(version)}`;
-            }
-        }
-
-        window.history.replaceState({ search, version }, '', newUrl);
-    }
-}
-
 // Copy URL functionality
 class ShareLink {
     static async copyShareableLink() {
@@ -204,8 +144,256 @@ class TextareaEnhancer {
     }
 }
 
+// Toggle functionality for classifier description sections
+class DescriptionToggle {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        const toggle = document.getElementById('description-toggle');
+        const content = document.getElementById('description-content');
+        const container = document.getElementById('description-container');
+
+        if (!toggle || !content || !container) return;
+
+        // Hide entire block if description empty
+        const text = content.textContent || content.innerText || '';
+        if (!text.trim()) {
+            toggle.style.display = 'none';
+            container.style.display = 'none';
+            return;
+        }
+
+        this.setupToggle(toggle, content);
+    }
+
+    setupToggle(toggle, content) {
+        const logos = document.querySelectorAll('[data-classifier-logo]');
+        const learnLabel = toggle.getAttribute('aria-label')?.replace(' button', '') || 'Learn more';
+        const showLessLabel = 'Show less';
+
+        // Initialize state: hidden
+        content.style.display = 'none';
+        content.setAttribute('aria-hidden', 'true');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = learnLabel;
+
+        toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isHidden = content.style.display === 'none' || content.style.display === '';
+
+            if (isHidden) {
+                this.showContent(content, toggle, logos, showLessLabel);
+            } else {
+                this.hideContent(content, toggle, logos, learnLabel);
+            }
+        });
+    }
+
+    showContent(content, toggle, logos, showLessLabel) {
+        content.style.display = 'block';
+        content.setAttribute('aria-hidden', 'false');
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.textContent = showLessLabel;
+
+        logos.forEach(logo => {
+            if (!logo.dataset.originalDisplay) {
+                logo.dataset.originalDisplay = logo.style.display || '';
+            }
+            logo.style.display = 'none';
+        });
+    }
+
+    hideContent(content, toggle, logos, learnLabel) {
+        content.style.display = 'none';
+        content.setAttribute('aria-hidden', 'true');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = learnLabel;
+
+        logos.forEach(logo => {
+            const original = logo.dataset.originalDisplay || '';
+            logo.style.display = original;
+        });
+    }
+}
+
+// Simple Clerk Authentication using official SDK patterns
+class ClerkAuth {
+    constructor() {
+        this.init();
+    }
+
+    async init() {
+        // console.log('🚀 Initializing Clerk auth...');
+
+        if (window.Clerk) {
+            // console.log('✅ Clerk object already present');
+            await this.startClerk();
+            return;
+        }
+
+        if (document.readyState === 'complete') {
+            // console.warn('⚠️ Page already loaded but Clerk not found');
+            this.renderFallbackAuth();
+            return;
+        }
+
+        // console.log('⏳ Waiting for Clerk to load...');
+        window.addEventListener('load', async () => {
+            if (window.Clerk) {
+                await this.startClerk();
+            } else {
+                console.error('❌ Clerk script failed to load');
+                this.renderFallbackAuth();
+            }
+        });
+    }
+
+    async startClerk() {
+        try {
+            await window.Clerk.load();
+            // console.log('✅ Clerk loaded successfully');
+
+            // Initial render
+            this.updateAuthUI();
+
+            // Listen for auth state changes
+            if (window.Clerk.addListener) {
+                window.Clerk.addListener((payload) => {
+                    // console.log('🔄 Auth state changed');
+                    this.updateAuthUI();
+                });
+            }
+        } catch (err) {
+            console.error('❌ Error initializing Clerk:', err);
+            this.renderFallbackAuth();
+        }
+    }
+
+    updateAuthUI() {
+        const user = window.Clerk.user;
+        const desktopContainer = document.getElementById('desktop-auth-container');
+        const mobileContainer = document.getElementById('mobile-auth-container');
+
+        // Clear containers
+        if (desktopContainer) desktopContainer.innerHTML = '';
+        if (mobileContainer) mobileContainer.innerHTML = '';
+
+        if (user) {
+            // console.log('👤 User is signed in');
+            // Render User Button
+            this.mountUserButton(desktopContainer, 'desktop');
+            this.mountUserButton(mobileContainer, 'mobile');
+        } else {
+            // console.log('👤 User is signed out');
+            // Render Sign In Button
+            this.renderSignInButton(desktopContainer, 'desktop');
+            this.renderSignInButton(mobileContainer, 'mobile');
+
+            // Try to open Google One Tap
+            this.openGoogleOneTap();
+        }
+    }
+
+    openGoogleOneTap() {
+        try {
+            if (window.Clerk && window.Clerk.openGoogleOneTap) {
+                const params = {
+                    cancelOnTapOutside: false,
+                    itpSupport: true,
+                    fedCmSupport: true
+                };
+                window.Clerk.openGoogleOneTap(params);
+                // console.log('✅ Google One Tap opened');
+            }
+        } catch (err) {
+            console.error('❌ Error opening Google One Tap:', err);
+        }
+    }
+
+    mountUserButton(container, type) {
+        if (!container) return;
+
+        const el = document.createElement('div');
+        el.id = `clerk-user-button-${type}`;
+        container.appendChild(el);
+
+        try {
+            window.Clerk.mountUserButton(el, {
+                appearance: {
+                    elements: {
+                        userButtonAvatarBox: 'w-8 h-8',
+                        userButtonBox: 'h-8'
+                    }
+                }
+            });
+        } catch (err) {
+            console.error(`❌ Error mounting ${type} user button:`, err);
+        }
+    }
+
+    renderSignInButton(container, type) {
+        if (!container) return;
+
+        const button = document.createElement('div');
+
+        // Apply styles based on type
+        if (type === 'desktop') {
+            button.id = 'clerk-sign-in-button-desktop';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+        } else {
+            button.id = 'clerk-sign-in-button-mobile';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2 auth-loaded';
+        }
+
+        button.textContent = 'Sign In';
+
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (window.Clerk && window.Clerk.openSignIn) {
+                window.Clerk.openSignIn();
+            } else {
+                // Fallback redirect
+                window.location.href = 'https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href);
+            }
+        });
+
+        container.appendChild(button);
+    }
+
+    renderFallbackAuth() {
+        // console.log('🚨 Rendering fallback auth UI');
+        const desktopContainer = document.getElementById('desktop-auth-container');
+        const mobileContainer = document.getElementById('mobile-auth-container');
+
+        const fallbackUrl = 'https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href);
+        const className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded';
+
+        const createFallbackLink = () => {
+            const a = document.createElement('a');
+            a.href = fallbackUrl;
+            a.className = className;
+            a.textContent = 'Sign In';
+            return a;
+        };
+
+        if (desktopContainer) {
+            desktopContainer.innerHTML = '';
+            desktopContainer.appendChild(createFallbackLink());
+        }
+        if (mobileContainer) {
+            mobileContainer.innerHTML = '';
+            const link = createFallbackLink();
+            mobileContainer.appendChild(link);
+        }
+    }
+}
+
 // Initialize common functionality
 document.addEventListener('DOMContentLoaded', function () {
-    // Initialize mobile menu
     new MobileMenu();
+    new DescriptionToggle();
+    new ClerkAuth();
+    new TextareaEnhancer('product_description_area');
 });

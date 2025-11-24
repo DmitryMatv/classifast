@@ -6,9 +6,9 @@ from urllib.parse import unquote_plus, urlencode
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from ..classifier import perform_classification
-from ..classifier_config import CLASSIFIER_CONFIG
-from ..dependencies import limiter, templates
+from .classifier import perform_classification
+from .classifier_config import CLASSIFIER_CONFIG
+from .dependencies import limiter, templates
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,24 @@ async def read_root(request: Request):
     return response
 
 
-@router.get("/{classifier_type}", response_class=HTMLResponse)
-@router.head("/{classifier_type}")
+@router.get("/{classifier_type}", include_in_schema=False)
+@router.head("/{classifier_type}", include_in_schema=False)
+async def redirect_classifier_page_no_slash(classifier_type: str, request: Request):
+    """
+    Redirects URLs without trailing slash to versions with trailing slash for SEO consistency.
+    """
+    if classifier_type in CLASSIFIER_CONFIG:
+        query_string = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(
+            url=f"/{classifier_type}/{query_string}", status_code=301
+        )
+    raise HTTPException(
+        status_code=404, detail=f"Classifier '{classifier_type}' not found"
+    )
+
+
+@router.get("/{classifier_type}/", response_class=HTMLResponse)
+@router.head("/{classifier_type}/")
 async def show_classifier_page(
     request: Request,
     classifier_type: str,
@@ -67,19 +83,7 @@ async def show_classifier_page(
 ):
     """
     Serves the base classifier page.
-    Redirects URLs without trailing slash to versions with trailing slash for SEO consistency.
     """
-    # Redirect classifier URLs without trailing slash to versions with trailing slash
-    if classifier_type in CLASSIFIER_CONFIG:
-        # Check if this is a direct access without trailing slash (not a redirect)
-        original_path = request.url.path
-        if not original_path.endswith("/"):
-            # Preserve query parameters in the redirect
-            query_string = f"?{request.url.query}" if request.url.query else ""
-            return RedirectResponse(
-                url=f"/{classifier_type}/{query_string}", status_code=301
-            )
-
     return await show_classifier_page_with_query(
         request, classifier_type, "", version, top_k
     )
@@ -93,20 +97,22 @@ async def get_classification_fragment(
     product_description: str = Query(..., alias="product_description"),
     top_k: int = Query(10),
     version: str = Query(...),
+    prevent_url_change: bool = Query(False),
 ):
     """
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
     """
     logger.info(
-        "Received GET fragment request for '%s' with version '%s'.",
+        "Received GET fragment request for '%s' with version '%s'. Prevent URL change: %s",
         classifier_type,
         version,
+        prevent_url_change,
     )
 
     # Reuse the logic from handle_classify but adapted for GET
     # Handle empty query gracefully - also remove trailing slashes and replace with spaces
-    normalized_description = product_description.replace("/", " ").strip()
+    normalized_description = product_description.strip()
     if not normalized_description:
         return templates.TemplateResponse(
             "results.html",
@@ -167,7 +173,7 @@ async def get_classification_fragment(
     response.headers["Vary"] = "Accept-Encoding"
 
     # Calculate new URL for HTMX to push (server-side URL updating)
-    slug = slugify(product_description)
+    slug = slugify(normalized_description.replace("/", " "))
     new_url = f"/{classifier_type}"
     if slug:
         new_url += f"/{slug}"
@@ -183,7 +189,8 @@ async def get_classification_fragment(
             new_url += f"?{urlencode({'version': version})}"
 
     # Set HTMX header to update URL in browser address bar
-    response.headers["HX-Push-Url"] = new_url
+    if not prevent_url_change:
+        response.headers["HX-Push-Url"] = new_url
 
     return response
 
@@ -207,24 +214,6 @@ async def show_classifier_page_with_query(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
-    # For HEAD requests, return just headers
-    if request.method == "HEAD":
-        headers = {
-            "Cache-Control": "public, max-age=86400, s-maxage=604800",
-            "Vary": "Accept-Encoding",
-            "Content-Type": "text/html; charset=utf-8",
-            "Link": f'<https://classifast.com/{classifier_type}/{search_query}>; rel="canonical"',
-        }
-        return Response(headers=headers)
-
-    # Validate top_k parameter
-    if top_k < 1 or top_k > 100:
-        top_k = 3
-
-    # Get first version for default handling
-    versions_list = list(config.get("versions", {}).keys())
-    first_version = versions_list[0] if versions_list else ""
-
     # Handle empty search query for base URLs
     decoded_search_query = ""
     if search_query and search_query.strip():
@@ -241,6 +230,34 @@ async def show_classifier_page_with_query(
             decoded_search_query = decoded_search_query[:4000]
 
         decoded_search_query = decoded_search_query.strip()
+
+    # Build canonical URL
+    canonical_url = f"https://classifast.com/{classifier_type}"
+    if decoded_search_query:
+        slug = slugify(decoded_search_query)
+        canonical_url += f"/{slug}"
+
+    # Ensure trailing slash for consistency with redirects and sitemap
+    if not canonical_url.endswith("/"):
+        canonical_url += "/"
+
+    # For HEAD requests, return just headers
+    if request.method == "HEAD":
+        headers = {
+            "Cache-Control": "public, max-age=86400, s-maxage=604800",
+            "Vary": "Accept-Encoding",
+            "Content-Type": "text/html; charset=utf-8",
+            "Link": f'<{canonical_url}>; rel="canonical"',
+        }
+        return Response(headers=headers)
+
+    # Validate top_k parameter
+    if top_k < 1 or top_k > 100:
+        top_k = 10
+
+    # Get first version for default handling
+    versions_list = list(config.get("versions", {}).keys())
+    first_version = versions_list[0] if versions_list else ""
 
     # Initialize results data structure
     results_data = {
@@ -264,12 +281,6 @@ async def show_classifier_page_with_query(
             results_data["query"] = example_query
             trigger_search_on_load = True
 
-    # Build canonical URL
-    canonical_url = f"https://classifast.com/{classifier_type}"
-    if decoded_search_query:
-        slug = slugify(decoded_search_query)
-        canonical_url += f"/{slug}"
-
     response = templates.TemplateResponse(
         "classifier_page.html",
         {
@@ -286,6 +297,7 @@ async def show_classifier_page_with_query(
                 "top_k": top_k,
             },
             "trigger_search_on_load": trigger_search_on_load,
+            "canonical_url": canonical_url,
             **results_data,
         },
     )

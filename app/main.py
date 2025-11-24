@@ -16,7 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
-from .routers import api, web
+from . import api, web
 
 # Configure logging
 logging.basicConfig(

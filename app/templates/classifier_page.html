@@ -5,18 +5,18 @@
     <meta charset="UTF-8">
     {% if url_params.search %}
     <!-- Dynamic SEO for parameterized searches -->
-    <title>Lookup codes for &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast
+    <title>Lookup &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast
     </title>
     <meta name="description"
         content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     <meta name="keywords"
         content="{{ classifier_type.upper() }} codes for {{ url_params.search.upper() }}, {{ classifier_type.upper() }} {{ url_params.search.upper() }}, find {{ classifier_type.upper() }} codes {{ url_params.search.upper() }}">
     <meta property="og:title"
-        content="Lookup codes for &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast">
+        content="Lookup &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast">
     <meta property="og:description"
         content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     <meta name="twitter:title"
-        content="Lookup codes for &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast">
+        content="Lookup &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast">
     <meta name="twitter:description"
         content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     {% else %}
@@ -41,6 +41,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
+    <link rel="canonical" href="{{ canonical_url }}">
     <link rel="home" href="{{ url_for('read_root') }}">
     <link rel="icon" href="/static/images/favicon-32x32.png" type="image/png" sizes="32x32">
     <link rel="icon" href="/static/images/favicon-16x16.png" type="image/png" sizes="16x16">
@@ -56,7 +57,7 @@
     <meta property="og:description"
         content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification, search, and mapping.">
     {% endif %}
-    <meta property="og:url" content="https://classifast.com/{{ classifier_type }}">
+    <meta property="og:url" content="{{ canonical_url }}">
     <meta property="og:site_name" content="classifast.com">
     <meta property="og:image" content="{{ url_for('static', path='images/preview_classifybox.png') }}">
     <meta property="og:image:width" content="1200">
@@ -101,7 +102,7 @@
         "description": "{{ description | e }} Use Classifast for precise and fast product classification with the {{ classifier_type.upper() }} standard.",
         "keywords": "{{ title }}, {{ classifier_type.upper() }} Lookup, {{ classifier_type.upper() }} Classifier, {{ classifier_type.upper() }} Standard, Data Categorization, Semantic Search, Product Matching, {{ classifier_type.upper() }} Codes, Automated Classification",
         {% endif %}
-        "url": "https://classifast.com/{{ classifier_type }}{% if url_params.search %}/{{ url_params.search }}{% if url_params.version %}?version={{ url_params.version }}{% endif %}{% endif %}",
+        "url": "{{ canonical_url }}",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "offers": {
@@ -458,7 +459,7 @@
 
 <body class="bg-sky-100 text-gray-800"
     style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
-    <header class="bg-sky-100 header-fixed-height relative">
+    <header class="bg-sky-100 relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
@@ -590,7 +591,7 @@
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
                         class="border border-gray-400 rounded text-left px-1 py-1 mb-1">
                         {% for v in versions %}
-                        <option value="{{ v }}">{{ v }}</option>
+                        <option value="{{ v }}" {% if v==url_params.version %}selected{% endif %}>{{ v }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -599,7 +600,7 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
                     autofocus
-                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-[120px] max-h-[800px] resize-y mb-1"></textarea>
+                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-[120px] max-h-[800px] resize-y mb-1">{{ url_params.search }}</textarea>
                 <!-- Textarea enhancer is initialized inline at the bottom -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
@@ -645,7 +646,7 @@
         {% if trigger_search_on_load and versions %}
         <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}" hx-trigger="load"
             hx-target="#results-container" hx-swap="innerHTML"
-            hx-vals='{"product_description": {{ query | tojson }}, "version": "{{ versions[0] }}", "top_k": 10}'>
+            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}{% if not url_params.search %}, "prevent_url_change": true{% endif %}}'>
         </div>
         {% endif %}
 
@@ -1201,51 +1202,8 @@
         // Classifier page specific functionality
         const ClassifierPage = {
             init() {
-                this.populateFromUrl();
-                this.setupAutoSubmit();
                 this.setupTopKAutosubmit();
                 this.setupHTMXListeners();
-            },
-
-            populateFromUrl() {
-                const params = UrlUtils.getUrlParams();
-
-                // Debug logging
-                console.log('URL Params:', params);
-
-                // Direct DOM access instead of relying on TextareaEnhancer
-                const textarea = document.getElementById('product_description_area');
-                if (params.search && textarea) {
-                    console.log('Setting textarea value:', params.search);
-                    textarea.value = params.search;
-                }
-
-                if (params.version) {
-                    const versionSelect = document.getElementById('version_selector');
-                    if (versionSelect) {
-                        console.log('Setting version:', params.version);
-                        versionSelect.value = params.version;
-                    }
-                }
-            },
-
-            setupAutoSubmit() {
-                const params = UrlUtils.getUrlParams();
-                console.log('Checking auto-submit for:', params.search);
-
-                if (params.search && params.search.trim()) {
-                    console.log('Auto-submitting form for:', params.search);
-                    setTimeout(() => {
-                        const form = document.querySelector('form[hx-post]');
-                        console.log('Found form:', !!form);
-                        if (form) {
-                            console.log('Triggering HTMX form submit');
-                            htmx.trigger(form, 'submit');
-                        }
-                    }, 100);
-                } else {
-                    console.log('No auto-submit: search query empty');
-                }
             },
 
             setupTopKAutosubmit() {
@@ -1262,7 +1220,7 @@
             },
 
             triggerFormSubmission() {
-                const form = document.querySelector('form[hx-post]');
+                const form = document.querySelector('form[hx-get]');
                 const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
 
                 if (form) {
@@ -1305,22 +1263,6 @@
                         }
                     }
                 });
-
-                // Update URL parameters before HTMX request
-                document.body.addEventListener('htmx:beforeRequest', function (evt) {
-                    if (evt.detail.elt.tagName === 'FORM' && evt.detail.elt.getAttribute('hx-post')) {
-                        const formData = new FormData(evt.detail.elt);
-                        const query = formData.get('product_description') || '';
-                        const version = formData.get('version') || '';
-
-                        const versionSelect = document.getElementById('version_selector');
-                        const firstVersion = versionSelect ? versionSelect.options[0]?.value : '';
-
-                        const includeVersion = version && version !== firstVersion;
-
-                        UrlUtils.updateUrlParams(query.toString(), includeVersion ? version.toString() : '');
-                    }
-                });
             },
 
             copyShareableLink() {
@@ -1330,23 +1272,15 @@
 
         // Initialize classifier page functionality when DOM is ready
         document.addEventListener('DOMContentLoaded', function () {
-            // Initialize textarea enhancer first
-            const textareaEnhancer = new TextareaEnhancer('product_description_area');
-            window.classifierTextarea = textareaEnhancer;
-
             // Then initialize classifier page functionality
             ClassifierPage.init();
         });
     </script>
 
-    <script src="{{ url_for('static', path='/js/description-toggle.js') }}"></script>
-
     <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_live_Y2xlcmsuY2xhc3NpZmFzdC5jb20k"
         src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js" type="text/javascript">
         </script>
-
-    <script src="{{ url_for('static', path='/js/clerk-auth-simple.js') }}"></script>
 </body>
 
 </html>

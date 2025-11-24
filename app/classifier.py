@@ -461,8 +461,8 @@ async def perform_classification(
             detail="Backend services not available. Please check server logs.",
         )
 
-    # Validate and normalize query - remove trailing slashes and replace with spaces
-    normalized_query = query.replace("/", " ").strip()
+    # Validate and normalize query - remove trailing slashes
+    normalized_query = query.strip()
     if not normalized_query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 

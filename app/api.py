@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from ..classifier import perform_classification
-from ..classifier_config import CLASSIFIER_CONFIG
-from ..dependencies import rapid_limiter
+from .classifier import perform_classification
+from .classifier_config import CLASSIFIER_CONFIG
+from .dependencies import rapid_limiter
 
 logger = logging.getLogger(__name__)
 
