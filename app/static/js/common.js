@@ -341,10 +341,10 @@ class ClerkAuth {
         // Apply styles based on type
         if (type === 'desktop') {
             button.id = 'clerk-sign-in-button-desktop';
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
         } else {
             button.id = 'clerk-sign-in-button-mobile';
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2 auth-loaded';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2 auth-loaded';
         }
 
         button.textContent = 'Sign In';
@@ -368,7 +368,7 @@ class ClerkAuth {
         const mobileContainer = document.getElementById('mobile-auth-container');
 
         const fallbackUrl = 'https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href);
-        const className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded';
+        const className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded';
 
         const createFallbackLink = () => {
             const a = document.createElement('a');
@@ -390,10 +390,103 @@ class ClerkAuth {
     }
 }
 
+// Result copy functionality with tooltip
+class ResultCopier {
+    constructor() {
+        this.init();
+    }
+
+    init() {
+        // Expose global function for inline HTML onclick handlers
+        window.copyOriginalId = (text, buttonElement) => this.copy(text, buttonElement);
+    }
+
+    copy(text, buttonElement) {
+        if (!navigator.clipboard) {
+            this.fallbackCopy(text, buttonElement);
+            return;
+        }
+
+        navigator.clipboard.writeText(text).then(() => {
+            this.showTooltip(buttonElement, 'Copied!');
+        }).catch((err) => {
+            console.error('Async: Could not copy text: ', err);
+            this.showTooltip(buttonElement, 'Copy failed');
+        });
+    }
+
+    fallbackCopy(text, buttonElement) {
+        // Fallback for older browsers or insecure contexts (e.g. http)
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed"; // Prevent scrolling to bottom
+        textArea.style.opacity = "0"; // Hide the textarea
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            this.showTooltip(buttonElement, 'Copied!');
+        } catch (err) {
+            console.error('Fallback: Oops, unable to copy', err);
+            this.showTooltip(buttonElement, 'Copy failed');
+        }
+        document.body.removeChild(textArea);
+    }
+
+    showTooltip(element, message) {
+        const tooltip = document.createElement('span');
+        tooltip.textContent = message;
+        // Basic styling for the tooltip
+        tooltip.style.position = 'absolute';
+        tooltip.style.backgroundColor = 'black';
+        tooltip.style.color = 'white';
+        tooltip.style.padding = '4px 8px';
+        tooltip.style.borderRadius = '4px';
+        tooltip.style.fontSize = '1.125rem'; // text-base (medium)
+        tooltip.style.zIndex = '1000';     // Ensure it's on top
+        tooltip.style.textAlign = 'center';
+
+        // Append to body to avoid clipping issues and for correct initial dimension calculation
+        document.body.appendChild(tooltip);
+
+        const buttonRect = element.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect(); // Get dimensions after appending and styling
+
+        // Position above the button, centered, with scroll offset
+        let top = buttonRect.top + window.scrollY - tooltipRect.height - 5; // 5px spacing
+        let left = buttonRect.left + window.scrollX + (buttonRect.width / 2) - (tooltipRect.width / 2);
+
+        // Adjust if tooltip goes off-screen (viewport relative checks)
+        if (buttonRect.top - tooltipRect.height - 5 < 0) { // Not enough space above
+            top = buttonRect.bottom + window.scrollY + 5; // Position below
+        }
+        if (left - window.scrollX < 0) { // Off-screen left
+            left = window.scrollX;
+        }
+        if (left - window.scrollX + tooltipRect.width > window.innerWidth) { // Off-screen right
+            left = window.scrollX + window.innerWidth - tooltipRect.width;
+        }
+
+        tooltip.style.top = `${top}px`;
+        tooltip.style.left = `${left}px`;
+
+        buttonElement.disabled = true; // Disable button
+
+        setTimeout(function () {
+            if (tooltip.parentNode) {
+                tooltip.parentNode.removeChild(tooltip);
+            }
+            buttonElement.disabled = false; // Re-enable button
+        }, 1000); // Tooltip lasts for 1 second
+    }
+}
+
 // Initialize common functionality
 document.addEventListener('DOMContentLoaded', function () {
     new MobileMenu();
     new DescriptionToggle();
     new ClerkAuth();
     new TextareaEnhancer('product_description_area');
+    new ResultCopier();
 });

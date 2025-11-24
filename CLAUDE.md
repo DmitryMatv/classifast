@@ -24,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Build CSS once: `npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css`
 - Input CSS: `app/static/css/input.css`
 - Output CSS: `app/static/css/styles.css`
+- Tailwind CSS v4 configuration with Inter font family
 
 ### Testing & Debugging
 
@@ -44,7 +45,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **FastAPI backend** (`app/main.py`): Main application with lifespan management, middleware, routing, and RapidAPI integration
 - **Classification engine** (`app/classifier.py`): Handles semantic search using Google Gemini embeddings and Qdrant vector database
-- **Shared classification service**: `perform_classification()` function centralizes all classification logic
+- **Modular architecture**: Separated into `api.py` (RapidAPI endpoints) and `web.py` (web interface)
+- **Configuration management**: Centralized in `classifier_config.py` with CLASSIFIER_CONFIG dict
+- **Dependencies**: Shared dependencies in `dependencies.py` (rate limiting, templates)
 - **Templates**: Jinja2 templates in `app/templates/` (index.html, classifier_page.html, results.html, rate_limit_warning.html)
 - **Static files**: CSS, JS, images in `app/static/`
 - **Utilities**: Helper scripts in `utilities/` for testing and configuration
@@ -143,3 +146,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Validation layers**: Input validation, client health checks, and error handling
 - **Response formatting**: Consistent response structure across web and API endpoints
 - **Authentication**: Multi-mode authentication supporting different access patterns
+
+## Development Workflow
+
+### File Organization Patterns
+
+- **Python modules**: All application code lives in `app/` directory
+- **Static assets**: CSS and JavaScript files in `app/static/`
+- **Templates**: Jinja2 HTML templates in `app/templates/`
+- **Utilities**: Standalone scripts for testing and maintenance in `utilities/`
+- **Configuration**: Environment variables via `.env` file
+
+### Key Development Patterns
+
+- **Async/await**: All database and API operations use async patterns
+- **Error handling**: Comprehensive try-catch blocks with logging
+- **Validation**: Input validation using Pydantic models for API endpoints
+- **Retry logic**: Tenacity-based retry for external API calls
+- **Health checks**: Multiple endpoints for monitoring service health

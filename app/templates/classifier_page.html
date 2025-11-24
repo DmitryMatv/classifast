@@ -5,30 +5,28 @@
     <meta charset="UTF-8">
     {% if url_params.search %}
     <!-- Dynamic SEO for parameterized searches -->
-    <title>Lookup &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast
+    <title id="page-title">{{ classifier_type.upper() }} codes for '{{ url_params.search.title() }}'
     </title>
     <meta name="description"
         content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     <meta name="keywords"
         content="{{ classifier_type.upper() }} codes for {{ url_params.search.upper() }}, {{ classifier_type.upper() }} {{ url_params.search.upper() }}, find {{ classifier_type.upper() }} codes {{ url_params.search.upper() }}">
-    <meta property="og:title"
-        content="Lookup &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast">
+    <meta property="og:title" content="{{ classifier_type.upper() }} codes for '{{ url_params.search.title() }}'">
     <meta property="og:description"
         content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
-    <meta name="twitter:title"
-        content="Lookup &quot;{{ url_params.search.title() }}&quot; from {{ classifier_type.upper() }} | Classifast">
+    <meta name="twitter:title" content="{{ classifier_type.upper() }} codes for '{{ url_params.search.title() }}'">
     <meta name="twitter:description"
         content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     {% else %}
     <!-- Original SEO for regular pages -->
     {% if classifier_type == 'unspsc' %}
-    <title>UNSPSC Code Lookup, Search, Classify, Map | Classifast</title>
+    <title id="page-title">UNSPSC Code Lookup, Search, Classify, Map | Classifast</title>
     <meta name="description"
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
     <meta name="keywords"
         content="UNSPSC mapping, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification">
     {% else %}
-    <title>{{ classifier_type.upper() }} Code Lookup, Search, Classify, Map | Classifast</title>
+    <title id="page-title">{{ classifier_type.upper() }} Code Lookup, Search, Classify, Map | Classifast</title>
     <meta name="description"
         content="Find {{ classifier_type.upper() }} codes quickly. Precise and fast {{ classifier_type.upper() }} standard classification, search, and mapping.">
     <meta name="keywords"

@@ -152,6 +152,13 @@ async def get_classification_fragment(
     end_total_time = time.perf_counter()
     total_request_time = end_total_time - start_total_time
 
+    # Calculate dynamic page title for OOB swap
+    page_title = None
+    if not prevent_url_change:
+        page_title = (
+            f"{classifier_type.upper()} codes for '{normalized_description.title()}'"
+        )
+
     # Render the results partial
     response = templates.TemplateResponse(
         "results.html",
@@ -162,6 +169,7 @@ async def get_classification_fragment(
             "base_url": result["version_config"].get("base_url", ""),
             "tooltip": result["version_config"].get("tooltip", ""),
             "total_request_time": total_request_time,
+            "page_title": page_title,
         },
     )
 

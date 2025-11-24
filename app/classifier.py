@@ -463,6 +463,13 @@ async def perform_classification(
 
     # Validate and normalize query - remove trailing slashes
     normalized_query = query.strip()
+
+    logger.info(
+        "CLASSIFICATION_QUERY: classifier=%s query='%s'",
+        classifier_type,
+        normalized_query,
+    )
+
     if not normalized_query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
