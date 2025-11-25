@@ -363,7 +363,7 @@ async def classify_string_batch(
         if isinstance(embedding, list) and len(embedding) > 0:
             search_kwargs = {
                 "collection_name": collection_name,
-                "query_vector": embedding,
+                "query": embedding,
                 "query_filter": None,  # No additional filters
                 "limit": internal_top_k,
                 "with_payload": True,
@@ -372,8 +372,8 @@ async def classify_string_batch(
 
             search_kwargs["search_params"] = search_params
 
-            search_result = await qdrant_client.search(**search_kwargs)
-            batch_results.append(search_result)
+            search_result = await qdrant_client.query_points(**search_kwargs)
+            batch_results.append(search_result.points)
         else:
             # Handle edge case: empty or invalid embedding
             batch_results.append([])

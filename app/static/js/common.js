@@ -282,6 +282,11 @@ class ClerkAuth {
 
         if (user) {
             // console.log('👤 User is signed in');
+
+            // Render Upgrade Button
+            this.renderUpgradeButton(desktopContainer, 'desktop');
+            this.renderUpgradeButton(mobileContainer, 'mobile');
+
             // Render User Button
             this.mountUserButton(desktopContainer, 'desktop');
             this.mountUserButton(mobileContainer, 'mobile');
@@ -294,6 +299,63 @@ class ClerkAuth {
             // Try to open Google One Tap
             this.openGoogleOneTap();
         }
+    }
+
+    renderUpgradeButton(container, type) {
+        if (!container) return;
+
+        // Check if user is already pro
+        const user = window.Clerk.user;
+        const isPro = user.publicMetadata?.tier === 'pro';
+        if (isPro) return;
+
+        const button = document.createElement('button');
+        button.textContent = 'Upgrade to Pro';
+
+        if (type === 'desktop') {
+            button.className = 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-3 py-1 rounded mr-4 text-sm font-medium transition-all shadow-sm';
+        } else {
+            button.className = 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-4 py-2 rounded w-full mb-4 text-base transition-all shadow-sm';
+        }
+
+        button.onclick = async () => {
+            try {
+                const originalText = button.textContent;
+                button.disabled = true;
+                button.textContent = 'Preparing...';
+
+                const token = await window.Clerk.session.getToken();
+                const response = await fetch('/api/create-checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    // TODO: Replace with actual Polar Product ID
+                    body: JSON.stringify({
+                        product_id: 'b71bb3cf-a34f-428f-bad8-142937c10c8f'
+                    })
+                });
+
+                if (!response.ok) throw new Error('Checkout creation failed');
+
+                const data = await response.json();
+                if (data.url) {
+                    window.location.href = data.url;
+                } else {
+                    throw new Error('No checkout URL returned');
+                }
+            } catch (err) {
+                console.error('Upgrade failed:', err);
+                button.textContent = 'Error';
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.textContent = 'Upgrade to Pro';
+                }, 3000);
+            }
+        };
+
+        container.appendChild(button);
     }
 
     openGoogleOneTap() {

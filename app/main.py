@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import time
+import json
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -16,13 +17,25 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
-from . import api, web
+from . import api, web, payments
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(levelname)s - %(message)s",
-)
+
+# Configure logging with minimal JSON formatter
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log = {
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "name": record.name,
+        }
+        if record.exc_info:
+            log["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log)
+
+
+handler = logging.StreamHandler()
+handler.setFormatter(JsonFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -426,6 +439,7 @@ async def health_check(request: Request):
 
 # Include routers
 app.include_router(api.router, prefix="/api/v1/rapid", tags=["rapidapi"])
+app.include_router(payments.router, prefix="/api", tags=["payments"])
 app.include_router(web.router)
 
 
