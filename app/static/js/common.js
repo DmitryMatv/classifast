@@ -434,7 +434,7 @@ class ResultCopier {
         document.body.removeChild(textArea);
     }
 
-    showTooltip(element, message) {
+    showTooltip(buttonElement, message) {
         const tooltip = document.createElement('span');
         tooltip.textContent = message;
         // Basic styling for the tooltip
@@ -450,7 +450,7 @@ class ResultCopier {
         // Append to body to avoid clipping issues and for correct initial dimension calculation
         document.body.appendChild(tooltip);
 
-        const buttonRect = element.getBoundingClientRect();
+        const buttonRect = buttonElement.getBoundingClientRect();
         const tooltipRect = tooltip.getBoundingClientRect(); // Get dimensions after appending and styling
 
         // Position above the button, centered, with scroll offset
@@ -478,7 +478,7 @@ class ResultCopier {
                 tooltip.parentNode.removeChild(tooltip);
             }
             buttonElement.disabled = false; // Re-enable button
-        }, 1000); // Tooltip lasts for 1 second
+        }, 500); // Tooltip lasts for 500 milliseconds
     }
 }
 
