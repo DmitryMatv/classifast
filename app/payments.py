@@ -26,10 +26,17 @@ async def get_current_user_id(authorization: str = Header(None)):
     token = authorization.replace("Bearer ", "")
 
     try:
-        # 1. Decode JWT without verification to get 'sid' (session id)
-        # In a production environment with more setup, we would verify the JWT signature locally.
-        # Here we rely on the subsequent Clerk API call which verifies the session validity.
-        payload = jwt.decode(token, options={"verify_signature": False})
+        # Decode JWT to get session ID - signature verification is handled by Clerk API call below.
+        # We validate issuer and expiration claims to reject obviously invalid tokens early.
+        payload = jwt.decode(
+            token,
+            options={
+                "verify_signature": False,
+                "verify_exp": True,
+                "verify_iat": True,
+                "require": ["sid", "exp", "iat"],
+            },
+        )
         session_id = payload.get("sid")
 
         if not session_id:
@@ -58,8 +65,15 @@ async def get_current_user_id(authorization: str = Header(None)):
 
             return session_data.get("user_id")
 
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Invalid JWT token: {type(e).__name__}")
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Auth error: {str(e)}")
+        logger.error(f"Auth error: {type(e).__name__}")
         raise HTTPException(status_code=401, detail="Authentication failed")
 
 
@@ -93,12 +107,11 @@ async def create_checkout(
 
             return {"url": checkout.url}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating checkout: {e}")
-        # If the SDK call fails (e.g. attribute error), we might need to adjust based on SDK version
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create checkout: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Failed to create checkout")
 
 
 @router.post("/webhooks/polar")

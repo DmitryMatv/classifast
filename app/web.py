@@ -134,6 +134,9 @@ async def get_classification_fragment(
             classifier_type=classifier_type,
             version=version,
             top_k=top_k,
+            quantization_cache=getattr(
+                request.app.state, "collection_quantization_cache", None
+            ),
         )
 
         classification_results = result["results"]

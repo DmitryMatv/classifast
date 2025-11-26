@@ -40,45 +40,34 @@ class RapidAPIResponse(BaseModel):
 RAPIDAPI_SECRET = os.getenv("RAPIDAPI_SECRET")
 
 
-async def verify_rapidapi_key(request: Request) -> bool:
-    """Verify RapidAPI key from header."""
-    api_key = request.headers.get("X-RapidAPI-Key")
-    if api_key:
-        return True  # API key provided - valid
-    return False
+async def verify_rapidapi_auth(request: Request) -> bool:
+    """
+    Verify RapidAPI authentication via proxy secret.
 
-
-async def verify_rapidapi_proxy(request: Request) -> bool:
-    """Verify RapidAPI proxy secret."""
+    RapidAPI validates API keys on their infrastructure and forwards requests
+    with X-RapidAPI-Proxy-Secret header. We verify this secret to ensure
+    requests came through the official RapidAPI proxy.
+    """
     if not RAPIDAPI_SECRET:
-        return False
+        logger.warning("RAPIDAPI_SECRET not configured - API authentication disabled")
+        raise HTTPException(
+            status_code=503,
+            detail="API authentication not configured",
+        )
 
     proxy_secret = request.headers.get("X-RapidAPI-Proxy-Secret")
+    if not proxy_secret:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing authentication - use RapidAPI to access this endpoint",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
 
     if proxy_secret != RAPIDAPI_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid proxy secret")
+        logger.warning("Invalid RapidAPI proxy secret received")
+        raise HTTPException(status_code=401, detail="Invalid authentication")
 
     return True
-
-
-async def verify_rapidapi_auth(request: Request) -> bool:
-    """Combined authentication function that accepts either API key or proxy authentication."""
-    try:
-        proxy_valid = await verify_rapidapi_proxy(request)
-        if proxy_valid:
-            return True
-    except HTTPException:
-        pass
-
-    api_key_valid = await verify_rapidapi_key(request)
-    if api_key_valid:
-        return True
-
-    raise HTTPException(
-        status_code=401,
-        detail="Authentication required - provide either X-RapidAPI-Key or valid proxy secret",
-        headers={"WWW-Authenticate": "ApiKey"},
-    )
 
 
 @router.get(
@@ -117,6 +106,9 @@ async def rapid_classify(
             classifier_type=standard,
             version=version,
             top_k=top_k or 1,
+            quantization_cache=getattr(
+                request.app.state, "collection_quantization_cache", None
+            ),
         )
 
         classification_results = result["results"]
@@ -150,7 +142,7 @@ async def rapid_classify(
         raise
     except Exception as e:
         logger.error("RapidAPI classification error: %s", e)
-        raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Classification failed")
 
 
 @router.get("/standards", dependencies=[Depends(verify_rapidapi_auth)])
@@ -184,20 +176,20 @@ async def rapid_health_public(request: Request):
         try:
             embed_client.models.list()
             health_status["services"]["embedding"] = "healthy"
-        except Exception as e:
-            health_status["services"]["embedding"] = f"unhealthy: {str(e)}"
+        except Exception:
+            health_status["services"]["embedding"] = "unhealthy"
     else:
-        health_status["services"]["embedding"] = "unhealthy: not initialized"
+        health_status["services"]["embedding"] = "unavailable"
 
     # Check Qdrant service
     if qdrant_client:
         try:
             await qdrant_client.get_collections()
             health_status["services"]["database"] = "healthy"
-        except Exception as e:
-            health_status["services"]["database"] = f"unhealthy: {str(e)}"
+        except Exception:
+            health_status["services"]["database"] = "unhealthy"
     else:
-        health_status["services"]["database"] = "unhealthy: not initialized"
+        health_status["services"]["database"] = "unavailable"
 
     # Overall health
     all_healthy = all(v == "healthy" for v in health_status["services"].values())

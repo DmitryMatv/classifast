@@ -1,8 +1,8 @@
+import json
 import logging
 import os
 import re
 import time
-import json
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -15,21 +15,22 @@ from qdrant_client import AsyncQdrantClient
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from . import api, payments, web
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
-from . import api, web, payments
 
 
-# Configure logging with minimal JSON formatter
+# Configure logging with Dozzle-friendly JSON formatter
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log = {
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "name": record.name,
+            "time": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname.lower(),
+            "msg": record.getMessage(),
+            "logger": record.name,
         }
         if record.exc_info:
-            log["exception"] = self.formatException(record.exc_info)
+            log["error"] = self.formatException(record.exc_info)
         return json.dumps(log)
 
 
@@ -64,6 +65,7 @@ async def lifespan(app: FastAPI):
     QDRANT_URL = os.getenv("QDRANT_URL", "qdrant.classifast.com")
     QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     qdrant_client = None
+    collection_quantization_cache = {}  # Cache quantization config per collection
     try:
         logger.info("Connecting to Qdrant...")
         qdrant_client = AsyncQdrantClient(
@@ -126,12 +128,19 @@ async def lifespan(app: FastAPI):
                             embed_dims,
                         )
 
+                # Cache quantization config for this collection
+                has_quantization = (
+                    collection_info.config.quantization_config is not None
+                )
+                collection_quantization_cache[collection_name] = has_quantization
+
     except Exception as e:
         logger.error("Error initializing Qdrant client: %s", e)
 
-    # Store clients in app state
+    # Store clients and caches in app state
     app.state.embed_client = embed_client
     app.state.qdrant_client = qdrant_client
+    app.state.collection_quantization_cache = collection_quantization_cache
 
     yield
 

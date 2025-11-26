@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 from fastapi import HTTPException
 from google import genai
 from google.genai import types
@@ -83,17 +82,13 @@ async def get_embeddings_batch(
         return []
 
     try:
-        # Enhanced logging for embedding generation
-        logger.info(
-            "Embedding generation: %d texts, model=%s, task_type=%s",
+        logger.debug(
+            "Embedding generation: %d texts, model=%s, task_type=%s, dims=%s",
             len(texts),
             model_name,
             task_type,
+            embed_dims,
         )
-        if embed_dims:
-            logger.info("Target dimensions: %d", embed_dims)
-        if titles:
-            logger.info("Processing with titles: %d titles provided", len(titles))
 
         # Create config with title support for RETRIEVAL_DOCUMENT task type
         config = types.EmbedContentConfig(
@@ -107,9 +102,7 @@ async def get_embeddings_batch(
                     f"Number of titles ({len(titles)}) must match number of texts ({len(texts)})"
                 )
 
-            logger.info(
-                "Using individual API calls to preserve order with title context"
-            )
+            logger.debug("Using individual API calls with title context")
             # Process each text with its corresponding title while preserving order
             embeddings_by_index = {}  # Use dict to preserve index ordering
             successful_indices = []
@@ -141,20 +134,6 @@ async def get_embeddings_batch(
                     embedding_vector = response.embeddings[0].values
                     embeddings_by_index[index] = embedding_vector
                     successful_indices.append(index)
-
-                    # Log successful embedding generation
-                    if index < 3:  # Only log first few to avoid spam
-                        logger.info(
-                            "Embedding %d/%d: %d dimensions, title='%s...'",
-                            index + 1,
-                            len(texts),
-                            len(embedding_vector),
-                            title[:30],
-                        )
-                    elif index == 3:
-                        logger.info(
-                            "... (processing remaining %d embeddings)", len(texts) - 3
-                        )
 
                 except Exception as e:
                     failed_indices.append(index)
@@ -192,21 +171,15 @@ async def get_embeddings_batch(
                         f"Failed to generate embedding for text at index {i}: {texts[i][:50]}..."
                     )
 
-            logger.info(
-                "Completed individual embeddings: %d embeddings generated",
-                len(ordered_embeddings),
-            )
+            logger.debug("Generated %d individual embeddings", len(ordered_embeddings))
             return ordered_embeddings
         else:
-            # For queries or when no titles provided, use batch processing without titles
-            logger.info("Using batch API call for %d texts without titles", len(texts))
+            # For queries or when no titles provided, use batch processing
             response = await embed_client.aio.models.embed_content(
                 model=model_name,
                 contents=texts,
                 config=config,
             )
-
-            logger.info("Batch API returned %d embeddings", len(response.embeddings))
 
             # Validate batch response preserves order
             if len(response.embeddings) != len(texts):
@@ -215,26 +188,21 @@ async def get_embeddings_batch(
                     f"Expected 1:1 correspondence."
                 )
 
-            raw_embeddings = [embedding.values for embedding in response.embeddings]
-
-            logger.info(
-                "Completed batch embedding: %d embeddings generated",
-                len(raw_embeddings),
-            )
-            return raw_embeddings
+            return [embedding.values for embedding in response.embeddings]
     except Exception as e:
         logger.error("An unexpected error occurred during embedding generation: %s", e)
         return []  # Return empty list on error
 
 
 async def classify_string_batch(
-    qdrant_client: AsyncQdrantClient,  # Add qdrant_client parameter
-    embed_client: genai.Client,  # Add embed_client parameter
-    embed_model_name: str,  # Add embed_model_name parameter
+    qdrant_client: AsyncQdrantClient,
+    embed_client: genai.Client,
+    embed_model_name: str,
     query_texts: List[str],
     collection_name: str,
     embed_dims: Optional[int] = None,
     top_k: int = 3,
+    quantization_cache: Optional[Dict[str, bool]] = None,
 ) -> List[List[Dict[str, Any]]]:
     """
     Takes a list of string inputs, gets their embeddings in a batch,
@@ -247,9 +215,9 @@ async def classify_string_batch(
         embed_model_name: The name of the embedding model to use.
         query_texts: A list of input query_texts to classify/find similar items for.
         collection_name: The name of the Qdrant collection to query.
-        embed_dims: The expected dimension size for the embedding model. Used to control
-                   normalization behavior based on vector dimensionality.
+        embed_dims: The expected dimension size for the embedding model.
         top_k: The number of top similar results to return for each query.
+        quantization_cache: Optional cache of collection quantization configs.
 
     Returns:
         A list of lists of search results (dictionaries with score and payload).
@@ -258,15 +226,9 @@ async def classify_string_batch(
     """
 
     if not query_texts:
-        logger.warning("Input query list is empty.")
         return []
 
-    # 1. Get Embeddings for the Query Texts in a Single Batch Call
-    logger.info(
-        "Generating embeddings for %d queries using model %s...",
-        len(query_texts),
-        embed_model_name,
-    )
+    # 1. Get Embeddings for the Query Texts
     query_embeddings = await get_embeddings_batch(
         embed_client,
         embed_model_name,
@@ -291,31 +253,23 @@ async def classify_string_batch(
         # Instead of returning empty list, we could return partial results or handle more gracefully
         return []
 
-    # Validate embeddings before proceeding (single validation point)
+    # Validate embeddings before proceeding
     validate_embedding_correspondence(query_texts, query_embeddings, "queries")
 
-    query_embeddings_np = np.array(query_embeddings)
-    query_embeddings = query_embeddings_np.tolist()
+    # 2. Check if collection has quantization enabled (use cache if available)
+    if quantization_cache and collection_name in quantization_cache:
+        has_quantization = quantization_cache[collection_name]
+    else:
+        try:
+            collection_info = await qdrant_client.get_collection(collection_name)
+            has_quantization = collection_info.config.quantization_config is not None
+        except Exception:
+            has_quantization = False
 
-    # 2. Check if collection has quantization enabled
-    try:
-        collection_info = await qdrant_client.get_collection(collection_name)
-        has_quantization = collection_info.config.quantization_config is not None
-        logger.info(
-            "Collection '%s' quantization enabled: %s",
-            collection_name,
-            has_quantization,
-        )
-    except Exception as e:
-        logger.warning(
-            "Could not check collection configuration for '%s': %s", collection_name, e
-        )
-        has_quantization = False
-
-    # 3. Prepare Search Parameters with consistent hnsw_ef, adding quantization settings when available
+    # 3. Prepare Search Parameters
     search_params = models.SearchParams(
         hnsw_ef=256,
-        exact=False,  # Ensure ANN index is used
+        exact=False,
         quantization=(
             models.QuantizationSearchParams(
                 ignore=False,
@@ -327,35 +281,8 @@ async def classify_string_batch(
         ),
     )
 
-    if has_quantization:
-        logger.info(
-            "Using quantization search parameters (hnsw_ef=256, rescore=True, oversampling=2.0)"
-        )
-    else:
-        logger.info("Using default search parameters (hnsw_ef=256, no quantization)")
-
-    # 4. Execute Individual Search Queries with appropriate parameters
-    search_type = "quantized" if has_quantization else "standard"
-
-    # Calculate internal top_k for better rescore/oversampling accuracy
-    if has_quantization:
-        internal_top_k = 100  # Ensure sufficient candidates for rescore
-        logger.info(
-            "Querying collection '%s' with %d individual searches (%s)... Internal top_k: %d, User top_k: %d",
-            collection_name,
-            len(query_embeddings),
-            search_type,
-            internal_top_k,
-            top_k,
-        )
-    else:
-        internal_top_k = top_k
-        logger.info(
-            "Querying collection '%s' with %d individual searches (%s)...",
-            collection_name,
-            len(query_embeddings),
-            search_type,
-        )
+    # 4. Execute Search Queries
+    internal_top_k = 100 if has_quantization else top_k
 
     # Use individual searches with conditional parameters
     batch_results = []
@@ -395,17 +322,7 @@ async def classify_string_batch(
             formatted_hits = formatted_hits[:top_k]
 
         all_formatted_results.append(formatted_hits)
-        # logger.debug("Query '%s...': Found %d results.", query_texts[i][:50], len(formatted_hits))
 
-    if all_formatted_results and any(results for results in all_formatted_results):
-        logger.info(
-            "Batch query finished successfully. Returning %d sets of results.",
-            len(all_formatted_results),
-        )
-    else:
-        logger.warning(
-            "Batch query finished but returned empty results for all queries."
-        )
     return all_formatted_results
 
 
@@ -416,6 +333,7 @@ async def perform_classification(
     classifier_type: str,
     version: Optional[str] = None,
     top_k: int = 3,
+    quantization_cache: Optional[Dict[str, bool]] = None,
 ) -> Dict[str, Any]:
     """
     Shared classification service that handles all common logic between web form and API endpoints.
@@ -427,6 +345,7 @@ async def perform_classification(
         query: The product/service description to classify
         version: Optional specific version to use
         top_k: Number of results to return
+        quantization_cache: Optional cache of collection quantization configs.
 
     Returns:
         Dict containing classification results and metadata
@@ -488,6 +407,7 @@ async def perform_classification(
             collection_name=collection_name,
             embed_dims=config.get("embed_dims"),
             top_k=top_k,
+            quantization_cache=quantization_cache,
         )
 
         classification_results = (
@@ -503,8 +423,8 @@ async def perform_classification(
             "query": normalized_query,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Classification error for '%s': %s", classifier_type, e)
-        raise HTTPException(
-            status_code=500, detail=f"Error processing request: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail="Error processing request")
