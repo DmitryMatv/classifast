@@ -37,7 +37,11 @@ async def get_current_user_id(authorization: str = Header(None)):
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
 
-    token = authorization.replace("Bearer ", "")
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401, detail="Invalid Authorization header format"
+        )
+    token = authorization[7:]  # len("Bearer ") == 7
 
     # Get JWKS client for signature verification
     jwks_client = get_jwks_client()
