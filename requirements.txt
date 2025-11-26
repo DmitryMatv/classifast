@@ -7,5 +7,5 @@ google-genai<2.0.0
 qdrant-client>=1.16.0,<2.0.0
 Jinja2>=3.1.0,<4.0.0
 polar-sdk>=0.28.0
-svix<=2.0.0
 PyJWT<=3.0.0
+cryptography>=42.0.0

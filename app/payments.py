@@ -4,9 +4,9 @@ import os
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from jwt import PyJWKClient
 from polar_sdk import Polar
-from polar_sdk.models import CheckoutCreate
-from svix.webhooks import Webhook, WebhookVerificationError
+from polar_sdk.webhooks import WebhookVerificationError, validate_event
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -16,6 +16,20 @@ router = APIRouter()
 POLAR_ACCESS_TOKEN = os.getenv("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET")
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
+CLERK_FRONTEND_API = os.getenv("CLERK_FRONTEND_API")
+CLERK_PERMITTED_ORIGINS = os.getenv("CLERK_PERMITTED_ORIGINS", "")
+
+# Cached JWKS client for Clerk JWT verification
+_jwks_client = None
+
+
+def get_jwks_client():
+    global _jwks_client
+    if _jwks_client is None and CLERK_FRONTEND_API:
+        _jwks_client = PyJWKClient(
+            f"https://{CLERK_FRONTEND_API}/.well-known/jwks.json"
+        )
+    return _jwks_client
 
 
 # Dependency to get authenticated user ID from Clerk
@@ -25,26 +39,54 @@ async def get_current_user_id(authorization: str = Header(None)):
 
     token = authorization.replace("Bearer ", "")
 
+    # Get JWKS client for signature verification
+    jwks_client = get_jwks_client()
+    if not jwks_client:
+        logger.error("CLERK_FRONTEND_API not set")
+        raise HTTPException(status_code=500, detail="Server configuration error")
+
     try:
-        # Decode JWT to get session ID - signature verification is handled by Clerk API call below.
-        # We validate issuer and expiration claims to reject obviously invalid tokens early.
+        # Get signing key from JWKS and verify JWT signature
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        expected_issuer = f"https://{CLERK_FRONTEND_API}"
         payload = jwt.decode(
             token,
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=expected_issuer,
             options={
-                "verify_signature": False,
+                "verify_signature": True,
                 "verify_exp": True,
                 "verify_iat": True,
-                "require": ["sid", "exp", "iat"],
+                "verify_nbf": True,
+                "require": ["sid", "exp", "iat", "iss"],
             },
         )
+
+        # Validate authorized parties (azp) claim for CSRF protection
+        azp = payload.get("azp")
+        permitted_origins = (
+            [o.strip() for o in CLERK_PERMITTED_ORIGINS.split(",") if o.strip()]
+            if CLERK_PERMITTED_ORIGINS
+            else []
+        )
+
+        if permitted_origins:
+            if not azp:
+                logger.warning(
+                    "Missing azp claim when permitted origins are configured"
+                )
+                raise HTTPException(status_code=401, detail="Missing token origin")
+            if azp not in permitted_origins:
+                logger.warning(f"Invalid azp claim: {azp}")
+                raise HTTPException(status_code=401, detail="Invalid token origin")
+
         session_id = payload.get("sid")
 
         if not session_id:
-            # Fallback: try to see if 'sub' is the user ID and verify via other means,
-            # but 'sid' is standard for Clerk session tokens.
             raise HTTPException(status_code=401, detail="Invalid token payload")
 
-        # 2. Verify session with Clerk API
+        # Verify session with Clerk API for additional security layer
         if not CLERK_SECRET_KEY:
             logger.error("CLERK_SECRET_KEY not set")
             raise HTTPException(status_code=500, detail="Server configuration error")
@@ -95,14 +137,12 @@ async def create_checkout(
 
         # Initialize Polar SDK
         with Polar(access_token=POLAR_ACCESS_TOKEN) as polar:
-            # Create a checkout session
-            # We pass the product_id and metadata to link it to the Clerk user
             checkout = polar.checkouts.create(
-                request=CheckoutCreate(
-                    products=[product_id],
-                    metadata={"user_id": user_id},
-                    success_url=str(request.base_url) + "?checkout=success",
-                )
+                request={
+                    "products": [product_id],
+                    "metadata": {"user_id": user_id},
+                    "success_url": str(request.base_url) + "?checkout=success",
+                }
             )
 
             return {"url": checkout.url}
@@ -120,51 +160,34 @@ async def polar_webhook(request: Request):
         logger.error("POLAR_WEBHOOK_SECRET not set")
         raise HTTPException(status_code=500, detail="Webhook secret not configured")
 
-    headers = request.headers
     payload = await request.body()
 
     try:
-        # Verify webhook signature using Svix (Polar uses standard webhooks)
-        wh = Webhook(POLAR_WEBHOOK_SECRET)
-        # Headers must be a dict of strings
-        # request.headers is a Headers object, convert to dict
-        headers_dict = dict(headers)
-        msg = wh.verify(payload, headers_dict)
+        event = validate_event(
+            payload=payload,
+            headers=dict(request.headers),
+            secret=POLAR_WEBHOOK_SECRET,
+        )
     except WebhookVerificationError as e:
-        logger.warning(f"Webhook verification failed: {e}")
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
-    except Exception as e:
-        logger.error(f"Webhook processing error: {e}")
-        raise HTTPException(status_code=400, detail="Webhook error")
+        logger.warning(f"Webhook verification failed: {e.message}")
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
-    # Handle events
-    event_type = msg.get("type")
-    data = msg.get("data")
+    logger.info(f"Received Polar webhook: {event.type}")
 
-    logger.info(f"Received Polar webhook: {event_type}")
-
-    if event_type == "subscription.created":
-        await handle_subscription_update(data, tier="pro")
-    elif event_type == "subscription.updated":
-        # check status, if canceled or past_due?
-        status = data.get("status")
+    if event.type == "subscription.created":
+        await handle_subscription_update(event.data, tier="pro")
+    elif event.type == "subscription.updated":
+        status = getattr(event.data, "status", None)
         if status == "active":
-            await handle_subscription_update(data, tier="pro")
-        else:
-            pass  # specific handling if needed
-    elif event_type == "subscription.canceled":
-        # In Polar, canceled means it will expire at end of period usually,
-        # but 'revoked' might be immediate?
-        # For simplicity, we'll set tier to free on cancellation or revocation.
-        # You might want to check 'ends_at' logic in a real app.
-        await handle_subscription_update(data, tier="free")
+            await handle_subscription_update(event.data, tier="pro")
+    elif event.type == "subscription.canceled":
+        await handle_subscription_update(event.data, tier="free")
 
     return {"status": "received"}
 
 
 async def handle_subscription_update(data, tier):
-    # Metadata is usually at the top level of the resource or in 'metadata' field
-    metadata = data.get("metadata", {})
+    metadata = getattr(data, "metadata", {}) or {}
     user_id = metadata.get("user_id")
 
     if user_id:
