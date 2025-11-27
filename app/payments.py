@@ -16,7 +16,11 @@ router = APIRouter()
 POLAR_ACCESS_TOKEN = os.getenv("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET")
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
-CLERK_FRONTEND_API = os.getenv("CLERK_FRONTEND_API")
+CLERK_FRONTEND_API = os.getenv("CLERK_FRONTEND_API", "")
+if CLERK_FRONTEND_API:
+    CLERK_FRONTEND_API = (
+        CLERK_FRONTEND_API.replace("https://", "").replace("http://", "").rstrip("/")
+    )
 CLERK_PERMITTED_ORIGINS = os.getenv("CLERK_PERMITTED_ORIGINS", "")
 
 # Cached JWKS client for Clerk JWT verification
