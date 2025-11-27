@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from urllib.parse import unquote_plus, urlencode
+from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -24,8 +24,8 @@ def slugify(text: str) -> str:
         return ""
     # Sanitize input: limit length and remove harmful characters
     text = str(text)[:200]  # Limit to 200 chars max
-    # Preserve periods and commas while removing other special characters
-    text = re.sub(r"[^\w\s.,-]", "", text.lower())
+    # Preserve periods, commas, apostrophes, and parentheses while removing other special characters
+    text = re.sub(r"[^\w\s.,'()-]", "", text)
     text = re.sub(r"[-\s]+", "-", text)
     return text.strip("-")
 
@@ -187,7 +187,9 @@ async def get_classification_fragment(
     slug = slugify(normalized_description.replace("/", " "))
     new_url = f"/{classifier_type}"
     if slug:
-        new_url += f"/{slug}"
+        # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
+        # HTTP headers require Latin-1 encoding
+        new_url += f"/{quote(slug, safe='')}"
 
     # Handle version query param
     config = CLASSIFIER_CONFIG.get(classifier_type)
@@ -243,10 +245,11 @@ async def show_classifier_page_with_query(
         decoded_search_query = decoded_search_query.strip()
 
     # Build canonical URL
+    # URL-encode slug to handle non-Latin characters in HTTP headers
     canonical_url = f"https://classifast.com/{classifier_type}"
     if decoded_search_query:
         slug = slugify(decoded_search_query)
-        canonical_url += f"/{slug}"
+        canonical_url += f"/{quote(slug, safe='')}"
 
     # Ensure trailing slash for consistency with redirects and sitemap
     if not canonical_url.endswith("/"):

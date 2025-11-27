@@ -46,16 +46,15 @@
                                 or ('hs' in request.url.path) or ('cn' in request.url.path)
                                 -%}
                                 {%- set digit_colors = {
-                                '0': 'text-gray-500',
-                                '1': 'text-[#00CED1]',
-                                '2': 'text-[#6495ED]',
-                                '3': 'text-[#191970]',
-                                '4': 'text-[#B03060]',
-                                '5': 'text-[#FF00FF]',
-                                '6': 'text-[#228B22]',
-                                '7': 'text-[#3CB44B]',
-                                '8': 'text-[#E9967A]',
-                                '9': 'text-[#FF4500]',
+                                '1': 'text-[#DC2626]',
+                                '2': 'text-[#EA580C]',
+                                '3': 'text-[#CA8A04]',
+                                '4': 'text-[#16A34A]',
+                                '5': 'text-[#0891B2]',
+                                '6': 'text-[#2563EB]',
+                                '7': 'text-[#7C3AED]',
+                                '8': 'text-[#C026D3]',
+                                '9': 'text-[#DB2777]',
                                 } -%}
                                 {%- for char_item in id_str -%}
                                 {%- if char_item in digit_colors -%}
@@ -114,7 +113,7 @@
     <!-- Share Button -->
     <div class="mt-8">
         <button type="button" id="share-button" onclick="ShareLink.copyShareableLink()"
-            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-8 py-2 rounded text-md transition-colors duration-150 ease-in-out"
+            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-8 py-2 rounded text-base transition-colors duration-150 ease-in-out transform"
             title="Copy shareable link to clipboard">
             Copy link
         </button>
