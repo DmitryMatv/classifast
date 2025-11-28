@@ -62,15 +62,13 @@ async def read_root(request: Request):
 async def redirect_classifier_page_no_slash(classifier_type: str, request: Request):
     """
     Redirects URLs without trailing slash to versions with trailing slash for SEO consistency.
+    Also redirects lowercase classifier types to uppercase.
     """
-    if classifier_type in CLASSIFIER_CONFIG:
+    upper_type = classifier_type.upper()
+    if upper_type in CLASSIFIER_CONFIG:
         query_string = f"?{request.url.query}" if request.url.query else ""
-        return RedirectResponse(
-            url=f"/{classifier_type}/{query_string}", status_code=301
-        )
-    raise HTTPException(
-        status_code=404, detail=f"Classifier '{classifier_type}' not found"
-    )
+        return RedirectResponse(url=f"/{upper_type}/{query_string}", status_code=301)
+    raise HTTPException(status_code=404, detail=f"Type '{classifier_type}' not found")
 
 
 @router.get("/{classifier_type}/", response_class=HTMLResponse)
@@ -184,15 +182,17 @@ async def get_classification_fragment(
     response.headers["Vary"] = "Accept-Encoding"
 
     # Calculate new URL for HTMX to push (server-side URL updating)
+    # Use uppercase classifier_type for URLs
+    upper_type = classifier_type.upper()
     slug = slugify(normalized_description.replace("/", " "))
-    new_url = f"/{classifier_type}"
+    new_url = f"/{upper_type}"
     if slug:
         # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
         # HTTP headers require Latin-1 encoding
         new_url += f"/{quote(slug, safe='')}"
 
     # Handle version query param
-    config = CLASSIFIER_CONFIG.get(classifier_type)
+    config = CLASSIFIER_CONFIG.get(upper_type)
     if config:
         versions_list = list(config.get("versions", {}).keys())
         default_version = versions_list[0] if versions_list else None
@@ -219,13 +219,26 @@ async def show_classifier_page_with_query(
 ):
     """
     Serves the specific classifier page with clean URL structure.
-    Handles both base URLs like /naics and search URLs like /naics/gamedev-studio
+    Handles both base URLs like /NAICS and search URLs like /NAICS/gamedev-studio
+    Also redirects lowercase classifier types to uppercase.
     """
-    config = CLASSIFIER_CONFIG.get(classifier_type)
+    upper_type = classifier_type.upper()
+    config = CLASSIFIER_CONFIG.get(upper_type)
     if not config:
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
+
+    # Redirect lowercase to uppercase for SEO consistency
+    if classifier_type != upper_type:
+        query_string = f"?{request.url.query}" if request.url.query else ""
+        redirect_url = f"/{upper_type}/"
+        if search_query:
+            redirect_url += f"{search_query}"
+        return RedirectResponse(url=f"{redirect_url}{query_string}", status_code=301)
+
+    # Use the uppercase classifier_type from here
+    classifier_type = upper_type
 
     # Handle empty search query for base URLs
     decoded_search_query = ""

@@ -351,7 +351,7 @@ async def perform_classification(
         Dict containing classification results and metadata
     """
     # Validate classifier type
-    config = CLASSIFIER_CONFIG.get(classifier_type.lower())
+    config = CLASSIFIER_CONFIG.get(classifier_type.upper())
     if not config:
         raise HTTPException(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"

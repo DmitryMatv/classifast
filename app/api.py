@@ -80,7 +80,7 @@ async def rapid_classify(
     request: Request,
     query: str = Query(..., description="Product or service description to classify"),
     standard: str = Query(
-        ..., description="Classification standard (unspsc, etim, naics, isic, hs)"
+        ..., description="Classification standard (UNSPSC, ETIM, NAICS, ISIC, HS)"
     ),
     top_k: int = Query(3, ge=1, le=100, description="Number of results to return"),
     version: Optional[str] = Query(

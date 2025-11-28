@@ -19,7 +19,7 @@
         content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second. Code search & lookup made easy.">
     {% else %}
     <!-- Original SEO for regular pages -->
-    {% if classifier_type == 'unspsc' %}
+    {% if classifier_type == 'UNSPSC' %}
     <title id="page-title">UNSPSC Code Lookup, Search, Classify, Map | Classifast</title>
     <meta name="description"
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
@@ -46,7 +46,7 @@
     <link rel="apple-touch-icon" href="/static/images/favicon-32x32.png">
 
     <meta property="og:type" content="website">
-    {% if classifier_type == 'unspsc' %}
+    {% if classifier_type == 'UNSPSC' %}
     <meta property="og:title" content="UNSPSC Code Lookup, Search, Classify, Map | Classifast">
     <meta property="og:description"
         content="Find UNSPSC codes quickly. Accurate UNSPSC code lookup, category search, and classification of products and services.">
@@ -87,11 +87,11 @@
         "name": "{{ classifier_type.upper() }} Code for {{ url_params.query }} | Classifast",
         "description": "Find accurate {{ classifier_type.upper() }} codes for {{ url_params.query }} with fastest classification tool. Semantic search technology for precise results.",
         "keywords": "{{ classifier_type.upper() }} code {{ url_params.query }}, {{ url_params.query }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.query }}, {{ classifier_type.lower() }} classification {{ url_params.query }}, semantic search {{ classifier_type.upper() }}",
-        {% elif classifier_type == 'unspsc' %}
+        {% elif classifier_type == 'UNSPSC' %}
         "name": "UNSPSC Code Lookup & Classification | Classifast",
         "description": "Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.",
         "keywords": "UNSPSC code, UNSPSC code lookup, UNSPSC codes list, UNSPSC code search, find UNSPSC code, UNSPSC classification, commodity code UNSPSC, UNSPSC categories, {{ title }}, automated classifier, product classification, service classification, semantic search",
-        {% elif classifier_type == 'etim' %}
+        {% elif classifier_type == 'ETIM' %}
         "name": "ETIM Product Classification & Lookup | Classifast",
         "description": "Accurate ETIM product classification with Classifast. Search and identify ETIM classes for technical and electrical products. Streamline your product data management.",
         "keywords": "ETIM classification, ETIM product codes, ETIM classes, ETIM lookup, {{ title }}, technical product classification, electrical product data, automated classifier, product data management, semantic search",
@@ -138,7 +138,7 @@
         "@context": "https://schema.org",
         "@type": "FAQPage",
         "mainEntity": [
-            {% if classifier_type == 'unspsc' %}
+            {% if classifier_type == 'UNSPSC' %}
             {
                 "@type": "Question",
                 "name": "What is UNSPSC classification and how does the hierarchy work?",
@@ -163,7 +163,7 @@
                     "text": "UNSPSC codes are updated semi-annually by GS1 US. The current version (v26.0801 from August 2023) contains over 150,000 active codes covering both products and services across all sectors. Updates include new codes for emerging technologies and market changes."
                 }
             }
-            {% elif classifier_type == 'etim' %}
+            {% elif classifier_type == 'ETIM' %}
             {
                 "@type": "Question",
                 "name": "What is ETIM classification and how do technical product classes work?",
@@ -188,7 +188,7 @@
                     "text": "ETIM covers electrical installation products, HVAC systems, lighting fixtures, cables and wires, industrial automation equipment, building automation systems, and renewable energy products. It's particularly strong in electrical, climate control, and building technology sectors."
                 }
             }
-            {% elif classifier_type == 'naics' %}
+            {% elif classifier_type == 'NAICS' %}
             {
                 "@type": "Question",
                 "name": "How do NAICS codes differ from the older SIC system?",
@@ -213,7 +213,7 @@
                     "text": "NAICS codes are updated every 5 years to reflect economic changes. The current 2022 revision includes 1,170 industries across 20 sectors. The next update is scheduled for 2027. Each revision adds new industries for emerging sectors like renewable energy and digital services."
                 }
             }
-            {% elif classifier_type == 'isic' %}
+            {% elif classifier_type == 'ISIC' %}
             {
                 "@type": "Question",
                 "name": "What is ISIC and how does it enable global economic comparison?",
@@ -238,7 +238,7 @@
                     "text": "ISIC is used by over 200 countries and territories through national statistical offices, the World Bank, IMF, OECD, and other international organizations. It's the foundation for national accounts compilation, development indicators, and cross-country economic policy analysis."
                 }
             }
-            {% elif classifier_type == 'hs' %}
+            {% elif classifier_type == 'HS' %}
             {
                 "@type": "Question",
                 "name": "What are HS codes and why are they essential for international trade?",
@@ -469,16 +469,16 @@
                 <ul class="flex space-x-6 items-center">
                     <li><a href="{{ url_for('read_root') }}" class="text-gray-600 hover:text-sky-600 transition-colors"
                             role="link" aria-label="Other Classification Standards">Home</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="UNSPSC Classification">UNSPSC</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="NAICS Classification">NAICS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="HTS Classification">HTS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">CN</a></li>
                     <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
@@ -502,16 +502,16 @@
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
                 </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
                 </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">HTS</a>
                 </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">Combined Nomenclature</a>
                 </li>
                 <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
@@ -543,27 +543,27 @@
             aria-label="Product Classification Form">
             <div class="relative mb-2">
                 <h2 class="text-xl font-bold">{{ heading }}</h2>
-                {% if classifier_type == 'nace' %}
+                {% if classifier_type == 'NACE' %}
                 <img src="{{ url_for('static', path='images/Eurostat_Newlogo.png') }}"
                     alt="NACE classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-21.5 w-auto" loading="lazy">
-                {% elif classifier_type == 'cn' %}
+                {% elif classifier_type == 'CN' %}
                 <img src="{{ url_for('static', path='images/logo_en_brand.png') }}"
                     alt="CN classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-10 top-2 w-auto" loading="lazy">
-                {% elif classifier_type == 'hs' %}
+                {% elif classifier_type == 'HS' %}
                 <img src="{{ url_for('static', path='images/cl09nx0ml001578c25z5411if.png') }}"
                     alt="HS classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
-                {% elif classifier_type == 'naics' %}
+                {% elif classifier_type == 'NAICS' %}
                 <img src="{{ url_for('static', path='images/naics-logo.png') }}"
                     alt="NAICS classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
-                {% elif classifier_type == 'unspsc' %}
+                {% elif classifier_type == 'UNSPSC' %}
                 <img src="{{ url_for('static', path='images/unspc-logo.png') }}"
                     alt="UNSPSC classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
-                {% elif classifier_type == 'hts' %}
+                {% elif classifier_type == 'HTS' %}
                 <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="HTS classification standard logo"
                     data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
@@ -604,9 +604,9 @@
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Classify product description"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            {% if classifier_type == 'unspsc' %}
+                            {% if classifier_type == 'UNSPSC' %}
                             Classify
-                            {% elif classifier_type == 'etim' %}
+                            {% elif classifier_type == 'ETIM' %}
                             Classify
                             {% else %}
                             Classify
@@ -649,7 +649,7 @@
         {% endif %}
 
         <!-- Standard-specific content sections to address Google indexing issues -->
-        {% if classifier_type == 'unspsc' %}
+        {% if classifier_type == 'UNSPSC' %}
         <section id="unspsc-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Understanding UNSPSC Classification</h2>
 
@@ -690,7 +690,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'etim' %}
+        {% if classifier_type == 'ETIM' %}
         <section id="etim-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">ETIM Technical Classification Guide</h2>
 
@@ -727,7 +727,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'naics' %}
+        {% if classifier_type == 'NAICS' %}
         <section id="naics-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">NAICS Business Classification System</h2>
 
@@ -766,7 +766,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'isic' %}
+        {% if classifier_type == 'ISIC' %}
         <section id="isic-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">ISIC: UN's Global Economic Classification</h2>
 
@@ -806,7 +806,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'hs' %}
+        {% if classifier_type == 'HS' %}
         <section id="hs-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Harmonized System (HS) Code Guide</h2>
 
@@ -845,7 +845,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'cn' %}
+        {% if classifier_type == 'CN' %}
         <section id="cn-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Combined Nomenclature (CN) Code Guide</h2>
 
@@ -884,7 +884,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'nace' %}
+        {% if classifier_type == 'NACE' %}
         <section id="nace-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">NACE: EU Economic Activity Classification</h2>
 
@@ -924,7 +924,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'cpv' %}
+        {% if classifier_type == 'CPV' %}
         <section id="cpv-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">CPV: Common Procurement Vocabulary Guide</h2>
 
@@ -963,7 +963,7 @@
         </section>
         {% endif %}
 
-        {% if classifier_type == 'nsn' %}
+        {% if classifier_type == 'NSN' %}
         <section id="nsn-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
             <h2 class="text-xl font-bold text-gray-800 mb-4">NSN: NATO Stock Number Classification Guide</h2>
 
@@ -1012,10 +1012,10 @@
             <h2 class="hidden text-xl font-bold text-gray-800 mb-4">Other Classification Standards</h2>
 
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {% if classifier_type != 'unspsc' %}
+                {% if classifier_type != 'UNSPSC' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="UNSPSC Classification Tool">UNSPSC</a></h3>
                     <p class="text-gray-600">Global product/service classification for procurement and supply chain
@@ -1023,10 +1023,10 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'etim' %}
+                {% if classifier_type != 'ETIM' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='ETIM') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="ETIM Classification Tool">ETIM</a></h3>
                     <p class="text-gray-600">Technical product classification for electrical and building technology
@@ -1034,10 +1034,10 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'naics' %}
+                {% if classifier_type != 'NAICS' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="NAICS Classification Tool">NAICS</a></h3>
                     <p class="text-gray-600">North American business classification for government contracting and
@@ -1045,10 +1045,10 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'isic' %}
+                {% if classifier_type != 'ISIC' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='ISIC') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="ISIC Classification Tool">ISIC</a></h3>
                     <p class="text-gray-600">UN global standard for economic activity classification and international
@@ -1056,10 +1056,10 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'hs' %}
+                {% if classifier_type != 'HS' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
                             class="text-sky-600 hover:underline" role="link" aria-label="HS Classification Tool">HS</a>
                     </h3>
                     <p class="text-gray-600">Harmonized System codes for international trade and customs classification.
@@ -1067,10 +1067,10 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'hts' %}
+                {% if classifier_type != 'HTS' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="HTS Classification Tool">HTS</a>
                     </h3>
@@ -1079,10 +1079,10 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'cn' %}
+                {% if classifier_type != 'CN' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                             class="text-sky-600 hover:underline" role="link" aria-label="CN Classification Tool">CN</a>
                     </h3>
                     <p class="text-gray-600">EU Combined Nomenclature for customs and trade within the European Union.
@@ -1090,10 +1090,10 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'nace' %}
+                {% if classifier_type != 'NACE' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='NACE') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="NACE Classification Tool">NACE</a></h3>
                     <p class="text-gray-600">EU statistical classification of economic activities for business
@@ -1101,20 +1101,20 @@
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'cpv' %}
+                {% if classifier_type != 'CPV' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='CPV') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="CPV Classification Tool">CPV</a></h3>
                     <p class="text-gray-600">Common Procurement Vocabulary for EU public procurement and tenders.</p>
                 </article>
                 {% endif %}
 
-                {% if classifier_type != 'nsn' %}
+                {% if classifier_type != 'NSN' %}
                 <article class="border border-gray-200 rounded-lg p-3" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                            href="{{ url_for('show_classifier_page', classifier_type='NSN') }}"
                             class="text-sky-600 hover:underline" role="link"
                             aria-label="NSN Classification Tool">NSN</a></h3>
                     <p class="text-gray-600">NATO Stock Number classification for defense and military logistics.</p>
@@ -1138,34 +1138,34 @@
                 <div>
                     <h4 class="text-lg font-semibold mb-4" role="heading" aria-level="2">Classification Standards</h4>
                     <ul class="space-y-2">
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='etim') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='ETIM') }}"
                                 class="text-gray-400 hover:text-white transition-colors">ETIM Technical Information
                                 Model</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='unspsc') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                                 class="text-gray-400 hover:text-white transition-colors">United Nations Standard
                                 Products and Services Code (UNSPSC)</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='naics') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                                 class="text-gray-400 hover:text-white transition-colors">North American Industry
                                 Classification System (NAICS)</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='isic') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='ISIC') }}"
                                 class="text-gray-400 hover:text-white transition-colors">International Standard
                                 Industrial Classification of All Economic Activities (ISIC)</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='hs') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Harmonized System (HS)</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='hts') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Harmonized Tariff Schedule
                                 (HTS)</a>
                         </li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cn') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Combined Nomenclature (CN)</a>
                         </li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nace') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='NACE') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Statistical Classification of
                                 Economic Activities in the European Community (NACE)</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='cpv') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='CPV') }}"
                                 class="text-gray-400 hover:text-white transition-colors">Common Procurement Vocabulary
                                 (CPV)</a></li>
-                        <li><a href="{{ url_for('show_classifier_page', classifier_type='nsn') }}"
+                        <li><a href="{{ url_for('show_classifier_page', classifier_type='NSN') }}"
                                 class="text-gray-400 hover:text-white transition-colors">NATO Stock Number or National
                                 Stock Number (NSN)</a></li>
                     </ul>
