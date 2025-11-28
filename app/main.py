@@ -5,19 +5,20 @@ import re
 import time
 from contextlib import asynccontextmanager
 
+import redis.asyncio as redis
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
 from qdrant_client import AsyncQdrantClient
-from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import api, payments, web
 from .classifier_config import CLASSIFIER_CONFIG
-from .dependencies import limiter, templates
+from .dependencies import limiter
+from .usage_tracker import REDIS_HOST, REDIS_PASSWORD, REDIS_PORT, REDIS_USERNAME
 
 
 # Configure logging with Dozzle-friendly JSON formatter
@@ -137,10 +138,35 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("Error initializing Qdrant client: %s", e)
 
+    # Initialize Redis client for usage tracking
+    redis_client = None
+    try:
+        logger.info("Connecting to Redis at %s:%d...", REDIS_HOST, REDIS_PORT)
+        redis_client = redis.Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            password=REDIS_PASSWORD or None,
+            username=REDIS_USERNAME if REDIS_PASSWORD else None,
+            decode_responses=True,
+            socket_timeout=5,
+            socket_connect_timeout=5,
+        )
+        await redis_client.ping()
+        logger.info("Redis client initialized successfully.")
+    except Exception as e:
+        logger.warning("Redis not available, usage tracking disabled: %s", e)
+        if redis_client:
+            try:
+                await redis_client.close()
+            except Exception:
+                pass
+        redis_client = None
+
     # Store clients and caches in app state
     app.state.embed_client = embed_client
     app.state.qdrant_client = qdrant_client
     app.state.collection_quantization_cache = collection_quantization_cache
+    app.state.redis_client = redis_client
 
     yield
 
@@ -152,6 +178,12 @@ async def lifespan(app: FastAPI):
             logger.info("Qdrant client closed.")
         except Exception as e:
             logger.error("Error closing Qdrant client: %s", e)
+    if redis_client:
+        try:
+            await redis_client.close()
+            logger.info("Redis client closed.")
+        except Exception as e:
+            logger.error("Error closing Redis client: %s", e)
 
 
 app = FastAPI(lifespan=lifespan)
@@ -401,18 +433,6 @@ async def htmx_js():
 
 # Set state for limiter
 app.state.limiter = limiter
-
-
-async def custom_rate_limit_exceeded_handler(request, exc: Exception):
-    if isinstance(exc, RateLimitExceeded):
-        # Use global templates instance instead of creating a new one
-        return templates.TemplateResponse(
-            "rate_limit_warning.html", {"request": request}, status_code=429
-        )
-    return HTMLResponse(content="Internal Server Error", status_code=500)
-
-
-app.add_exception_handler(RateLimitExceeded, custom_rate_limit_exceeded_handler)
 
 
 # Healthcheck

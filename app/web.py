@@ -9,6 +9,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from .classifier import perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
+from .usage_tracker import (
+    ANON_DAILY_LIMIT,
+    FREE_USER_DAILY_LIMIT,
+    add_quota_headers,
+    check_usage,
+    increment_usage,
+    set_tracking_cookie,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +116,26 @@ async def get_classification_fragment(
         prevent_url_change,
     )
 
+    # Check usage limits before processing
+    redis_client = getattr(request.app.state, "redis_client", None)
+    usage_status = await check_usage(request, redis_client)
+
+    if not usage_status.allowed:
+        # Return paywall template
+        response = templates.TemplateResponse(
+            "paywall.html",
+            {
+                "request": request,
+                "limit": usage_status.limit,
+                "is_authenticated": usage_status.is_authenticated,
+                "free_user_limit": FREE_USER_DAILY_LIMIT,
+            },
+        )
+        add_quota_headers(response, usage_status)
+        if usage_status.tracking_id:
+            set_tracking_cookie(response, usage_status.tracking_id)
+        return response
+
     # Reuse the logic from handle_classify but adapted for GET
     # Handle empty query gracefully - also remove trailing slashes and replace with spaces
     normalized_description = product_description.strip()
@@ -204,6 +232,12 @@ async def get_classification_fragment(
     # Set HTMX header to update URL in browser address bar
     if not prevent_url_change:
         response.headers["HX-Push-Url"] = new_url
+
+    # Increment usage counter and set tracking cookie
+    await increment_usage(request, redis_client, usage_status)
+    add_quota_headers(response, usage_status)
+    if usage_status.tracking_id:
+        set_tracking_cookie(response, usage_status.tracking_id)
 
     return response
 
