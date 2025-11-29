@@ -352,12 +352,14 @@ class CachedStaticFiles(StaticFiles):
                 response.headers["Cache-Control"] = (
                     "public, max-age=604800, s-maxage=604800, "  # 1 week for both browser and CDN
                     "immutable, "  # Tell browsers it never changes
-                    "stale-while-revalidate=86400"  # Allow serving stale for 1 day while revalidating
+                    "stale-while-revalidate=86400, "  # Allow serving stale for 1 day while revalidating
+                    "stale-if-error=86400"  # Serve stale if origin is down
                 )
             else:
                 response.headers["Cache-Control"] = (
                     "public, max-age=86400, s-maxage=86400, "  # 1 day for both browser and CDN
-                    "stale-while-revalidate=3600"  # Allow serving stale for 1 hour while revalidating
+                    "stale-while-revalidate=3600, "  # Allow serving stale for 1 hour while revalidating
+                    "stale-if-error=86400"  # Serve stale if origin is down
                 )
 
             # Add ETag for caching based on file modification time
@@ -387,7 +389,7 @@ app.mount("/static", CachedStaticFiles(directory="app/static"), name="static")
 async def favicon():
     response = FileResponse("app/static/images/favicon.ico")
     response.headers["Cache-Control"] = (
-        "public, max-age=604800, s-maxage=604800"  # 1 week
+        "public, max-age=604800, s-maxage=604800, stale-if-error=86400"  # 1 week
     )
     return response
 
@@ -395,21 +397,27 @@ async def favicon():
 @app.get("/robots.txt", response_class=FileResponse)
 async def robots_txt():
     response = FileResponse("app/static/robots.txt")
-    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"  # 1 day
+    response.headers["Cache-Control"] = (
+        "public, max-age=86400, s-maxage=86400, stale-if-error=86400"  # 1 day
+    )
     return response
 
 
 @app.get("/sitemap.xml", response_class=FileResponse)
 async def sitemap_xml():
     response = FileResponse("app/static/sitemap.xml")
-    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"  # 1 day
+    response.headers["Cache-Control"] = (
+        "public, max-age=86400, s-maxage=86400, stale-if-error=86400"  # 1 day
+    )
     return response
 
 
 @app.get("/llms.txt", response_class=FileResponse)
 async def llms_txt():
     response = FileResponse("app/static/llms.txt")
-    response.headers["Cache-Control"] = "public, max-age=86400, s-maxage=86400"  # 1 day
+    response.headers["Cache-Control"] = (
+        "public, max-age=86400, s-maxage=86400, stale-if-error=86400"  # 1 day
+    )
     return response
 
 
@@ -417,7 +425,7 @@ async def llms_txt():
 async def styles_css():
     response = FileResponse("app/static/css/styles.css")
     response.headers["Cache-Control"] = (
-        "public, max-age=604800, s-maxage=604800"  # 1 week, both browser and Cloudflare
+        "public, max-age=604800, s-maxage=604800, stale-if-error=86400"  # 1 week, both browser and Cloudflare
     )
     return response
 
@@ -426,7 +434,7 @@ async def styles_css():
 async def htmx_js():
     response = FileResponse("app/static/js/htmx.min.js")
     response.headers["Cache-Control"] = (
-        "public, max-age=604800, s-maxage=604800"  # 1 week, both browser and Cloudflare
+        "public, max-age=604800, s-maxage=604800, stale-if-error=86400"  # 1 week, both browser and Cloudflare
     )
     return response
 
