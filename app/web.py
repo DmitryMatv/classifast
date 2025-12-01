@@ -10,7 +10,6 @@ from .classifier import perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
 from .usage_tracker import (
-    ANON_DAILY_LIMIT,
     FREE_USER_DAILY_LIMIT,
     add_quota_headers,
     check_usage,

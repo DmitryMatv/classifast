@@ -18,7 +18,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from . import api, payments, web
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter
-from .usage_tracker import REDIS_HOST, REDIS_PASSWORD, REDIS_PORT, REDIS_USERNAME
+from .usage_tracker import (
+    QDRANT_API_KEY,
+    QDRANT_HOST,
+    QDRANT_PORT,
+    REDIS_HOST,
+    REDIS_PASSWORD,
+    REDIS_PORT,
+    REDIS_USERNAME,
+)
 
 
 # Configure logging with Dozzle-friendly JSON formatter
@@ -63,19 +71,14 @@ async def lifespan(app: FastAPI):
             embed_client = None
 
     # Initialize Qdrant Client with connection pooling
-    QDRANT_URL = os.getenv("QDRANT_URL", "qdrant.classifast.com")
-    QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
     qdrant_client = None
     collection_quantization_cache = {}  # Cache quantization config per collection
     try:
-        logger.info("Connecting to Qdrant...")
+        logger.info("Connecting to Qdrant at %s:%d...", QDRANT_HOST, QDRANT_PORT)
         qdrant_client = AsyncQdrantClient(
-            api_key=QDRANT_API_KEY,
-            host=QDRANT_URL,
-            port=443,
-            https=True,
-            prefer_grpc=False,
-            timeout=30,  # Lower timeout
+            url=f"http://{QDRANT_HOST}:{QDRANT_PORT}",
+            api_key=QDRANT_API_KEY or None,
+            timeout=30,
         )
 
         # Check if Qdrant client can list collections as a health check
