@@ -218,6 +218,9 @@ class DescriptionToggle {
     }
 }
 
+// Cached auth token for synchronous HTMX header injection
+let cachedAuthToken = null;
+
 // Simple Clerk Authentication using official SDK patterns
 class ClerkAuth {
     constructor() {
@@ -255,13 +258,22 @@ class ClerkAuth {
             await window.Clerk.load();
             // console.log('✅ Clerk loaded successfully');
 
-            // Initial render
+            // Register HTMX header injection (must be after Clerk loads)
+            this.registerHtmxAuthHeader();
+
+            // Initial token cache and UI render
+            await this.refreshAuthToken();
             this.updateAuthUI();
+
+            // Refresh token every 50s (Clerk tokens expire in ~60s)
+            // Needed for long sessions on single page
+            setInterval(() => this.refreshAuthToken(), 50000);
 
             // Listen for auth state changes
             if (window.Clerk.addListener) {
-                window.Clerk.addListener((payload) => {
+                window.Clerk.addListener(async (payload) => {
                     // console.log('🔄 Auth state changed');
+                    await this.refreshAuthToken();
                     this.updateAuthUI();
                 });
             }
@@ -269,6 +281,26 @@ class ClerkAuth {
             console.error('❌ Error initializing Clerk:', err);
             this.renderFallbackAuth();
         }
+    }
+
+    async refreshAuthToken() {
+        try {
+            if (window.Clerk?.session) {
+                cachedAuthToken = await window.Clerk.session.getToken();
+            } else {
+                cachedAuthToken = null;
+            }
+        } catch (e) {
+            cachedAuthToken = null;
+        }
+    }
+
+    registerHtmxAuthHeader() {
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            if (cachedAuthToken) {
+                event.detail.headers['Authorization'] = `Bearer ${cachedAuthToken}`;
+            }
+        });
     }
 
     updateAuthUI() {
