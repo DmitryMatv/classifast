@@ -769,32 +769,35 @@
   .whitespace-pre-wrap {
     white-space: pre-wrap;
   }
-  .text-\[\#7C3AED\] {
-    color: #7C3AED;
+  .text-\[\#1f78b4\] {
+    color: #1f78b4;
   }
-  .text-\[\#8BAC67\] {
-    color: #8BAC67;
+  .text-\[\#6a3d9a\] {
+    color: #6a3d9a;
   }
-  .text-\[\#16A34A\] {
-    color: #16A34A;
+  .text-\[\#33a02c\] {
+    color: #33a02c;
   }
-  .text-\[\#0891B2\] {
-    color: #0891B2;
+  .text-\[\#a6cee3\] {
+    color: #a6cee3;
   }
-  .text-\[\#2563EB\] {
-    color: #2563EB;
+  .text-\[\#b2df8a\] {
+    color: #b2df8a;
   }
-  .text-\[\#C026D3\] {
-    color: #C026D3;
+  .text-\[\#cab2d6\] {
+    color: #cab2d6;
   }
-  .text-\[\#CA8A04\] {
-    color: #CA8A04;
+  .text-\[\#e31a1c\] {
+    color: #e31a1c;
   }
-  .text-\[\#DC2626\] {
-    color: #DC2626;
+  .text-\[\#fb9a99\] {
+    color: #fb9a99;
   }
-  .text-\[\#EA580C\] {
-    color: #EA580C;
+  .text-\[\#fdbf6f\] {
+    color: #fdbf6f;
+  }
+  .text-\[\#ff7f00\] {
+    color: #ff7f00;
   }
   .text-amber-800 {
     color: var(--color-amber-800);
