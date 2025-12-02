@@ -769,35 +769,32 @@
   .whitespace-pre-wrap {
     white-space: pre-wrap;
   }
-  .text-\[\#1f78b4\] {
-    color: #1f78b4;
+  .text-\[\#8f360b\] {
+    color: #8f360b;
   }
-  .text-\[\#6a3d9a\] {
-    color: #6a3d9a;
+  .text-\[\#45b6e7\] {
+    color: #45b6e7;
   }
-  .text-\[\#33a02c\] {
-    color: #33a02c;
+  .text-\[\#92af00\] {
+    color: #92af00;
   }
-  .text-\[\#a6cee3\] {
-    color: #a6cee3;
+  .text-\[\#0260ae\] {
+    color: #0260ae;
   }
-  .text-\[\#b2df8a\] {
-    color: #b2df8a;
+  .text-\[\#7561eb\] {
+    color: #7561eb;
   }
-  .text-\[\#cab2d6\] {
-    color: #cab2d6;
+  .text-\[\#007621\] {
+    color: #007621;
   }
-  .text-\[\#e31a1c\] {
-    color: #e31a1c;
+  .text-\[\#853666\] {
+    color: #853666;
   }
-  .text-\[\#fb9a99\] {
-    color: #fb9a99;
+  .text-\[\#dda023\] {
+    color: #dda023;
   }
-  .text-\[\#fdbf6f\] {
-    color: #fdbf6f;
-  }
-  .text-\[\#ff7f00\] {
-    color: #ff7f00;
+  .text-\[\#ff488a\] {
+    color: #ff488a;
   }
   .text-amber-800 {
     color: var(--color-amber-800);

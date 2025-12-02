@@ -34,11 +34,11 @@
                         {% set code_for_url = result.payload.original_id.replace('.', '') if 'nace' in request.url.path
                         else result.payload.original_id %}
                         <a href="{{ base_url }}{{ code_for_url | e }}" target="_blank"
-                            class="text-gray-600 text-2xl font-bold font-mono hover:text-sky-600 hover:underline hover:decoration-sky-600"
+                            class="bg-white rounded px-1 text-gray-600 text-2xl font-bold font-mono hover:text-sky-600 hover:underline hover:decoration-sky-600"
                             rel="noopener"
                             aria-label="View details for {{ result.payload.original_id | e }} (opens in new tab)">
                             {% else %}
-                            <span class="text-gray-600 text-2xl font-bold font-mono">
+                            <span class="bg-white rounded px-1 text-gray-600 text-2xl font-bold font-mono">
                                 {% endif %}
                                 {%- set id_str = result.payload.original_id | string -%}
                                 {# Group visually every 2 characters for UNSPSC and NAICS only #}
@@ -46,16 +46,15 @@
                                 or ('hs' in request.url.path) or ('cn' in request.url.path)
                                 -%}
                                 {%- set digit_colors = {
-                                '0': 'text-[#a6cee3]',
-                                '1': 'text-[#1f78b4]',
-                                '2': 'text-[#b2df8a]',
-                                '3': 'text-[#33a02c]',
-                                '4': 'text-[#fb9a99]',
-                                '5': 'text-[#e31a1c]',
-                                '6': 'text-[#fdbf6f]',
-                                '7': 'text-[#ff7f00]',
-                                '8': 'text-[#cab2d6]',
-                                '9': 'text-[#6a3d9a]',
+                                '1': 'text-[#ff488a]',
+                                '2': 'text-[#8f360b]',
+                                '3': 'text-[#dda023]',
+                                '4': 'text-[#92af00]',
+                                '5': 'text-[#007621]',
+                                '6': 'text-[#45b6e7]',
+                                '7': 'text-[#0260ae]',
+                                '8': 'text-[#7561eb]',
+                                '9': 'text-[#853666]',
                                 } -%}
                                 {%- for char_item in id_str -%}
                                 {%- if char_item in digit_colors -%}
