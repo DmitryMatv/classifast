@@ -11,8 +11,8 @@ from fastapi import Request, Response
 logger = logging.getLogger(__name__)
 
 # Configuration from environment
-ANON_DAILY_LIMIT = int(os.getenv("ANON_DAILY_LIMIT", "10"))
-FREE_USER_DAILY_LIMIT = int(os.getenv("FREE_USER_DAILY_LIMIT", "30"))
+ANON_LIMIT = int(os.getenv("ANON_LIMIT", "10"))
+FREE_USER_LIMIT = int(os.getenv("FREE_USER_LIMIT", "30"))
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
@@ -36,12 +36,14 @@ class UsageStatus:
 
 def get_client_ip(request: Request) -> str:
     """Extract client IP, handling proxies."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # Cloudflare header first (cannot be spoofed, CF overwrites client value)
     cf_ip = request.headers.get("cf-connecting-ip")
     if cf_ip:
         return cf_ip
+    # Fallback to X-Forwarded-For for non-Cloudflare deployments
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -137,27 +139,27 @@ async def check_usage(
     # Determine tracking key and limit
     if user_id:
         # Authenticated free user
-        key = f"user:{user_id}:daily_count"
-        limit = FREE_USER_DAILY_LIMIT
+        key = f"user:{user_id}:usage_count"
+        limit = FREE_USER_LIMIT
         tracking_id = user_id
     else:
-        # Anonymous user - use cookie-based tracking with IP as fallback
-        tracking_id, is_new_cookie = get_or_create_tracking_id(request)
-        limit = ANON_DAILY_LIMIT
+        # Anonymous user - check BOTH cookie AND IP counters
+        tracking_id, _ = get_or_create_tracking_id(request)
+        ip_hash = hash_ip(get_client_ip(request))
+        limit = ANON_LIMIT
 
         try:
-            if not is_new_cookie:
-                # Cookie exists - use cookie-based tracking ONLY (per-user limit)
-                cookie_key = f"anon:{tracking_id}:daily_count"
-                current_count = await redis_client.get(cookie_key)
-                current_count = int(current_count) if current_count else 0
-            else:
-                # No cookie (first visit, private mode) - fall back to IP
-                ip_hash = hash_ip(get_client_ip(request))
-                ip_key = f"anon:ip:{ip_hash}:daily_count"
-                current_count = await redis_client.get(ip_key)
-                current_count = int(current_count) if current_count else 0
+            cookie_key = f"anon:{tracking_id}:usage_count"
+            ip_key = f"anon:ip:{ip_hash}:usage_count"
 
+            cookie_count = await redis_client.get(cookie_key)
+            cookie_count = int(cookie_count) if cookie_count else 0
+
+            ip_count = await redis_client.get(ip_key)
+            ip_count = int(ip_count) if ip_count else 0
+
+            # Use higher of the two (defense against cookie clearing)
+            current_count = max(cookie_count, ip_count)
             remaining = max(0, limit - current_count)
 
             return UsageStatus(
@@ -215,30 +217,26 @@ async def increment_usage(
         return
 
     user_id, _ = extract_user_info_from_token(request)
-    ttl = 24 * 60 * 60  # 24 hours
+    ttl = 30 * 24 * 60 * 60  # 30 days
 
     try:
         if user_id:
             # Authenticated user - use user ID
-            key = f"user:{user_id}:daily_count"
+            key = f"user:{user_id}:usage_count"
             await redis_client.incr(key)
             await redis_client.expire(key, ttl)
         else:
-            # Anonymous user - increment only the relevant counter
+            # Anonymous user - always increment BOTH counters
             tracking_id = usage_status.tracking_id
-            _, is_new_cookie = get_or_create_tracking_id(request)
+            ip_hash = hash_ip(get_client_ip(request))
 
-            if tracking_id and not is_new_cookie:
-                # Has cookie - use cookie-based tracking
-                cookie_key = f"anon:{tracking_id}:daily_count"
-                await redis_client.incr(cookie_key)
-                await redis_client.expire(cookie_key, ttl)
-            else:
-                # No cookie - use IP-based tracking
-                ip_hash = hash_ip(get_client_ip(request))
-                ip_key = f"anon:ip:{ip_hash}:daily_count"
-                await redis_client.incr(ip_key)
-                await redis_client.expire(ip_key, ttl)
+            cookie_key = f"anon:{tracking_id}:usage_count"
+            ip_key = f"anon:ip:{ip_hash}:usage_count"
+
+            await redis_client.incr(cookie_key)
+            await redis_client.incr(ip_key)
+            await redis_client.expire(cookie_key, ttl)
+            await redis_client.expire(ip_key, ttl)
 
     except Exception as e:
         logger.error(f"Redis error incrementing usage: {e}")

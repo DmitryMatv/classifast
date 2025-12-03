@@ -10,7 +10,7 @@ from .classifier import perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
 from .usage_tracker import (
-    FREE_USER_DAILY_LIMIT,
+    FREE_USER_LIMIT,
     add_quota_headers,
     check_usage,
     increment_usage,
@@ -129,7 +129,7 @@ async def get_classification_fragment(
                 "request": request,
                 "limit": usage_status.limit,
                 "is_authenticated": usage_status.is_authenticated,
-                "free_user_limit": FREE_USER_DAILY_LIMIT,
+                "free_user_limit": FREE_USER_LIMIT,
             },
         )
         add_quota_headers(response, usage_status)

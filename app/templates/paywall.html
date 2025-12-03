@@ -20,9 +20,9 @@
                 {% endif %}
             </p>
         </div>
-        <div class="flex flex-col sm:flex-row gap-3 pt-2">
+        <div id="paywall-buttons" class="flex flex-col sm:flex-row gap-3 pt-2">
             {% if not is_authenticated %}
-            <button type="button" id="signup-button"
+            <button type="button" id="signup-button" data-fallback-url="https://accounts.classifast.com/sign-up"
                 class="inline-flex items-center justify-center px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
                 <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                     aria-label="User account">
@@ -45,8 +45,53 @@
         <p class="text-xs text-gray-500 pt-1">
             Limit resets in ~24 hours
         </p>
+        <button type="button" id="retry-button"
+            class="inline-flex items-center justify-center px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:underline transition-colors">
+            <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Retry">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Try again
+        </button>
     </div>
 </div>
+
+<script>
+    (function () {
+        // Helper to safely submit the classification form
+        function submitClassificationForm() {
+            const form = document.querySelector('form[hx-get]');
+            if (form && typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            }
+        }
+
+        // Retry button handler
+        const retryButton = document.getElementById('retry-button');
+        if (retryButton) {
+            retryButton.addEventListener('click', submitClassificationForm);
+        }
+
+        // Listen for Clerk auth state changes to auto-retry after login/signup
+        function setupClerkListener() {
+            if (window.Clerk && window.Clerk.addListener) {
+                window.Clerk.addListener(function (resources) {
+                    if (resources.user) {
+                        // User just signed in, retry the classification
+                        submitClassificationForm();
+                    }
+                });
+            }
+        }
+
+        // Try to set up listener now, or wait for Clerk to load
+        if (window.Clerk) {
+            setupClerkListener();
+        } else {
+            window.addEventListener('clerk:loaded', setupClerkListener);
+        }
+    })();
+</script>
 
 {% if not is_authenticated %}
 <script>
@@ -68,6 +113,8 @@
     });
 
     function showErrorAndRedirect() {
+        const signupButton = document.getElementById('signup-button');
+
         // Create error message element
         const errorDiv = document.createElement('div');
         errorDiv.className = 'bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3 text-center';
@@ -81,12 +128,17 @@
     `;
 
         // Insert the error message below the buttons
-        const buttonContainer = signupButton.parentNode;
-        buttonContainer.appendChild(errorDiv);
+        const buttonContainer = document.getElementById('paywall-buttons');
+        if (buttonContainer) {
+            buttonContainer.appendChild(errorDiv);
+        }
 
-        // Redirect after 2 seconds
+        // Redirect after 2 seconds using fallback URL from data attribute
+        const fallbackUrl = signupButton && signupButton.dataset.fallbackUrl
+            ? signupButton.dataset.fallbackUrl
+            : 'https://accounts.classifast.com/sign-up';
         setTimeout(function () {
-            window.location.href = 'https://accounts.classifast.com/sign-up?redirect_url=' + encodeURIComponent(window.location.href);
+            window.location.href = fallbackUrl + '?redirect_url=' + encodeURIComponent(window.location.href);
         }, 2000);
     }
 </script>
