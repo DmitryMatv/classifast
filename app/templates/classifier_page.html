@@ -481,12 +481,6 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">CN</a></li>
-                    <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="Blog">Blog</a></li>
-                    <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="API Documentation">API</a></li>
                     <li id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></li>
                 </ul>
             </nav>
@@ -513,12 +507,6 @@
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">Combined Nomenclature</a>
-                </li>
-                <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">Blog</a>
-                </li>
-                <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
-                        class="text-gray-600 hover:text-sky-600 transition-colors font-bold">API</a>
                 </li>
                 <li id="mobile-auth-container"><!-- Clerk authentication will be mounted here --></li>
             </ul>
@@ -1013,7 +1001,7 @@
 
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {% if classifier_type != 'UNSPSC' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                             class="text-sky-600 hover:underline" role="link"
@@ -1024,7 +1012,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'ETIM' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='ETIM') }}"
                             class="text-sky-600 hover:underline" role="link"
@@ -1035,7 +1023,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'NAICS' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                             class="text-sky-600 hover:underline" role="link"
@@ -1046,7 +1034,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'ISIC' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='ISIC') }}"
                             class="text-sky-600 hover:underline" role="link"
@@ -1057,7 +1045,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'HS' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
                             class="text-sky-600 hover:underline" role="link" aria-label="HS Classification Tool">HS</a>
@@ -1068,7 +1056,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'HTS' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
                             class="text-sky-600 hover:underline" role="link"
@@ -1080,7 +1068,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'CN' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                             class="text-sky-600 hover:underline" role="link" aria-label="CN Classification Tool">CN</a>
@@ -1091,7 +1079,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'NACE' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='NACE') }}"
                             class="text-sky-600 hover:underline" role="link"
@@ -1102,7 +1090,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'CPV' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='CPV') }}"
                             class="text-sky-600 hover:underline" role="link"
@@ -1112,7 +1100,7 @@
                 {% endif %}
 
                 {% if classifier_type != 'NSN' %}
-                <article class="border border-gray-200 rounded-lg p-3" role="article">
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='NSN') }}"
                             class="text-sky-600 hover:underline" role="link"

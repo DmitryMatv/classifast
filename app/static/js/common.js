@@ -324,9 +324,9 @@ class ClerkAuth {
             this.mountUserButton(mobileContainer, 'mobile');
         } else {
             // console.log('👤 User is signed out');
-            // Render Sign In Button
-            this.renderSignInButton(desktopContainer, 'desktop');
-            this.renderSignInButton(mobileContainer, 'mobile');
+            // Render Sign In and Sign Up Buttons
+            this.renderAuthButtons(desktopContainer, 'desktop');
+            this.renderAuthButtons(mobileContainer, 'mobile');
 
             // Try to open Google One Tap
             this.openGoogleOneTap();
@@ -345,9 +345,9 @@ class ClerkAuth {
         button.textContent = 'Upgrade to Pro';
 
         if (type === 'desktop') {
-            button.className = 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-3 py-1 rounded mr-4 text-sm font-medium transition-all shadow-sm';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer mr-4 auth-loaded';
         } else {
-            button.className = 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-4 py-2 rounded w-full mb-4 text-base transition-all shadow-sm';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-2 rounded w-full mb-4 text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
         }
 
         button.onclick = async () => {
@@ -365,7 +365,7 @@ class ClerkAuth {
                     },
                     // TODO: Replace with actual Polar Product ID
                     body: JSON.stringify({
-                        product_id: 'b71bb3cf-a34f-428f-bad8-142937c10c8f'
+                        product_id: 'e157e32f-e91c-4d51-af66-0c2eb3b23d71'
                     })
                 });
 
@@ -427,59 +427,86 @@ class ClerkAuth {
         }
     }
 
-    renderSignInButton(container, type) {
+    renderAuthButtons(container, type) {
         if (!container) return;
 
-        const button = document.createElement('div');
+        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
 
-        // Apply styles based on type
+        // Sign In button
+        const signInBtn = document.createElement('div');
         if (type === 'desktop') {
-            button.id = 'clerk-sign-in-button-desktop';
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+            signInBtn.id = 'clerk-sign-in-button-desktop';
+            signInBtn.className = baseClass;
         } else {
-            button.id = 'clerk-sign-in-button-mobile';
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer w-full text-center mb-2 auth-loaded';
+            signInBtn.id = 'clerk-sign-in-button-mobile';
+            signInBtn.className = baseClass + ' w-full text-center mb-2';
         }
-
-        button.textContent = 'Sign In';
-
-        button.addEventListener('click', (e) => {
+        signInBtn.textContent = 'Sign In';
+        signInBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (window.Clerk && window.Clerk.openSignIn) {
                 window.Clerk.openSignIn();
             } else {
-                // Fallback redirect
                 window.location.href = 'https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href);
             }
         });
+        container.appendChild(signInBtn);
 
-        container.appendChild(button);
+        // Sign Up button
+        const signUpBtn = document.createElement('div');
+        if (type === 'desktop') {
+            signUpBtn.id = 'clerk-sign-up-button-desktop';
+            signUpBtn.className = baseClass + ' ml-2';
+        } else {
+            signUpBtn.id = 'clerk-sign-up-button-mobile';
+            signUpBtn.className = baseClass + ' w-full text-center mb-2';
+        }
+        signUpBtn.textContent = 'Sign Up';
+        signUpBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (window.Clerk && window.Clerk.openSignUp) {
+                window.Clerk.openSignUp();
+            } else {
+                window.location.href = 'https://accounts.classifast.com/sign-up?redirect_url=' + encodeURIComponent(window.location.href);
+            }
+        });
+        container.appendChild(signUpBtn);
     }
 
     renderFallbackAuth() {
-        // console.log('🚨 Rendering fallback auth UI');
         const desktopContainer = document.getElementById('desktop-auth-container');
         const mobileContainer = document.getElementById('mobile-auth-container');
 
-        const fallbackUrl = 'https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href);
-        const className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded';
+        const redirectUrl = encodeURIComponent(window.location.href);
+        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded';
 
-        const createFallbackLink = () => {
-            const a = document.createElement('a');
-            a.href = fallbackUrl;
-            a.className = className;
-            a.textContent = 'Sign In';
-            return a;
+        const createFallbackLinks = (type) => {
+            const signInLink = document.createElement('a');
+            signInLink.href = 'https://accounts.classifast.com/sign-in?redirect_url=' + redirectUrl;
+            signInLink.textContent = 'Sign In';
+
+            const signUpLink = document.createElement('a');
+            signUpLink.href = 'https://accounts.classifast.com/sign-up?redirect_url=' + redirectUrl;
+            signUpLink.textContent = 'Sign Up';
+
+            if (type === 'desktop') {
+                signInLink.className = baseClass;
+                signUpLink.className = baseClass + ' ml-2';
+            } else {
+                signInLink.className = baseClass + ' w-full text-center mb-2 block';
+                signUpLink.className = baseClass + ' w-full text-center mb-2 block';
+            }
+
+            return [signInLink, signUpLink];
         };
 
         if (desktopContainer) {
             desktopContainer.innerHTML = '';
-            desktopContainer.appendChild(createFallbackLink());
+            createFallbackLinks('desktop').forEach(link => desktopContainer.appendChild(link));
         }
         if (mobileContainer) {
             mobileContainer.innerHTML = '';
-            const link = createFallbackLink();
-            mobileContainer.appendChild(link);
+            createFallbackLinks('mobile').forEach(link => mobileContainer.appendChild(link));
         }
     }
 }

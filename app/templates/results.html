@@ -3,7 +3,7 @@
     <figure class="mb-2" hidden> <!-- Unhide for debug -->
         <figcaption id="results-heading" class="font-semibold">Results for:</figcaption>
         <pre
-            class="mt-2 p-3 bg-gray-50 rounded shadow-sm border border-gray-200  whitespace-pre-wrap">"{{ query | e }}"</pre>
+            class="mt-2 p-3 bg-gray-50 rounded shadow border border-gray-200  whitespace-pre-wrap">"{{ query | e }}"</pre>
     </figure>
 
     {% if results_for_query %}
@@ -13,7 +13,7 @@
     {% endif %}
     <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
-        <li class="p-3 bg-gray-50 rounded shadow-sm border border-gray-200" role="listitem">
+        <li class="p-3 bg-white rounded shadow border border-gray-200" role="listitem">
             <div class="flex items-start justify-between">
                 <div class="flex-1">
                     <div class="flex items-baseline gap-2">
@@ -100,11 +100,13 @@
         {% if total_request_time is not none %}
         <span>Finished in {{ "%.2f"|format(total_request_time) }} seconds.</span>
         {% endif %}
-        Classifast can make mistakes. Double-check important data.
+    </div>
+    <div>
+        <p class="mt-4 text-left text-gray-600">Classifast can make mistakes. Double-check important data.</p>
     </div>
     <div class="mt-4 prose max-w-none">
         <p id="description-help" class="text-gray-600">
-            For the best results, please provide as relevant and accurate a description as possible.
+            For best results, provide relevant and accurate descriptions.
             Product specifications, raw unformatted text, tables and lists - any input is accepted
             as long as it accurately describes what you want to classify.
         </p>
