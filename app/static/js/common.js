@@ -315,13 +315,13 @@ class ClerkAuth {
         if (user) {
             // console.log('👤 User is signed in');
 
-            // Render Upgrade Button
-            this.renderUpgradeButton(desktopContainer, 'desktop');
-            this.renderUpgradeButton(mobileContainer, 'mobile');
-
-            // Render User Button
+            // Render User Button first (left side)
             this.mountUserButton(desktopContainer, 'desktop');
             this.mountUserButton(mobileContainer, 'mobile');
+
+            // Render Upgrade Button second (right side, after avatar)
+            this.renderUpgradeButton(desktopContainer, 'desktop');
+            this.renderUpgradeButton(mobileContainer, 'mobile');
         } else {
             // console.log('👤 User is signed out');
             // Render Sign In and Sign Up Buttons
@@ -345,9 +345,9 @@ class ClerkAuth {
         button.textContent = 'Upgrade to Pro';
 
         if (type === 'desktop') {
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer mr-4 auth-loaded';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer ml-4 auth-loaded';
         } else {
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-2 rounded w-full mb-4 text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-2 rounded w-full mb-4 text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
         }
 
         button.onclick = async () => {
@@ -430,7 +430,13 @@ class ClerkAuth {
     renderAuthButtons(container, type) {
         if (!container) return;
 
-        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+        // Enable flex layout for desktop to show buttons side-by-side
+        if (type === 'desktop') {
+            container.style.display = 'flex';
+            container.style.alignItems = 'center';
+        }
+
+        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
 
         // Sign In button
         const signInBtn = document.createElement('div');
@@ -478,7 +484,13 @@ class ClerkAuth {
         const mobileContainer = document.getElementById('mobile-auth-container');
 
         const redirectUrl = encodeURIComponent(window.location.href);
-        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-base transition-all duration-150 ease-in-out transform auth-loaded';
+        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded';
+
+        // Enable flex layout for desktop
+        if (desktopContainer) {
+            desktopContainer.style.display = 'flex';
+            desktopContainer.style.alignItems = 'center';
+        }
 
         const createFallbackLinks = (type) => {
             const signInLink = document.createElement('a');

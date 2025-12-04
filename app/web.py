@@ -235,7 +235,9 @@ async def get_classification_fragment(
         response.headers["HX-Push-Url"] = new_url
 
     # Increment usage counter and set tracking cookie
-    await increment_usage(request, redis_client, usage_status)
+    # Skip incrementing for initial page load (example query with prevent_url_change=True)
+    if not prevent_url_change:
+        await increment_usage(request, redis_client, usage_status)
     add_quota_headers(response, usage_status)
     if usage_status.tracking_id:
         set_tracking_cookie(response, usage_status.tracking_id)
