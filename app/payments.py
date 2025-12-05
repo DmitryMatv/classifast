@@ -143,6 +143,9 @@ async def create_checkout(
                 status_code=500, detail="Polar Access Token not configured"
             )
 
+        # Fetch user details from Clerk to pre-fill checkout form
+        user_details = await get_clerk_user_details(user_id)
+
         # Initialize Polar SDK
         with Polar(access_token=POLAR_ACCESS_TOKEN) as polar:
             checkout = polar.checkouts.create(
@@ -150,6 +153,8 @@ async def create_checkout(
                     "products": [product_id],
                     "metadata": {"user_id": user_id},
                     "success_url": str(request.base_url) + "?checkout=success",
+                    "customer_email": user_details.get("email"),
+                    "customer_name": user_details.get("name"),
                 }
             )
 
@@ -219,3 +224,42 @@ async def update_clerk_user_metadata(user_id, metadata):
 
         if response.status_code != 200:
             logger.error(f"Failed to update Clerk metadata: {response.text}")
+
+
+async def get_clerk_user_details(user_id: str) -> dict:
+    """Fetch user email and name from Clerk for checkout pre-fill"""
+    if not CLERK_SECRET_KEY:
+        logger.warning("CLERK_SECRET_KEY missing, cannot fetch user details")
+        return {"email": None, "name": None}
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://api.clerk.com/v1/users/{user_id}",
+                headers={"Authorization": f"Bearer {CLERK_SECRET_KEY}"},
+            )
+            if response.status_code == 200:
+                user_data = response.json()
+                email_addresses = user_data.get("email_addresses", [])
+                primary_email_id = user_data.get("primary_email_address_id")
+                primary_email = next(
+                    (
+                        e["email_address"]
+                        for e in email_addresses
+                        if e["id"] == primary_email_id
+                    ),
+                    email_addresses[0]["email_address"] if email_addresses else None,
+                )
+                first_name = user_data.get("first_name") or ""
+                last_name = user_data.get("last_name") or ""
+                full_name = f"{first_name} {last_name}".strip() or None
+
+                return {"email": primary_email, "name": full_name}
+            else:
+                logger.warning(
+                    f"Failed to fetch Clerk user details: {response.status_code}"
+                )
+    except Exception as e:
+        logger.error(f"Error fetching Clerk user details: {e}")
+
+    return {"email": None, "name": None}
