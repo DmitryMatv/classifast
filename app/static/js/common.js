@@ -265,6 +265,9 @@ class ClerkAuth {
             await this.refreshAuthToken();
             this.updateAuthUI();
 
+            // Signal that auth is ready for auto-classification
+            document.body.dispatchEvent(new CustomEvent('htmx:authReady'));
+
             // Refresh token every 50s (Clerk tokens expire in ~60s)
             // Needed for long sessions on single page
             setInterval(() => this.refreshAuthToken(), 50000);
@@ -315,13 +318,19 @@ class ClerkAuth {
         if (user) {
             // console.log('👤 User is signed in');
 
-            // Render User Button first (left side)
-            this.mountUserButton(desktopContainer, 'desktop');
-            this.mountUserButton(mobileContainer, 'mobile');
+            // Enable flex layout for desktop to align items
+            if (desktopContainer) {
+                desktopContainer.style.display = 'flex';
+                desktopContainer.style.alignItems = 'center';
+            }
 
-            // Render Upgrade Button second (right side, after avatar)
+            // Render Upgrade Button first (left)
             this.renderUpgradeButton(desktopContainer, 'desktop');
             this.renderUpgradeButton(mobileContainer, 'mobile');
+
+            // Render User Button second (far right)
+            this.mountUserButton(desktopContainer, 'desktop');
+            this.mountUserButton(mobileContainer, 'mobile');
         } else {
             // console.log('👤 User is signed out');
             // Render Sign In and Sign Up Buttons
@@ -345,7 +354,7 @@ class ClerkAuth {
         button.textContent = 'Upgrade to Pro';
 
         if (type === 'desktop') {
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer ml-4 auth-loaded';
+            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 h-8 flex items-center rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer mr-4 auth-loaded';
         } else {
             button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-2 rounded w-full mb-4 text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
         }
@@ -411,6 +420,9 @@ class ClerkAuth {
 
         const el = document.createElement('div');
         el.id = `clerk-user-button-${type}`;
+        if (type === 'desktop') {
+            el.className = 'flex items-center';
+        }
         container.appendChild(el);
 
         try {
@@ -436,16 +448,17 @@ class ClerkAuth {
             container.style.alignItems = 'center';
         }
 
-        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+        const signInClass = 'bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+        const signUpClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
 
-        // Sign In button
+        // Sign In button (outline style)
         const signInBtn = document.createElement('div');
         if (type === 'desktop') {
             signInBtn.id = 'clerk-sign-in-button-desktop';
-            signInBtn.className = baseClass;
+            signInBtn.className = signInClass;
         } else {
             signInBtn.id = 'clerk-sign-in-button-mobile';
-            signInBtn.className = baseClass + ' w-full text-center mb-2';
+            signInBtn.className = signInClass + ' w-full text-center mb-2';
         }
         signInBtn.textContent = 'Sign In';
         signInBtn.addEventListener('click', (e) => {
@@ -458,14 +471,14 @@ class ClerkAuth {
         });
         container.appendChild(signInBtn);
 
-        // Sign Up button
+        // Sign Up button (filled style)
         const signUpBtn = document.createElement('div');
         if (type === 'desktop') {
             signUpBtn.id = 'clerk-sign-up-button-desktop';
-            signUpBtn.className = baseClass + ' ml-2';
+            signUpBtn.className = signUpClass + ' ml-2';
         } else {
             signUpBtn.id = 'clerk-sign-up-button-mobile';
-            signUpBtn.className = baseClass + ' w-full text-center mb-2';
+            signUpBtn.className = signUpClass + ' w-full text-center mb-2';
         }
         signUpBtn.textContent = 'Sign Up';
         signUpBtn.addEventListener('click', (e) => {
@@ -484,7 +497,8 @@ class ClerkAuth {
         const mobileContainer = document.getElementById('mobile-auth-container');
 
         const redirectUrl = encodeURIComponent(window.location.href);
-        const baseClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded';
+        const signInClass = 'bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded';
+        const signUpClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded';
 
         // Enable flex layout for desktop
         if (desktopContainer) {
@@ -502,11 +516,11 @@ class ClerkAuth {
             signUpLink.textContent = 'Sign Up';
 
             if (type === 'desktop') {
-                signInLink.className = baseClass;
-                signUpLink.className = baseClass + ' ml-2';
+                signInLink.className = signInClass;
+                signUpLink.className = signUpClass + ' ml-2';
             } else {
-                signInLink.className = baseClass + ' w-full text-center mb-2 block';
-                signUpLink.className = baseClass + ' w-full text-center mb-2 block';
+                signInLink.className = signInClass + ' w-full text-center mb-2 block';
+                signUpLink.className = signUpClass + ' w-full text-center mb-2 block';
             }
 
             return [signInLink, signUpLink];
@@ -520,6 +534,9 @@ class ClerkAuth {
             mobileContainer.innerHTML = '';
             createFallbackLinks('mobile').forEach(link => mobileContainer.appendChild(link));
         }
+
+        // Signal auth ready even without Clerk (user is anonymous)
+        document.body.dispatchEvent(new CustomEvent('htmx:authReady'));
     }
 }
 
