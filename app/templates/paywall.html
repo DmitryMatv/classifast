@@ -70,6 +70,12 @@
 
         // Listen for Clerk auth state changes to auto-retry after login/signup
         function setupClerkListener() {
+            // Guard: Only register once globally to prevent accumulating listeners
+            if (window.__paywallClerkListenerRegistered) {
+                return;
+            }
+            window.__paywallClerkListenerRegistered = true;
+
             if (window.Clerk && window.Clerk.addListener) {
                 window.Clerk.addListener(function (resources) {
                     if (resources.user) {

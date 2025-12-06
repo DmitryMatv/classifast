@@ -272,8 +272,9 @@ class ClerkAuth {
             // Needed for long sessions on single page
             setInterval(() => this.refreshAuthToken(), 50000);
 
-            // Listen for auth state changes
-            if (window.Clerk.addListener) {
+            // Listen for auth state changes (guard to prevent duplicate listeners)
+            if (window.Clerk.addListener && !window.__clerkAuthListenerRegistered) {
+                window.__clerkAuthListenerRegistered = true;
                 window.Clerk.addListener(async (payload) => {
                     // console.log('🔄 Auth state changed');
                     await this.refreshAuthToken();
