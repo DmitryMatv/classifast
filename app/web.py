@@ -46,7 +46,7 @@ async def read_root(request: Request):
     # For HEAD requests, return just headers
     if request.method == "HEAD":
         headers = {
-            "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-if-error=86400",
+            "Cache-Control": "public, max-age=300, s-maxage=3600, stale-if-error=1800",  # 5 min browser, 1 hour CDN
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
             "Link": '<https://classifast.com/>; rel="canonical"',
@@ -57,7 +57,7 @@ async def read_root(request: Request):
 
     # Cloudflare-friendly cache headers (same as classifier pages)
     response.headers["Cache-Control"] = (
-        "public, max-age=86400, s-maxage=604800, stale-if-error=86400"
+        "public, max-age=300, s-maxage=3600, stale-if-error=1800"  # 5 min browser, 1 hour CDN
     )
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = '<https://classifast.com/>; rel="canonical"'
@@ -203,10 +203,10 @@ async def get_classification_fragment(
         },
     )
 
-    # Add strong caching headers for this fragment
+    # Add caching headers for this fragment
     # This is safe because it's for specific query/version combinations
     response.headers["Cache-Control"] = (
-        "public, max-age=86400, s-maxage=604800, stale-while-revalidate=3600, stale-if-error=86400"
+        "public, max-age=300, s-maxage=3600, stale-while-revalidate=300, stale-if-error=1800"  # 5 min browser, 1 hour CDN
     )
     response.headers["Vary"] = "Accept-Encoding"
 
@@ -308,7 +308,7 @@ async def show_classifier_page_with_query(
     # For HEAD requests, return just headers
     if request.method == "HEAD":
         headers = {
-            "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-if-error=86400",
+            "Cache-Control": "public, max-age=300, s-maxage=3600, stale-if-error=1800",  # 5 min browser, 1 hour CDN
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
             "Link": f'<{canonical_url}>; rel="canonical"',
@@ -368,7 +368,7 @@ async def show_classifier_page_with_query(
 
     # Cloudflare-friendly cache headers (aligned with homepage)
     response.headers["Cache-Control"] = (
-        "public, max-age=86400, s-maxage=604800, stale-if-error=86400"
+        "public, max-age=300, s-maxage=3600, stale-if-error=1800"  # 5 min browser, 1 hour CDN
     )
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'

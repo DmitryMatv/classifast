@@ -177,7 +177,7 @@ async def polar_webhook(request: Request):
 
     try:
         event = validate_event(
-            payload=payload,
+            body=payload,
             headers=dict(request.headers),
             secret=POLAR_WEBHOOK_SECRET,
         )

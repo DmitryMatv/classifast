@@ -348,21 +348,20 @@ class CachedStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
         response = await super().get_response(path, scope)
         if isinstance(response, Response):
-            # Longer cache for static files
+            # Cache for static files
             if path.endswith(
                 (".css", ".js", ".png", ".jpg", ".ico", ".woff", ".woff2")
             ):
                 response.headers["Cache-Control"] = (
-                    "public, max-age=604800, s-maxage=604800, "  # 1 week for both browser and CDN
-                    "immutable, "  # Tell browsers it never changes
-                    "stale-while-revalidate=86400, "  # Allow serving stale for 1 day while revalidating
-                    "stale-if-error=86400"  # Serve stale if origin is down
+                    "public, max-age=3600, s-maxage=14400, "  # 1 hour browser, 4 hours CDN
+                    "stale-while-revalidate=1800, "  # Allow serving stale for 30 min while revalidating
+                    "stale-if-error=3600"  # Serve stale if origin is down
                 )
             else:
                 response.headers["Cache-Control"] = (
-                    "public, max-age=86400, s-maxage=86400, "  # 1 day for both browser and CDN
-                    "stale-while-revalidate=3600, "  # Allow serving stale for 1 hour while revalidating
-                    "stale-if-error=86400"  # Serve stale if origin is down
+                    "public, max-age=300, s-maxage=3600, "  # 5 min browser, 1 hour CDN
+                    "stale-while-revalidate=300, "  # Allow serving stale for 5 min while revalidating
+                    "stale-if-error=1800"  # Serve stale if origin is down
                 )
 
             # Add ETag for caching based on file modification time
@@ -392,7 +391,7 @@ app.mount("/static", CachedStaticFiles(directory="app/static"), name="static")
 async def favicon():
     response = FileResponse("app/static/images/favicon.ico")
     response.headers["Cache-Control"] = (
-        "public, max-age=604800, s-maxage=604800, stale-if-error=86400"  # 1 week
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
     return response
 
@@ -401,7 +400,7 @@ async def favicon():
 async def robots_txt():
     response = FileResponse("app/static/robots.txt")
     response.headers["Cache-Control"] = (
-        "public, max-age=86400, s-maxage=86400, stale-if-error=86400"  # 1 day
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
     return response
 
@@ -410,7 +409,7 @@ async def robots_txt():
 async def sitemap_xml():
     response = FileResponse("app/static/sitemap.xml")
     response.headers["Cache-Control"] = (
-        "public, max-age=86400, s-maxage=86400, stale-if-error=86400"  # 1 day
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
     return response
 
@@ -419,7 +418,7 @@ async def sitemap_xml():
 async def llms_txt():
     response = FileResponse("app/static/llms.txt")
     response.headers["Cache-Control"] = (
-        "public, max-age=86400, s-maxage=86400, stale-if-error=86400"  # 1 day
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
     return response
 
@@ -428,7 +427,7 @@ async def llms_txt():
 async def styles_css():
     response = FileResponse("app/static/css/styles.css")
     response.headers["Cache-Control"] = (
-        "public, max-age=604800, s-maxage=604800, stale-if-error=86400"  # 1 week, both browser and Cloudflare
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
     return response
 
@@ -437,7 +436,7 @@ async def styles_css():
 async def htmx_js():
     response = FileResponse("app/static/js/htmx.min.js")
     response.headers["Cache-Control"] = (
-        "public, max-age=604800, s-maxage=604800, stale-if-error=86400"  # 1 week, both browser and Cloudflare
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
     return response
 
