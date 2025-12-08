@@ -75,11 +75,20 @@
             }
             window.__paywallClerkListenerRegistered = true;
 
+            // Track the initial user state when paywall loads
+            // At paywall load time, user is typically NOT signed in (or not pro)
+            var wasSignedIn = !!(window.Clerk && window.Clerk.user);
+
             if (window.Clerk && window.Clerk.addListener) {
                 window.Clerk.addListener(function (resources) {
-                    if (resources.user) {
-                        // User just signed in, retry the classification
+                    // Only auto-retry when user transitions from signed-out to signed-in
+                    if (resources.user && !wasSignedIn) {
+                        wasSignedIn = true;  // Prevent repeated submissions on token refresh
                         submitClassificationForm();
+                    }
+                    // If user signs out, reset the flag
+                    if (!resources.user) {
+                        wasSignedIn = false;
                     }
                 });
             }
