@@ -221,6 +221,9 @@ class DescriptionToggle {
 // Cached auth token for synchronous HTMX header injection
 let cachedAuthToken = null;
 
+// Track if auth-ready event has been fired (fire only once on initial load)
+let authReadyFired = false;
+
 // Simple Clerk Authentication using official SDK patterns
 class ClerkAuth {
     constructor() {
@@ -265,8 +268,11 @@ class ClerkAuth {
             await this.refreshAuthToken();
             this.updateAuthUI();
 
-            // Signal that auth is ready for auto-classification
-            document.body.dispatchEvent(new CustomEvent('htmx:authReady'));
+            // Signal that auth is ready for auto-classification (fire only once)
+            if (!authReadyFired) {
+                authReadyFired = true;
+                document.body.dispatchEvent(new CustomEvent('htmx:authReady'));
+            }
 
             // Refresh token every 50s (Clerk tokens expire in ~60s)
             // Needed for long sessions on single page
@@ -279,6 +285,8 @@ class ClerkAuth {
                     // console.log('🔄 Auth state changed');
                     await this.refreshAuthToken();
                     this.updateAuthUI();
+                    // Note: We intentionally don't dispatch htmx:authReady here
+                    // Auto-classification should only happen on initial page load
                 });
             }
         } catch (err) {
@@ -306,6 +314,8 @@ class ClerkAuth {
             }
         });
     }
+
+
 
     updateAuthUI() {
         const user = window.Clerk.user;
@@ -536,8 +546,11 @@ class ClerkAuth {
             createFallbackLinks('mobile').forEach(link => mobileContainer.appendChild(link));
         }
 
-        // Signal auth ready even without Clerk (user is anonymous)
-        document.body.dispatchEvent(new CustomEvent('htmx:authReady'));
+        // Signal auth ready even without Clerk (user is anonymous, fire only once)
+        if (!authReadyFired) {
+            authReadyFired = true;
+            document.body.dispatchEvent(new CustomEvent('htmx:authReady'));
+        }
     }
 }
 
