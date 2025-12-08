@@ -12,6 +12,7 @@ from polar_sdk.models import (
     WebhookSubscriptionCanceledPayload,
     WebhookSubscriptionCreatedPayload,
     WebhookSubscriptionRevokedPayload,
+    WebhookSubscriptionUpdatedPayload,
 )
 from polar_sdk.webhooks import WebhookVerificationError, validate_event
 
@@ -195,6 +196,8 @@ async def polar_webhook(request: Request):
     logger.info(f"Received Polar webhook: {event.type}")
 
     # Handle subscription events using typed payloads
+    # Note: Some state changes may trigger both specific events (e.g., Active) AND Updated events.
+    # This is fine since handle_subscription_update is idempotent (sets tier to same value).
     if isinstance(
         event, (WebhookSubscriptionCreatedPayload, WebhookSubscriptionActivePayload)
     ):
@@ -203,6 +206,21 @@ async def polar_webhook(request: Request):
         event, (WebhookSubscriptionCanceledPayload, WebhookSubscriptionRevokedPayload)
     ):
         await handle_subscription_update(event.data, tier="free")
+    elif isinstance(event, WebhookSubscriptionUpdatedPayload):
+        # Handle subscription updates (e.g., status transitions)
+        # Polar SDK status values: incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid
+        status = getattr(event.data, "status", None)
+        if status in ("active", "trialing"):
+            # Active and trialing subscriptions get Pro tier
+            await handle_subscription_update(event.data, tier="pro")
+        elif status in ("canceled", "unpaid", "past_due", "incomplete_expired"):
+            # These statuses indicate subscription is not usable
+            await handle_subscription_update(event.data, tier="free")
+        elif status in ("incomplete", "pending"):
+            # Incomplete/pending: waiting for payment, don't change tier yet
+            logger.info(f"Subscription in pending state: {status}")
+        else:
+            logger.warning(f"Unknown subscription status: {status}")
 
     return {"status": "received"}
 
