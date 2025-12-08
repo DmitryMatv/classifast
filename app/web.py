@@ -118,6 +118,27 @@ async def get_classification_fragment(
         prevent_url_change,
     )
 
+    # Build the new URL early so we can set it before usage check
+    # This ensures the URL updates even if user hits the paywall
+    normalized_description = product_description.strip()
+    upper_type = classifier_type.upper()
+    slug = slugify(normalized_description.replace("/", " "))
+    new_url = f"/{upper_type}"
+    if slug:
+        # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
+        # HTTP headers require Latin-1 encoding
+        new_url += f"/{quote(slug, safe='')}"
+
+    # Handle version query param
+    config = CLASSIFIER_CONFIG.get(upper_type)
+    if config:
+        versions_list = list(config.get("versions", {}).keys())
+        default_version = versions_list[0] if versions_list else None
+
+        # Only append version if it's not the default one
+        if version and version != default_version:
+            new_url += f"?{urlencode({'version': version})}"
+
     # Check usage limits before processing (only for non-example queries)
     redis_client = getattr(request.app.state, "redis_client", None)
 
@@ -136,6 +157,8 @@ async def get_classification_fragment(
                     "free_user_limit": FREE_USER_LIMIT,
                 },
             )
+            # Set URL change before returning paywall
+            response.headers["HX-Push-Url"] = new_url
             add_quota_headers(response, usage_status)
             if usage_status.tracking_id:
                 set_tracking_cookie(response, usage_status.tracking_id)
@@ -151,9 +174,8 @@ async def get_classification_fragment(
             tracking_id=None,
         )
 
-    # Reuse the logic from handle_classify but adapted for GET
-    # Handle empty query gracefully - also remove trailing slashes and replace with spaces
-    normalized_description = product_description.strip()
+    # Handle empty query gracefully
+    # normalized_description was already set above for URL building
     if not normalized_description:
         return templates.TemplateResponse(
             "results.html",
@@ -224,27 +246,7 @@ async def get_classification_fragment(
     )
     response.headers["Vary"] = "Accept-Encoding"
 
-    # Calculate new URL for HTMX to push (server-side URL updating)
-    # Use uppercase classifier_type for URLs
-    upper_type = classifier_type.upper()
-    slug = slugify(normalized_description.replace("/", " "))
-    new_url = f"/{upper_type}"
-    if slug:
-        # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
-        # HTTP headers require Latin-1 encoding
-        new_url += f"/{quote(slug, safe='')}"
-
-    # Handle version query param
-    config = CLASSIFIER_CONFIG.get(upper_type)
-    if config:
-        versions_list = list(config.get("versions", {}).keys())
-        default_version = versions_list[0] if versions_list else None
-
-        # Only append version if it's not the default one
-        if version and version != default_version:
-            new_url += f"?{urlencode({'version': version})}"
-
-    # Set HTMX header to update URL in browser address bar
+    # Set HTMX header to update URL in browser address bar (new_url was built earlier)
     if not prevent_url_change:
         response.headers["HX-Push-Url"] = new_url
 
