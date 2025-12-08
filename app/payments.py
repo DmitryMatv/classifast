@@ -1,11 +1,18 @@
 import logging
 import os
+from typing import Optional
 
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from jwt import PyJWKClient
 from polar_sdk import Polar
+from polar_sdk.models import (
+    WebhookSubscriptionActivePayload,
+    WebhookSubscriptionCanceledPayload,
+    WebhookSubscriptionCreatedPayload,
+    WebhookSubscriptionRevokedPayload,
+)
 from polar_sdk.webhooks import WebhookVerificationError, validate_event
 
 # Configure logging
@@ -187,20 +194,22 @@ async def polar_webhook(request: Request):
 
     logger.info(f"Received Polar webhook: {event.type}")
 
-    if event.type == "subscription.created":
+    # Handle subscription events using typed payloads
+    if isinstance(
+        event, (WebhookSubscriptionCreatedPayload, WebhookSubscriptionActivePayload)
+    ):
         await handle_subscription_update(event.data, tier="pro")
-    elif event.type == "subscription.updated":
-        status = getattr(event.data, "status", None)
-        if status == "active":
-            await handle_subscription_update(event.data, tier="pro")
-    elif event.type == "subscription.canceled":
+    elif isinstance(
+        event, (WebhookSubscriptionCanceledPayload, WebhookSubscriptionRevokedPayload)
+    ):
         await handle_subscription_update(event.data, tier="free")
 
     return {"status": "received"}
 
 
-async def handle_subscription_update(data, tier):
-    metadata = getattr(data, "metadata", {}) or {}
+async def handle_subscription_update(subscription, tier: str):
+    """Update user tier based on subscription metadata."""
+    metadata = subscription.metadata or {}
     user_id = metadata.get("user_id")
 
     if user_id:
