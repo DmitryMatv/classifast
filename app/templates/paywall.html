@@ -21,16 +21,16 @@
         <div id="paywall-buttons" class="flex flex-col sm:flex-row gap-3 pt-2">
             {% if not is_authenticated %}
             <button type="button" id="signin-button" data-fallback-url="https://accounts.classifast.com/sign-in"
-                class="bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-6 py-2.5 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
+                class="bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-6 py-2 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
                 Sign In
             </button>
             <button type="button" id="signup-button" data-fallback-url="https://accounts.classifast.com/sign-up"
-                class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-6 py-2.5 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
+                class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-6 py-2 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
                 Sign Up
             </button>
             {% else %}
             <button type="button" id="upgrade-button"
-                class="inline-flex items-center justify-center bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-6 py-2.5 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
+                class="inline-flex items-center justify-center bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-6 py-2 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
                 <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                     aria-label="Upgrade to Pro">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -96,7 +96,8 @@
 
 {% if not is_authenticated %}
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    // Execute immediately since this script runs when paywall is loaded
+    (function () {
         const signinButton = document.getElementById('signin-button');
         const signupButton = document.getElementById('signup-button');
 
@@ -121,7 +122,7 @@
                 }
             });
         }
-    });
+    })();
 
     function showErrorAndRedirect(buttonId, action) {
         const button = document.getElementById(buttonId);
@@ -152,7 +153,8 @@
 </script>
 {% else %}
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    // Execute immediately since this script runs when paywall is loaded
+    (function () {
         const upgradeButton = document.getElementById('upgrade-button');
         if (upgradeButton) {
             upgradeButton.addEventListener('click', async function (e) {
@@ -207,6 +209,6 @@
                 }
             });
         }
-    });
+    })();
 </script>
 {% endif %}
