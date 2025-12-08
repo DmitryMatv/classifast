@@ -11,6 +11,7 @@ from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
 from .usage_tracker import (
     FREE_USER_LIMIT,
+    UsageStatus,
     add_quota_headers,
     check_usage,
     increment_usage,
@@ -117,25 +118,38 @@ async def get_classification_fragment(
         prevent_url_change,
     )
 
-    # Check usage limits before processing
+    # Check usage limits before processing (only for non-example queries)
     redis_client = getattr(request.app.state, "redis_client", None)
-    usage_status = await check_usage(request, redis_client)
 
-    if not usage_status.allowed:
-        # Return paywall template
-        response = templates.TemplateResponse(
-            "paywall.html",
-            {
-                "request": request,
-                "limit": usage_status.limit,
-                "is_authenticated": usage_status.is_authenticated,
-                "free_user_limit": FREE_USER_LIMIT,
-            },
+    # Only check usage limits for actual user queries, not example queries
+    if not prevent_url_change:
+        usage_status = await check_usage(request, redis_client)
+
+        if not usage_status.allowed:
+            # Return paywall template
+            response = templates.TemplateResponse(
+                "paywall.html",
+                {
+                    "request": request,
+                    "limit": usage_status.limit,
+                    "is_authenticated": usage_status.is_authenticated,
+                    "free_user_limit": FREE_USER_LIMIT,
+                },
+            )
+            add_quota_headers(response, usage_status)
+            if usage_status.tracking_id:
+                set_tracking_cookie(response, usage_status.tracking_id)
+            return response
+    else:
+        # Example queries: create dummy usage_status for headers
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=-1,  # Unlimited for examples
+            limit=-1,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id=None,
         )
-        add_quota_headers(response, usage_status)
-        if usage_status.tracking_id:
-            set_tracking_cookie(response, usage_status.tracking_id)
-        return response
 
     # Reuse the logic from handle_classify but adapted for GET
     # Handle empty query gracefully - also remove trailing slashes and replace with spaces

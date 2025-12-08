@@ -3,7 +3,7 @@ import os
 _CLASSIFIER_CONFIG = {
     "ETIM": {
         "title": "ETIM International Classifier",
-        "heading": "Get relevant EC classes from the ETIM standard",
+        "heading": "Find relevant EC classes from the ETIM standard",
         "description": "ETIM (ETIM Technical Information Model) is a format to share and exchange product data based on taxonomic identification. This widely used classification standard for technical products was developed to structure the information flow between B2B professionals.",
         "example": "Example:\nSH203-C20 Miniature Circuit Breaker 6kA 20A 3P",
         "embed_model_name": "gemini-embedding-001",
@@ -31,7 +31,7 @@ _CLASSIFIER_CONFIG = {
     },
     "NAICS": {
         "title": "NAICS Code Finder",
-        "heading": "Get appropriate codes from the NAICS standard",
+        "heading": "Get right NAICS code(s) for your business",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
         "example": "Example:\nGamedev studio",
         "embed_model_name": "gemini-embedding-001",
@@ -50,7 +50,7 @@ _CLASSIFIER_CONFIG = {
     },
     "ISIC": {
         "title": "ISIC Classifier",
-        "heading": "Instantly classify economic activities using the UN's ISIC",
+        "heading": "Instantly categorize economic activities using the UN's ISIC",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
         "example": "Example:\nManufacture of motor vehicles",
         "embed_model_name": "gemini-embedding-001",
@@ -67,7 +67,7 @@ _CLASSIFIER_CONFIG = {
     },
     "HS": {
         "title": "HS Code Finder",
-        "heading": "Search HS (Harmonized System) codes for your goods",
+        "heading": "Find right HS (Harmonized System) codes for your goods",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
         "example": "Example:\nElectric motor",
         "embed_model_name": "gemini-embedding-001",
