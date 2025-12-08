@@ -12,8 +12,7 @@
             <p class="text-gray-600 max-w-md">
                 You've used your {{ limit }} free trial classifications.
                 {% if not is_authenticated %}
-                Sign up for a free account to get {{ free_user_limit }} free classifications, or upgrade to Pro for
-                unlimited access.
+                Sign in or create a free account to get {{ free_user_limit }} more free classifications.
                 {% else %}
                 Upgrade to Pro for unlimited classifications.
                 {% endif %}
@@ -21,25 +20,25 @@
         </div>
         <div id="paywall-buttons" class="flex flex-col sm:flex-row gap-3 pt-2">
             {% if not is_authenticated %}
-            <button type="button" id="signup-button" data-fallback-url="https://accounts.classifast.com/sign-up"
-                class="inline-flex items-center justify-center px-5 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded hover:bg-gray-50 transition-colors">
-                <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                    aria-label="User account">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                Sign up free
+            <button type="button" id="signin-button" data-fallback-url="https://accounts.classifast.com/sign-in"
+                class="bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-6 py-2.5 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
+                Sign In
             </button>
-            {% endif %}
-            <a href="/#pricing"
-                class="inline-flex items-center justify-center px-5 py-2 bg-sky-600 text-white font-semibold rounded hover:bg-sky-700 active:bg-sky-800 active:scale-95 transition-all duration-150 ease-in-out transform">
+            <button type="button" id="signup-button" data-fallback-url="https://accounts.classifast.com/sign-up"
+                class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-6 py-2.5 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
+                Sign Up
+            </button>
+            {% else %}
+            <button type="button" id="upgrade-button"
+                class="inline-flex items-center justify-center bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-6 py-2.5 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
                 <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                     aria-label="Upgrade to Pro">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 Upgrade to Pro
-            </a>
+            </button>
+            {% endif %}
         </div>
         <button type="button" id="retry-button"
             class="inline-flex items-center justify-center px-4 py-2 text-sm text-sky-600 hover:text-sky-700 hover:underline transition-colors">
@@ -98,26 +97,35 @@
 {% if not is_authenticated %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const signinButton = document.getElementById('signin-button');
         const signupButton = document.getElementById('signup-button');
+
+        if (signinButton) {
+            signinButton.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (window.Clerk && window.Clerk.openSignIn) {
+                    window.Clerk.openSignIn();
+                } else {
+                    showErrorAndRedirect('signin-button', 'sign-in');
+                }
+            });
+        }
+
         if (signupButton) {
             signupButton.addEventListener('click', function (e) {
                 e.preventDefault();
                 if (window.Clerk && window.Clerk.openSignUp) {
                     window.Clerk.openSignUp();
                 } else {
-                    console.error('Clerk is not loaded; redirecting to external sign-up');
-
-                    // Show user feedback message
-                    showErrorAndRedirect();
+                    showErrorAndRedirect('signup-button', 'sign-up');
                 }
             });
         }
     });
 
-    function showErrorAndRedirect() {
-        const signupButton = document.getElementById('signup-button');
+    function showErrorAndRedirect(buttonId, action) {
+        const button = document.getElementById(buttonId);
 
-        // Create error message element
         const errorDiv = document.createElement('div');
         errorDiv.className = 'bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3 text-center';
         errorDiv.innerHTML = `
@@ -125,23 +133,80 @@
             <svg class="w-4 h-4 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Warning">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            Authentication service is temporarily unavailable. Redirecting to sign-up page...
+            Authentication service is temporarily unavailable. Redirecting...
         </p>
     `;
 
-        // Insert the error message below the buttons
         const buttonContainer = document.getElementById('paywall-buttons');
         if (buttonContainer) {
             buttonContainer.appendChild(errorDiv);
         }
 
-        // Redirect after 2 seconds using fallback URL from data attribute
-        const fallbackUrl = signupButton && signupButton.dataset.fallbackUrl
-            ? signupButton.dataset.fallbackUrl
-            : 'https://accounts.classifast.com/sign-up';
+        const fallbackUrl = button && button.dataset.fallbackUrl
+            ? button.dataset.fallbackUrl
+            : 'https://accounts.classifast.com/' + action;
         setTimeout(function () {
             window.location.href = fallbackUrl + '?redirect_url=' + encodeURIComponent(window.location.href);
         }, 2000);
     }
+</script>
+{% else %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const upgradeButton = document.getElementById('upgrade-button');
+        if (upgradeButton) {
+            upgradeButton.addEventListener('click', async function (e) {
+                e.preventDefault();
+                if (!window.Clerk || !window.Clerk.session) {
+                    console.error('Clerk not available');
+                    upgradeButton.innerHTML = '<svg class="w-4 h-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Error - Try again';
+                    upgradeButton.disabled = false;
+                    return;
+                }
+                try {
+                    upgradeButton.disabled = true;
+                    upgradeButton.innerHTML = '<svg class="w-4 h-4 mr-2 inline animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Preparing...';
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                    const token = await window.Clerk.session.getToken();
+                    const response = await fetch('/api/create-checkout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
+                        },
+                        signal: controller.signal,
+                        body: JSON.stringify({
+                            product_id: 'e157e32f-e91c-4d51-af66-0c2eb3b23d71'
+                        })
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) throw new Error('Checkout creation failed');
+
+                    const data = await response.json();
+                    if (data.url) {
+                        window.location.href = data.url;
+                    } else {
+                        throw new Error('No checkout URL returned');
+                    }
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        console.error('Checkout request timed out');
+                    } else {
+                        console.error('Upgrade failed:', err);
+                    }
+                    upgradeButton.innerHTML = '<svg class="w-4 h-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Error - Try again';
+                    setTimeout(function () {
+                        upgradeButton.disabled = false;
+                        upgradeButton.innerHTML = '<svg class="w-4 h-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Upgrade to Pro';
+                    }, 3000);
+                }
+            });
+        }
+    });
 </script>
 {% endif %}
