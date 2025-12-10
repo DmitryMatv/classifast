@@ -335,11 +335,7 @@ class ClerkAuth {
                 desktopContainer.style.alignItems = 'center';
             }
 
-            // Render Upgrade Button first (left)
-            this.renderUpgradeButton(desktopContainer, 'desktop');
-            this.renderUpgradeButton(mobileContainer, 'mobile');
-
-            // Render User Button second (far right)
+            // Render User Button
             this.mountUserButton(desktopContainer, 'desktop');
             this.mountUserButton(mobileContainer, 'mobile');
         } else {
@@ -459,7 +455,7 @@ class ClerkAuth {
             container.style.alignItems = 'center';
         }
 
-        const signInClass = 'bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
+        const signInClass = 'bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
         const signUpClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
 
         // Sign In button (outline style)
@@ -508,7 +504,7 @@ class ClerkAuth {
         const mobileContainer = document.getElementById('mobile-auth-container');
 
         const redirectUrl = encodeURIComponent(window.location.href);
-        const signInClass = 'bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded';
+        const signInClass = 'bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded';
         const signUpClass = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded';
 
         // Enable flex layout for desktop

@@ -475,12 +475,15 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="NAICS Classification">NAICS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="HTS Classification">HTS</a></li>
+                            aria-label="HS Classification">HS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
                             class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
                             aria-label="CN Classification">CN</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
+                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
+                            aria-label="HTS Classification">HTS</a></li>
                     <li id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></li>
                 </ul>
             </nav>
@@ -502,11 +505,14 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                         class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
                 </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">HTS</a>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">Combined Nomenclature</a>
+                        class="text-gray-600 hover:text-sky-600 transition-colors">CN</a>
+                </li>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
+                        class="text-gray-600 hover:text-sky-600 transition-colors">HTS</a>
                 </li>
                 <li id="mobile-auth-container"><!-- Clerk authentication will be mounted here --></li>
             </ul>
@@ -575,6 +581,7 @@
                 {% if versions %}
                 <div class="flex items-center justify-start mb-1">
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
+                        aria-expanded="false" aria-haspopup="listbox"
                         class="border border-gray-400 rounded text-left px-1 py-1 mb-1">
                         {% for v in versions %}
                         <option value="{{ v }}" {% if v==url_params.version %}selected{% endif %}>{{ v }}</option>
@@ -590,18 +597,12 @@
                 <!-- Textarea enhancer is initialized inline at the bottom -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
-                        <button type="submit" role="button" aria-label="Classify product description"
+                        <button type="submit" role="button" aria-label="Lookup code for product description"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            {% if classifier_type == 'UNSPSC' %}
-                            Classify
-                            {% elif classifier_type == 'ETIM' %}
-                            Classify
-                            {% else %}
-                            Classify
-                            {% endif %}
+                            🔍︎ Find code
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
-                            aria-label="Number of results to show"
+                            aria-label="Number of results to show" aria-expanded="false" aria-haspopup="listbox"
                             class="border border-gray-400 rounded text-left px-1 py-2">
                             <option value="3">Top 3</option>
                             <option value="10" selected>Top 10</option>
