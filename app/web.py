@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from datetime import datetime
 from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -54,7 +55,10 @@ async def read_root(request: Request):
         }
         return Response(headers=headers)
 
-    response = templates.TemplateResponse("index.html", {"request": request})
+    today = datetime.now()
+    response = templates.TemplateResponse(
+        "index.html", {"request": request, "current_year": today.year}
+    )
 
     # Cloudflare-friendly cache headers (same as classifier pages)
     response.headers["Cache-Control"] = (
@@ -92,6 +96,7 @@ async def show_classifier_page(
     """
     Serves the base classifier page.
     """
+    today = datetime.now()
     return await show_classifier_page_with_query(
         request, classifier_type, "", version, top_k
     )
@@ -361,6 +366,10 @@ async def show_classifier_page_with_query(
             results_data["query"] = example_query
             trigger_search_on_load = True
 
+    today = datetime.now()
+    current_year = today.year
+    current_month_name = today.strftime("%B")
+
     response = templates.TemplateResponse(
         "classifier_page.html",
         {
@@ -378,6 +387,8 @@ async def show_classifier_page_with_query(
             },
             "trigger_search_on_load": trigger_search_on_load,
             "canonical_url": canonical_url,
+            "current_year": current_year,
+            "current_month_name": current_month_name,
             **results_data,
         },
     )

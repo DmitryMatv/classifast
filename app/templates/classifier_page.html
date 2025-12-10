@@ -62,6 +62,24 @@
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="{{ classifier_type.upper() }} Automatic Classification">
 
+    <meta name="twitter:card" content="summary_large_image">
+    {% if url_params.search %}
+    <meta name="twitter:title" content="{{ classifier_type.upper() }} codes for '{{ url_params.search.title() }}'">
+    <meta name="twitter:description"
+        content="Find {{ classifier_type.upper() }} category codes for {{ url_params.search.upper() }}. Accurate classification results in 1 second.">
+    {% elif classifier_type == 'UNSPSC' %}
+    <meta name="twitter:title" content="UNSPSC Code Lookup, Search, Classify | Classifast">
+    <meta name="twitter:description"
+        content="Find UNSPSC codes quickly. Instant UNSPSC code lookup, category search, and classification of products and services.">
+    {% else %}
+    <meta name="twitter:title" content="{{ classifier_type.upper() }} Code Lookup, Search, Classify | Classifast">
+    <meta name="twitter:description"
+        content="Find {{ classifier_type.upper() }} codes quickly. Instant {{ classifier_type.upper() }} classification, search, and mapping.">
+    {% endif %}
+    <meta name="twitter:image" content="https://classifast.com/static/images/preview_classifybox.png">
+    <meta name="twitter:site" content="@DimonBitcoin">
+    <meta name="twitter:creator" content="@DimonBitcoin">
+
     <!-- Inter font from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -306,6 +324,60 @@
     }
     </script>
 
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "How to find {{ classifier_type.upper() }} codes using Classifast",
+        "description": "Use Classifast code finder tool to quickly find correct {{ classifier_type.upper() }} code for any product or service.",
+        "totalTime": "PT30S",
+        "tool": {
+            "@type": "HowToTool",
+            "name": "Classifast {{ classifier_type.upper() }} Classifier"
+        },
+        "step": [
+            {
+                "@type": "HowToStep",
+                "position": 1,
+                "name": "Enter product or service description",
+                "text": "Type a description of your product or service into the search box. Be as specific as possible for better results."
+            },
+            {
+                "@type": "HowToStep",
+                "position": 2,
+                "name": "Click Find code",
+                "text": "Press the 'Find code' button to submit your description. The search will process your query in about 1 second."
+            },
+            {
+                "@type": "HowToStep",
+                "position": 3,
+                "name": "Review ranked results",
+                "text": "Browse the list of matching {{ classifier_type.upper() }} codes, ranked by relevance. Click any result to copy the code or view more details."
+            }
+        ]
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Classifast",
+        "url": "https://classifast.com",
+        "logo": "https://classifast.com/static/images/preview.png",
+        "description": "Instant classification tool for UNSPSC, NAICS, HS, ETIM, and other industry standard codes.",
+        "founder": {
+            "@type": "Person",
+            "name": "Dmitry Matv",
+            "url": "https://github.com/DmitryMatv"
+        },
+        "sameAs": [
+            "https://github.com/DmitryMatv/classifast",
+            "https://rapidapi.com/DmitryMatv/api/classifast-api"
+        ]
+    }
+    </script>
+
     <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
 
     <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
@@ -460,8 +532,8 @@
     <header class="bg-sky-100 relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
-                <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <h1 class="text-xl font-semibold text-gray-800 mobile-hidden">{{ title }}</h1>
+                <p class="text-xl font-bold text-gray-800 mr-2 md:mr-6">Classi<span class="text-sky-600">fast</span></p>
+                <h1 class="text-sm md:text-xl font-semibold text-gray-800">{{ title }}</h1>
             </a>
 
             <!-- Desktop Navigation -->
@@ -533,6 +605,61 @@
             </ol>
         </nav>
 
+        <!-- TL;DR Summary Box -->
+        <section class="bg-sky-50 border-l-4 border-sky-600 p-4 rounded-r-lg mb-4" aria-label="Quick Summary">
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">⚡ Quick Summary</h2>
+            <p class="text-gray-700">
+                {% if classifier_type == 'UNSPSC' %}
+                <strong>UNSPSC (United Nations Standard Products and Services Code)</strong> is an 8-digit hierarchical
+                classification system for products and services used globally in procurement and supply chain
+                management. Enter any product description below to instantly find the matching UNSPSC code.
+                {% elif classifier_type == 'NAICS' %}
+                <strong>NAICS (North American Industry Classification System)</strong> is a 6-digit code classifying
+                businesses by their primary economic activity. Essential for US government contracting, SAM.gov
+                registration, and industry statistics. Enter your business activity below to find the correct NAICS
+                code.
+                {% elif classifier_type == 'HS' %}
+                <strong>HS (Harmonized System)</strong> codes are 6-digit international trade codes used by customs
+                authorities in 200+ countries. Essential for import/export duties, trade agreements, and customs
+                declarations. Enter your product below to find the HS code.
+                {% elif classifier_type == 'ETIM' %}
+                <strong>ETIM (Technical Information Model)</strong> is an open standard for classifying technical and
+                electrical products with detailed attributes. Used across Europe for product data exchange. Enter your
+                technical product below to find the ETIM class.
+                {% elif classifier_type == 'ISIC' %}
+                <strong>ISIC (International Standard Industrial Classification)</strong> is the UN's global standard for
+                classifying economic activities, used by 200+ countries for GDP comparisons and economic statistics.
+                Enter your activity below to find the ISIC code.
+                {% elif classifier_type == 'CN' %}
+                <strong>CN (Combined Nomenclature)</strong> is the EU's 8-digit customs classification extending HS
+                codes for European Union trade and tariffs. Essential for EU customs declarations and Intrastat
+                reporting. Enter your product below to find the CN code.
+                {% elif classifier_type == 'HTS' %}
+                <strong>HTS (Harmonized Tariff Schedule)</strong> is the 10-digit US customs classification for imports.
+                Required for US customs declarations and duty calculation. Enter your product below to find the HTS
+                code.
+                {% elif classifier_type == 'NACE' %}
+                <strong>NACE (Statistical Classification of Economic Activities)</strong> is the EU's standard for
+                classifying economic activities. Used by Eurostat and national statistics offices across Europe. Enter
+                your activity below to find the NACE code.
+                {% elif classifier_type == 'CPV' %}
+                <strong>CPV (Common Procurement Vocabulary)</strong> is a 9-digit EU standard for public procurement.
+                Required for EU tender notices on TED. Enter your product or service below to find the CPV code.
+                {% elif classifier_type == 'NSN' %}
+                <strong>NSN (NATO Stock Number)</strong> is a 13-digit identification code used by NATO and allied
+                nations for defense logistics. Enter your item below to find the relevant NSN/FSC classification.
+                {% else %}
+                <strong>{{ classifier_type }}</strong>: {{ description | e }} Enter your product or service description
+                below to find the correct code.
+                {% endif %}
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                <span class="mr-4">✍️ By <a href="https://github.com/DmitryMatv" class="text-sky-600 hover:underline"
+                        rel="author">Dmitry Matv</a></span>
+                <span>📅 Last updated: {{ current_month_name }} {{ current_year }}</span>
+            </p>
+        </section>
+
         <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4" role="form"
             aria-label="Product Classification Form">
             <div class="relative mb-2">
@@ -599,7 +726,7 @@
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Lookup code for product description"
                             class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            🔍︎ Find code
+                            🔍︎ Find codes
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show" aria-expanded="false" aria-haspopup="listbox"
@@ -647,24 +774,83 @@
         </script>
         {% endif %}
 
+        <!-- How-To Section (Visible, matching Schema) -->
+        <section id="how-to-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">How to find {{ classifier_type.upper() }} codes</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="relative pl-8">
+                    <div
+                        class="absolute left-0 top-0 w-6 h-6 bg-sky-100 text-sky-600 font-bold rounded-full flex items-center justify-center text-sm">
+                        1</div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Enter Description</h3>
+                    <p class="text-gray-600 text-sm">Type a description of your product or service into the search box
+                        above.
+                        Be specific (e.g., "wireless mouse" instead of "mouse").</p>
+                </div>
+                <div class="relative pl-8">
+                    <div
+                        class="absolute left-0 top-0 w-6 h-6 bg-sky-100 text-sky-600 font-bold rounded-full flex items-center justify-center text-sm">
+                        2</div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Click Find Code</h3>
+                    <p class="text-gray-600 text-sm">Press the "Find code" button. Our search will analyze your
+                        description and match it against the {{ classifier_type.upper() }} standard in about 1 second.
+                    </p>
+                </div>
+                <div class="relative pl-8">
+                    <div
+                        class="absolute left-0 top-0 w-6 h-6 bg-sky-100 text-sky-600 font-bold rounded-full flex items-center justify-center text-sm">
+                        3</div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Review Results</h3>
+                    <p class="text-gray-600 text-sm">Browse the ranked list of codes. The most relevant match is usually
+                        at
+                        the top. Click any code to copy it.</p>
+                </div>
+            </div>
+        </section>
+
         <!-- Standard-specific content sections to address Google indexing issues -->
         {% if classifier_type == 'UNSPSC' %}
         <section id="unspsc-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Understanding UNSPSC Classification</h2>
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Understanding UNSPSC</h2>
 
             <div class="grid md:grid-cols-2 gap-4">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-800 mb-2">Structure & Hierarchy</h3>
-                    <p class="text-gray-600 mb-2">UNSPSC uses a hierarchical 8-digit code structure divided into four
+                    <p class="text-gray-600 mb-4">UNSPSC uses a hierarchical 8-digit code structure divided into four
                         levels:</p>
-                    <ul class="text-gray-600 space-y-1">
-                        <li><strong>Segment:</strong> First 2 digits (e.g. 43 - Information Technology Broadcasting and
-                            Telecommunications)</li>
-                        <li><strong>Family:</strong> Next 2 digits (e.g. 43.21 - Computer Equipment and Accessories)
-                        </li>
-                        <li><strong>Class:</strong> Next 2 digits (e.g. 43.21.16 - Computer accessories)</li>
-                        <li><strong>Commodity:</strong> Final 2 digits (e.g. 43.21.16.07 - Computer speakers)</li>
-                    </ul>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-left text-gray-600 border border-gray-200">
+                            <thead class="text-gray-700 uppercase bg-gray-50 border-b">
+                                <tr>
+                                    <th scope="col" class="px-4 py-2">Level</th>
+                                    <th scope="col" class="px-4 py-2">Digits</th>
+                                    <th scope="col" class="px-4 py-2">Example</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-white border-b">
+                                    <td class="px-4 py-2 font-semibold">Segment</td>
+                                    <td class="px-4 py-2">XX000000</td>
+                                    <td class="px-4 py-2">43 (IT & Broadcasting)</td>
+                                </tr>
+                                <tr class="bg-white border-b">
+                                    <td class="px-4 py-2 font-semibold">Family</td>
+                                    <td class="px-4 py-2">XXYY0000</td>
+                                    <td class="px-4 py-2">43.21 (Computer Equipment)</td>
+                                </tr>
+                                <tr class="bg-white border-b">
+                                    <td class="px-4 py-2 font-semibold">Class</td>
+                                    <td class="px-4 py-2">XXYYZZ00</td>
+                                    <td class="px-4 py-2">43.21.16 (Computer accessories)</td>
+                                </tr>
+                                <tr class="bg-white">
+                                    <td class="px-4 py-2 font-semibold">Commodity</td>
+                                    <td class="px-4 py-2">XXYYZZKK</td>
+                                    <td class="px-4 py-2">43.21.16.07 (Computer speakers)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div>
