@@ -10,11 +10,11 @@
         <div class="space-y-2">
             <h3 class="text-lg font-semibold text-gray-800">Free trial limit reached</h3>
             <p class="text-gray-600 max-w-md">
-                You've used your {{ limit }} free trial classifications.
+                You've used your {{ limit }} free trial searches.
                 {% if not is_authenticated %}
-                Sign in or create a free account to get {{ free_user_limit }} more free classifications.
+                Sign in or create a free account to get {{ free_user_limit }} more free searches.
                 {% else %}
-                Upgrade to Pro for unlimited classifications.
+                Upgrade to Pro for unlimited searches.
                 {% endif %}
             </p>
         </div>

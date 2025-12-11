@@ -255,7 +255,11 @@ async def update_clerk_user_metadata(user_id, metadata):
             json={"public_metadata": metadata},
         )
 
-        if response.status_code != 200:
+        if response.status_code == 200:
+            logger.info(
+                f"Successfully updated Clerk metadata for user {user_id}: {metadata}"
+            )
+        else:
             logger.error(f"Failed to update Clerk metadata: {response.text}")
 
 

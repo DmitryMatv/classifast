@@ -264,8 +264,30 @@ class ClerkAuth {
             // Register HTMX header injection (must be after Clerk loads)
             this.registerHtmxAuthHeader();
 
-            // Initial token cache and UI render
-            await this.refreshAuthToken();
+            // Check if returning from successful checkout - need to reload user to get updated metadata
+            const urlParams = new URLSearchParams(window.location.search);
+            const isCheckoutSuccess = urlParams.get('checkout') === 'success';
+
+            if (isCheckoutSuccess && window.Clerk.user) {
+                // console.log('🔄 Checkout success detected, reloading user data...');
+                try {
+                    // Reload user data from Clerk to get updated publicMetadata (tier: pro)
+                    await window.Clerk.user.reload();
+                    // console.log('✅ User data reloaded, tier:', window.Clerk.user.publicMetadata?.tier);
+
+                    // Clean up URL by removing checkout param
+                    urlParams.delete('checkout');
+                    const cleanUrl = urlParams.toString()
+                        ? `${window.location.pathname}?${urlParams.toString()}`
+                        : window.location.pathname;
+                    window.history.replaceState({}, '', cleanUrl);
+                } catch (reloadErr) {
+                    console.error('Failed to reload user data after checkout:', reloadErr);
+                }
+            }
+
+            // Initial token cache and UI render (force fresh token if returning from checkout)
+            await this.refreshAuthToken(isCheckoutSuccess);
             this.updateAuthUI();
 
             // Signal that auth is ready for auto-classification (fire only once)
@@ -295,10 +317,12 @@ class ClerkAuth {
         }
     }
 
-    async refreshAuthToken() {
+    async refreshAuthToken(skipCache = false) {
         try {
             if (window.Clerk?.session) {
-                cachedAuthToken = await window.Clerk.session.getToken();
+                // skipCache: true forces Clerk to mint a new token, bypassing the cache
+                // This is needed after checkout success to get the updated tier in the JWT
+                cachedAuthToken = await window.Clerk.session.getToken({ skipCache });
             } else {
                 cachedAuthToken = null;
             }
