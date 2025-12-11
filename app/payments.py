@@ -142,6 +142,7 @@ async def create_checkout(
     try:
         body = await request.json()
         product_id = body.get("product_id")
+        return_url = body.get("return_url")
 
         if not product_id:
             raise HTTPException(status_code=400, detail="Missing product_id")
@@ -150,6 +151,11 @@ async def create_checkout(
             raise HTTPException(
                 status_code=500, detail="Polar Access Token not configured"
             )
+
+        # Use return_url if provided, otherwise fallback to homepage
+        success_url = (
+            return_url if return_url else str(request.base_url)
+        ) + "?checkout=success"
 
         # Fetch user details from Clerk to pre-fill checkout form
         user_details = await get_clerk_user_details(user_id)
@@ -160,7 +166,7 @@ async def create_checkout(
                 request={
                     "products": [product_id],
                     "metadata": {"user_id": user_id},
-                    "success_url": str(request.base_url) + "?checkout=success",
+                    "success_url": success_url,
                     "customer_email": user_details.get("email"),
                     "customer_name": user_details.get("name"),
                 }
@@ -193,7 +199,7 @@ async def polar_webhook(request: Request):
         logger.warning(f"Webhook verification failed: {e.message}")
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
-    logger.info(f"Received Polar webhook: {event.type}")
+    logger.info(f"Received Polar webhook: {event.TYPE}")
 
     # Handle subscription events using typed payloads
     # Note: Some state changes may trigger both specific events (e.g., Active) AND Updated events.

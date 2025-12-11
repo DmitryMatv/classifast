@@ -379,9 +379,9 @@ class ClerkAuth {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    // TODO: Replace with actual Polar Product ID
                     body: JSON.stringify({
-                        product_id: 'e157e32f-e91c-4d51-af66-0c2eb3b23d71'
+                        product_id: 'e157e32f-e91c-4d51-af66-0c2eb3b23d71',
+                        return_url: window.location.href
                     })
                 });
 
