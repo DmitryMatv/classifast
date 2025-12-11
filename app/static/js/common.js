@@ -269,13 +269,32 @@ class ClerkAuth {
             const isCheckoutSuccess = urlParams.get('checkout') === 'success';
 
             if (isCheckoutSuccess && window.Clerk.user) {
-                // console.log('🔄 Checkout success detected, reloading user data...');
-                try {
-                    // Reload user data from Clerk to get updated publicMetadata (tier: pro)
-                    await window.Clerk.user.reload();
-                    // console.log('✅ User data reloaded, tier:', window.Clerk.user.publicMetadata?.tier);
+                // Retry getting fresh token until tier is 'pro' (handles Clerk propagation delay)
+                const maxRetries = 5;
+                const retryDelay = 2000; // 2 seconds between retries
 
-                    // Clean up URL by removing checkout param
+                try {
+                    for (let i = 0; i < maxRetries; i++) {
+                        await window.Clerk.user.reload();
+                        await this.refreshAuthToken(true); // skipCache
+
+                        const tier = window.Clerk.user.publicMetadata?.tier;
+                        if (tier === 'pro') {
+                            // Pro tier confirmed - force hard reload to get fresh JWT with updated claims
+                            // The JWT minting service may still have cached old metadata even though
+                            // user.publicMetadata is updated, so a full page reload ensures Clerk
+                            // re-initializes with properly propagated claims
+                            window.location.href = window.location.pathname;
+                            return; // Stop execution, page will reload
+                        }
+
+                        if (i < maxRetries - 1) {
+                            await new Promise(r => setTimeout(r, retryDelay));
+                        }
+                    }
+
+                    // If we exhausted retries without confirming pro, clean up URL and continue
+                    // User may need to refresh manually or contact support
                     urlParams.delete('checkout');
                     const cleanUrl = urlParams.toString()
                         ? `${window.location.pathname}?${urlParams.toString()}`
