@@ -275,8 +275,10 @@ class ClerkAuth {
 
                 try {
                     for (let i = 0; i < maxRetries; i++) {
+                        // Reload user data from Clerk server
                         await window.Clerk.user.reload();
-                        await this.refreshAuthToken(true); // skipCache
+                        // Force a fresh token mint (skipping cache) to get updated claims (metadata)
+                        await this.refreshAuthToken(true);
 
                         const tier = window.Clerk.user.publicMetadata?.tier;
                         if (tier === 'pro') {
@@ -293,13 +295,17 @@ class ClerkAuth {
                         }
                     }
 
-                    // If we exhausted retries without confirming pro, clean up URL and continue
-                    // User may need to refresh manually or contact support
+                    // If we exhausted retries without confirming pro, FORCE A RELOAD anyway.
+                    // This handles cases where the update propagation was just slower than our retries,
+                    // or if the state is just stuck. A hard reload cleans everything up.
                     urlParams.delete('checkout');
                     const cleanUrl = urlParams.toString()
                         ? `${window.location.pathname}?${urlParams.toString()}`
                         : window.location.pathname;
-                    window.history.replaceState({}, '', cleanUrl);
+
+                    console.log('⚠️ Pro tier not confirmed after retries, forcing hard reload...');
+                    window.location.href = cleanUrl;
+                    return; // Stop execution, page will reload
                 } catch (reloadErr) {
                     console.error('Failed to reload user data after checkout:', reloadErr);
                 }

@@ -153,9 +153,9 @@ async def create_checkout(
             )
 
         # Use return_url if provided, otherwise fallback to homepage
-        success_url = (
-            return_url if return_url else str(request.base_url)
-        ) + "?checkout=success"
+        success_url = return_url if return_url else str(request.base_url)
+        separator = "&" if "?" in success_url else "?"
+        success_url += f"{separator}checkout=success"
 
         # Fetch user details from Clerk to pre-fill checkout form
         user_details = await get_clerk_user_details(user_id)
