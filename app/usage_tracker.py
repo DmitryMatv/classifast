@@ -58,8 +58,11 @@ def get_or_create_tracking_id(request: Request) -> tuple[str, bool]:
     """Get tracking ID from cookie or create new one."""
     existing = request.cookies.get(TRACKING_COOKIE_NAME)
     if existing and len(existing) == 36:  # UUID format
+        logger.info(f"Using existing tracking ID from cookie: {existing}")
         return existing, False
-    return str(uuid.uuid4()), True
+    new_id = str(uuid.uuid4())
+    logger.info(f"Created new tracking ID: {new_id}")
+    return new_id, True
 
 
 def extract_user_info_from_token(request: Request) -> tuple[str | None, str | None]:
@@ -180,6 +183,7 @@ async def check_usage(
 
     # Pro users have unlimited access
     if user_id and tier == "pro":
+        logger.info(f"Pro user access allowed: {user_id}")
         return UsageStatus(
             allowed=True,
             remaining=-1,  # Unlimited
@@ -219,11 +223,16 @@ async def check_usage(
         key = f"user:{user_id}:usage_count"
         limit = FREE_USER_LIMIT
         tracking_id = user_id
+        logger.info(f"Checking usage for authenticated free user: {user_id}")
     else:
         # Anonymous user - check BOTH cookie AND IP counters
         tracking_id, _ = get_or_create_tracking_id(request)
         ip_hash = hash_ip(get_client_ip(request))
         limit = ANON_LIMIT
+
+        logger.info(
+            f"Checking usage for anonymous user: tracking_id={tracking_id}, ip_hash={ip_hash}"
+        )
 
         try:
             cookie_key = f"anon:{tracking_id}:usage_count"
@@ -238,6 +247,10 @@ async def check_usage(
             # Use higher of the two (defense against cookie clearing)
             current_count = max(cookie_count, ip_count)
             remaining = max(0, limit - current_count)
+
+            logger.info(
+                f"Anonymous usage counts: cookie={cookie_count}, ip={ip_count}, current={current_count}, remaining={remaining}"
+            )
 
             return UsageStatus(
                 allowed=current_count < limit,
@@ -263,6 +276,10 @@ async def check_usage(
         current_count = await redis_client.get(key)
         current_count = int(current_count) if current_count else 0
         remaining = max(0, limit - current_count)
+
+        logger.info(
+            f"Authenticated free user usage: {key}, current={current_count}, remaining={remaining}"
+        )
 
         return UsageStatus(
             allowed=current_count < limit,
@@ -302,6 +319,7 @@ async def increment_usage(
             key = f"user:{user_id}:usage_count"
             await redis_client.incr(key)
             await redis_client.expire(key, ttl)
+            logger.info(f"Incremented authenticated user usage: {key}")
         else:
             # Anonymous user - always increment BOTH counters
             tracking_id = usage_status.tracking_id
@@ -315,12 +333,17 @@ async def increment_usage(
             await redis_client.expire(cookie_key, ttl)
             await redis_client.expire(ip_key, ttl)
 
+            logger.info(
+                f"Incremented anonymous user usage: tracking_id={tracking_id}, ip_hash={ip_hash}, cookie_key={cookie_key}, ip_key={ip_key}"
+            )
+
     except Exception as e:
         logger.error(f"Redis error incrementing usage: {e}")
 
 
 def set_tracking_cookie(response: Response, tracking_id: str) -> None:
     """Set the tracking cookie on response."""
+    logger.info(f"Setting tracking cookie: {tracking_id}")
     response.set_cookie(
         key=TRACKING_COOKIE_NAME,
         value=tracking_id,
