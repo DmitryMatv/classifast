@@ -112,7 +112,7 @@ async def fetch_clerk_user_tier(user_id: str) -> str | None:
     if not clerk_secret or not user_id:
         return None
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 f"https://api.clerk.com/v1/users/{user_id}",
                 headers={"Authorization": f"Bearer {clerk_secret}"},
@@ -128,7 +128,11 @@ async def fetch_clerk_user_tier(user_id: str) -> str | None:
 async def get_cached_user_tier(
     user_id: str, redis_client: redis.Redis | None
 ) -> str | None:
-    """Get user tier with Redis caching to avoid hitting Clerk API on every request."""
+    """Get user tier with Redis caching to avoid hitting Clerk API on every request.
+
+    Caches both positive results (60s) and negative results/errors (10s) to prevent
+    API hammering during outages or when tier is not set.
+    """
     if not user_id:
         return None
 
@@ -139,17 +143,24 @@ async def get_cached_user_tier(
         try:
             cached = await redis_client.get(cache_key)
             if cached:
-                return cached.decode() if isinstance(cached, bytes) else cached
+                cached_value = cached.decode() if isinstance(cached, bytes) else cached
+                # Check for negative result sentinel
+                return None if cached_value == "none" else cached_value
         except Exception:
             pass
 
     # Cache miss - fetch from Clerk API
     tier = await fetch_clerk_user_tier(user_id)
 
-    # Store in cache
-    if redis_client and tier:
+    # Store in cache (including None with shorter TTL to prevent repeated API calls)
+    if redis_client:
         try:
-            await redis_client.setex(cache_key, TIER_CACHE_TTL, tier)
+            if tier:
+                # Positive result: cache for full TTL
+                await redis_client.setex(cache_key, TIER_CACHE_TTL, tier)
+            else:
+                # Negative result: cache "none" sentinel for shorter TTL
+                await redis_client.setex(cache_key, 10, "none")
         except Exception:
             pass
 
