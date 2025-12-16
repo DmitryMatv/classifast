@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
 
@@ -36,9 +37,9 @@ client.update_collection(
         # To put vector data on disk for a collection that does not have named vectors, use "" as name:
         "": models.VectorParamsDiff(
             hnsw_config=models.HnswConfigDiff(
-                m=16,
-                ef_construct=200,
-                max_indexing_threads=3,
+                m=32,
+                ef_construct=256,
+                max_indexing_threads=2,
                 on_disk=True,
             ),
             on_disk=True,  # Change to False to enable RAM storage
@@ -46,10 +47,11 @@ client.update_collection(
     },
     # Global HNSW config
     hnsw_config=models.HnswConfigDiff(
-        m=16,
-        ef_construct=200,
-        max_indexing_threads=3,
-        on_disk=False,
+        m=32,
+        ef_construct=256,
+        max_indexing_threads=2,
+        on_disk=True,
+        inline_storage=True,
     ),
     # Quantization config
     quantization_config=models.ScalarQuantization(
@@ -60,7 +62,7 @@ client.update_collection(
     optimizer_config=models.OptimizersConfigDiff(
         memmap_threshold=100000,
         indexing_threshold=10000,
-        max_optimization_threads=3,
+        max_optimization_threads=2,
     ),
 )
 

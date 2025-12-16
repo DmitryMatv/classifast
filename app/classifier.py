@@ -273,8 +273,8 @@ async def classify_string_batch(
         quantization=(
             models.QuantizationSearchParams(
                 ignore=False,
-                rescore=False,
-                oversampling=2.0,
+                rescore=True,  # Enable rescoring for better accuracy
+                oversampling=3.0,
             )
             if has_quantization
             else None

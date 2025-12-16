@@ -4,6 +4,7 @@ import os
 import uuid
 from dataclasses import dataclass
 
+import httpx
 import jwt
 import redis.asyncio as redis
 from fastapi import Request, Response
@@ -22,6 +23,7 @@ QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 TRACKING_COOKIE_NAME = "cf_track"
 TRACKING_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year
+TIER_CACHE_TTL = 60  # Cache user tier for 60 seconds
 
 
 @dataclass
@@ -104,6 +106,56 @@ def extract_user_info_from_token(request: Request) -> tuple[str | None, str | No
         return None, None  # Treat invalid tokens as anonymous
 
 
+async def fetch_clerk_user_tier(user_id: str) -> str | None:
+    """Fetch current tier directly from Clerk API (bypasses JWT cache)."""
+    clerk_secret = os.getenv("CLERK_SECRET_KEY")
+    if not clerk_secret or not user_id:
+        return None
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://api.clerk.com/v1/users/{user_id}",
+                headers={"Authorization": f"Bearer {clerk_secret}"},
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("public_metadata", {}).get("tier")
+    except Exception as e:
+        logger.warning(f"Failed to fetch tier from Clerk API: {e}")
+    return None
+
+
+async def get_cached_user_tier(
+    user_id: str, redis_client: redis.Redis | None
+) -> str | None:
+    """Get user tier with Redis caching to avoid hitting Clerk API on every request."""
+    if not user_id:
+        return None
+
+    cache_key = f"user_tier:{user_id}"
+
+    # Try cache first
+    if redis_client:
+        try:
+            cached = await redis_client.get(cache_key)
+            if cached:
+                return cached.decode() if isinstance(cached, bytes) else cached
+        except Exception:
+            pass
+
+    # Cache miss - fetch from Clerk API
+    tier = await fetch_clerk_user_tier(user_id)
+
+    # Store in cache
+    if redis_client and tier:
+        try:
+            await redis_client.setex(cache_key, TIER_CACHE_TTL, tier)
+        except Exception:
+            pass
+
+    return tier
+
+
 async def check_usage(
     request: Request,
     redis_client: redis.Redis | None,
@@ -124,6 +176,20 @@ async def check_usage(
             is_authenticated=True,
             is_pro=True,
         )
+
+    # If authenticated but not pro in JWT, verify with cached Clerk API check
+    # This handles JWT propagation delay after checkout
+    if user_id and tier != "pro":
+        actual_tier = await get_cached_user_tier(user_id, redis_client)
+        if actual_tier == "pro":
+            logger.info(f"Pro tier confirmed via cache/API for user {user_id}")
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,
+                limit=-1,
+                is_authenticated=True,
+                is_pro=True,
+            )
 
     # If Redis is not available, allow the request (fail open)
     if not redis_client:

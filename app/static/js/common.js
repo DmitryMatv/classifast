@@ -264,55 +264,23 @@ class ClerkAuth {
             // Register HTMX header injection (must be after Clerk loads)
             this.registerHtmxAuthHeader();
 
-            // Check if returning from successful checkout - need to reload user to get updated metadata
+            // Check if returning from successful checkout - clean up URL params
             const urlParams = new URLSearchParams(window.location.search);
             const isCheckoutSuccess = urlParams.get('checkout') === 'success';
 
-            if (isCheckoutSuccess && window.Clerk.user) {
-                // Retry getting fresh token until tier is 'pro' (handles Clerk propagation delay)
-                const maxRetries = 5;
-                const retryDelay = 2000; // 2 seconds between retries
-
-                try {
-                    for (let i = 0; i < maxRetries; i++) {
-                        // Reload user data from Clerk server
-                        await window.Clerk.user.reload();
-                        // Force a fresh token mint (skipping cache) to get updated claims (metadata)
-                        await this.refreshAuthToken(true);
-
-                        const tier = window.Clerk.user.publicMetadata?.tier;
-                        if (tier === 'pro') {
-                            // Pro tier confirmed - force hard reload to get fresh JWT with updated claims
-                            // The JWT minting service may still have cached old metadata even though
-                            // user.publicMetadata is updated, so a full page reload ensures Clerk
-                            // re-initializes with properly propagated claims
-                            window.location.href = window.location.pathname;
-                            return; // Stop execution, page will reload
-                        }
-
-                        if (i < maxRetries - 1) {
-                            await new Promise(r => setTimeout(r, retryDelay));
-                        }
-                    }
-
-                    // If we exhausted retries without confirming pro, FORCE A RELOAD anyway.
-                    // This handles cases where the update propagation was just slower than our retries,
-                    // or if the state is just stuck. A hard reload cleans everything up.
-                    urlParams.delete('checkout');
-                    const cleanUrl = urlParams.toString()
-                        ? `${window.location.pathname}?${urlParams.toString()}`
-                        : window.location.pathname;
-
-                    console.log('⚠️ Pro tier not confirmed after retries, forcing hard reload...');
-                    window.location.href = cleanUrl;
-                    return; // Stop execution, page will reload
-                } catch (reloadErr) {
-                    console.error('Failed to reload user data after checkout:', reloadErr);
-                }
+            if (isCheckoutSuccess) {
+                // Clean up checkout params from URL
+                urlParams.delete('checkout');
+                urlParams.delete('customer_session_token');
+                const cleanUrl = urlParams.toString()
+                    ? `${window.location.pathname}?${urlParams.toString()}`
+                    : window.location.pathname;
+                window.history.replaceState({}, '', cleanUrl);
+                // Backend verifies tier via Redis-cached Clerk API - no frontend retries needed
             }
 
-            // Initial token cache and UI render (force fresh token if returning from checkout)
-            await this.refreshAuthToken(isCheckoutSuccess);
+            // Initial token cache and UI render
+            await this.refreshAuthToken();
             this.updateAuthUI();
 
             // Signal that auth is ready for auto-classification (fire only once)
@@ -342,12 +310,10 @@ class ClerkAuth {
         }
     }
 
-    async refreshAuthToken(skipCache = false) {
+    async refreshAuthToken() {
         try {
             if (window.Clerk?.session) {
-                // skipCache: true forces Clerk to mint a new token, bypassing the cache
-                // This is needed after checkout success to get the updated tier in the JWT
-                cachedAuthToken = await window.Clerk.session.getToken({ skipCache });
+                cachedAuthToken = await window.Clerk.session.getToken();
             } else {
                 cachedAuthToken = null;
             }
