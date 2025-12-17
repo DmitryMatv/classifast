@@ -212,14 +212,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # URL Encoding Validation Middleware
 class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
     # Pre-compile regex patterns for performance
-    _overlong_25_pattern = re.compile(r"(%25){2,}")
-    _suspicious_sequences = {
-        r"%2525",  # Double-encoded %
-        r"%2520",  # Double-encoded space
-        r"%2522",  # Double-encoded quote
-        r"%253c",  # Double-encoded <
-        r"%253e",  # Double-encoded >
-    }
+    # Only detect truly malicious patterns: multiple levels of encoding (%25%25%25+)
+    _triple_encoded_percent = re.compile(r"(%25){3,}")
 
     async def dispatch(self, request: Request, call_next):
         # Check URL path for suspicious encoding (catches path-based attacks)
@@ -256,30 +250,22 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         return response
 
     def _is_suspicious_encoding(self, text: str) -> bool:
-        """Optimized check for suspicious URL encoding patterns"""
+        """Lenient check for only obvious encoding attacks"""
         if not text or len(text) > 4000:
             return len(text) > 4000  # Reject overlong strings
 
         text_lower = text.lower()
 
-        # Fast path: Check for most obvious spam patterns first
-        if "%2525" in text_lower:
+        # Only reject triple-encoded percent signs or higher
+        # This catches %25%25%25 (decoded to %25) which indicates attack intent
+        # but allows %2525 and %252X which are legitimate encoded characters
+        if self._triple_encoded_percent.search(text):
             return True
 
-        # Check for decoded double-encoding patterns (e.g., "2525", "2520")
-        decoded_spam_patterns = ["252525", "252520", "253c", "253e", "2522"]
-        for pattern in decoded_spam_patterns:
-            if pattern in text_lower:
-                return True
-
-        # Check for repeated %25 patterns (double encoding)
-        if self._overlong_25_pattern.search(text):
+        # Reject only extremely malicious patterns
+        # Multiple consecutive %3C or %3E (< or >) suggest HTML injection attempts
+        if "%3c%3c" in text_lower or "%3e%3e" in text_lower:
             return True
-
-        # Check for suspicious sequences
-        for pattern in self._suspicious_sequences:
-            if pattern in text_lower:
-                return True
 
         return False
 

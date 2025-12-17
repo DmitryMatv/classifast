@@ -96,7 +96,6 @@ async def show_classifier_page(
     """
     Serves the base classifier page.
     """
-    today = datetime.now()
     return await show_classifier_page_with_query(
         request, classifier_type, "", version, top_k
     )
@@ -110,17 +109,17 @@ async def get_classification_fragment(
     product_description: str = Query(..., alias="product_description"),
     top_k: int = Query(10),
     version: str = Query(...),
-    prevent_url_change: bool = Query(False),
+    url_change: bool = Query(True),
 ):
     """
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
     """
     logger.info(
-        "Received GET fragment request for '%s' with version '%s'. Prevent URL change: %s",
+        "WEB received GET fragment request for '%s' with version '%s'. URL change: %s",
         classifier_type,
         version,
-        prevent_url_change,
+        url_change,
     )
 
     # Build the new URL early so we can set it before usage check
@@ -148,7 +147,7 @@ async def get_classification_fragment(
     redis_client = getattr(request.app.state, "redis_client", None)
 
     # Only check usage limits for actual user queries, not example queries
-    if not prevent_url_change:
+    if url_change:
         usage_status = await check_usage(request, redis_client)
 
         if not usage_status.allowed:
@@ -225,7 +224,7 @@ async def get_classification_fragment(
 
     # Calculate dynamic page title for OOB swap
     page_title = None
-    if not prevent_url_change:
+    if url_change:
         page_title = (
             f"{classifier_type.upper()} codes for '{normalized_description.title()}'"
         )
@@ -252,12 +251,12 @@ async def get_classification_fragment(
     response.headers["Vary"] = "Accept-Encoding"
 
     # Set HTMX header to update URL in browser address bar (new_url was built earlier)
-    if not prevent_url_change:
+    if url_change:
         response.headers["HX-Push-Url"] = new_url
 
     # Increment usage counter and set tracking cookie
-    # Skip incrementing for initial page load (example query with prevent_url_change=True)
-    if not prevent_url_change:
+    # Skip incrementing for initial page load (example query with url_change=False)
+    if url_change:
         await increment_usage(request, redis_client, usage_status)
     add_quota_headers(response, usage_status)
     if usage_status.tracking_id:
