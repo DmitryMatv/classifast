@@ -12,155 +12,96 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Environment Setup
 
-- Install Python dependencies: `pip install -r requirements.txt`
-- Install Node dependencies: `npm install` (for Tailwind CSS development)
-- Environment variables required: `GEMINI_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`
-- Optional: `RAPIDAPI_SECRET` for API authentication
-- Use `.env` file for local development
+Required environment variables (use `.env` file for local development):
+
+- `GEMINI_API_KEY`: Google Gemini API key for embeddings
+- `QDRANT_HOST`, `QDRANT_PORT`, `QDRANT_API_KEY`: Qdrant vector database connection
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_USERNAME`: Redis for usage tracking
+- `CLERK_SECRET_KEY`, `CLERK_FRONTEND_API`, `CLERK_PERMITTED_ORIGINS`: Clerk authentication
+- `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`: Polar subscription payments
+- `RAPIDAPI_SECRET`: RapidAPI proxy authentication
+- `DEBUG_MODE`: Enable test classifier and debug endpoints
+
+Install dependencies:
+
+- Python: `pip install -r requirements.txt`
+- Node (for CSS): `npm install`
 
 ### CSS Development
 
-- **Watch CSS changes**: `npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch`
-- Build CSS once: `npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css`
-- Input CSS: `app/static/css/input.css`
-- Output CSS: `app/static/css/styles.css`
-- Tailwind CSS v4 configuration with Inter font family
+- **Watch**: `npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch`
+- **Build**: `npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css`
 
 ### Testing & Debugging
 
 - **Health check**: `curl http://localhost:8001/health`
 - **RapidAPI health**: `curl http://localhost:8001/api/v1/rapid/ping`
-- **Manual classification test**: Use web interface or POST to `/{classifier_type}` endpoints
-- **Test utilities**: Run scripts directly with `python utilities/test_rapidapi.py` etc.
+- **Test utilities** in `utilities/`:
   - `test_rapidapi.py`: Test RapidAPI endpoints
   - `test_embedding_ordering.py`: Validate embedding generation order
-  - `test_cloudflare_headers.py`: Verify CDN header configuration
-  - `test_title_functionality.py`: Test embedding with document titles
   - `check_match.py`: Verify classification accuracy for specific queries
   - `count_codes.py`: Analyze collection statistics
 
 ## Architecture Overview
 
-### Core Application Structure
+### Core Modules
 
-- **FastAPI backend** (`app/main.py`): Main application with lifespan management, middleware, routing, and RapidAPI integration
-- **Classification engine** (`app/classifier.py`): Handles semantic search using Google Gemini embeddings and Qdrant vector database
-- **Modular architecture**: Separated into `api.py` (RapidAPI endpoints) and `web.py` (web interface)
-- **Configuration management**: Centralized in `classifier_config.py` with CLASSIFIER_CONFIG dict
-- **Dependencies**: Shared dependencies in `dependencies.py` (rate limiting, templates)
-- **Templates**: Jinja2 templates in `app/templates/` (index.html, classifier_page.html, results.html, rate_limit_warning.html)
-- **Static files**: CSS, JS, images in `app/static/`
-- **Utilities**: Helper scripts in `utilities/` for testing and configuration
+| Module | Purpose |
+|--------|---------|
+| `app/main.py` | FastAPI app, lifespan management, middleware stack, client initialization |
+| `app/classifier.py` | Embedding generation, Qdrant search, `classify_string_batch()` and `perform_classification()` |
+| `app/classifier_config.py` | `CLASSIFIER_CONFIG` dict with all classification standards and versions |
+| `app/api.py` | RapidAPI endpoints (`/api/v1/rapid/classify`, `/standards`, `/ping`) |
+| `app/web.py` | Web interface routes, HTMX form handling |
+| `app/payments.py` | Polar checkout/webhooks, Clerk JWT verification, subscription tier management |
+| `app/usage_tracker.py` | Redis-based usage quotas, user tier caching, IP/cookie tracking |
+| `app/dependencies.py` | Rate limiters, Jinja2 templates |
 
-### Key Components
+### Classification System
 
-#### Classification System
+- **10 standards**: UNSPSC, ETIM, NAICS, ISIC, HS, CN, NACE, CPV, NSN, HTS (plus TEST in debug mode)
+- **Embeddings**: Google Gemini (`gemini-embedding-001` at 3072 dims, `text-embedding-004` at 768 dims)
+- **Vector DB**: Qdrant with INT8 scalar quantization, rescore=true, oversampling=3.0, hnsw_ef=256
+- **Flow**: Query → Gemini embedding → Qdrant search → top_k results with confidence scores
 
-- **11 classification standards supported**: UNSPSC, ETIM, NAICS, ISIC, HS, CN, NACE, CPV, NSN, HTS, plus test classifier
-- **Embedding models**: Google Gemini (text-embedding-004, gemini-embedding-001) with configurable dimensions
-- **Vector database**: Qdrant for semantic search with async client and quantization support
-- **Batch processing**: `classify_string_batch()` function handles multiple queries efficiently
-- **Quantization optimization**: INT8 scalar quantization with rescoring for improved performance
+### User Tiers & Usage Tracking
 
-#### Application Lifecycle
+Three user types with Redis-based quota tracking:
 
-- **Startup**: Initializes embedding client, Qdrant client, validates collections, pre-loads example query results
-- **Pre-loading cache**: Caches results for example queries across all classifiers during startup for fast initial page loads
-- **Configuration**: `CLASSIFIER_CONFIG` dict defines all supported classification standards with their versions and settings
-- **Client validation**: Verifies collection existence and vector dimension compatibility on startup
+- **Pro** (authenticated, `tier=pro` in Clerk metadata): Unlimited access
+- **Free** (authenticated, no pro tier): 30 requests/month
+- **Anonymous**: 10 requests/month (tracked by both cookie and IP hash)
 
-#### RapidAPI Integration
+Usage tracking uses dual counters (cookie + IP hash) for anonymous users to prevent quota bypass via cookie clearing.
 
-- **API endpoints**: `/api/v1/rapid/classify` and `/api/v1/rapid/standards` for programmatic access
-- **Authentication**: Supports both API key and proxy secret authentication
-- **Rate limiting**: Separate limiter for API endpoints (600/minute)
-- **Response models**: Pydantic models for structured API responses
-- **Health monitoring**: Public health check endpoint for API consumers
+### Payment Flow
 
-#### Performance Features
+1. User authenticates via Clerk (JWT with RS256 signature verification)
+2. Frontend calls `/api/create-checkout` with Clerk JWT
+3. Backend creates Polar checkout with `user_id` in metadata
+4. On payment, Polar webhook (`/api/webhooks/polar`) updates Clerk `public_metadata.tier`
+5. `usage_tracker.py` checks tier from JWT, with Redis cache fallback to Clerk API
 
-- **Multi-layer caching**: Static file caching, pre-loaded example results, CDN-friendly headers
-- **Quantization**: INT8 quantization with rescore=true and oversampling for balance of speed/accuracy
-- **Middleware stack**: Gzip compression, security headers, performance monitoring, bot detection
-- **Rate limiting**: 20 requests/minute on classification endpoints, 60/minute default using SlowAPI
-- **HNSW optimization**: Configurable hnsw_ef parameters for search accuracy/speed tradeoffs
+### Middleware Stack (order matters)
 
-#### Frontend Architecture
+1. `PerformanceMiddleware`: Adds X-Process-Time header
+2. `GZipMiddleware`: Compression for responses > 1000 bytes
+3. `URLEncodingValidationMiddleware`: Blocks triple-encoded URLs and HTML injection attempts
+4. `SecurityHeadersMiddleware`: CSP, HSTS, X-Frame-Options, etc.
 
-- **HTMX**: Dynamic form submission without page refresh for seamless UX
-- **Tailwind CSS**: Utility-first CSS framework with JIT compilation
-- **SEO optimization**: Clean URLs, structured data, meta tags, and caching headers
-- **Responsive design**: Mobile-friendly interface with semantic HTML5 structure
+### Request Flow
 
-### Data Structure
+```
+Request → Middleware → Rate Limiter → Usage Check → Classification → Usage Increment → Response
+```
 
-- **Collections**: Each classification standard has versioned Qdrant collections with specific configurations
-- **Vector dimensions**: Configurable per classifier (768 for text-embedding-004, 3072 for gemini-embedding-001)
-- **Payload structure**: Contains original_id, class_name, and classification metadata
-- **Configuration management**: Version-based configuration with base URLs and tooltips
+For web routes: `check_usage()` → `perform_classification()` → `increment_usage()` → render template
 
-### Error Handling & Resilience
+### Key Implementation Details
 
-- **Retry logic**: Tenacity-based retries for embedding API calls with exponential backoff
-- **Graceful degradation**: Fallback to empty results on client failures
-- **Health checks**: `/health` and `/api/v1/rapid/ping` endpoints validate service availability
-- **Input validation**: Query length limits, sanitization, and parameter validation
-- **Exception handling**: Centralized error handling with appropriate HTTP status codes
-
-### Security & Compliance
-
-- **CSP headers**: Content Security Policy for XSS protection with Cloudflare optimization
-- **Security middleware**: X-Frame-Options, HSTS, X-Content-Type-Options, Permissions-Policy
-- **Authentication**: Multi-mode authentication for API endpoints
-- **Input sanitization**: Form data sanitization and rate limiting
-- **Non-root containers**: Docker runs as non-root user for security
-- **Bot detection**: Middleware for logging and analyzing bot traffic patterns
-
-## Important Implementation Details
-
-### URL Structure & SEO
-
-- **Clean URLs**: Supports both `/{classifier}` and `/{classifier}/{query}` patterns
-- **Slug generation**: Automatic URL-friendly slug generation for search queries
-- **Canonical URLs**: Proper canonical URL generation for SEO
-- **HEAD support**: HEAD requests supported for all endpoints with proper headers
-
-### Caching Strategy
-
-- **Static files**: 1-week cache with immutable flag for CSS/JS/images
-- **HTML pages**: 1-day cache with stale-while-revalidate for content
-- **Pre-loaded results**: Example query results cached at startup for instant page loads
-- **CDN optimization**: Cloudflare-specific headers and cache tags
-
-### Search Performance
-
-- **Quantization**: Collections use INT8 scalar quantization with rescore=true and oversampling=2.0
-- **HNSW parameters**: Configurable hnsw_ef (currently 256) for search accuracy/responsiveness balance
-- **Batch processing**: Efficient batch embedding and search operations
-- **Conditional search**: Adapts search parameters based on collection configuration
-- **Result filtering**: Returns top_k results with optional rescoring for improved quality
-
-### API Integration Patterns
-
-- **Shared service**: `perform_classification()` centralizes all classification logic
-- **Validation layers**: Input validation, client health checks, and error handling
-- **Response formatting**: Consistent response structure across web and API endpoints
-- **Authentication**: Multi-mode authentication supporting different access patterns
-
-## Development Workflow
-
-### File Organization Patterns
-
-- **Python modules**: All application code lives in `app/` directory
-- **Static assets**: CSS and JavaScript files in `app/static/`
-- **Templates**: Jinja2 HTML templates in `app/templates/`
-- **Utilities**: Standalone scripts for testing and maintenance in `utilities/`
-- **Configuration**: Environment variables via `.env` file
-
-### Key Development Patterns
-
-- **Async/await**: All database and API operations use async patterns
-- **Error handling**: Comprehensive try-catch blocks with logging
-- **Validation**: Input validation using Pydantic models for API endpoints
-- **Retry logic**: Tenacity-based retry for external API calls
-- **Health checks**: Multiple endpoints for monitoring service health
+- **Retry logic**: Tenacity with 3 attempts, exponential backoff (4-10s) for Gemini API
+- **Quantization search**: Internal top_k=100, then rescore and return user-requested top_k
+- **Client initialization**: All async clients (Qdrant, Redis, Gemini) initialized in `lifespan()` context manager
+- **Collection validation**: Startup verifies all configured collections exist with correct vector dimensions
+- **Rate limiting**: SlowAPI with 20/min for web, 600/min for RapidAPI
+- **Caching strategy**: Static files 1hr browser/4hr CDN, Redis tier cache 10s TTL
