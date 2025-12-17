@@ -364,63 +364,6 @@ class ClerkAuth {
         }
     }
 
-    renderUpgradeButton(container, type) {
-        if (!container) return;
-
-        // Check if user is already pro
-        const user = window.Clerk.user;
-        const isPro = user.publicMetadata?.tier === 'pro';
-        if (isPro) return;
-
-        const button = document.createElement('button');
-        button.textContent = 'Upgrade to Pro';
-
-        if (type === 'desktop') {
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 h-8 flex items-center rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer mr-4 auth-loaded';
-        } else {
-            button.className = 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-2 rounded w-full mb-4 text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded';
-        }
-
-        button.onclick = async () => {
-            try {
-                const originalText = button.textContent;
-                button.disabled = true;
-                button.textContent = 'Preparing...';
-
-                const token = await window.Clerk.session.getToken();
-                const response = await fetch('/api/create-checkout', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        product_id: 'e157e32f-e91c-4d51-af66-0c2eb3b23d71',
-                        return_url: window.location.href
-                    })
-                });
-
-                if (!response.ok) throw new Error('Checkout creation failed');
-
-                const data = await response.json();
-                if (data.url) {
-                    window.location.href = data.url;
-                } else {
-                    throw new Error('No checkout URL returned');
-                }
-            } catch (err) {
-                console.error('Upgrade failed:', err);
-                button.textContent = 'Error';
-                setTimeout(() => {
-                    button.disabled = false;
-                    button.textContent = 'Upgrade to Pro';
-                }, 3000);
-            }
-        };
-
-        container.appendChild(button);
-    }
-
     openGoogleOneTap() {
         try {
             if (window.Clerk && window.Clerk.openGoogleOneTap) {
