@@ -23,7 +23,7 @@ QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 TRACKING_COOKIE_NAME = "cf_track"
 TRACKING_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year
-TIER_CACHE_TTL = 60  # Cache user tier for 60 seconds
+TIER_CACHE_TTL = 10  # Cache user tier for 10 seconds
 
 
 @dataclass

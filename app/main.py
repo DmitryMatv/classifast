@@ -262,9 +262,8 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         if self._triple_encoded_percent.search(text):
             return True
 
-        # Reject only extremely malicious patterns
-        # Multiple consecutive %3C or %3E (< or >) suggest HTML injection attempts
-        if "%3c%3c" in text_lower or "%3e%3e" in text_lower:
+        # Reject encoded HTML special characters that suggest injection attempts
+        if "%3c" in text_lower or "%3e" in text_lower:
             return True
 
         return False

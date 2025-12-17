@@ -706,7 +706,7 @@
         <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
             hx-trigger="htmx:authReady once from:body" hx-target="#results-container" hx-swap="innerHTML"
             hx-indicator="#loading-indicator"
-            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}{% if not url_params.search %}, "prevent_url_change": true{% endif %}}'>
+            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}{% if not url_params.search %}, "url_change": false{% endif %}}'>
         </div>
         <script>
             // Show loading indicator immediately while waiting for auth
