@@ -75,6 +75,13 @@ def extract_user_info_from_token(request: Request) -> tuple[str | None, str | No
 
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
+        # Diagnostic: log if Authorization header is missing
+        if not auth_header:
+            logger.debug(
+                "No Authorization header provided - treating as anonymous user"
+            )
+        else:
+            logger.debug(f"Invalid Authorization header format: {auth_header[:20]}...")
         return None, None
 
     token = auth_header[7:]
@@ -180,6 +187,17 @@ async def check_usage(
     """
     # Check if user is authenticated
     user_id, tier = extract_user_info_from_token(request)
+
+    # Log diagnostic info for debugging mismatches between frontend and backend
+    if not user_id:
+        # Check if there's any indication this should be an authenticated request
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header:
+            logger.debug("Anonymous request - no Authorization header")
+        else:
+            logger.warning(
+                "Authorization header present but token extraction failed - treating as anonymous"
+            )
 
     # Pro users have unlimited access
     if user_id and tier == "pro":

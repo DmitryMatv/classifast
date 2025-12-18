@@ -262,8 +262,9 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         if self._triple_encoded_percent.search(text):
             return True
 
-        # Reject encoded HTML special characters that suggest injection attempts
-        if "%3c" in text_lower or "%3e" in text_lower:
+        # Reject only extremely malicious patterns
+        # Multiple consecutive %3C or %3E (< or >) suggest HTML injection attempts
+        if "%3c%3c" in text_lower or "%3e%3e" in text_lower:
             return True
 
         return False
@@ -302,14 +303,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Hardened CSP following Google's recommendations and best practices
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com; "
-            "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com; "
+            "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com; "
             "worker-src 'self' blob:; "
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
             "style-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; "
             "img-src 'self' data: https: https://*.googleapis.com https://*.gstatic.com https://*.clerk.com https://clerk.classifast.com; "
             "font-src 'self' https://fonts.gstatic.com https://*.googleapis.com https://*.gstatic.com; "
-            "connect-src 'self' https: https://*.clerk.com https://accounts.google.com https://accounts.google.com/gsi/ https://*.googleapis.com; "
+            "connect-src 'self' https: https://*.clerk.com https://accounts.google.com https://accounts.google.com/gsi/ https://*.googleapis.com https://challenges.cloudflare.com; "
             "frame-src 'self' https://accounts.google.com; "
             "base-uri 'self'; "
             "form-action 'self'; "

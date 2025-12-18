@@ -314,10 +314,33 @@ class ClerkAuth {
         try {
             if (window.Clerk?.session) {
                 cachedAuthToken = await window.Clerk.session.getToken();
+                if (!cachedAuthToken) {
+                    console.warn('Clerk session exists but getToken() returned empty');
+                }
             } else {
                 cachedAuthToken = null;
+                // Log when user exists but session doesn't - this is the problematic state
+                if (window.Clerk?.user) {
+                    console.warn('Clerk user exists but session is missing - user will be treated as anonymous');
+                    console.warn('Attempting to recover session...');
+
+                    // Try to recover: reload Clerk to re-initialize session
+                    try {
+                        await window.Clerk.load();
+                        // Retry token retrieval after reload
+                        if (window.Clerk?.session) {
+                            cachedAuthToken = await window.Clerk.session.getToken();
+                            if (cachedAuthToken) {
+                                console.log('✅ Session recovered successfully');
+                            }
+                        }
+                    } catch (recoveryErr) {
+                        console.error('Failed to recover Clerk session:', recoveryErr);
+                    }
+                }
             }
         } catch (e) {
+            console.error('Failed to refresh auth token:', e);
             cachedAuthToken = null;
         }
     }
@@ -326,6 +349,9 @@ class ClerkAuth {
         document.body.addEventListener('htmx:configRequest', (event) => {
             if (cachedAuthToken) {
                 event.detail.headers['Authorization'] = `Bearer ${cachedAuthToken}`;
+            } else if (window.Clerk?.user) {
+                // If user exists but token is missing, log this diagnostic
+                console.warn('HTMX request: User is logged in but no auth token available - request will be treated as anonymous');
             }
         });
     }
