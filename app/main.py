@@ -311,7 +311,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "img-src 'self' data: https: https://*.googleapis.com https://*.gstatic.com https://*.clerk.com https://clerk.classifast.com; "
             "font-src 'self' https://fonts.gstatic.com https://*.googleapis.com https://*.gstatic.com; "
             "connect-src 'self' https: https://*.clerk.com https://accounts.google.com https://accounts.google.com/gsi/ https://*.googleapis.com https://challenges.cloudflare.com; "
-            "frame-src 'self' https://accounts.google.com; "
+            "frame-src 'self' https://accounts.google.com https://challenges.cloudflare.com; "
             "base-uri 'self'; "
             "form-action 'self'; "
             "manifest-src 'self'; "
