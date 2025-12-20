@@ -160,47 +160,48 @@ async def perform_text_search(
     qdrant_client: AsyncQdrantClient,
     collection_name: str,
     query_text: str,
-    top_k: int = 10,
+    top_k: int = 10,  # Will be overridden to 1
 ) -> List[Dict[str, Any]]:
     """
-    Perform text-based search using text_any condition.
-    Searches original_id and class_name fields for exact token matches.
+    Perform exact text-based search using MatchValue condition.
+    Searches original_id and class_name fields for exact full matches only.
 
     Args:
         qdrant_client: The Qdrant client instance
         collection_name: The name of the Qdrant collection
         query_text: The search query (sanitized)
-        top_k: Maximum number of results to return
+        top_k: Maximum number of results to return (ignored, always returns 1)
 
     Returns:
-        List of search results with score=1.0 for exact matches
+        List of search results with 99.9% confidence scores (max 1 result)
     """
     start_time = time.time()
 
     try:
-        # Additional sanitization for text search
-        safe_query = sanitize_text_search_query(query_text)
+        # Convert to lowercase for case-insensitive exact matching
+        safe_query = sanitize_text_search_query(query_text).lower()
 
-        # Use MatchText which requires ALL tokens to match
+        # Use MatchValue for exact string matching (not token/partial matching)
+        # Check if either original_id OR class_name exactly matches the query
         filter_condition = models.Filter(
             should=[
                 models.FieldCondition(
                     key="original_id",
-                    match=models.MatchText(text=safe_query),
+                    match=models.MatchValue(value=safe_query),
                 ),
                 models.FieldCondition(
                     key="class_name",
-                    match=models.MatchText(text=safe_query),
+                    match=models.MatchValue(value=safe_query),
                 ),
             ]
         )
 
         query_start = time.time()
-        # Use scroll API to find matching points - single call is sufficient for small top_k
+        # Always limit to 1 result for exact matching
         scroll_result = await qdrant_client.scroll(
             collection_name=collection_name,
             scroll_filter=filter_condition,
-            limit=top_k,
+            limit=1,  # Force limit to 1 for exact matching
             with_payload=True,
             with_vectors=False,
         )
@@ -209,22 +210,20 @@ async def perform_text_search(
 
         query_duration = time.time() - query_start
         logger.debug(
-            "Qdrant text search: %.3fs, collection=%s, found=%d results",
+            "Qdrant exact text search: %.3fs, collection=%s, found=%d results",
             query_duration,
             collection_name,
             len(points),
         )
 
         return [
-            {"score": 0.9999, "payload": point.payload, "id": point.id}
+            {"score": 0.999, "payload": point.payload, "id": point.id}
             for point in points
         ]
 
     except Exception as e:
         elapsed = time.time() - start_time
-        logger.warning(
-            "Text search failed (indexes may not exist): %s (%.3fs elapsed)", e, elapsed
-        )
+        logger.warning("Exact text search failed: %s (%.3fs elapsed)", e, elapsed)
         return []
 
 
