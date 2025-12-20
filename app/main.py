@@ -211,63 +211,44 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # URL Encoding Validation Middleware
 class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
-    # Pre-compile regex patterns for performance
-    # Only detect truly malicious patterns: multiple levels of encoding (%25%25%25+)
-    _triple_encoded_percent = re.compile(r"(%25){3,}")
+    # Simplified regex combining all attack patterns
+    _attack_patterns = re.compile(
+        r"(%25){3,}"  # Triple+ encoded % signs
+        r"|"  # OR
+        r"(%25){6,}"  # 6+ consecutive %25
+        r"|"  # OR
+        r"(\d{2,4})(\1){15,}"  # 15+ repetitions of 2-4 digit pattern
+        r"|"  # OR
+        r"\d{50,}"  # 50+ consecutive digits
+        r"|"  # OR
+        r"%3c%3c|%3e%3e"  # HTML injection attempts
+    )
 
     async def dispatch(self, request: Request, call_next):
-        # Check URL path for suspicious encoding (catches path-based attacks)
-        url_path = request.url.path or ""
-        if url_path and self._is_suspicious_encoding(url_path):
-            logger.warning(
-                "Suspicious URL encoding detected in path: %s...", url_path[:100]
-            )
-            return self._create_error_response()
+        # Combine all URL parts for single check
+        url_parts = [request.url.path or "", request.url.query or ""]
 
-        # Early check for URL query parameters (most efficient first)
+        # Add query parameters
         if request.query_params:
-            for param_name, param_value in request.query_params.items():
-                if self._is_suspicious_encoding(param_value):
-                    logger.warning(
-                        "Suspicious URL encoding detected in query param '%s': %s...",
-                        param_name,
-                        param_value[:100],
-                    )
-                    return self._create_error_response()
+            url_parts.extend(request.query_params.values())
 
-        # Check URL query string for suspicious encoding
-        # Use query part only for better performance and accuracy
-        url_query = request.url.query or ""
-        if url_query and self._is_suspicious_encoding(url_query):
+        # Check combined URL content
+        combined_url = "".join(url_parts)
+        if combined_url and self._is_suspicious_encoding(combined_url):
             logger.warning(
-                "Suspicious URL encoding detected in query string: %s...",
-                url_query[:100],
+                "Suspicious URL encoding detected: %s...", combined_url[:100]
             )
             return self._create_error_response()
 
-        # All checks passed - proceed with request
         response = await call_next(request)
         return response
 
     def _is_suspicious_encoding(self, text: str) -> bool:
-        """Lenient check for only obvious encoding attacks"""
+        """Simplified check for obvious encoding attacks"""
         if not text or len(text) > 4000:
-            return len(text) > 4000  # Reject overlong strings
+            return len(text) > 4000
 
-        text_lower = text.lower()
-
-        # Only reject triple-encoded percent signs or higher
-        # This catches %25%25%25 (decoded to %25) which indicates attack intent
-        # but allows %2525 and %252X which are legitimate encoded characters
-        if self._triple_encoded_percent.search(text):
-            return True
-
-        # Reject only extremely malicious patterns
-        # Multiple consecutive %3C or %3E (< or >) suggest HTML injection attempts
-        if "%3c%3c" in text_lower or "%3e%3e" in text_lower:
-            return True
-
-        return False
+        return bool(self._attack_patterns.search(text.lower()))
 
     def _create_error_response(self) -> JSONResponse:
         """Create standardized error response"""
