@@ -106,9 +106,6 @@ async def rapid_classify(
             classifier_type=standard,
             version=version,
             top_k=top_k or 1,
-            quantization_cache=getattr(
-                request.app.state, "collection_quantization_cache", None
-            ),
         )
 
         classification_results = result["results"]
