@@ -83,7 +83,7 @@ _CLASSIFIER_CONFIG = {
         "title": "CN Code Finder",
         "heading": "Get CN (Combined Nomenclature) codes for EU customs and trade",
         "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
-        "example": "Example:\nStainless steel sheets, 304 grade, 2mm thickness",
+        "example": "Example:\nSteel sheets, 2mm thick",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {

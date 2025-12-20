@@ -1,8 +1,10 @@
 import hashlib
 import logging
 import os
+import time
 import uuid
 from dataclasses import dataclass
+from typing import Optional, Tuple
 
 import httpx
 import jwt
@@ -21,9 +23,13 @@ REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+
+# Constants
 TRACKING_COOKIE_NAME = "cf_track"
 TRACKING_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year
+USAGE_TTL = 30 * 24 * 60 * 60  # 30 days
 TIER_CACHE_TTL = 10  # Cache user tier for 10 seconds
+NEGATIVE_TIER_CACHE_TTL = 10  # Cache negative results for 10 seconds
 
 
 @dataclass
@@ -54,18 +60,20 @@ def hash_ip(ip: str) -> str:
     return hashlib.sha256(ip.encode()).hexdigest()[:16]
 
 
-def get_or_create_tracking_id(request: Request) -> tuple[str, bool]:
+def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
     """Get tracking ID from cookie or create new one."""
     existing = request.cookies.get(TRACKING_COOKIE_NAME)
     if existing and len(existing) == 36:  # UUID format
-        logger.info(f"Using existing tracking ID from cookie: {existing}")
+        logger.debug(f"Using existing tracking ID from cookie: {existing}")
         return existing, False
     new_id = str(uuid.uuid4())
     logger.info(f"Created new tracking ID: {new_id}")
     return new_id, True
 
 
-def extract_user_info_from_token(request: Request) -> tuple[str | None, str | None]:
+def extract_user_info_from_token(
+    request: Request,
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Extract user_id and tier from verified JWT token.
     Returns (None, None) if token is invalid or unverifiable.
@@ -112,26 +120,44 @@ def extract_user_info_from_token(request: Request) -> tuple[str | None, str | No
         tier = public_metadata.get("tier", "free") if public_metadata else "free"
 
         return user_id, tier
-    except Exception:
+    except (jwt.PyJWTError, ValueError, KeyError):
         return None, None  # Treat invalid tokens as anonymous
 
 
 async def fetch_clerk_user_tier(user_id: str) -> str | None:
     """Fetch current tier directly from Clerk API (bypasses JWT cache)."""
+    start_time = time.time()
+
     clerk_secret = os.getenv("CLERK_SECRET_KEY")
     if not clerk_secret or not user_id:
         return None
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
+            api_start = time.time()
             response = await client.get(
                 f"https://api.clerk.com/v1/users/{user_id}",
                 headers={"Authorization": f"Bearer {clerk_secret}"},
             )
+            api_duration = time.time() - api_start
+            logger.debug(
+                "Clerk API tier check: %.3fs, user_id=%s, status=%d",
+                api_duration,
+                user_id,
+                response.status_code,
+            )
             if response.status_code == 200:
                 data = response.json()
                 return data.get("public_metadata", {}).get("tier")
-    except Exception as e:
-        logger.warning(f"Failed to fetch tier from Clerk API: {e}")
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        elapsed = time.time() - start_time
+        logger.warning(
+            f"Failed to fetch tier from Clerk API: {e} ({elapsed:.3f}s elapsed)"
+        )
+    except Exception as e:  # Fallback for unexpected errors
+        elapsed = time.time() - start_time
+        logger.error(
+            f"Unexpected error fetching tier from Clerk API: {e} ({elapsed:.3f}s elapsed)"
+        )
     return None
 
 
@@ -143,6 +169,8 @@ async def get_cached_user_tier(
     Caches both positive results (60s) and negative results/errors (10s) to prevent
     API hammering during outages or when tier is not set.
     """
+    start_time = time.time()
+
     if not user_id:
         return None
 
@@ -151,12 +179,20 @@ async def get_cached_user_tier(
     # Try cache first
     if redis_client:
         try:
+            cache_start = time.time()
             cached = await redis_client.get(cache_key)
+            cache_duration = time.time() - cache_start
             if cached:
                 cached_value = cached.decode() if isinstance(cached, bytes) else cached
+                logger.debug(
+                    "Redis tier cache hit: %.3fs, user_id=%s, tier=%s",
+                    cache_duration,
+                    user_id,
+                    cached_value,
+                )
                 # Check for negative result sentinel
                 return None if cached_value == "none" else cached_value
-        except Exception:
+        except (redis.RedisError, ValueError):
             pass
 
     # Cache miss - fetch from Clerk API
@@ -165,15 +201,36 @@ async def get_cached_user_tier(
     # Store in cache (including None with shorter TTL to prevent repeated API calls)
     if redis_client:
         try:
+            cache_set_start = time.time()
             if tier:
                 # Positive result: cache for full TTL
                 await redis_client.setex(cache_key, TIER_CACHE_TTL, tier)
+                logger.debug(
+                    "Redis tier cache set (positive): %.3fs, user_id=%s, tier=%s, ttl=%d",
+                    time.time() - cache_set_start,
+                    user_id,
+                    tier,
+                    TIER_CACHE_TTL,
+                )
             else:
                 # Negative result: cache "none" sentinel for shorter TTL
-                await redis_client.setex(cache_key, 10, "none")
-        except Exception:
+                await redis_client.setex(cache_key, NEGATIVE_TIER_CACHE_TTL, "none")
+                logger.debug(
+                    "Redis tier cache set (negative): %.3fs, user_id=%s, ttl=%d",
+                    time.time() - cache_set_start,
+                    user_id,
+                    NEGATIVE_TIER_CACHE_TTL,
+                )
+        except redis.RedisError:
             pass
 
+    total_elapsed = time.time() - start_time
+    logger.info(
+        "User tier check completed: %.3fs total, user_id=%s, tier=%s",
+        total_elapsed,
+        user_id,
+        tier,
+    )
     return tier
 
 
@@ -195,30 +252,26 @@ async def check_usage(
         if not auth_header:
             logger.debug("Anonymous request - no Authorization header")
         else:
-            logger.warning(
+            logger.debug(
                 "Authorization header present but token extraction failed - treating as anonymous"
             )
 
-    # Pro users have unlimited access
-    if user_id and tier == "pro":
-        logger.info(f"Pro user access allowed: {user_id}")
-        return UsageStatus(
-            allowed=True,
-            remaining=-1,  # Unlimited
-            limit=-1,
-            is_authenticated=True,
-            is_pro=True,
-        )
+    # Check for pro user status (combines JWT and cache verification)
+    if user_id:
+        # Check JWT tier first, then verify with cache if not pro
+        is_pro = tier == "pro"
+        if not is_pro:
+            actual_tier = await get_cached_user_tier(user_id, redis_client)
+            is_pro = actual_tier == "pro"
+            if is_pro:
+                logger.info(f"Pro tier confirmed via cache/API for user {user_id}")
+        else:
+            logger.info(f"Pro user access allowed: {user_id}")
 
-    # If authenticated but not pro in JWT, verify with cached Clerk API check
-    # This handles JWT propagation delay after checkout
-    if user_id and tier != "pro":
-        actual_tier = await get_cached_user_tier(user_id, redis_client)
-        if actual_tier == "pro":
-            logger.info(f"Pro tier confirmed via cache/API for user {user_id}")
+        if is_pro:
             return UsageStatus(
                 allowed=True,
-                remaining=-1,
+                remaining=-1,  # Unlimited
                 limit=-1,
                 is_authenticated=True,
                 is_pro=True,
@@ -278,7 +331,7 @@ async def check_usage(
                 is_pro=False,
                 tracking_id=tracking_id,
             )
-        except Exception as e:
+        except redis.RedisError as e:
             logger.error(f"Redis error checking anonymous usage: {e}")
             return UsageStatus(
                 allowed=True,
@@ -307,7 +360,7 @@ async def check_usage(
             is_pro=False,
             tracking_id=tracking_id,
         )
-    except Exception as e:
+    except redis.RedisError as e:
         logger.error(f"Redis error checking user usage: {e}")
         return UsageStatus(
             allowed=True,
@@ -329,7 +382,7 @@ async def increment_usage(
         return
 
     user_id, _ = extract_user_info_from_token(request)
-    ttl = 30 * 24 * 60 * 60  # 30 days
+    ttl = USAGE_TTL  # 30 days
 
     try:
         if user_id:
@@ -355,7 +408,7 @@ async def increment_usage(
                 f"Incremented anonymous user usage: tracking_id={tracking_id}, ip_hash={ip_hash}, cookie_key={cookie_key}, ip_key={ip_key}"
             )
 
-    except Exception as e:
+    except redis.RedisError as e:
         logger.error(f"Redis error incrementing usage: {e}")
 
 
