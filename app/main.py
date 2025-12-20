@@ -215,9 +215,7 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
     _attack_patterns = re.compile(
         r"(%25){3,}"  # Triple+ encoded % signs
         r"|"  # OR
-        r"(%25){6,}"  # 6+ consecutive %25
-        r"|"  # OR
-        r"(\d{2,4})(\1){15,}"  # 15+ repetitions of 2-4 digit pattern
+        r"(\d{2,4})\1{15,}"  # 15+ repetitions of 2-4 digit pattern (removed unnecessary grouping)
         r"|"  # OR
         r"\d{50,}"  # 50+ consecutive digits
         r"|"  # OR
