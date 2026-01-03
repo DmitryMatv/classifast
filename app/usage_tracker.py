@@ -30,6 +30,7 @@ TRACKING_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year
 USAGE_TTL = 30 * 24 * 60 * 60  # 30 days
 TIER_CACHE_TTL = 60  # Cache user tier for 60 seconds
 NEGATIVE_TIER_CACHE_TTL = 10  # Cache negative results for 10 seconds
+GRACE_PERIOD_TTL = 300  # 5 minutes - grace period for checkout completion
 
 
 @dataclass
@@ -58,6 +59,77 @@ def get_client_ip(request: Request) -> str:
 def hash_ip(ip: str) -> str:
     """Hash IP for privacy."""
     return hashlib.sha256(ip.encode()).hexdigest()[:16]
+
+
+async def set_checkout_grace(user_id: str, redis_client: redis.Redis | None) -> bool:
+    """Set checkout grace period for user after successful return from Polar."""
+    if not redis_client or not user_id:
+        return False
+    try:
+        grace_key = f"checkout_grace:{user_id}"
+        await redis_client.setex(grace_key, GRACE_PERIOD_TTL, "1")
+        logger.info("Checkout grace period activated")
+        return True
+    except redis.RedisError as e:
+        logger.error(f"Failed to set checkout grace period: {e}")
+        return False
+
+
+async def has_active_grace(user_id: str, redis_client: redis.Redis | None) -> bool:
+    """Check if user has active checkout grace period."""
+    if not redis_client or not user_id:
+        return False
+    try:
+        grace_key = f"checkout_grace:{user_id}"
+        exists = await redis_client.exists(grace_key)
+        if exists:
+            ttl = await redis_client.ttl(grace_key)
+            logger.debug(f"Checkout grace period active with {ttl}s remaining")
+        return bool(exists)
+    except redis.RedisError as e:
+        logger.error(f"Failed to check checkout grace period: {e}")
+        return False
+
+
+async def verify_checkout_token(
+    checkout_token: str,
+    request: Request,
+    redis_client: redis.Redis | None,
+) -> bool:
+    """Verify checkout token and activate grace period if valid."""
+    if not redis_client or not checkout_token:
+        return False
+    try:
+        pending_key = f"checkout_pending:{checkout_token}"
+        stored_user_id = await redis_client.get(pending_key)
+
+        if stored_user_id:
+            stored_user_id = (
+                stored_user_id.decode()
+                if isinstance(stored_user_id, bytes)
+                else stored_user_id
+            )
+            user_id, _ = extract_user_info_from_token(request)
+
+            if user_id and user_id == stored_user_id:
+                grace_set = await set_checkout_grace(user_id, redis_client)
+                if grace_set:
+                    await redis_client.delete(pending_key)
+                    logger.info("Checkout token verified, grace period activated")
+                    return True
+                else:
+                    logger.warning(
+                        "Checkout token valid but grace period failed to set"
+                    )
+                    return False
+            else:
+                logger.warning("Checkout token mismatch")
+        else:
+            logger.warning("Checkout token not found or expired")
+        return False
+    except redis.RedisError as e:
+        logger.error(f"Redis error during checkout token verification: {e}")
+        return False
 
 
 def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
@@ -256,8 +328,22 @@ async def check_usage(
                 "Authorization header present but token extraction failed - treating as anonymous"
             )
 
-    # Check for pro user status (combines JWT and cache verification)
+    # Check for pro user status (combines JWT, cache, and grace period)
     if user_id:
+        # Check checkout grace period first (takes priority)
+        if await has_active_grace(user_id, redis_client):
+            logger.info(
+                f"Checkout grace period active for user {user_id} - allowing unlimited access"
+            )
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,
+                limit=-1,
+                is_authenticated=True,
+                is_pro=True,
+                tracking_id=user_id,
+            )
+
         # Check JWT tier first, then verify with cache if not pro
         is_pro = tier == "pro"
         if not is_pro:
@@ -275,6 +361,7 @@ async def check_usage(
                 limit=-1,
                 is_authenticated=True,
                 is_pro=True,
+                tracking_id=user_id,
             )
 
     # If Redis is not available, allow the request (fail open)

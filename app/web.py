@@ -17,6 +17,7 @@ from .usage_tracker import (
     check_usage,
     increment_usage,
     set_tracking_cookie,
+    verify_checkout_token,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,13 @@ async def get_classification_fragment(
         version,
         url_change,
     )
+
+    # Handle checkout return with token verification (also on fragment requests)
+    checkout_success = request.query_params.get("checkout")
+    checkout_token = request.query_params.get("checkout_token")
+    if checkout_success == "success" and checkout_token:
+        redis_client = getattr(request.app.state, "redis_client", None)
+        await verify_checkout_token(checkout_token, request, redis_client)
 
     # Build the new URL early so we can set it before usage check
     # This ensures the URL updates even if user hits the paywall
@@ -293,6 +301,13 @@ async def show_classifier_page_with_query(
 
     # Use the uppercase classifier_type from here
     classifier_type = upper_type
+
+    # Handle checkout return with token verification
+    checkout_success = request.query_params.get("checkout")
+    checkout_token = request.query_params.get("checkout_token")
+    if checkout_success == "success" and checkout_token:
+        redis_client = getattr(request.app.state, "redis_client", None)
+        await verify_checkout_token(checkout_token, request, redis_client)
 
     # Handle empty search query for base URLs
     decoded_search_query = ""

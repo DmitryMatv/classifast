@@ -44,7 +44,7 @@ _CLASSIFIER_CONFIG = {
             },
             "2022 NAICS (only 6-digit codes)": {
                 "collection_name": "NAICS_2022_SIXdigits_new001_v3",
-                "base_url": "https://www.naics.com/naics-code-description/?code=",
+                "base_url": "https://www.naics.com/code-search/?trms=",
             },
         },
     },

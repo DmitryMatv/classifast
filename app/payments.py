@@ -1,11 +1,15 @@
 import logging
 import os
+import secrets
+from urllib.parse import urlparse
 
 import httpx
 import jwt
+import redis.asyncio as redis
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from jwt import PyJWKClient
 from polar_sdk import Polar
+from polar_sdk._webhooks import WebhookVerificationError, validate_event
 from polar_sdk.models import (
     WebhookSubscriptionActivePayload,
     WebhookSubscriptionCanceledPayload,
@@ -13,7 +17,6 @@ from polar_sdk.models import (
     WebhookSubscriptionRevokedPayload,
     WebhookSubscriptionUpdatedPayload,
 )
-from polar_sdk.webhooks import WebhookVerificationError, validate_event
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -29,6 +32,8 @@ if CLERK_FRONTEND_API:
         CLERK_FRONTEND_API.replace("https://", "").replace("http://", "").rstrip("/")
     )
 CLERK_PERMITTED_ORIGINS = os.getenv("CLERK_PERMITTED_ORIGINS", "")
+
+CHECKOUT_PENDING_TTL = 900  # 15 minutes - token validity
 
 # Cached JWKS client for Clerk JWT verification
 _jwks_client = None
@@ -151,10 +156,44 @@ async def create_checkout(
                 status_code=500, detail="Polar Access Token not configured"
             )
 
+        # Validate return_url to prevent open redirect attacks
+        if return_url:
+            parsed = urlparse(return_url)
+            allowed_hosts = [urlparse(str(request.base_url)).netloc]
+            extra_hosts = os.getenv("ALLOWED_REDIRECT_HOSTS", "")
+            if extra_hosts:
+                allowed_hosts.extend(
+                    h.strip() for h in extra_hosts.split(",") if h.strip()
+                )
+            if not parsed.netloc or parsed.netloc not in allowed_hosts:
+                logger.warning(f"Invalid return_url rejected: {return_url[:50]}")
+                raise HTTPException(status_code=400, detail="Invalid return_url")
+
+        # Generate secure checkout token
+        checkout_token = secrets.token_urlsafe(32)
+        redis_client = getattr(request.app.state, "redis_client", None)
+
+        if redis_client:
+            try:
+                await redis_client.setex(
+                    f"checkout_pending:{checkout_token}", CHECKOUT_PENDING_TTL, user_id
+                )
+                logger.debug("Checkout token generated")
+            except redis.RedisError as e:
+                logger.error(f"Failed to store checkout token: {e}")
+                raise HTTPException(
+                    status_code=500, detail="Failed to initialize secure checkout"
+                )
+        else:
+            logger.error("Redis client not available for checkout token storage")
+            raise HTTPException(
+                status_code=500, detail="Checkout service temporarily unavailable"
+            )
+
         # Use return_url if provided, otherwise fallback to homepage
         success_url = return_url if return_url else str(request.base_url)
         separator = "&" if "?" in success_url else "?"
-        success_url += f"{separator}checkout=success"
+        success_url += f"{separator}checkout=success&checkout_token={checkout_token}"
 
         # Fetch user details from Clerk to pre-fill checkout form
         user_details = await get_clerk_user_details(user_id)

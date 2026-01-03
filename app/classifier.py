@@ -160,7 +160,6 @@ async def perform_text_search(
     qdrant_client: AsyncQdrantClient,
     collection_name: str,
     query_text: str,
-    top_k: int = 10,  # Will be overridden to 1
 ) -> List[Dict[str, Any]]:
     """
     Perform exact text-based search using MatchValue condition.
@@ -170,7 +169,6 @@ async def perform_text_search(
         qdrant_client: The Qdrant client instance
         collection_name: The name of the Qdrant collection
         query_text: The search query (sanitized)
-        top_k: Maximum number of results to return (ignored, always returns 1)
 
     Returns:
         List of search results with 99.9% confidence scores (max 1 result)
@@ -325,7 +323,7 @@ async def perform_hybrid_search(
     try:
         # Run text and semantic searches in parallel with proper error handling
         text_search_task = asyncio.create_task(
-            perform_text_search(qdrant_client, collection_name, query_text, top_k)
+            perform_text_search(qdrant_client, collection_name, query_text)
         )
         semantic_search_task = asyncio.create_task(
             perform_semantic_search(
