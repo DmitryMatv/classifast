@@ -319,18 +319,26 @@ class SubdomainRedirectMiddleware(BaseHTTPMiddleware):
         "nsn",
         "hts",
     }
+    ALLOWED_DOMAINS = {"classifast.com", "localhost"}  # Add your expected domains
 
     async def dispatch(self, request: Request, call_next):
         host = request.headers.get("host", "").lower()
 
         if host:
-            parts = host.split(".")
+            # Strip port if present
+            host_without_port = host.split(":")[0]
+            parts = host_without_port.split(".")
             if len(parts) >= 2:
                 subdomain = parts[0]
 
                 if subdomain in self.SUBDOMAIN_REDIRECTS:
                     scheme = request.url.scheme
                     domain = ".".join(parts[1:])
+
+                    # Validate domain against allowlist
+                    if domain not in self.ALLOWED_DOMAINS:
+                        return await call_next(request)
+
                     path = request.url.path or ""
                     redirect_url = f"{scheme}://{domain}/{subdomain}{path}"
                     if request.url.query:
