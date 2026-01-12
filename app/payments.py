@@ -249,7 +249,11 @@ async def polar_webhook(request: Request):
     elif isinstance(
         event, (WebhookSubscriptionCanceledPayload, WebhookSubscriptionRevokedPayload)
     ):
-        await handle_subscription_update(event.data, tier="free")
+        # Skip Clerk tier update on cancellation - user keeps pro tier until trial expires
+        # Polar will send subscription.updated webhook when trial actually ends
+        logger.info(
+            "Subscription canceled - skipping tier update, waiting for trial expiry"
+        )
     elif isinstance(event, WebhookSubscriptionUpdatedPayload):
         # Handle subscription updates (e.g., status transitions)
         # Polar SDK status values: incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid
@@ -259,6 +263,7 @@ async def polar_webhook(request: Request):
             await handle_subscription_update(event.data, tier="pro")
         elif status in ("canceled", "unpaid", "past_due", "incomplete_expired"):
             # These statuses indicate subscription is not usable
+            # Note: 'canceled' status here means trial has ended (not just user cancelled)
             await handle_subscription_update(event.data, tier="free")
         elif status in ("incomplete", "pending"):
             # Incomplete/pending: waiting for payment, don't change tier yet
