@@ -455,7 +455,7 @@ class ClerkAuth {
         signInBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (window.Clerk && window.Clerk.openSignIn) {
-                window.Clerk.openSignIn();
+                window.Clerk.openSignIn({ redirectUrl: window.location.href });
             } else {
                 window.location.href = 'https://accounts.classifast.com/sign-in?redirect_url=' + encodeURIComponent(window.location.href);
             }
@@ -475,7 +475,7 @@ class ClerkAuth {
         signUpBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (window.Clerk && window.Clerk.openSignUp) {
-                window.Clerk.openSignUp();
+                window.Clerk.openSignUp({ redirectUrl: window.location.href });
             } else {
                 window.location.href = 'https://accounts.classifast.com/sign-up?redirect_url=' + encodeURIComponent(window.location.href);
             }

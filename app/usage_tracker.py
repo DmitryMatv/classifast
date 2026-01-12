@@ -109,21 +109,18 @@ async def verify_checkout_token(
                 if isinstance(stored_user_id, bytes)
                 else stored_user_id
             )
-            user_id, _ = extract_user_info_from_token(request)
 
-            if user_id and user_id == stored_user_id:
-                grace_set = await set_checkout_grace(user_id, redis_client)
-                if grace_set:
+            grace_set = await set_checkout_grace(stored_user_id, redis_client)
+            if grace_set:
+                try:
                     await redis_client.delete(pending_key)
-                    logger.info("Checkout token verified, grace period activated")
-                    return True
-                else:
-                    logger.warning(
-                        "Checkout token valid but grace period failed to set"
-                    )
-                    return False
+                except redis.RedisError as e:
+                    logger.warning(f"Failed to delete pending key after grace set: {e}")
+                logger.info("Checkout token verified, grace period activated")
+                return True
             else:
-                logger.warning("Checkout token mismatch")
+                logger.warning("Checkout token valid but grace period failed to set")
+                return False
         else:
             logger.warning("Checkout token not found or expired")
         return False

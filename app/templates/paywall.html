@@ -114,7 +114,7 @@
             signinButton.addEventListener('click', function (e) {
                 e.preventDefault();
                 if (window.Clerk && window.Clerk.openSignIn) {
-                    window.Clerk.openSignIn();
+                    window.Clerk.openSignIn({ redirectUrl: window.location.href });
                 } else {
                     showErrorAndRedirect('signin-button', 'sign-in');
                 }
@@ -125,7 +125,7 @@
             signupButton.addEventListener('click', function (e) {
                 e.preventDefault();
                 if (window.Clerk && window.Clerk.openSignUp) {
-                    window.Clerk.openSignUp();
+                    window.Clerk.openSignUp({ redirectUrl: window.location.href });
                 } else {
                     showErrorAndRedirect('signup-button', 'sign-up');
                 }
@@ -156,7 +156,9 @@
             ? button.dataset.fallbackUrl
             : 'https://accounts.classifast.com/' + action;
         setTimeout(function () {
-            window.location.href = fallbackUrl + '?redirect_url=' + encodeURIComponent(window.location.href);
+            const url = new URL(fallbackUrl);
+            url.searchParams.set('redirect_url', window.location.href);
+            window.location.href = url.toString();
         }, 2000);
     }
 </script>

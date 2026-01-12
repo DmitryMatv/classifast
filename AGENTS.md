@@ -41,6 +41,8 @@ This file provides guidance for agentic coding assistants working on the classif
 - Python 3.10+ union syntax: `str | None` instead of `Optional[str]`
 - Async/await patterns for all I/O operations (Redis, Qdrant, HTTP)
 - 4 spaces indentation
+- Use `@dataclass` for structured data models (e.g., `UsageStatus`)
+- External API calls: use Tenacity retry with `@retry(stop_after_attempt=3, wait_exponential(multiplier=4, min=4, max=10))`
 
 ### Naming Conventions
 
@@ -70,6 +72,7 @@ This file provides guidance for agentic coding assistants working on the classif
 - Decorate endpoints with `@router.get()` or `@app.get()`
 - Include docstrings with multi-line descriptions using triple quotes
 - Use Pydantic models for request/response validation
+- Pydantic models: use `Field()` for descriptions, e.g., `code: str = Field(..., description="Classification code")`
 - Return `JSONResponse` for complex responses, otherwise rely on FastAPI serialization
 
 ### Configuration & Constants
