@@ -34,6 +34,8 @@ def slugify(text: str) -> str:
         return ""
     # Sanitize input: limit length and remove harmful characters
     text = str(text)[:200]  # Limit to 200 chars max
+    # Normalize internal whitespace first (collapse multiple spaces/newlines into single space)
+    text = re.sub(r"\s+", " ", text)
     # Preserve periods, commas, apostrophes, and parentheses while removing other special characters
     text = re.sub(r"[^\w\s.,'()-]", "", text)
     text = re.sub(r"[-\s]+", "-", text)
@@ -132,7 +134,8 @@ async def get_classification_fragment(
 
     # Build the new URL early so we can set it before usage check
     # This ensures the URL updates even if user hits the paywall
-    normalized_description = product_description.strip()
+    # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
+    normalized_description = re.sub(r"\s+", " ", product_description).strip()
     upper_type = classifier_type.upper()
     slug = slugify(normalized_description.replace("/", " "))
     new_url = f"/{upper_type}"
@@ -193,7 +196,7 @@ async def get_classification_fragment(
             "results.html",
             {
                 "request": request,
-                "query": product_description,
+                "query": normalized_description,
                 "results_for_query": [],
             },
         )
@@ -234,12 +237,12 @@ async def get_classification_fragment(
             f"{classifier_type.upper()} codes for '{normalized_description.title()}'"
         )
 
-    # Render the results partial
+    # Render the results partial with normalized query
     response = templates.TemplateResponse(
         "results.html",
         {
             "request": request,
-            "query": product_description,
+            "query": normalized_description,
             "results_for_query": classification_results,
             "base_url": result["version_config"].get("base_url", ""),
             "tooltip": result["version_config"].get("tooltip", ""),
@@ -313,18 +316,15 @@ async def show_classifier_page_with_query(
     decoded_search_query = ""
     if search_query and search_query.strip():
         decoded_search_query = (
-            unquote_plus(search_query)
-            .rstrip("/")
-            .replace("/", " ")
-            .replace("-", " ")
-            .strip()
+            unquote_plus(search_query).rstrip("/").replace("/", " ").replace("-", " ")
         )
+        # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
+        decoded_search_query = re.sub(r"\s+", " ", decoded_search_query).strip()
         # Sanitize the decoded query
         # Relaxed sanitization: allow characters like apostrophes, but keep length limit
         if len(decoded_search_query) > 4000:
             decoded_search_query = decoded_search_query[:4000]
-
-        decoded_search_query = decoded_search_query.strip()
+            decoded_search_query = decoded_search_query.strip()
 
     # Build canonical URL
     # URL-encode slug to handle non-Latin characters in HTTP headers

@@ -75,6 +75,19 @@ This file provides guidance for agentic coding assistants working on the classif
 - Pydantic models: use `Field()` for descriptions, e.g., `code: str = Field(..., description="Classification code")`
 - Return `JSONResponse` for complex responses, otherwise rely on FastAPI serialization
 
+### Web Routes
+
+- Web routes serving HTML should support both GET and HEAD methods for CDN caching
+- Use `response_class=HTMLResponse` decorator parameter for HTML endpoints
+- Set Cloudflare-friendly cache headers on responses (see web.py)
+- Include canonical URLs and robots meta tags for SEO
+
+### HTTP Client
+
+- Use `httpx` for async HTTP requests to external services
+- Use httpx with `async with` context for proper connection management
+- Example: `async with httpx.AsyncClient() as client: response = await client.get(url)`
+
 ### Configuration & Constants
 
 - Load environment variables with `from dotenv import load_dotenv` at module level
@@ -94,7 +107,7 @@ This file provides guidance for agentic coding assistants working on the classif
 - Never log secrets, tokens, or sensitive headers
 - Use `hashlib.sha256` for IP hashing before storage
 - Sanitize all user input before processing (see `sanitize_query_text()`)
-- Verify JWT signatures before trusting claims (see `payments.py`)
+- Verify JWT signatures before trusting claims (see `payments.py` with PyJWKClient)
 - Set security headers in middleware (CSP, HSTS, X-Frame-Options)
 
 ### Redis Patterns
@@ -143,3 +156,4 @@ This file provides guidance for agentic coding assistants working on the classif
 - Request validation: check client availability first (`if not embed_client: raise HTTPException`), then sanitize input
 - Response formatting: extract payload from Qdrant results, format for API response with proper base URLs
 - Dual tracking: anonymous users tracked by both cookie AND IP hash to prevent quota bypass
+- SEO URLs: use `slugify()` function from web.py for URL-safe identifiers

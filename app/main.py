@@ -305,57 +305,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-# Subdomain redirect middleware
-class SubdomainRedirectMiddleware(BaseHTTPMiddleware):
-    SUBDOMAIN_REDIRECTS = {
-        "hs",
-        "unspsc",
-        "naics",
-        "cn",
-        "etim",
-        "isic",
-        "nace",
-        "cpv",
-        "nsn",
-        "hts",
-    }
-    ALLOWED_DOMAINS = {"classifast.com", "localhost"}  # Add your expected domains
-
-    async def dispatch(self, request: Request, call_next):
-        host = request.headers.get("host", "").lower()
-
-        if host:
-            # Strip port if present
-            host_without_port = host.split(":")[0]
-            parts = host_without_port.split(".")
-            if len(parts) >= 2:
-                subdomain = parts[0]
-
-                if subdomain in self.SUBDOMAIN_REDIRECTS:
-                    scheme = request.url.scheme
-                    domain = ".".join(parts[1:])
-
-                    # Validate domain against allowlist
-                    if domain not in self.ALLOWED_DOMAINS:
-                        return await call_next(request)
-
-                    path = request.url.path or ""
-                    redirect_url = f"{scheme}://{domain}/{subdomain}{path}"
-                    if request.url.query:
-                        redirect_url += f"?{request.url.query}"
-
-                    logger.info("Subdomain redirect: %s -> %s", host, redirect_url)
-                    response = Response(
-                        status_code=301, headers={"Location": redirect_url}
-                    )
-                    return response
-
-        return await call_next(request)
-
-
-app.add_middleware(SubdomainRedirectMiddleware)
-
-
 # Mount static files with caching
 class CachedStaticFiles(StaticFiles):
     def __init__(self, *args, **kwargs):

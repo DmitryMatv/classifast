@@ -36,13 +36,14 @@ Install dependencies:
 
 - **Health check**: `curl http://localhost:8001/health`
 - **RapidAPI health**: `curl http://localhost:8001/api/v1/rapid/ping`
-- **Test utilities** in `utilities/`:
+- **Test utilities** in `utilities/` (integration test scripts, not pytest):
   - `test_rapidapi.py`: Test RapidAPI endpoints
+  - `test_subscription_events.py`: Test payment/webhook flows
   - `test_embedding_ordering.py`: Validate embedding generation order
+  - `test_title_functionality.py`: Test classification result title handling
+  - `test_cloudflare_headers.py`: Test Cloudflare header handling
   - `check_match.py`: Verify classification accuracy for specific queries
   - `count_codes.py`: Analyze collection statistics
-  - `test_checkout_grace.py`: Test checkout grace period functionality
-  - `test_class_name_search.py`: Test exact text search matching
 
 ## Architecture Overview
 
@@ -110,3 +111,15 @@ For web routes: `check_usage()` → `perform_classification()` → `increment_us
 - **Caching strategy**: Static files 1hr browser/4hr CDN, Redis tier cache with 60s positive/10s negative TTL
 - **Input sanitization**: `sanitize_query_text()` validates length (2-4000 chars) and allowed Unicode characters
 - **Exact text search**: Uses Qdrant `MatchValue` for case-insensitive exact matching on code and name fields
+
+## Coding Conventions
+
+See `AGENTS.md` for detailed coding guidelines including:
+
+- Import order (stdlib → third-party → local)
+- Type hints with Python 3.10+ syntax (`str | None`)
+- Async/await patterns for all I/O
+- Naming conventions (PascalCase classes, snake_case functions, UPPER_SNAKE_CASE constants)
+- Logging patterns (JSON structured logging in production)
+- Error handling with HTTPException
+- External API retry patterns with Tenacity

@@ -51,6 +51,9 @@ def sanitize_query_text(query: str) -> str:
     # Remove trailing slashes
     query = query.rstrip("/")
 
+    # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
+    query = re.sub(r"\s+", " ", query)
+
     # Basic character validation - allow Unicode letters, numbers, spaces, and basic punctuation
     # This prevents obvious injection attempts while allowing normal product descriptions
     allowed_pattern = r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
@@ -60,7 +63,7 @@ def sanitize_query_text(query: str) -> str:
             detail="Query contains invalid characters. Please use standard text characters only.",
         )
 
-    return query
+    return query.strip()
 
 
 def sanitize_text_search_query(query: str) -> str:
