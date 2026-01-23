@@ -1,4 +1,4 @@
-/*! tailwindcss v4.1.17 | MIT License | https://tailwindcss.com */
+/*! tailwindcss v4.1.18 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -18,6 +18,7 @@
     --color-sky-50: oklch(97.7% 0.013 236.62);
     --color-sky-100: oklch(95.1% 0.026 236.824);
     --color-sky-200: oklch(90.1% 0.058 230.902);
+    --color-sky-300: oklch(82.8% 0.111 230.318);
     --color-sky-600: oklch(58.8% 0.158 241.966);
     --color-sky-700: oklch(50% 0.134 242.749);
     --color-sky-800: oklch(44.3% 0.11 240.79);
@@ -808,6 +809,15 @@
   .uppercase {
     text-transform: uppercase;
   }
+  .underline {
+    text-decoration-line: underline;
+  }
+  .decoration-sky-700 {
+    text-decoration-color: var(--color-sky-700);
+  }
+  .underline-offset-2 {
+    text-underline-offset: 2px;
+  }
   .opacity-25 {
     opacity: 25%;
   }
@@ -876,6 +886,13 @@
       }
     }
   }
+  .hover\:text-sky-300 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-sky-300);
+      }
+    }
+  }
   .hover\:text-sky-600 {
     &:hover {
       @media (hover: hover) {
@@ -887,6 +904,13 @@
     &:hover {
       @media (hover: hover) {
         color: var(--color-sky-700);
+      }
+    }
+  }
+  .hover\:text-sky-800 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-sky-800);
       }
     }
   }

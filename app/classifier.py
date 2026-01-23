@@ -165,8 +165,12 @@ async def perform_text_search(
     query_text: str,
 ) -> List[Dict[str, Any]]:
     """
-    Perform exact text-based search using MatchValue condition.
-    Searches original_id and class_name fields for exact full matches only.
+    Perform enhanced text-based search with exact and partial matching.
+
+    Priority order:
+    1. Exact ID matches (score: 0.999)
+    2. Exact NAME matches (score: 0.998)
+    3. Partial ID matches (score: 0.900, requires 4+ chars)
 
     Args:
         qdrant_client: The Qdrant client instance
@@ -174,58 +178,179 @@ async def perform_text_search(
         query_text: The search query (sanitized)
 
     Returns:
-        List of search results with 99.9% confidence scores (max 1 result)
+        List of search results with confidence scores (max 3 results)
     """
     start_time = time.time()
 
     try:
-        # Convert to lowercase for case-insensitive exact matching
         safe_query = sanitize_text_search_query(query_text).lower()
+        dotless_query = normalize_search_query(safe_query)
 
-        # Use MatchValue for exact string matching (not token/partial matching)
-        # Check if either original_id OR class_name exactly matches the query
-        filter_condition = models.Filter(
-            should=[
+        exact_id_results = []
+        exact_name_results = []
+        partial_ids = set()
+
+        # Stage 1: Exact ID match (highest priority)
+        id_filter = models.Filter(
+            must=[
                 models.FieldCondition(
                     key="original_id",
                     match=models.MatchValue(value=safe_query),
-                ),
-                models.FieldCondition(
-                    key="class_name",
-                    match=models.MatchValue(value=safe_query),
-                ),
+                )
             ]
         )
-
-        query_start = time.time()
-        # Always limit to 1 result for exact matching
         scroll_result = await qdrant_client.scroll(
             collection_name=collection_name,
-            scroll_filter=filter_condition,
-            limit=1,  # Force limit to 1 for exact matching
+            scroll_filter=id_filter,
+            limit=3,
             with_payload=True,
             with_vectors=False,
         )
+        exact_id_results = [
+            {"score": 0.999, "payload": point.payload, "id": point.id}
+            for point in scroll_result[0]
+        ]
+        partial_ids.update(r.get("id") for r in exact_id_results if r.get("id"))
 
-        points, _ = scroll_result
+        # Stage 2: Exact NAME match (second priority)
+        name_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="class_name",
+                    match=models.MatchValue(value=safe_query),
+                )
+            ]
+        )
+        scroll_result = await qdrant_client.scroll(
+            collection_name=collection_name,
+            scroll_filter=name_filter,
+            limit=3,
+            with_payload=True,
+            with_vectors=False,
+        )
+        exact_name_results = [
+            {"score": 0.998, "payload": point.payload, "id": point.id}
+            for point in scroll_result[0]
+        ]
+        partial_ids.update(r.get("id") for r in exact_name_results if r.get("id"))
 
-        query_duration = time.time() - query_start
+        partial_results = []
+
+        # Stage 3: Partial match on dotless_query (dots/dashes removed, zeros preserved)
+        # This handles queries like "73.12" -> "7312", which finds IDs containing "7312"
+        if len(dotless_query) >= 4:
+            partial_filter = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="original_id",
+                        match=models.MatchText(text=dotless_query),
+                    )
+                ]
+            )
+            scroll_result = await qdrant_client.scroll(
+                collection_name=collection_name,
+                scroll_filter=partial_filter,
+                limit=10,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for point in scroll_result[0]:
+                point_id = point.id
+                if point_id and point_id not in partial_ids:
+                    partial_results.append(
+                        {"score": 0.900, "payload": point.payload, "id": point_id}
+                    )
+                    partial_ids.add(point_id)
+
+        # Stage 4: Partial match with trailing zeros stripped
+        # Only do this for pure numeric queries with many trailing zeros (e.g., "13110000" -> "1311")
+        if dotless_query.isdigit() and len(dotless_query) >= 4:
+            stripped_query = strip_trailing_zeros(dotless_query)
+            if stripped_query != dotless_query and len(stripped_query) >= 4:
+                stripped_partial_filter = models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="original_id",
+                            match=models.MatchText(text=stripped_query),
+                        )
+                    ]
+                )
+                scroll_result = await qdrant_client.scroll(
+                    collection_name=collection_name,
+                    scroll_filter=stripped_partial_filter,
+                    limit=10,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                for point in scroll_result[0]:
+                    point_id = point.id
+                    if point_id and point_id not in partial_ids:
+                        partial_results.append(
+                            {"score": 0.900, "payload": point.payload, "id": point_id}
+                        )
+                        partial_ids.add(point_id)
+
+        query_duration = time.time() - start_time
         logger.debug(
-            "Qdrant exact text search: %.3fs, collection=%s, found=%d results",
+            "Qdrant enhanced text search: %.3fs, collection=%s, exact_id=%d, exact_name=%d, partial=%d",
             query_duration,
             collection_name,
-            len(points),
+            len(exact_id_results),
+            len(exact_name_results),
+            len(partial_results),
         )
 
-        return [
-            {"score": 0.999, "payload": point.payload, "id": point.id}
-            for point in points
-        ]
+        # Merge results in priority order and deduplicate
+        seen_ids = set()
+        merged_results = []
+
+        for result in exact_id_results + exact_name_results + partial_results:
+            result_id = result.get("id")
+            if result_id is not None and result_id not in seen_ids:
+                seen_ids.add(result_id)
+                merged_results.append(result)
+                if len(merged_results) >= 3:
+                    break
+
+        return merged_results
 
     except Exception as e:
         elapsed = time.time() - start_time
-        logger.warning("Exact text search failed: %s (%.3fs elapsed)", e, elapsed)
+        logger.warning("Enhanced text search failed: %s (%.3fs elapsed)", e, elapsed)
         return []
+
+
+def normalize_search_query(query: str) -> str:
+    """
+    Normalize query for text search by removing dots and dashes.
+    Does NOT strip trailing zeros.
+
+    Args:
+        query: Raw query string
+
+    Returns:
+        Normalized query string (dots and dashes removed)
+    """
+    # Remove dots and dashes only, preserve zeros
+    normalized = query.replace(".", "").replace("-", "")
+    return normalized
+
+
+def strip_trailing_zeros(query: str) -> str:
+    """
+    Strip trailing zeros from a numeric query.
+    Used for handling queries with extra trailing zeros (e.g., "13110000" -> "1311").
+
+    Args:
+        query: Numeric query string
+
+    Returns:
+        Query string with trailing zeros removed
+    """
+    stripped = query.rstrip("0")
+    if not stripped:
+        stripped = "0"
+    return stripped
 
 
 async def perform_semantic_search(

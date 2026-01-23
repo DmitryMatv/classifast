@@ -12,7 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
-from qdrant_client import AsyncQdrantClient
+from qdrant_client import AsyncQdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import api, payments, web
@@ -49,6 +49,52 @@ logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+
+async def ensure_text_search_indexes(
+    qdrant_client: AsyncQdrantClient,
+    collection_name: str,
+) -> None:
+    """
+    Ensure keyword payload indexes exist for text search fields.
+    Creates indexes for 'original_id' and 'class_name' fields if they don't exist.
+
+    These indexes significantly speed up exact text matching (scroll API with MatchValue filter)
+    on large collections by avoiding full collection scans.
+
+    Args:
+        qdrant_client: The Qdrant client instance
+        collection_name: The name of the collection to index
+    """
+    try:
+        fields_to_index = ["original_id", "class_name"]
+
+        for field_name in fields_to_index:
+            try:
+                await qdrant_client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name=field_name,
+                    field_schema=models.PayloadSchemaType.KEYWORD,
+                    wait=True,
+                )
+                logger.info(
+                    "Created payload index for field '%s' in collection '%s'",
+                    field_name,
+                    collection_name,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Could not create payload index for field '%s': %s",
+                    field_name,
+                    e,
+                )
+
+    except Exception as e:
+        logger.warning(
+            "Could not verify or create payload indexes for collection '%s': %s",
+            collection_name,
+            e,
+        )
 
 
 @asynccontextmanager
@@ -138,6 +184,9 @@ async def lifespan(app: FastAPI):
                 )
                 collection_quantization_cache[collection_name] = has_quantization
 
+                # Ensure text search indexes exist for optimal performance
+                await ensure_text_search_indexes(qdrant_client, collection_name)
+
     except Exception as e:
         logger.error("Error initializing Qdrant client: %s", e)
 
@@ -154,7 +203,7 @@ async def lifespan(app: FastAPI):
             socket_timeout=5,
             socket_connect_timeout=5,
         )
-        await redis_client.ping()
+        redis_client.ping()
         logger.info("Redis client initialized successfully.")
     except Exception as e:
         logger.warning("Redis not available, usage tracking disabled: %s", e)

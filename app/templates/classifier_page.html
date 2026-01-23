@@ -539,23 +539,24 @@
             <!-- Desktop Navigation -->
             <nav class="desktop-nav">
                 <ul class="flex space-x-6 items-center">
-                    <li><a href="{{ url_for('read_root') }}" class="text-gray-600 hover:text-sky-600 transition-colors"
+                    <li><a href="{{ url_for('read_root') }}"
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="Other Classification Standards">Home</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="UNSPSC Classification">UNSPSC</a></li>
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="UNSPSC Classification">UNSPSC</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="NAICS Classification">NAICS</a></li>
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="NAICS Classification">NAICS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="HS Classification">HS</a></li>
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="HS Classification">HS</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="CN Classification">CN</a></li>
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="CN Classification">CN</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
-                            class="text-gray-600 hover:text-sky-600 transition-colors" role="link"
-                            aria-label="HTS Classification">HTS</a></li>
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="HTS Classification">HTS</a></li>
                     <li id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></li>
                 </ul>
             </nav>
@@ -572,19 +573,19 @@
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">UNSPSC</a>
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">UNSPSC</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">NAICS</a>
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">NAICS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">HS</a>
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">HS</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">CN</a>
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">CN</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
-                        class="text-gray-600 hover:text-sky-600 transition-colors">HTS</a>
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">HTS</a>
                 </li>
                 <li id="mobile-auth-container"><!-- Clerk authentication will be mounted here --></li>
             </ul>
@@ -597,7 +598,8 @@
         <!-- Breadcrumb Navigation -->
         <nav class="mb-4" aria-label="Breadcrumb">
             <ol class="flex items-center text-gray-500">
-                <li><a href="{{ url_for('read_root') }}" class="hover:text-sky-600 transition-colors">Home</a></li>
+                <li><a href="{{ url_for('read_root') }}"
+                        class="hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Home</a></li>
                 <li class="flex items-center">
                     <span class="mx-2 text-gray-500">/</span>
                     <span class="text-gray-800">{{ title }}</span>
@@ -636,7 +638,7 @@
                 {% endif %}
             </div>
             <button id="description-toggle" type="button" aria-expanded="false"
-                class="bg-transparent text-sky-600 hover:text-sky-700 focus:outline-none"
+                class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none underline decoration-sky-700 underline-offset-2"
                 aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button">
             </button>
 
@@ -670,7 +672,7 @@
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Lookup code for product description"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
+                            class="cursor-pointer bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
                             🔍︎ Find category code
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
@@ -1185,7 +1187,8 @@
                 {% endif %}
             </p>
             <p class="text-sm text-gray-500 mt-2">
-                <span class="mr-4">✍️ By <a href="https://github.com/DmitryMatv" class="text-sky-600 hover:underline"
+                <span class="mr-4">✍️ By <a href="https://github.com/DmitryMatv"
+                        class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
                         rel="author">Dmitry Matv</a></span>
                 <span>📅 Last updated: {{ current_month_name }} {{ current_year }}</span>
             </p>
@@ -1200,8 +1203,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="UNSPSC Classification Tool">UNSPSC</a></h3>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="UNSPSC Classification Tool">UNSPSC</a></h3>
                     <p class="text-gray-600">Global product/service classification for procurement and supply chain
                         management.</p>
                 </article>
@@ -1211,8 +1214,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='ETIM') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="ETIM Classification Tool">ETIM</a></h3>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="ETIM Classification Tool">ETIM</a></h3>
                     <p class="text-gray-600">Technical product classification for electrical and building technology
                         sectors.</p>
                 </article>
@@ -1222,8 +1225,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="NAICS Classification Tool">NAICS</a></h3>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="NAICS Classification Tool">NAICS</a></h3>
                     <p class="text-gray-600">North American business classification for government contracting and
                         statistics.</p>
                 </article>
@@ -1233,8 +1236,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='ISIC') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="ISIC Classification Tool">ISIC</a></h3>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="ISIC Classification Tool">ISIC</a></h3>
                     <p class="text-gray-600">UN global standard for economic activity classification and international
                         statistics.</p>
                 </article>
@@ -1244,7 +1247,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
-                            class="text-sky-600 hover:underline" role="link" aria-label="HS Classification Tool">HS</a>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="HS Classification Tool">HS</a>
                     </h3>
                     <p class="text-gray-600">Harmonized System codes for international trade and customs classification.
                     </p>
@@ -1255,8 +1259,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="HTS Classification Tool">HTS</a>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="HTS Classification Tool">HTS</a>
                     </h3>
                     <p class="text-gray-600">Harmonized Tariff Schedule codes for US imports and customs classification.
                     </p>
@@ -1267,7 +1271,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
-                            class="text-sky-600 hover:underline" role="link" aria-label="CN Classification Tool">CN</a>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="CN Classification Tool">CN</a>
                     </h3>
                     <p class="text-gray-600">EU Combined Nomenclature for customs and trade within the European Union.
                     </p>
@@ -1278,8 +1283,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='NACE') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="NACE Classification Tool">NACE</a></h3>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="NACE Classification Tool">NACE</a></h3>
                     <p class="text-gray-600">EU statistical classification of economic activities for business
                         statistics.</p>
                 </article>
@@ -1289,8 +1294,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='CPV') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="CPV Classification Tool">CPV</a></h3>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="CPV Classification Tool">CPV</a></h3>
                     <p class="text-gray-600">Common Procurement Vocabulary for EU public procurement and tenders.</p>
                 </article>
                 {% endif %}
@@ -1299,8 +1304,8 @@
                 <article class="border border-gray-200 rounded p-3 shadow" role="article">
                     <h3 class="font-semibold text-gray-800 mb-2"><a
                             href="{{ url_for('show_classifier_page', classifier_type='NSN') }}"
-                            class="text-sky-600 hover:underline" role="link"
-                            aria-label="NSN Classification Tool">NSN</a></h3>
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="NSN Classification Tool">NSN</a></h3>
                     <p class="text-gray-600">NATO Stock Number classification for defense and military logistics.</p>
                 </article>
                 {% endif %}
@@ -1313,7 +1318,7 @@
             <div class="grid md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <p class="text-lg font-bold mb-4"><a href="{{ url_for('read_root') }}"
-                            class="hover:text-sky-600 transition-colors" role="link"
+                            class="hover:text-sky-300 transition-colors" role="link"
                             aria-label="Classifast Homepage">Classifast.com</a></p>
                     <p class="text-gray-400 mb-4">Instant category code search and classifier for UNSPSC, NAICS, HS, CN
                         and other classification standards.</p>
@@ -1373,7 +1378,8 @@
 
             <div class="border-t border-gray-800 mt-8 pt-8 text-center">
                 <p class="text-gray-400">
-                    <a href="https://github.com/DmitryMatv" class="hover:text-white">Dmitry Matv</a><br>
+                    <a href="https://github.com/DmitryMatv"
+                        class="hover:text-sky-300 hover:underline underline-offset-2">Dmitry Matv</a><br>
                     2025
                 </p>
             </div>
