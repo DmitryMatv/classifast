@@ -210,7 +210,9 @@ async def perform_text_search(
             {"score": 0.999, "payload": point.payload, "id": point.id}
             for point in scroll_result[0]
         ]
-        partial_ids.update(r.get("id") for r in exact_id_results if r.get("id"))
+        partial_ids.update(
+            r.get("id") for r in exact_id_results if r.get("id") is not None
+        )
 
         # Stage 2: Exact NAME match (second priority)
         name_filter = models.Filter(

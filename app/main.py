@@ -66,35 +66,27 @@ async def ensure_text_search_indexes(
         qdrant_client: The Qdrant client instance
         collection_name: The name of the collection to index
     """
-    try:
-        fields_to_index = ["original_id", "class_name"]
+    fields_to_index = ["original_id", "class_name"]
 
-        for field_name in fields_to_index:
-            try:
-                await qdrant_client.create_payload_index(
-                    collection_name=collection_name,
-                    field_name=field_name,
-                    field_schema=models.PayloadSchemaType.KEYWORD,
-                    wait=True,
-                )
-                logger.info(
-                    "Created payload index for field '%s' in collection '%s'",
-                    field_name,
-                    collection_name,
-                )
-            except Exception as e:
-                logger.warning(
-                    "Could not create payload index for field '%s': %s",
-                    field_name,
-                    e,
-                )
-
-    except Exception as e:
-        logger.warning(
-            "Could not verify or create payload indexes for collection '%s': %s",
-            collection_name,
-            e,
-        )
+    for field_name in fields_to_index:
+        try:
+            await qdrant_client.create_payload_index(
+                collection_name=collection_name,
+                field_name=field_name,
+                field_schema=models.PayloadSchemaType.KEYWORD,
+                wait=True,
+            )
+            logger.info(
+                "Created payload index for field '%s' in collection '%s'",
+                field_name,
+                collection_name,
+            )
+        except Exception as e:
+            logger.warning(
+                "Could not create payload index for field '%s': %s",
+                field_name,
+                e,
+            )
 
 
 @asynccontextmanager
@@ -203,7 +195,7 @@ async def lifespan(app: FastAPI):
             socket_timeout=5,
             socket_connect_timeout=5,
         )
-        redis_client.ping()
+        await redis_client.ping()
         logger.info("Redis client initialized successfully.")
     except Exception as e:
         logger.warning("Redis not available, usage tracking disabled: %s", e)
