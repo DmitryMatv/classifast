@@ -266,7 +266,9 @@ async def perform_text_search(
                 original_id_value = (
                     point.payload.get("original_id", "") if point.payload else ""
                 )
-                original_id_normalized = original_id_value.lower()
+                original_id_normalized = normalize_search_query(
+                    original_id_value.lower()
+                )
                 if (
                     point_id
                     and point_id not in partial_ids
@@ -305,7 +307,9 @@ async def perform_text_search(
                     original_id_value = (
                         point.payload.get("original_id", "") if point.payload else ""
                     )
-                    original_id_normalized = original_id_value.lower()
+                    original_id_normalized = normalize_search_query(
+                        original_id_value.lower()
+                    )
                     if (
                         point_id
                         and point_id not in partial_ids
