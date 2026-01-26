@@ -76,8 +76,8 @@ def sanitize_text_search_query(query: str) -> str:
     Returns:
         Sanitized query for text search
     """
-    # For text search, be more restrictive - mainly alphanumeric and basic symbols
-    query = re.sub(r"[^\w\s\-\.\,\:\;\/\\\(\)\[\]]+", " ", query)
+    # Preserve more characters for class name matching (alphanumeric + basic punctuation)
+    query = re.sub(r"[^\w\s\-\.\,\:\;\(\)\{\}\[\]\/\'\"\&\%\#\+\=\!\@]+", " ", query)
     return re.sub(r"\s+", " ", query).strip()
 
 
@@ -169,8 +169,9 @@ async def perform_text_search(
 
     Priority order:
     1. Exact ID matches (score: 0.999)
-    2. Exact NAME matches (score: 0.998)
-    3. Partial ID matches (score: 0.900, requires 4+ chars)
+    2. Exact NAME matches (score: 0.980)
+    3. Partial ID matches (score: 0.950, requires 3+ chars)
+    4. Partial ID matches with trailing zeros stripped (score: 0.900, requires 3+ chars)
 
     Args:
         qdrant_client: The Qdrant client instance
@@ -202,7 +203,7 @@ async def perform_text_search(
         scroll_result = await qdrant_client.scroll(
             collection_name=collection_name,
             scroll_filter=id_filter,
-            limit=3,
+            limit=3,  # Limit to 3 exact ID matches in case of duplicates
             with_payload=True,
             with_vectors=False,
         )
@@ -214,25 +215,29 @@ async def perform_text_search(
             r.get("id") for r in exact_id_results if r.get("id") is not None
         )
 
-        # Stage 2: Exact NAME match (second priority)
+        # Stage 2: Exact NAME match (second priority, case-insensitive)
+        # Use MatchText to find candidates, then filter for exact match
         name_filter = models.Filter(
             must=[
                 models.FieldCondition(
                     key="class_name",
-                    match=models.MatchValue(value=safe_query),
+                    match=models.MatchText(text=safe_query),
                 )
             ]
         )
         scroll_result = await qdrant_client.scroll(
             collection_name=collection_name,
             scroll_filter=name_filter,
-            limit=3,
+            limit=3,  # Limit to 3 exact NAME matches in case of duplicates
             with_payload=True,
             with_vectors=False,
         )
+        # Post-query filter for exact match (case-insensitive)
         exact_name_results = [
-            {"score": 0.998, "payload": point.payload, "id": point.id}
+            {"score": 0.980, "payload": point.payload, "id": point.id}
             for point in scroll_result[0]
+            if point.payload
+            and point.payload.get("class_name", "").lower() == safe_query
         ]
         partial_ids.update(r.get("id") for r in exact_name_results if r.get("id"))
 
@@ -271,7 +276,7 @@ async def perform_text_search(
                     )
                 ):
                     partial_results.append(
-                        {"score": 0.900, "payload": point.payload, "id": point_id}
+                        {"score": 0.950, "payload": point.payload, "id": point_id}
                     )
                     partial_ids.add(point_id)
 
@@ -300,12 +305,13 @@ async def perform_text_search(
                     original_id_value = (
                         point.payload.get("original_id", "") if point.payload else ""
                     )
+                    original_id_normalized = original_id_value.lower()
                     if (
                         point_id
                         and point_id not in partial_ids
                         and (
-                            original_id_value.startswith(stripped_query)
-                            or original_id_value.endswith(stripped_query)
+                            original_id_normalized.startswith(stripped_query)
+                            or original_id_normalized.endswith(stripped_query)
                         )
                     ):
                         partial_results.append(
@@ -332,8 +338,6 @@ async def perform_text_search(
             if result_id is not None and result_id not in seen_ids:
                 seen_ids.add(result_id)
                 merged_results.append(result)
-                if len(merged_results) >= 3:
-                    break
 
         return merged_results
 
