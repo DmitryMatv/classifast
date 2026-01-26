@@ -228,7 +228,7 @@ async def perform_text_search(
         scroll_result = await qdrant_client.scroll(
             collection_name=collection_name,
             scroll_filter=name_filter,
-            limit=3,  # Limit to 3 exact NAME matches in case of duplicates
+            limit=30,  # Fetch more to filter down to exact matches
             with_payload=True,
             with_vectors=False,
         )
