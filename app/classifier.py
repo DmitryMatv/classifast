@@ -239,8 +239,8 @@ async def perform_text_search(
         partial_results = []
 
         # Stage 3: Partial match on dotless_query (dots/dashes removed, zeros preserved)
-        # This handles queries like "73.12" -> "7312", which finds IDs containing "7312"
-        if len(dotless_query) >= 4:
+        # This handles queries like "73.12" -> "7312", which finds IDs starting with or ending with "7312"
+        if len(dotless_query) >= 3:
             partial_filter = models.Filter(
                 must=[
                     models.FieldCondition(
@@ -252,13 +252,24 @@ async def perform_text_search(
             scroll_result = await qdrant_client.scroll(
                 collection_name=collection_name,
                 scroll_filter=partial_filter,
-                limit=10,
+                limit=100,
                 with_payload=True,
                 with_vectors=False,
             )
             for point in scroll_result[0]:
                 point_id = point.id
-                if point_id and point_id not in partial_ids:
+                original_id_value = (
+                    point.payload.get("original_id", "") if point.payload else ""
+                )
+                original_id_normalized = original_id_value.lower()
+                if (
+                    point_id
+                    and point_id not in partial_ids
+                    and (
+                        original_id_normalized.startswith(dotless_query)
+                        or original_id_normalized.endswith(dotless_query)
+                    )
+                ):
                     partial_results.append(
                         {"score": 0.900, "payload": point.payload, "id": point_id}
                     )
@@ -266,9 +277,9 @@ async def perform_text_search(
 
         # Stage 4: Partial match with trailing zeros stripped
         # Only do this for pure numeric queries with many trailing zeros (e.g., "13110000" -> "1311")
-        if dotless_query.isdigit() and len(dotless_query) >= 4:
+        if dotless_query.isdigit() and len(dotless_query) >= 3:
             stripped_query = strip_trailing_zeros(dotless_query)
-            if stripped_query != dotless_query and len(stripped_query) >= 4:
+            if stripped_query != dotless_query and len(stripped_query) >= 3:
                 stripped_partial_filter = models.Filter(
                     must=[
                         models.FieldCondition(
@@ -280,13 +291,23 @@ async def perform_text_search(
                 scroll_result = await qdrant_client.scroll(
                     collection_name=collection_name,
                     scroll_filter=stripped_partial_filter,
-                    limit=10,
+                    limit=100,
                     with_payload=True,
                     with_vectors=False,
                 )
                 for point in scroll_result[0]:
                     point_id = point.id
-                    if point_id and point_id not in partial_ids:
+                    original_id_value = (
+                        point.payload.get("original_id", "") if point.payload else ""
+                    )
+                    if (
+                        point_id
+                        and point_id not in partial_ids
+                        and (
+                            original_id_value.startswith(stripped_query)
+                            or original_id_value.endswith(stripped_query)
+                        )
+                    ):
                         partial_results.append(
                             {"score": 0.900, "payload": point.payload, "id": point_id}
                         )
@@ -379,10 +400,10 @@ async def perform_semantic_search(
 
     try:
         # Prepare search parameters
-        internal_top_k = 100 if has_quantization else top_k
+        internal_top_k = 50 if has_quantization else top_k
 
         search_params = models.SearchParams(
-            hnsw_ef=256,
+            hnsw_ef=128,
             exact=False,
         )
 
@@ -391,7 +412,7 @@ async def perform_semantic_search(
             search_params.quantization = models.QuantizationSearchParams(
                 ignore=False,
                 rescore=True,
-                oversampling=3.0,
+                oversampling=2.0,
             )
 
         query_start = time.time()
