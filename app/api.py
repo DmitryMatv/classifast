@@ -98,6 +98,9 @@ async def rapid_classify(
     start_time = time.perf_counter()
 
     try:
+        quantization_cache = getattr(
+            request.app.state, "collection_quantization_cache", {}
+        )
         # Use shared classification service
         result = await perform_classification(
             embed_client=request.app.state.embed_client,
@@ -106,6 +109,7 @@ async def rapid_classify(
             classifier_type=standard,
             version=version,
             top_k=top_k or 1,
+            quantization_cache=quantization_cache,
         )
 
         classification_results = result["results"]

@@ -170,8 +170,8 @@ async def perform_text_search(
     Priority order:
     1. Exact ID matches (score: 0.999)
     2. Exact NAME matches (score: 0.980)
-    3. Partial ID matches (score: 0.950, requires 3+ chars)
-    4. Partial ID matches with trailing zeros stripped (score: 0.900, requires 3+ chars)
+    3. Partial ID matches (score: 0.900, requires 3+ chars)
+    4. Partial ID matches with trailing zeros stripped (score: 0.950, requires 3+ chars)
 
     Args:
         qdrant_client: The Qdrant client instance
@@ -184,7 +184,7 @@ async def perform_text_search(
     start_time = time.time()
 
     try:
-        safe_query = sanitize_text_search_query(query_text).lower()
+        safe_query = sanitize_text_search_query(query_text)  # .lower()
         dotless_query = normalize_search_query(safe_query)
 
         exact_id_results = []
@@ -216,7 +216,7 @@ async def perform_text_search(
         )
 
         # Stage 2: Exact NAME match (second priority, case-insensitive)
-        # Use MatchText to find candidates, then filter for exact match
+        # Use MatchText with proper indexing for case-insensitive matching
         name_filter = models.Filter(
             must=[
                 models.FieldCondition(
@@ -225,20 +225,24 @@ async def perform_text_search(
                 )
             ]
         )
-        scroll_result = await qdrant_client.scroll(
-            collection_name=collection_name,
-            scroll_filter=name_filter,
-            limit=30,  # Fetch more to filter down to exact matches
-            with_payload=True,
-            with_vectors=False,
-        )
-        # Post-query filter for exact match (case-insensitive)
-        exact_name_results = [
-            {"score": 0.980, "payload": point.payload, "id": point.id}
-            for point in scroll_result[0]
-            if point.payload
-            and point.payload.get("class_name", "").lower() == safe_query
-        ]
+        try:
+            scroll_result = await qdrant_client.scroll(
+                collection_name=collection_name,
+                scroll_filter=name_filter,
+                limit=30,
+                with_payload=True,
+                with_vectors=False,
+            )
+        except Exception as e:
+            logger.warning(f"class_name MatchText query failed: {e}")
+            scroll_result = ([], None)
+        exact_name_results = []
+        if scroll_result and len(scroll_result) > 0 and scroll_result[0]:
+            exact_name_results = [
+                {"score": 0.980, "payload": point.payload, "id": point.id}
+                for point in scroll_result[0]
+                if point.payload
+            ]
         partial_ids.update(r.get("id") for r in exact_name_results if r.get("id"))
 
         partial_results = []
@@ -278,7 +282,7 @@ async def perform_text_search(
                     )
                 ):
                     partial_results.append(
-                        {"score": 0.950, "payload": point.payload, "id": point_id}
+                        {"score": 0.900, "payload": point.payload, "id": point_id}
                     )
                     partial_ids.add(point_id)
 
@@ -319,7 +323,7 @@ async def perform_text_search(
                         )
                     ):
                         partial_results.append(
-                            {"score": 0.900, "payload": point.payload, "id": point_id}
+                            {"score": 0.950, "payload": point.payload, "id": point_id}
                         )
                         partial_ids.add(point_id)
 
@@ -411,7 +415,7 @@ async def perform_semantic_search(
         internal_top_k = 50 if has_quantization else top_k
 
         search_params = models.SearchParams(
-            hnsw_ef=128,
+            hnsw_ef=256,
             exact=False,
         )
 
@@ -579,27 +583,6 @@ async def validate_and_prepare_classification(
     }
 
 
-async def check_collection_quantization(
-    qdrant_client: AsyncQdrantClient,
-    collection_name: str,
-) -> bool:
-    """
-    Check if a collection has quantization enabled.
-
-    Args:
-        qdrant_client: The Qdrant client instance
-        collection_name: The name of the collection to check
-
-    Returns:
-        True if quantization is enabled, False otherwise
-    """
-    try:
-        collection_info = await qdrant_client.get_collection(collection_name)
-        return collection_info.config.quantization_config is not None
-    except Exception:
-        return False
-
-
 async def perform_classification(
     embed_client: genai.Client,
     qdrant_client: AsyncQdrantClient,
@@ -607,6 +590,7 @@ async def perform_classification(
     classifier_type: str,
     version: Optional[str] = None,
     top_k: int = 3,
+    quantization_cache: Optional[Dict[str, bool]] = None,
 ) -> Dict[str, Any]:
     """
     Classify a single query using hybrid search (text + semantic).
@@ -618,6 +602,7 @@ async def perform_classification(
         classifier_type: The classification standard (e.g., 'unspsc', 'etim')
         version: Optional specific version to use
         top_k: Number of results to return
+        quantization_cache: Optional cache mapping collection names to quantization status
 
     Returns:
         Dict containing classification results and metadata
@@ -661,10 +646,10 @@ async def perform_classification(
     )
 
     try:
-        # Check collection quantization
-        has_quantization = await check_collection_quantization(
-            qdrant_client, collection_name
-        )
+        # Check collection quantization from cache (populated at startup)
+        has_quantization = False
+        if quantization_cache:
+            has_quantization = quantization_cache.get(collection_name, False)
 
         # Generate embedding for the query
         query_embedding = await get_embedding(
