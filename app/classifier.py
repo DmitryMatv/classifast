@@ -238,11 +238,13 @@ async def perform_text_search(
             scroll_result = ([], None)
         exact_name_results = []
         if scroll_result and len(scroll_result) > 0 and scroll_result[0]:
-            exact_name_results = [
-                {"score": 0.980, "payload": point.payload, "id": point.id}
-                for point in scroll_result[0]
-                if point.payload
-            ]
+            for point in scroll_result[0]:
+                if point.payload:
+                    class_name = point.payload.get("class_name", "")
+                    if class_name.lower() == safe_query.lower():
+                        exact_name_results.append(
+                            {"score": 0.980, "payload": point.payload, "id": point.id}
+                        )
         partial_ids.update(r.get("id") for r in exact_name_results if r.get("id"))
 
         partial_results = []
