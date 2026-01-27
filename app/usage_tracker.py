@@ -28,8 +28,8 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 TRACKING_COOKIE_NAME = "cf_track"
 TRACKING_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year
 USAGE_TTL = 30 * 24 * 60 * 60  # 30 days
-TIER_CACHE_TTL = 60  # Cache user tier for 60 seconds
-NEGATIVE_TIER_CACHE_TTL = 10  # Cache negative results for 10 seconds
+TIER_CACHE_TTL = 600  # Cache user tier for 10 minutes
+NEGATIVE_TIER_CACHE_TTL = 60  # Cache failed lookups for 1 minute
 GRACE_PERIOD_TTL = 300  # 5 minutes - grace period for checkout completion
 
 
@@ -219,25 +219,17 @@ async def fetch_clerk_user_tier(user_id: str) -> str | None:
                 return data.get("public_metadata", {}).get("tier")
     except (httpx.HTTPError, ValueError, KeyError) as e:
         elapsed = time.time() - start_time
-        logger.warning(
-            f"Failed to fetch tier from Clerk API: {e} ({elapsed:.3f}s elapsed)"
-        )
+        logger.warning(f"Failed to fetch tier from Clerk API: {e} ({elapsed:.3f}s)")
     except Exception as e:  # Fallback for unexpected errors
         elapsed = time.time() - start_time
-        logger.error(
-            f"Unexpected error fetching tier from Clerk API: {e} ({elapsed:.3f}s elapsed)"
-        )
+        logger.error(f"Unexpected error fetching tier from Clerk: {e} ({elapsed:.3f}s)")
     return None
 
 
 async def get_cached_user_tier(
     user_id: str, redis_client: redis.Redis | None
 ) -> str | None:
-    """Get user tier with Redis caching to avoid hitting Clerk API on every request.
-
-    Caches both positive results (60s) and negative results/errors (10s) to prevent
-    API hammering during outages or when tier is not set.
-    """
+    """Get user tier with Redis caching to avoid hitting Clerk API on every request."""
     start_time = time.time()
 
     if not user_id:
@@ -248,16 +240,11 @@ async def get_cached_user_tier(
     # Try cache first
     if redis_client:
         try:
-            cache_start = time.time()
             cached = await redis_client.get(cache_key)
-            cache_duration = time.time() - cache_start
             if cached:
                 cached_value = cached.decode() if isinstance(cached, bytes) else cached
                 logger.debug(
-                    "Redis tier cache hit: %.3fs, user_id=%s, tier=%s",
-                    cache_duration,
-                    user_id,
-                    cached_value,
+                    "Tier cache hit: user_id=%s, tier=%s", user_id, cached_value
                 )
                 # Check for negative result sentinel
                 return None if cached_value == "none" else cached_value
@@ -267,26 +254,21 @@ async def get_cached_user_tier(
     # Cache miss - fetch from Clerk API
     tier = await fetch_clerk_user_tier(user_id)
 
-    # Store in cache (including None with shorter TTL to prevent repeated API calls)
+    # Store in cache (including None to prevent hammering API)
     if redis_client:
         try:
-            cache_set_start = time.time()
             if tier:
-                # Positive result: cache for full TTL
                 await redis_client.setex(cache_key, TIER_CACHE_TTL, tier)
                 logger.debug(
-                    "Redis tier cache set (positive): %.3fs, user_id=%s, tier=%s, ttl=%d",
-                    time.time() - cache_set_start,
+                    "Tier cache set: user_id=%s, tier=%s, ttl=%d",
                     user_id,
                     tier,
                     TIER_CACHE_TTL,
                 )
             else:
-                # Negative result: cache "none" sentinel for shorter TTL
                 await redis_client.setex(cache_key, NEGATIVE_TIER_CACHE_TTL, "none")
                 logger.debug(
-                    "Redis tier cache set (negative): %.3fs, user_id=%s, ttl=%d",
-                    time.time() - cache_set_start,
+                    "Tier cache set (negative): user_id=%s, ttl=%d",
                     user_id,
                     NEGATIVE_TIER_CACHE_TTL,
                 )
@@ -295,10 +277,7 @@ async def get_cached_user_tier(
 
     total_elapsed = time.time() - start_time
     logger.info(
-        "User tier check completed: %.3fs total, user_id=%s, tier=%s",
-        total_elapsed,
-        user_id,
-        tier,
+        "Tier check completed: %.3fs, user_id=%s, tier=%s", total_elapsed, user_id, tier
     )
     return tier
 
