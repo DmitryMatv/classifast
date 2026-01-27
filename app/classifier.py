@@ -216,13 +216,11 @@ async def perform_text_search(
         )
 
         # Stage 2: Exact NAME match (second priority, case-insensitive)
-        # Use MatchText with proper indexing for case-insensitive matching
+        # Use IsEmptyCondition with must_not to get all records with class_name,
+        # then filter case-insensitively in Python
         name_filter = models.Filter(
-            must=[
-                models.FieldCondition(
-                    key="class_name",
-                    match=models.MatchText(text=safe_query),
-                )
+            must_not=[
+                models.IsEmptyCondition(is_empty=models.PayloadField(key="class_name"))
             ]
         )
         try:
@@ -234,7 +232,7 @@ async def perform_text_search(
                 with_vectors=False,
             )
         except Exception as e:
-            logger.warning(f"class_name MatchText query failed: {e}")
+            logger.warning("class_name query failed: %s", e)
             scroll_result = ([], None)
         exact_name_results = []
         if scroll_result and len(scroll_result) > 0 and scroll_result[0]:
