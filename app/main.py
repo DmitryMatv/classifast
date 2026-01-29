@@ -486,11 +486,3 @@ async def health_check(request: Request):
 app.include_router(api.router, prefix="/api/v1/rapid", tags=["rapidapi"])
 app.include_router(payments.router, prefix="/api", tags=["payments"])
 app.include_router(web.router)
-
-
-"""
-npm install tailwindcss @tailwindcss/cli
-npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css
-uvicorn app.main:app --reload --port 8001
-pkill -f "uvicorn"
-"""

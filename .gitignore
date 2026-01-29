@@ -1,7 +1,5 @@
 # Node.js packages and dependencies
 node_modules/
-package-lock.json
-package.json
 
 # Qdrant "training"
 data/

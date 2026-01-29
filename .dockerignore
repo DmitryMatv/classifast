@@ -5,8 +5,6 @@
 
 # Node.js packages and dependencies
 node_modules/
-package-lock.json
-package.json
 
 # Data files (not needed in container)
 data/

@@ -1,0 +1,21 @@
+{
+  "name": "classifast",
+  "module": "src/common.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "bun build src/common.ts --outdir app/static/js && bun run build:css",
+    "build:css": "bunx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css",
+    "watch": "bun build src/common.ts --outdir app/static/js --watch",
+    "watch:css": "bunx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch",
+    "typecheck": "tsc --noEmit",
+    "dev": "bun run watch:css & bun run watch & uvicorn app.main:app --reload --port 8001"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.18",
+    "@types/bun": "^1.3.7",
+    "@types/web": "^0.0.323",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
+  }
+}

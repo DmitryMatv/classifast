@@ -415,7 +415,7 @@ async def perform_semantic_search(
         internal_top_k = 50 if has_quantization else top_k
 
         search_params = models.SearchParams(
-            hnsw_ef=256,
+            hnsw_ef=128,  # Default is 128, higher ef improves recall
             exact=False,
         )
 
