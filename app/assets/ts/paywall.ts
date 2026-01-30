@@ -32,7 +32,10 @@ class PaywallManager {
   private setupRetryButton(): void {
     const retryButton = document.getElementById("retry-button");
     if (retryButton) {
-      retryButton.addEventListener("click", () =>
+      // Remove existing listener to prevent duplicates on re-initialization
+      const newRetryButton = retryButton.cloneNode(true) as HTMLElement;
+      retryButton.parentNode?.replaceChild(newRetryButton, retryButton);
+      newRetryButton.addEventListener("click", () =>
         this.submitClassificationForm(),
       );
     }
@@ -53,7 +56,7 @@ class PaywallManager {
     this.wasSignedIn = !!(window.Clerk && window.Clerk.user);
 
     if (window.Clerk?.addListener) {
-      const unsubscribe = window.Clerk.addListener((resources) => {
+      window.Clerk.addListener((resources) => {
         // Only auto-retry when user transitions from signed-out to signed-in
         if (resources.user && !this.wasSignedIn) {
           this.wasSignedIn = true; // Prevent repeated submissions on token refresh
@@ -78,12 +81,15 @@ class PaywallManager {
     const signupButton = document.getElementById("signup-button");
 
     if (signinButton) {
-      signinButton.addEventListener("click", (e) => {
+      // Remove existing listener to prevent duplicates
+      const newSigninButton = signinButton.cloneNode(true) as HTMLElement;
+      signinButton.parentNode?.replaceChild(newSigninButton, signinButton);
+      newSigninButton.addEventListener("click", (e) => {
         e.preventDefault();
         if (window.Clerk?.openSignIn) {
           window.Clerk.openSignIn({ redirectUrl: window.location.href });
         } else {
-          const fallbackUrl = signinButton.dataset.fallbackUrl;
+          const fallbackUrl = newSigninButton.dataset.fallbackUrl;
           ClerkHelpers.showAuthErrorAndRedirect(
             "paywall-buttons",
             "sign-in",
@@ -94,12 +100,15 @@ class PaywallManager {
     }
 
     if (signupButton) {
-      signupButton.addEventListener("click", (e) => {
+      // Remove existing listener to prevent duplicates
+      const newSignupButton = signupButton.cloneNode(true) as HTMLElement;
+      signupButton.parentNode?.replaceChild(newSignupButton, signupButton);
+      newSignupButton.addEventListener("click", (e) => {
         e.preventDefault();
         if (window.Clerk?.openSignUp) {
           window.Clerk.openSignUp({ redirectUrl: window.location.href });
         } else {
-          const fallbackUrl = signupButton.dataset.fallbackUrl;
+          const fallbackUrl = newSignupButton.dataset.fallbackUrl;
           ClerkHelpers.showAuthErrorAndRedirect(
             "paywall-buttons",
             "sign-up",
@@ -115,6 +124,8 @@ class PaywallManager {
  * Checkout manager for Pro upgrade flow
  */
 class CheckoutManager {
+  private button: HTMLButtonElement | null = null;
+
   constructor() {
     this.init();
   }
@@ -127,9 +138,14 @@ class CheckoutManager {
     const upgradeButton = document.getElementById("upgrade-button");
     if (!upgradeButton) return;
 
-    upgradeButton.addEventListener("click", async (e) => {
+    // Remove existing listener to prevent duplicates on re-initialization
+    const newUpgradeButton = upgradeButton.cloneNode(true) as HTMLButtonElement;
+    upgradeButton.parentNode?.replaceChild(newUpgradeButton, upgradeButton);
+    this.button = newUpgradeButton;
+
+    newUpgradeButton.addEventListener("click", async (e) => {
       e.preventDefault();
-      await this.handleUpgrade(upgradeButton as HTMLButtonElement);
+      await this.handleUpgrade(newUpgradeButton);
     });
   }
 
@@ -221,6 +237,21 @@ class CheckoutManager {
 
 // Initialize paywall functionality when DOM is ready
 function initPaywall(): void {
+  // Guard: Prevent duplicate initialization
+  if (window.__paywallInitialized) {
+    return;
+  }
+  window.__paywallInitialized = true;
+
+  // Check if paywall content exists
+  const paywallWarning = document.getElementById("paywall-warning");
+  const paywallButtons = document.getElementById("paywall-buttons");
+
+  // Only initialize if paywall elements exist in the DOM
+  if (!paywallWarning || !paywallButtons) {
+    return;
+  }
+
   // Always initialize the paywall manager (handles retry + auth transitions)
   new PaywallManager();
 
@@ -231,15 +262,23 @@ function initPaywall(): void {
   }
 }
 
-// Prevent duplicate initialization across DOMContentLoaded and immediate execution
-if (!window.__paywallInitialized) {
-  window.__paywallInitialized = true;
+// Initialize on DOMContentLoaded (first page load)
+document.addEventListener("DOMContentLoaded", () => {
+  initPaywall();
+});
 
-  if (document.readyState === "loading") {
-    // DOM not ready yet, wait for it
-    document.addEventListener("DOMContentLoaded", initPaywall);
-  } else {
-    // DOM already ready, initialize immediately with small delay for HTMX swaps
+// Initialize on HTMX afterSwap (when paywall is swapped into results-container)
+document.body.addEventListener("htmx:afterSwap", (evt: Event) => {
+  const htmxEvent = evt as HtmxAfterSwapEvent;
+  // Only initialize if the results-container was updated
+  if (htmxEvent.detail.target.id === "results-container") {
+    // Small delay to ensure DOM is updated
     setTimeout(initPaywall, 0);
   }
+});
+
+// Also try to initialize immediately in case DOM is already ready
+// and this script loaded after HTMX swapped content
+if (document.readyState !== "loading") {
+  setTimeout(initPaywall, 0);
 }

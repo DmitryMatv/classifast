@@ -1392,6 +1392,9 @@
     <!-- Classifier page specific functionality (global script, compiled from TypeScript) -->
     <script src="{{ url_for('static', path='/js/classifier.js') }}"></script>
 
+    <!-- Paywall functionality (loaded once, handles HTMX-swapped paywall content) -->
+    <script src="{{ url_for('static', path='/js/paywall.js') }}"></script>
+
     <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_live_Y2xlcmsuY2xhc3NpZmFzdC5jb20k"
         src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js" type="text/javascript">
