@@ -390,6 +390,43 @@ class CachedStaticFiles(StaticFiles):
         return response
 
 
+# Explicit routes for static JS files (must be before StaticFiles mount)
+@app.get("/static/js/htmx.min.js", response_class=FileResponse)
+async def htmx_js():
+    response = FileResponse("app/static/js/htmx.min.js")
+    response.headers["Cache-Control"] = (
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
+    )
+    return response
+
+
+@app.get("/static/js/classifier.js", response_class=FileResponse)
+async def classifier_js():
+    response = FileResponse("app/static/js/classifier.js")
+    response.headers["Cache-Control"] = (
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
+    )
+    return response
+
+
+@app.get("/static/js/paywall.js", response_class=FileResponse)
+async def paywall_js():
+    response = FileResponse("app/static/js/paywall.js")
+    response.headers["Cache-Control"] = (
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
+    )
+    return response
+
+
+@app.get("/static/js/common.js", response_class=FileResponse)
+async def common_js():
+    response = FileResponse("app/static/js/common.js")
+    response.headers["Cache-Control"] = (
+        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
+    )
+    return response
+
+
 app.mount("/static", CachedStaticFiles(directory="app/static"), name="static")
 
 
@@ -432,15 +469,6 @@ async def llms_txt():
 @app.get("/static/css/styles.css", response_class=FileResponse)
 async def styles_css():
     response = FileResponse("app/static/css/styles.css")
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
-
-
-@app.get("/static/js/htmx.min.js", response_class=FileResponse)
-async def htmx_js():
-    response = FileResponse("app/static/js/htmx.min.js")
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )

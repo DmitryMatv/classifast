@@ -147,6 +147,11 @@ class CheckoutManager {
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const token = await window.Clerk.session.getToken();
+      if (!token) {
+        console.error("Failed to get auth token");
+        this.showErrorState(button);
+        return;
+      }
       const response = await fetch("/api/create-checkout", {
         method: "POST",
         headers: {
@@ -201,11 +206,7 @@ class CheckoutManager {
       console.error("Upgrade failed:", err);
     }
 
-    button.innerHTML = `
-      <svg class="w-4 h-4 mr-2 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-      </svg>Error - Try again
-    `;
+    this.showErrorState(button);
 
     setTimeout(() => {
       button.disabled = false;

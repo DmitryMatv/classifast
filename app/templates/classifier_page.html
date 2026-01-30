@@ -704,6 +704,15 @@
             </div>
         </section>
 
+        <script>
+            function showInitialLoadingIndicator() {
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.classList.add('htmx-request');
+                }
+            }
+        </script>
+
         {% if trigger_search_on_load and versions %}
         <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
             hx-trigger="htmx:authReady once from:body" hx-target="#results-container" hx-swap="innerHTML"
@@ -711,10 +720,7 @@
             hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}{% if not url_params.search %}, "url_change": false{% endif %}}'>
         </div>
         <script>
-            // Show loading indicator immediately while waiting for auth (function defined in classifier.js)
-            if (typeof showInitialLoadingIndicator === 'function') {
-                showInitialLoadingIndicator();
-            }
+            showInitialLoadingIndicator();
         </script>
         {% endif %}
 
@@ -1383,7 +1389,7 @@
         </div>
     </footer>
 
-    <!-- Classifier page specific functionality loaded from TypeScript module -->
+    <!-- Classifier page specific functionality (global script, compiled from TypeScript) -->
     <script src="{{ url_for('static', path='/js/classifier.js') }}"></script>
 
     <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->

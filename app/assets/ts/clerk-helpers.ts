@@ -22,7 +22,7 @@ export class ClerkHelpers {
   /**
    * Open Clerk sign-up modal with fallback redirect
    */
-  static openSignUp(fallbackButtonId?: string): void {
+  static openSignUp(): void {
     if (window.Clerk?.openSignUp) {
       window.Clerk.openSignUp({ redirectUrl: window.location.href });
     } else {

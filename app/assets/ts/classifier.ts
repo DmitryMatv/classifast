@@ -13,8 +13,6 @@ class ClassifierPage {
   private init(): void {
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
-    // Initialize ResultCopier for copy functionality
-    new ResultCopier();
   }
 
   /**
