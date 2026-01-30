@@ -4,6 +4,7 @@ import os
 import re
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import redis.asyncio as redis
 from dotenv import load_dotenv
@@ -28,6 +29,8 @@ from .usage_tracker import (
     REDIS_USERNAME,
 )
 
+BASE_DIR = Path(__file__).parent.parent
+
 
 # Configure logging with Dozzle-friendly JSON formatter
 class JsonFormatter(logging.Formatter):
@@ -47,9 +50,6 @@ handler = logging.StreamHandler()
 handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
 logger = logging.getLogger(__name__)
-
-# Base directory for resolving static file paths
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 load_dotenv()
 
@@ -350,145 +350,88 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 
 # Mount static files with caching
+# Optimized for Cloudflare Tunnel (full): CF edge caches based on s-maxage, origin sees tunnel traffic
 class CachedStaticFiles(StaticFiles):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     async def get_response(self, path: str, scope):
         response = await super().get_response(path, scope)
         if isinstance(response, Response):
-            # Cache for static files
-            if path.endswith(
-                (".css", ".js", ".png", ".jpg", ".ico", ".woff", ".woff2")
-            ):
+            # Long cache for versioned assets (fonts, images), shorter for CSS/JS that might change
+            if path.endswith((".woff", ".woff2", ".png", ".jpg", ".ico")):
+                # Immutable assets - cache for 1 year at edge, 1 week in browser
                 response.headers["Cache-Control"] = (
-                    "public, max-age=3600, s-maxage=14400, "  # 1 hour browser, 4 hours CDN
-                    "stale-while-revalidate=1800, "  # Allow serving stale for 30 min while revalidating
-                    "stale-if-error=3600"  # Serve stale if origin is down
+                    "public, max-age=604800, s-maxage=31536000, immutable"
+                )
+            elif path.endswith((".css", ".js")):
+                # CSS/JS - 1 hour browser, 24 hours CF edge, allow stale
+                response.headers["Cache-Control"] = (
+                    "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600, stale-if-error=86400"
                 )
             else:
+                # Other files - 5 min browser, 1 hour edge
                 response.headers["Cache-Control"] = (
-                    "public, max-age=300, s-maxage=3600, "  # 5 min browser, 1 hour CDN
-                    "stale-while-revalidate=300, "  # Allow serving stale for 5 min while revalidating
-                    "stale-if-error=1800"  # Serve stale if origin is down
+                    "public, max-age=300, s-maxage=3600, stale-while-revalidate=300, stale-if-error=1800"
                 )
 
-            # Add ETag for caching based on file modification time
+            # ETag for conditional requests (CF uses this for revalidation)
             try:
-                file_path = os.path.join(BASE_DIR, "app", "static", path.lstrip("/"))
-                file_stat = os.stat(file_path)
-                response.headers["ETag"] = (
-                    f'"{int(file_stat.st_mtime)}-{file_stat.st_size}"'
-                )
+                if self.directory:
+                    file_path = Path(self.directory) / path
+                    file_stat = file_path.stat()
+                    response.headers["ETag"] = (
+                        f'"{int(file_stat.st_mtime)}-{file_stat.st_size}"'
+                    )
+                else:
+                    response.headers["ETag"] = f'"{hash(path)}"'
             except (OSError, FileNotFoundError):
                 response.headers["ETag"] = f'"{hash(path)}"'
 
-            # Add Vary header to correctly cache compressed responses
+            # Let CF handle compression and vary cache by encoding
             response.headers["Vary"] = "Accept-Encoding"
-
-            # Cloudflare-specific headers for better edge caching
+            # CF-specific: tag for cache purging via API
             response.headers["Cache-Tag"] = "static-files"
-
-            # Let Cloudflare handle compression - don't set Content-Encoding
         return response
 
 
-# Explicit routes for static JS files (must be before StaticFiles mount)
-@app.get("/static/js/htmx.min.js", response_class=FileResponse)
-async def htmx_js():
-    file_path = os.path.join(BASE_DIR, "app", "static", "js", "htmx.min.js")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
-
-
-@app.get("/static/js/classifier.js", response_class=FileResponse)
-async def classifier_js():
-    file_path = os.path.join(BASE_DIR, "app", "static", "js", "classifier.js")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
-
-
-@app.get("/static/js/paywall.js", response_class=FileResponse)
-async def paywall_js():
-    file_path = os.path.join(BASE_DIR, "app", "static", "js", "paywall.js")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
-
-
-@app.get("/static/js/common.js", response_class=FileResponse)
-async def common_js():
-    file_path = os.path.join(BASE_DIR, "app", "static", "js", "common.js")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
-
-
 app.mount(
-    "/static",
-    CachedStaticFiles(directory=os.path.join(BASE_DIR, "app", "static")),
-    name="static",
+    "/static", CachedStaticFiles(directory=BASE_DIR / "app" / "static"), name="static"
 )
+
+
+# Root-level static files (browsers/crawlers expect these at root)
+# Cached at CF edge for 24h since these rarely change but get frequent requests
+def static_file_response(
+    path: str, max_age: int = 3600, s_maxage: int = 86400
+) -> FileResponse:
+    """Serve a static file with Cloudflare-optimized cache headers."""
+    file_path = BASE_DIR / "app" / "static" / path
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    response = FileResponse(file_path)
+    response.headers["Cache-Control"] = (
+        f"public, max-age={max_age}, s-maxage={s_maxage}, stale-if-error={s_maxage}"
+    )
+    response.headers["Cache-Tag"] = "static-files"
+    return response
 
 
 @app.get("/favicon.ico", response_class=FileResponse, include_in_schema=False)
 async def favicon():
-    file_path = os.path.join(BASE_DIR, "app", "static", "images", "favicon.ico")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
+    return static_file_response("images/favicon.ico")
 
 
 @app.get("/robots.txt", response_class=FileResponse)
 async def robots_txt():
-    file_path = os.path.join(BASE_DIR, "app", "static", "robots.txt")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
+    return static_file_response("robots.txt")
 
 
 @app.get("/sitemap.xml", response_class=FileResponse)
 async def sitemap_xml():
-    file_path = os.path.join(BASE_DIR, "app", "static", "sitemap.xml")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
+    return static_file_response("sitemap.xml")
 
 
 @app.get("/llms.txt", response_class=FileResponse)
 async def llms_txt():
-    file_path = os.path.join(BASE_DIR, "app", "static", "llms.txt")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
-
-
-@app.get("/static/css/styles.css", response_class=FileResponse)
-async def styles_css():
-    file_path = os.path.join(BASE_DIR, "app", "static", "css", "styles.css")
-    response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
-    )
-    return response
+    return static_file_response("llms.txt")
 
 
 # Set state for limiter

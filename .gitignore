@@ -1,11 +1,6 @@
 # Node.js packages and dependencies
 node_modules/
 
-# Compiled frontend assets (generated from app/assets/)
-app/static/js/*.js
-app/static/js/*.map
-app/static/css/styles.css
-
 # Qdrant "training"
 data/
 embedders/

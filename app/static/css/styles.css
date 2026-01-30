@@ -443,6 +443,9 @@
   .cursor-pointer {
     cursor: pointer;
   }
+  .resize {
+    resize: both;
+  }
   .resize-y {
     resize: vertical;
   }
