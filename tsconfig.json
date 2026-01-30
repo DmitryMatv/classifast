@@ -12,7 +12,7 @@
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
     "outDir": "./app/static/js",
-    "rootDir": "./src",
+    "rootDir": "./app/assets/ts",
     "noEmit": false,
     "sourceMap": true,
 
@@ -29,6 +29,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/**/*"],
+  "include": ["app/assets/ts/**/*"],
   "exclude": ["node_modules"]
 }

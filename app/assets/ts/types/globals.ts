@@ -9,6 +9,15 @@ declare global {
     __clerkAuthListenerRegistered?: boolean;
     __paywallClerkListenerRegistered?: boolean;
     copyOriginalId?: (text: string, buttonElement: HTMLButtonElement) => void;
+    showInitialLoadingIndicator?: () => void;
+    htmx?: HtmxInstance;
+  }
+
+  // ============================================
+  // HTMX Global Instance
+  // ============================================
+  interface HtmxInstance {
+    trigger: (element: Element | string, event: string) => void;
   }
 
   // ============================================
@@ -79,8 +88,23 @@ declare global {
     };
   }
 
+  interface HtmxAfterSwapEvent extends CustomEvent {
+    detail: {
+      target: HTMLElement;
+    };
+  }
+
+  interface HtmxResponseErrorEvent extends CustomEvent {
+    detail: {
+      xhr: XMLHttpRequest;
+      target: HTMLElement;
+    };
+  }
+
   interface HTMLElementEventMap {
     "htmx:configRequest": HtmxConfigRequestEvent;
+    "htmx:afterSwap": HtmxAfterSwapEvent;
+    "htmx:responseError": HtmxResponseErrorEvent;
     "htmx:authReady": CustomEvent;
     "clerk:loaded": CustomEvent;
   }

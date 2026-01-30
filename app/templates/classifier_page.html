@@ -381,7 +381,7 @@
     <link href="{{ url_for('static', path='/css/styles.css') }}" rel="stylesheet">
 
     <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
-    <script src="{{ url_for('static', path='/js/common.js') }}"></script>
+    <script type="module" src="{{ url_for('static', path='/js/common.js') }}"></script>
 
     <style>
         /* Ensure consistent container behavior across all browsers */
@@ -711,13 +711,10 @@
             hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}{% if not url_params.search %}, "url_change": false{% endif %}}'>
         </div>
         <script>
-            // Show loading indicator immediately while waiting for auth
-            (function () {
-                var indicator = document.getElementById('loading-indicator');
-                if (indicator) {
-                    indicator.classList.add('htmx-request');
-                }
-            })();
+            // Show loading indicator immediately while waiting for auth (function defined in classifier.js)
+            if (typeof showInitialLoadingIndicator === 'function') {
+                showInitialLoadingIndicator();
+            }
         </script>
         {% endif %}
 
@@ -1386,84 +1383,8 @@
         </div>
     </footer>
 
-    <script>
-        // Classifier page specific functionality
-        const ClassifierPage = {
-            init() {
-                this.setupTopKAutosubmit();
-                this.setupHTMXListeners();
-            },
-
-            setupTopKAutosubmit() {
-                const topKSelector = document.getElementById('show_top_k_categories');
-                const productDescriptionArea = document.getElementById('product_description_area');
-
-                if (topKSelector && productDescriptionArea) {
-                    topKSelector.addEventListener('change', () => {
-                        if (productDescriptionArea.value.trim()) {
-                            this.triggerFormSubmission();
-                        }
-                    });
-                }
-            },
-
-            triggerFormSubmission() {
-                const form = document.querySelector('form[hx-get]');
-                const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
-
-                if (form) {
-                    if (submitBtn) {
-                        submitBtn.classList.add('active', 'scale-95');
-                        setTimeout(() => {
-                            submitBtn.classList.remove('active', 'scale-95');
-                        }, 150);
-                    }
-                    htmx.trigger(form, 'submit');
-                }
-            },
-
-            setupHTMXListeners() {
-                // Handle HTMX after swap for results visibility
-                document.body.addEventListener('htmx:afterSwap', function (evt) {
-                    if (evt.detail.target.id === 'results-container') {
-                        var resultsSection = document.getElementById('results-section');
-                        if (resultsSection) {
-                            resultsSection.classList.remove('hidden');
-                        }
-                    }
-                });
-
-                // Handle rate limit responses
-                document.body.addEventListener('htmx:responseError', function (evt) {
-                    if (evt.detail.xhr.status === 429) {
-                        if (evt.detail.target.id === 'results-container') {
-                            evt.detail.target.innerHTML = evt.detail.xhr.response;
-
-                            var resultsSection = document.getElementById('results-section');
-                            if (resultsSection) {
-                                resultsSection.classList.remove('hidden');
-                            }
-
-                            var loadingIndicator = document.getElementById('loading-indicator');
-                            if (loadingIndicator) {
-                                loadingIndicator.classList.add('htmx-indicator');
-                            }
-                        }
-                    }
-                });
-            },
-
-            copyShareableLink() {
-                ShareLink.copyShareableLink();
-            }
-        };
-
-        // Initialize classifier page functionality when DOM is ready
-        document.addEventListener('DOMContentLoaded', function () {
-            // Then initialize classifier page functionality
-            ClassifierPage.init();
-        });
-    </script>
+    <!-- Classifier page specific functionality loaded from TypeScript module -->
+    <script src="{{ url_for('static', path='/js/classifier.js') }}"></script>
 
     <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_live_Y2xlcmsuY2xhc3NpZmFzdC5jb20k"

@@ -1,9 +1,10 @@
 import "./types/globals";
+import { ClerkHelpers } from "./clerk-helpers";
 
 // Shared TypeScript functionality for Classifast application
 
 // Mobile menu functionality
-class MobileMenu {
+export class MobileMenu {
   private button: HTMLElement | null = null;
   private menu: HTMLElement | null = null;
   private hamburger: HTMLElement | null = null;
@@ -60,7 +61,7 @@ class MobileMenu {
 }
 
 // Copy URL functionality
-class ShareLink {
+export class ShareLink {
   static async copyShareableLink() {
     const url = window.location.href;
     const button = document.getElementById("share-button");
@@ -106,7 +107,7 @@ class ShareLink {
 }
 
 // Textarea enhanced functionality
-class TextareaEnhancer {
+export class TextareaEnhancer {
   private textarea: HTMLTextAreaElement | null;
 
   constructor(textareaId: string) {
@@ -157,7 +158,7 @@ class TextareaEnhancer {
 }
 
 // Toggle functionality for classifier description sections
-class DescriptionToggle {
+export class DescriptionToggle {
   constructor() {
     this.init();
   }
@@ -251,7 +252,7 @@ let cachedAuthToken: string | null = null;
 let authReadyFired = false;
 
 // Simple Clerk Authentication using official SDK patterns
-class ClerkAuth {
+export class ClerkAuth {
   constructor() {
     this.init();
   }
@@ -480,13 +481,7 @@ class ClerkAuth {
     signInBtn.textContent = "Sign In";
     signInBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      if (window.Clerk?.openSignIn) {
-        window.Clerk.openSignIn({ redirectUrl: window.location.href });
-      } else {
-        window.location.href =
-          "https://accounts.classifast.com/sign-in?redirect_url=" +
-          encodeURIComponent(window.location.href);
-      }
+      ClerkHelpers.openSignIn();
     });
     container.appendChild(signInBtn);
 
@@ -502,13 +497,7 @@ class ClerkAuth {
     signUpBtn.textContent = "Sign Up";
     signUpBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      if (window.Clerk?.openSignUp) {
-        window.Clerk.openSignUp({ redirectUrl: window.location.href });
-      } else {
-        window.location.href =
-          "https://accounts.classifast.com/sign-up?redirect_url=" +
-          encodeURIComponent(window.location.href);
-      }
+      ClerkHelpers.openSignUp();
     });
     container.appendChild(signUpBtn);
   }
@@ -570,10 +559,31 @@ class ClerkAuth {
       document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
     }
   }
+
+  // Public method to get current auth token
+  static getCachedAuthToken(): string | null {
+    return cachedAuthToken;
+  }
+
+  // Public method to refresh auth token
+  static async refreshAuthToken(): Promise<string | null> {
+    try {
+      if (window.Clerk?.session) {
+        cachedAuthToken = await window.Clerk.session.getToken();
+        return cachedAuthToken;
+      }
+      cachedAuthToken = null;
+      return null;
+    } catch (e) {
+      console.error("Failed to refresh auth token:", e);
+      cachedAuthToken = null;
+      return null;
+    }
+  }
 }
 
 // Result copy functionality with tooltip
-class ResultCopier {
+export class ResultCopier {
   constructor() {
     this.init();
   }
