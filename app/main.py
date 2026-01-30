@@ -48,6 +48,9 @@ handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
 logger = logging.getLogger(__name__)
 
+# Base directory for resolving static file paths
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 load_dotenv()
 
 
@@ -372,7 +375,7 @@ class CachedStaticFiles(StaticFiles):
 
             # Add ETag for caching based on file modification time
             try:
-                file_path = os.path.join("app/static", path.lstrip("/"))
+                file_path = os.path.join(BASE_DIR, "app", "static", path.lstrip("/"))
                 file_stat = os.stat(file_path)
                 response.headers["ETag"] = (
                     f'"{int(file_stat.st_mtime)}-{file_stat.st_size}"'
@@ -393,7 +396,8 @@ class CachedStaticFiles(StaticFiles):
 # Explicit routes for static JS files (must be before StaticFiles mount)
 @app.get("/static/js/htmx.min.js", response_class=FileResponse)
 async def htmx_js():
-    response = FileResponse("app/static/js/htmx.min.js")
+    file_path = os.path.join(BASE_DIR, "app", "static", "js", "htmx.min.js")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
@@ -402,7 +406,8 @@ async def htmx_js():
 
 @app.get("/static/js/classifier.js", response_class=FileResponse)
 async def classifier_js():
-    response = FileResponse("app/static/js/classifier.js")
+    file_path = os.path.join(BASE_DIR, "app", "static", "js", "classifier.js")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
@@ -411,7 +416,8 @@ async def classifier_js():
 
 @app.get("/static/js/paywall.js", response_class=FileResponse)
 async def paywall_js():
-    response = FileResponse("app/static/js/paywall.js")
+    file_path = os.path.join(BASE_DIR, "app", "static", "js", "paywall.js")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
@@ -420,19 +426,25 @@ async def paywall_js():
 
 @app.get("/static/js/common.js", response_class=FileResponse)
 async def common_js():
-    response = FileResponse("app/static/js/common.js")
+    file_path = os.path.join(BASE_DIR, "app", "static", "js", "common.js")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
     return response
 
 
-app.mount("/static", CachedStaticFiles(directory="app/static"), name="static")
+app.mount(
+    "/static",
+    CachedStaticFiles(directory=os.path.join(BASE_DIR, "app", "static")),
+    name="static",
+)
 
 
 @app.get("/favicon.ico", response_class=FileResponse, include_in_schema=False)
 async def favicon():
-    response = FileResponse("app/static/images/favicon.ico")
+    file_path = os.path.join(BASE_DIR, "app", "static", "images", "favicon.ico")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
@@ -441,7 +453,8 @@ async def favicon():
 
 @app.get("/robots.txt", response_class=FileResponse)
 async def robots_txt():
-    response = FileResponse("app/static/robots.txt")
+    file_path = os.path.join(BASE_DIR, "app", "static", "robots.txt")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
@@ -450,7 +463,8 @@ async def robots_txt():
 
 @app.get("/sitemap.xml", response_class=FileResponse)
 async def sitemap_xml():
-    response = FileResponse("app/static/sitemap.xml")
+    file_path = os.path.join(BASE_DIR, "app", "static", "sitemap.xml")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
@@ -459,7 +473,8 @@ async def sitemap_xml():
 
 @app.get("/llms.txt", response_class=FileResponse)
 async def llms_txt():
-    response = FileResponse("app/static/llms.txt")
+    file_path = os.path.join(BASE_DIR, "app", "static", "llms.txt")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
@@ -468,7 +483,8 @@ async def llms_txt():
 
 @app.get("/static/css/styles.css", response_class=FileResponse)
 async def styles_css():
-    response = FileResponse("app/static/css/styles.css")
+    file_path = os.path.join(BASE_DIR, "app", "static", "css", "styles.css")
+    response = FileResponse(file_path)
     response.headers["Cache-Control"] = (
         "public, max-age=3600, s-maxage=14400, stale-if-error=3600"  # 1 hour browser, 4 hours CDN
     )
