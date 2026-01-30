@@ -220,7 +220,7 @@ class CheckoutManager {
 }
 
 // Initialize paywall functionality when DOM is ready
-document.addEventListener("DOMContentLoaded", () => {
+function initPaywall(): void {
   // Always initialize the paywall manager (handles retry + auth transitions)
   new PaywallManager();
 
@@ -229,4 +229,17 @@ document.addEventListener("DOMContentLoaded", () => {
   if (upgradeButton) {
     new CheckoutManager();
   }
-});
+}
+
+// Prevent duplicate initialization across DOMContentLoaded and immediate execution
+if (!window.__paywallInitialized) {
+  window.__paywallInitialized = true;
+
+  if (document.readyState === "loading") {
+    // DOM not ready yet, wait for it
+    document.addEventListener("DOMContentLoaded", initPaywall);
+  } else {
+    // DOM already ready, initialize immediately with small delay for HTMX swaps
+    setTimeout(initPaywall, 0);
+  }
+}

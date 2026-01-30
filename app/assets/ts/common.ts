@@ -690,3 +690,6 @@ document.addEventListener("DOMContentLoaded", () => {
   new TextareaEnhancer("product_description_area");
   new ResultCopier();
 });
+
+// Expose ShareLink globally for inline onclick handlers
+(window as any).ShareLink = ShareLink;
