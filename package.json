@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "bun run build:ts && bun run build:css",
-    "build:ts": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --minify",
+    "build:ts": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --minify --target=browser --format=iife",
     "build:css": "bunx @tailwindcss/cli -i ./app/assets/css/input.css -o ./app/static/css/styles.css",
     "watch": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --watch",
     "watch:css": "bunx @tailwindcss/cli -i ./app/assets/css/input.css -o ./app/static/css/styles.css --watch",

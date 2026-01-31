@@ -9,6 +9,7 @@ declare global {
     __clerkAuthListenerRegistered?: boolean;
     __paywallClerkListenerRegistered?: boolean;
     __paywallInitialized?: boolean;
+    __paywallScriptParsed?: boolean;
     copyOriginalId?: (text: string, buttonElement: HTMLButtonElement) => void;
     showInitialLoadingIndicator?: () => void;
     htmx?: HtmxInstance;
