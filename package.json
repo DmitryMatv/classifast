@@ -6,7 +6,7 @@
     "build": "bun run build:ts && bun run build:css",
     "build:ts": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --minify --target=browser --format=iife",
     "build:css": "bunx @tailwindcss/cli -i ./app/assets/css/input.css -o ./app/static/css/styles.css",
-    "watch": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --watch",
+    "watch": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --target=browser --format=iife --watch",
     "watch:css": "bunx @tailwindcss/cli -i ./app/assets/css/input.css -o ./app/static/css/styles.css --watch",
     "typecheck": "tsc --noEmit",
     "dev": "bun run watch:css & bun run watch & uvicorn app.main:app --reload --port 8001"

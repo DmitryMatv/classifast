@@ -15,15 +15,16 @@ from .classifier_config import CLASSIFIER_CONFIG
 logger = logging.getLogger(__name__)
 
 
-# ===== Input Sanitization & Validation =====
+# ===== Input Sanitization =====
 
 
-def sanitize_query_text(query: str) -> str:
+def sanitize_query_text(query: str, for_search: bool = False) -> str:
     """
     Sanitize query text to prevent malicious input.
 
     Args:
         query: Raw query string
+        for_search: If True, returns simplified sanitization for exact text search
 
     Returns:
         Sanitized query string
@@ -34,10 +35,16 @@ def sanitize_query_text(query: str) -> str:
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
-    # Strip and normalize
-    query = query.strip()
+    query = query.strip().rstrip("/")
 
-    # Length validation
+    if for_search:
+        # Minimal sanitization for exact ID matching - preserve most characters
+        query = re.sub(
+            r"[^\w\s\-\.\,\:\;\(\)\{\}\[\]\/\'\"\&\%\#\+\=\!\@]+", " ", query
+        )
+        return re.sub(r"\s+", " ", query).strip()
+
+    # Full validation for user queries
     if len(query) > 4000:
         raise HTTPException(
             status_code=400, detail="Query too long (max 4000 characters)"
@@ -48,14 +55,10 @@ def sanitize_query_text(query: str) -> str:
             status_code=400, detail="Query too short (min 2 characters)"
         )
 
-    # Remove trailing slashes
-    query = query.rstrip("/")
-
-    # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
+    # Normalize whitespace
     query = re.sub(r"\s+", " ", query)
 
-    # Basic character validation - allow Unicode letters, numbers, spaces, and basic punctuation
-    # This prevents obvious injection attempts while allowing normal product descriptions
+    # Basic character validation - allow Unicode letters, numbers, spaces, basic punctuation
     allowed_pattern = r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
     if not re.match(allowed_pattern, query):
         raise HTTPException(
@@ -64,21 +67,6 @@ def sanitize_query_text(query: str) -> str:
         )
 
     return query.strip()
-
-
-def sanitize_text_search_query(query: str) -> str:
-    """
-    Additional sanitization for text search queries to prevent injection.
-
-    Args:
-        query: Query string for text search
-
-    Returns:
-        Sanitized query for text search
-    """
-    # Preserve more characters for class name matching (alphanumeric + basic punctuation)
-    query = re.sub(r"[^\w\s\-\.\,\:\;\(\)\{\}\[\]\/\'\"\&\%\#\+\=\!\@]+", " ", query)
-    return re.sub(r"\s+", " ", query).strip()
 
 
 # ===== Embedding Generation =====
@@ -133,8 +121,10 @@ async def get_embedding(
         logger.debug("Gemini API embedding call: %.3fs", api_duration)
 
         # Validate response
-        if len(response.embeddings) != 1:
-            raise RuntimeError(f"Expected 1 embedding, got {len(response.embeddings)}")
+        if response.embeddings is None or len(response.embeddings) != 1:
+            raise RuntimeError(
+                f"Expected 1 embedding, got {len(response.embeddings) if response.embeddings else 'None'}"
+            )
 
         embedding_vector = response.embeddings[0].values
 
@@ -157,235 +147,6 @@ async def get_embedding(
 
 
 # ===== Search Functions =====
-
-
-async def perform_text_search(
-    qdrant_client: AsyncQdrantClient,
-    collection_name: str,
-    query_text: str,
-) -> List[Dict[str, Any]]:
-    """
-    Perform enhanced text-based search with exact and partial matching.
-
-    Priority order:
-    1. Exact ID matches (score: 0.999)
-    2. Exact NAME matches (score: 0.980)
-    3. Partial ID matches (score: 0.900, requires 3+ chars)
-    4. Partial ID matches with trailing zeros stripped (score: 0.950, requires 3+ chars)
-
-    Args:
-        qdrant_client: The Qdrant client instance
-        collection_name: The name of the Qdrant collection
-        query_text: The search query (sanitized)
-
-    Returns:
-        List of search results with confidence scores (max 3 results)
-    """
-    start_time = time.time()
-
-    try:
-        safe_query = sanitize_text_search_query(query_text)  # .lower()
-        dotless_query = normalize_search_query(safe_query)
-
-        exact_id_results = []
-        exact_name_results = []
-        partial_ids = set()
-
-        # Stage 1: Exact ID match (highest priority)
-        id_filter = models.Filter(
-            must=[
-                models.FieldCondition(
-                    key="original_id",
-                    match=models.MatchValue(value=safe_query),
-                )
-            ]
-        )
-        scroll_result = await qdrant_client.scroll(
-            collection_name=collection_name,
-            scroll_filter=id_filter,
-            limit=3,  # Limit to 3 exact ID matches in case of duplicates
-            with_payload=True,
-            with_vectors=False,
-        )
-        exact_id_results = [
-            {"score": 0.999, "payload": point.payload, "id": point.id}
-            for point in scroll_result[0]
-        ]
-        partial_ids.update(
-            r.get("id") for r in exact_id_results if r.get("id") is not None
-        )
-
-        # Stage 2: Exact NAME match (second priority, case-insensitive)
-        # Use IsEmptyCondition with must_not to get all records with class_name,
-        # then filter case-insensitively in Python
-        name_filter = models.Filter(
-            must_not=[
-                models.IsEmptyCondition(is_empty=models.PayloadField(key="class_name"))
-            ]
-        )
-        try:
-            scroll_result = await qdrant_client.scroll(
-                collection_name=collection_name,
-                scroll_filter=name_filter,
-                limit=30,
-                with_payload=True,
-                with_vectors=False,
-            )
-        except Exception as e:
-            logger.warning("class_name query failed: %s", e)
-            scroll_result = ([], None)
-        exact_name_results = []
-        if scroll_result and len(scroll_result) > 0 and scroll_result[0]:
-            for point in scroll_result[0]:
-                if point.payload:
-                    class_name = point.payload.get("class_name", "")
-                    if class_name.lower() == safe_query.lower():
-                        exact_name_results.append(
-                            {"score": 0.980, "payload": point.payload, "id": point.id}
-                        )
-        partial_ids.update(r.get("id") for r in exact_name_results if r.get("id"))
-
-        partial_results = []
-
-        # Stage 3: Partial match on dotless_query (dots/dashes removed, zeros preserved)
-        # This handles queries like "73.12" -> "7312", which finds IDs starting with or ending with "7312"
-        if len(dotless_query) >= 3:
-            partial_filter = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="original_id",
-                        match=models.MatchText(text=dotless_query),
-                    )
-                ]
-            )
-            scroll_result = await qdrant_client.scroll(
-                collection_name=collection_name,
-                scroll_filter=partial_filter,
-                limit=100,
-                with_payload=True,
-                with_vectors=False,
-            )
-            for point in scroll_result[0]:
-                point_id = point.id
-                original_id_value = (
-                    point.payload.get("original_id", "") if point.payload else ""
-                )
-                original_id_normalized = normalize_search_query(
-                    original_id_value.lower()
-                )
-                if (
-                    point_id
-                    and point_id not in partial_ids
-                    and (
-                        original_id_normalized.startswith(dotless_query)
-                        or original_id_normalized.endswith(dotless_query)
-                    )
-                ):
-                    partial_results.append(
-                        {"score": 0.900, "payload": point.payload, "id": point_id}
-                    )
-                    partial_ids.add(point_id)
-
-        # Stage 4: Partial match with trailing zeros stripped
-        # Only do this for pure numeric queries with many trailing zeros (e.g., "13110000" -> "1311")
-        if dotless_query.isdigit() and len(dotless_query) >= 3:
-            stripped_query = strip_trailing_zeros(dotless_query)
-            if stripped_query != dotless_query and len(stripped_query) >= 3:
-                stripped_partial_filter = models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="original_id",
-                            match=models.MatchText(text=stripped_query),
-                        )
-                    ]
-                )
-                scroll_result = await qdrant_client.scroll(
-                    collection_name=collection_name,
-                    scroll_filter=stripped_partial_filter,
-                    limit=100,
-                    with_payload=True,
-                    with_vectors=False,
-                )
-                for point in scroll_result[0]:
-                    point_id = point.id
-                    original_id_value = (
-                        point.payload.get("original_id", "") if point.payload else ""
-                    )
-                    original_id_normalized = normalize_search_query(
-                        original_id_value.lower()
-                    )
-                    if (
-                        point_id
-                        and point_id not in partial_ids
-                        and (
-                            original_id_normalized.startswith(stripped_query)
-                            or original_id_normalized.endswith(stripped_query)
-                        )
-                    ):
-                        partial_results.append(
-                            {"score": 0.950, "payload": point.payload, "id": point_id}
-                        )
-                        partial_ids.add(point_id)
-
-        query_duration = time.time() - start_time
-        logger.debug(
-            "Qdrant enhanced text search: %.3fs, collection=%s, exact_id=%d, exact_name=%d, partial=%d",
-            query_duration,
-            collection_name,
-            len(exact_id_results),
-            len(exact_name_results),
-            len(partial_results),
-        )
-
-        # Merge results in priority order and deduplicate
-        seen_ids = set()
-        merged_results = []
-
-        for result in exact_id_results + exact_name_results + partial_results:
-            result_id = result.get("id")
-            if result_id is not None and result_id not in seen_ids:
-                seen_ids.add(result_id)
-                merged_results.append(result)
-
-        return merged_results
-
-    except Exception as e:
-        elapsed = time.time() - start_time
-        logger.warning("Enhanced text search failed: %s (%.3fs elapsed)", e, elapsed)
-        return []
-
-
-def normalize_search_query(query: str) -> str:
-    """
-    Normalize query for text search by removing dots and dashes.
-    Does NOT strip trailing zeros.
-
-    Args:
-        query: Raw query string
-
-    Returns:
-        Normalized query string (dots and dashes removed)
-    """
-    # Remove dots and dashes only, preserve zeros
-    normalized = query.replace(".", "").replace("-", "")
-    return normalized
-
-
-def strip_trailing_zeros(query: str) -> str:
-    """
-    Strip trailing zeros from a numeric query.
-    Used for handling queries with extra trailing zeros (e.g., "13110000" -> "1311").
-
-    Args:
-        query: Numeric query string
-
-    Returns:
-        Query string with trailing zeros removed
-    """
-    stripped = query.rstrip("0")
-    if not stripped:
-        stripped = "0"
-    return stripped
 
 
 async def perform_semantic_search(
@@ -415,7 +176,7 @@ async def perform_semantic_search(
         internal_top_k = 50 if has_quantization else top_k
 
         search_params = models.SearchParams(
-            hnsw_ef=128,  # Default is 128, higher ef improves recall
+            hnsw_ef=256,  # Default is 128, higher ef improves recall
             exact=False,
         )
 
@@ -469,13 +230,13 @@ async def perform_hybrid_search(
 ) -> List[Dict[str, Any]]:
     """
     Perform hybrid search combining exact text matches and semantic search.
-    Text matches are prioritized (score=1.0), then semantic results are appended.
+    Text matches (exact ID) are prioritized (score=1.0), then semantic results are appended.
     Duplicates are removed.
 
     Args:
         qdrant_client: The Qdrant client instance
         collection_name: The name of the Qdrant collection
-        query_text: Original query text
+        query_text: Original query text (sanitized for general use)
         query_embedding: Query embedding vector
         top_k: Maximum number of results to return
         has_quantization: Whether collection has quantization enabled
@@ -483,11 +244,30 @@ async def perform_hybrid_search(
     Returns:
         Merged list of search results
     """
+    start_time = time.time()
+
     try:
-        # Run text and semantic searches in parallel with proper error handling
-        text_search_task = asyncio.create_task(
-            perform_text_search(qdrant_client, collection_name, query_text)
+        # 1. Exact ID match via text search (fast, synchronous with semantic)
+        safe_query = sanitize_query_text(query_text, for_search=True)
+        id_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="original_id",
+                    match=models.MatchValue(value=safe_query),
+                )
+            ]
         )
+
+        text_search_task = asyncio.create_task(
+            qdrant_client.scroll(
+                collection_name=collection_name,
+                scroll_filter=id_filter,
+                limit=3,  # Max 3 exact ID matches
+                with_payload=True,
+                with_vectors=False,
+            )
+        )
+
         semantic_search_task = asyncio.create_task(
             perform_semantic_search(
                 qdrant_client, collection_name, query_embedding, top_k, has_quantization
@@ -495,21 +275,30 @@ async def perform_hybrid_search(
         )
 
         # Wait for both with exception handling
-        results = await asyncio.gather(
+        text_result, semantic_result = await asyncio.gather(
             text_search_task, semantic_search_task, return_exceptions=True
         )
 
-        text_results = results[0] if not isinstance(results[0], Exception) else []
-        semantic_results = results[1] if not isinstance(results[1], Exception) else []
+        # Process text results (exact ID matches get score=1.0)
+        text_results: List[Dict[str, Any]] = []
+        if isinstance(text_result, Exception):
+            logger.warning(f"Text search failed: {text_result}")
+        elif isinstance(text_result, tuple):
+            points: List[Any] = text_result[0]
+            text_results = [
+                {"score": 1.0, "payload": point.payload, "id": point.id}
+                for point in points
+            ]
 
-        # Log any search failures
-        if isinstance(results[0], Exception):
-            logger.warning(f"Text search failed: {results[0]}")
-        if isinstance(results[1], Exception):
-            logger.error(f"Semantic search failed: {results[1]}")
+        # Process semantic results
+        semantic_results: List[Dict[str, Any]] = []
+        if isinstance(semantic_result, Exception):
+            logger.error(f"Semantic search failed: {semantic_result}")
             raise HTTPException(
                 status_code=500, detail="Semantic search failed. Please try again."
             )
+        elif isinstance(semantic_result, list):
+            semantic_results = semantic_result
 
         # Deduplicate - text results have priority
         seen_ids = {r.get("id") for r in text_results if r.get("id") is not None}
@@ -525,6 +314,15 @@ async def perform_hybrid_search(
         merged_results = [
             {"score": r["score"], "payload": r["payload"]} for r in text_results
         ] + filtered_semantic
+
+        query_duration = time.time() - start_time
+        logger.debug(
+            "Hybrid search completed: %.3fs, exact_id=%d, semantic=%d, merged=%d",
+            query_duration,
+            len(text_results),
+            len(semantic_results),
+            len(merged_results[:top_k]),
+        )
 
         return merged_results[:top_k]
 
@@ -593,7 +391,7 @@ async def perform_classification(
     quantization_cache: Optional[Dict[str, bool]] = None,
 ) -> Dict[str, Any]:
     """
-    Classify a single query using hybrid search (text + semantic).
+    Classify a single query using hybrid search (exact text + semantic).
 
     Args:
         embed_client: The Google GenAI client
@@ -660,7 +458,7 @@ async def perform_classification(
             embed_dims=config.get("embed_dims"),
         )
 
-        # Perform hybrid search (text + semantic)
+        # Perform hybrid search (exact text + semantic)
         classification_results = await perform_hybrid_search(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
