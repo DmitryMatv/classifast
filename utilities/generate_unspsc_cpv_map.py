@@ -33,25 +33,7 @@ from qdrant_client import AsyncQdrantClient
 from app.classifier import perform_classification
 from app.classifier_config import CLASSIFIER_CONFIG
 
-# Load app modules with proper package context
-sys.path.insert(0, str(Path(__file__).parent))
-
-# Load classifier_config first (required by classifier.py)
-spec_config = importlib.util.spec_from_file_location(
-    "app.classifier_config", str(Path(__file__).parent / "app/classifier_config.py")
-)
-classifier_config = importlib.util.module_from_spec(spec_config)
-spec_config.loader.exec_module(classifier_config)
-sys.modules["app.classifier_config"] = classifier_config
-
-# Load classifier module
-spec_classifier = importlib.util.spec_from_file_location(
-    "app.classifier", str(Path(__file__).parent / "app/classifier.py")
-)
-classifier = importlib.util.module_from_spec(spec_classifier)
-spec_classifier.loader.exec_module(classifier)
-sys.modules["app.classifier"] = classifier
-
+# Configuration
 
 # Configuration
 INPUT_FILE = Path("data/unspsc-english-v260801.1.xlsx")
@@ -421,7 +403,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n\nInterrupted by user. Progress has been saved.")
+        print("\n\nInterrupted by user. Checkpoint results have been saved.")
         sys.exit(0)
     except Exception:
         import traceback

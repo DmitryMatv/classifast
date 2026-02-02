@@ -11,11 +11,11 @@ import { ClerkHelpers } from "./clerk-helpers";
  * Class declarations execute at parse time, so we must prevent re-parsing.
  */
 
-const PAYWALL_PRODUCT_ID: string = "e157e32f-e91c-4d51-af66-0c2eb3b23d71";
-
 // Guard: Prevent duplicate script parsing (classes can only be declared once)
 if (!window.__paywallScriptParsed) {
   window.__paywallScriptParsed = true;
+
+  const PAYWALL_PRODUCT_ID: string = "e157e32f-e91c-4d51-af66-0c2eb3b23d71";
 
   class PaywallManager {
     private wasSignedIn: boolean = false;
