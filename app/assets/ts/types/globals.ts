@@ -7,6 +7,7 @@ declare global {
   interface Window {
     Clerk?: ClerkInstance;
     __clerkAuthListenerRegistered?: boolean;
+    __clerkInteractionListenersRegistered?: boolean;
     __paywallClerkListenerRegistered?: boolean;
     __paywallInitialized?: boolean;
     __paywallScriptParsed?: boolean;

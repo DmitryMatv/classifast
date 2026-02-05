@@ -314,6 +314,29 @@ export class ClerkAuth {
       // Needed for long sessions on single page
       setInterval(() => this.refreshAuthToken(), 50000);
 
+      // Also refresh on user interaction to ensure token is fresh before requests
+      // This is a backup in case the interval misses or page was inactive
+      // Guard to prevent duplicate listener registration on re-initialization
+      if (!window.__clerkInteractionListenersRegistered) {
+        window.__clerkInteractionListenersRegistered = true;
+        let refreshPending = false;
+        const refreshOnInteraction = () => {
+          if (window.Clerk?.session && !cachedAuthToken && !refreshPending) {
+            refreshPending = true;
+            console.log("Refreshing token on user interaction...");
+            this.refreshAuthToken().finally(() => {
+              refreshPending = false;
+            });
+          }
+        };
+        document.addEventListener("click", refreshOnInteraction, {
+          passive: true,
+        });
+        document.addEventListener("keydown", refreshOnInteraction, {
+          passive: true,
+        });
+      }
+
       // Listen for auth state changes (guard to prevent duplicate listeners)
       if (window.Clerk?.addListener && !window.__clerkAuthListenerRegistered) {
         window.__clerkAuthListenerRegistered = true;
@@ -331,51 +354,73 @@ export class ClerkAuth {
   }
 
   private async refreshAuthToken() {
+    await ClerkAuth.performTokenRefresh();
+  }
+
+  // Shared implementation to avoid duplication between instance and static methods
+  private static async performTokenRefresh(): Promise<string | null> {
     try {
       if (window.Clerk?.session) {
-        cachedAuthToken = await window.Clerk.session.getToken();
-        if (!cachedAuthToken) {
-          console.warn("Clerk session exists but getToken() returned empty");
+        const newToken = await window.Clerk.session.getToken();
+        if (newToken) {
+          cachedAuthToken = newToken;
+        } else {
+          console.warn(
+            "Clerk session exists but getToken() returned empty - keeping old token if valid",
+          );
+          // Don't clear cachedAuthToken on empty response - old token might still be valid
+        }
+        return cachedAuthToken;
+      }
+
+      // Log when user exists but session doesn't - this is the problematic state
+      if (window.Clerk?.user) {
+        console.warn(
+          "Clerk user exists but session is missing - user will be treated as anonymous",
+        );
+        console.warn("Attempting to recover session...");
+
+        // Try to recover: reload Clerk to re-initialize session
+        try {
+          await window.Clerk.load?.();
+          // Retry token retrieval after reload
+          if (window.Clerk?.session) {
+            const recoveredToken = await window.Clerk.session.getToken();
+            if (recoveredToken) {
+              cachedAuthToken = recoveredToken;
+              console.log("Session recovered successfully");
+              return cachedAuthToken;
+            }
+          }
+          console.warn("Session recovery failed - session still missing");
+        } catch (recoveryErr) {
+          console.error("Failed to recover Clerk session:", recoveryErr);
         }
       } else {
+        // Only clear token if user is definitely logged out (no user AND no session)
         cachedAuthToken = null;
-        // Log when user exists but session doesn't - this is the problematic state
-        if (window.Clerk?.user) {
-          console.warn(
-            "Clerk user exists but session is missing - user will be treated as anonymous",
-          );
-          console.warn("Attempting to recover session...");
-
-          // Try to recover: reload Clerk to re-initialize session
-          try {
-            await window.Clerk.load?.();
-            // Retry token retrieval after reload
-            if (window.Clerk?.session) {
-              cachedAuthToken = await window.Clerk.session.getToken();
-              if (cachedAuthToken) {
-                console.log("Session recovered successfully");
-              }
-            }
-          } catch (recoveryErr) {
-            console.error("Failed to recover Clerk session:", recoveryErr);
-          }
-        }
       }
+
+      return cachedAuthToken;
     } catch (e) {
       console.error("Failed to refresh auth token:", e);
-      cachedAuthToken = null;
+      // Don't clear cachedAuthToken on errors - the old token might still be valid
+      return cachedAuthToken;
     }
   }
 
   private registerHtmxAuthHeader() {
     document.body.addEventListener("htmx:configRequest", (event) => {
       const htmxEvent = event as HtmxConfigRequestEvent;
+
+      // Add token to request if available
       if (cachedAuthToken) {
         htmxEvent.detail.headers["Authorization"] = `Bearer ${cachedAuthToken}`;
       } else if (window.Clerk?.user) {
-        // If user exists but token is missing, log this diagnostic
+        // Log diagnostic when user exists but token is missing
         console.warn(
-          "HTMX request: User is logged in but no auth token available - request will be treated as anonymous",
+          "HTMX request: User is logged in but no auth token available - request will be treated as anonymous. " +
+            "This can happen if Clerk hasn't finished loading or token refresh failed.",
         );
       }
     });
@@ -567,18 +612,7 @@ export class ClerkAuth {
 
   // Public method to refresh auth token
   static async refreshAuthToken(): Promise<string | null> {
-    try {
-      if (window.Clerk?.session) {
-        cachedAuthToken = await window.Clerk.session.getToken();
-        return cachedAuthToken;
-      }
-      cachedAuthToken = null;
-      return null;
-    } catch (e) {
-      console.error("Failed to refresh auth token:", e);
-      cachedAuthToken = null;
-      return null;
-    }
+    return await ClerkAuth.performTokenRefresh();
   }
 }
 
