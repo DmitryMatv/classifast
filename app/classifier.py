@@ -69,6 +69,30 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
     return query.strip()
 
 
+def normalize_for_partial_match(query: str) -> str:
+    """
+    Normalize query for partial matching by removing dots, spaces, dashes,
+    and both leading/trailing zeros.
+
+    Args:
+        query: Sanitized query string
+
+    Returns:
+        Normalized query string for partial matching
+    """
+    # Remove dots, spaces, and dashes
+    normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
+
+    # Strip leading and trailing zeros
+    normalized = normalized.lstrip("0").rstrip("0")
+
+    # If empty after stripping, return original (handles case of "000")
+    if not normalized:
+        normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
+
+    return normalized
+
+
 # ===== Embedding Generation =====
 
 
@@ -220,6 +244,60 @@ async def perform_semantic_search(
         )
 
 
+async def perform_partial_id_search(
+    qdrant_client: AsyncQdrantClient,
+    collection_name: str,
+    normalized_query: str,
+) -> List[Dict[str, Any]]:
+    """
+    Perform partial match search on original_id field.
+    Only called when exact ID match returns no results.
+
+    Args:
+        qdrant_client: The Qdrant client instance
+        collection_name: The name of the Qdrant collection
+        normalized_query: Normalized query (dots, spaces, dashes, leading/trailing zeros removed)
+
+    Returns:
+        List of partial match results with score=0.95
+    """
+    try:
+        partial_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="original_id",
+                    match=models.MatchText(text=normalized_query),
+                )
+            ]
+        )
+
+        scroll_result = await qdrant_client.scroll(
+            collection_name=collection_name,
+            scroll_filter=partial_filter,
+            limit=100,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        partial_results = []
+        for point in scroll_result[0]:
+            if point.payload:
+                original_id_value = point.payload.get("original_id", "")
+                # Normalize the stored original_id for comparison
+                normalized_original_id = normalize_for_partial_match(original_id_value)
+                # Check if normalized original_id contains the normalized query
+                if normalized_query in normalized_original_id:  # .lower() ?
+                    partial_results.append(
+                        {"score": 0.95, "payload": point.payload, "id": point.id}
+                    )
+
+        return partial_results
+
+    except Exception as e:
+        logger.warning("Partial ID search failed: %s", e)
+        return []
+
+
 async def perform_hybrid_search(
     qdrant_client: AsyncQdrantClient,
     collection_name: str,
@@ -231,6 +309,7 @@ async def perform_hybrid_search(
     """
     Perform hybrid search combining exact text matches and semantic search.
     Text matches (exact ID) are prioritized (score=1.0), then semantic results are appended.
+    If no exact matches, partial ID matching is attempted with lower score (0.95).
     Duplicates are removed.
 
     Args:
@@ -290,6 +369,15 @@ async def perform_hybrid_search(
                 for point in points
             ]
 
+        # 2. Partial ID match only if no exact matches found
+        partial_results: List[Dict[str, Any]] = []
+        if not text_results:
+            normalized_query = normalize_for_partial_match(safe_query)
+            if len(normalized_query) >= 3:
+                partial_results = await perform_partial_id_search(
+                    qdrant_client, collection_name, normalized_query
+                )
+
         # Process semantic results
         semantic_results: List[Dict[str, Any]] = []
         if isinstance(semantic_result, Exception):
@@ -300,8 +388,11 @@ async def perform_hybrid_search(
         elif isinstance(semantic_result, list):
             semantic_results = semantic_result
 
-        # Deduplicate - text results have priority
-        seen_ids = {r.get("id") for r in text_results if r.get("id") is not None}
+        # Deduplicate - text and partial results have priority
+        seen_ids = set()
+        for r in text_results + partial_results:
+            if r.get("id") is not None:
+                seen_ids.add(r.get("id"))
 
         # Filter semantic results, excluding duplicates
         filtered_semantic = [
@@ -310,16 +401,19 @@ async def perform_hybrid_search(
             if r.get("id") not in seen_ids
         ]
 
-        # Merge: text matches first, then semantic results
-        merged_results = [
-            {"score": r["score"], "payload": r["payload"]} for r in text_results
-        ] + filtered_semantic
+        # Merge: exact matches first, then partial, then semantic results
+        merged_results = (
+            [{"score": r["score"], "payload": r["payload"]} for r in text_results]
+            + [{"score": r["score"], "payload": r["payload"]} for r in partial_results]
+            + filtered_semantic
+        )
 
         query_duration = time.time() - start_time
         logger.debug(
-            "Hybrid search completed: %.3fs, exact_id=%d, semantic=%d, merged=%d",
+            "Hybrid search completed: %.3fs, exact_id=%d, partial=%d, semantic=%d, merged=%d",
             query_duration,
             len(text_results),
+            len(partial_results),
             len(semantic_results),
             len(merged_results[:top_k]),
         )
