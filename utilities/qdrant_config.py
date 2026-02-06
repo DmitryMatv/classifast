@@ -21,7 +21,7 @@ client = QdrantClient(
 
 # Define your collection name
 COLLECTION_NAME = (
-    "UNSPSC_UNv260801-1-eng_new001-3072_v1"  # <--- IMPORTANT: Change this!
+    "collection_name"  # <--- IMPORTANT: Change this!
 )
 
 # 1. & 2. Update Quantization and HNSW Config
