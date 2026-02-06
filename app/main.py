@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -13,7 +14,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from google import genai
-from qdrant_client import AsyncQdrantClient, models
+from qdrant_client import QdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import api, payments, web
@@ -54,8 +55,8 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-async def ensure_text_search_indexes(
-    qdrant_client: AsyncQdrantClient,
+def ensure_text_search_indexes(
+    qdrant_client: QdrantClient,
     collection_name: str,
 ) -> None:
     """
@@ -73,7 +74,7 @@ async def ensure_text_search_indexes(
 
     for field_name in fields_to_index:
         try:
-            await qdrant_client.create_payload_index(
+            qdrant_client.create_payload_index(
                 collection_name=collection_name,
                 field_name=field_name,
                 field_schema=models.PayloadSchemaType.KEYWORD,
@@ -116,7 +117,7 @@ async def lifespan(app: FastAPI):
     collection_quantization_cache = {}  # Cache quantization config per collection
     try:
         logger.info("Connecting to Qdrant at %s:%d...", QDRANT_HOST, QDRANT_PORT)
-        qdrant_client = AsyncQdrantClient(
+        qdrant_client = QdrantClient(
             url=f"http://{QDRANT_HOST}:{QDRANT_PORT}",
             api_key=QDRANT_API_KEY or None,
             timeout=30,
@@ -124,22 +125,17 @@ async def lifespan(app: FastAPI):
 
         # Check if Qdrant client can list collections as a health check
         existing_collections = set()
-        if qdrant_client:
-            try:
-                collections_result = await qdrant_client.get_collections()
-                existing_collections = {
-                    col.name for col in collections_result.collections
-                }
-                collection_names = sorted(list(existing_collections))
-                logger.info(
-                    "Qdrant client initialized. Found collections: %s", collection_names
-                )
-            except Exception as e:
-                logger.error(
-                    "Qdrant client initialized, but could not list collections: %s", e
-                )
-        else:
-            logger.error("Qdrant client could not be initialized.")
+        try:
+            collections_result = qdrant_client.get_collections()
+            existing_collections = {col.name for col in collections_result.collections}
+            collection_names = sorted(list(existing_collections))
+            logger.info(
+                "Qdrant client initialized. Found collections: %s", collection_names
+            )
+        except Exception as e:
+            logger.error(
+                "Qdrant client initialized, but could not list collections: %s", e
+            )
 
         # Verify collections exist and store their vector sizes
         for classifier_type, config in CLASSIFIER_CONFIG.items():
@@ -160,7 +156,7 @@ async def lifespan(app: FastAPI):
                     continue
 
                 # Get collection info and check vector configuration
-                collection_info = await qdrant_client.get_collection(collection_name)
+                collection_info = qdrant_client.get_collection(collection_name)
                 vector_params = collection_info.config.params.vectors
 
                 if isinstance(vector_params, dict) and "size" in vector_params:
@@ -180,7 +176,7 @@ async def lifespan(app: FastAPI):
                 collection_quantization_cache[collection_name] = has_quantization
 
                 # Ensure text search indexes exist for optimal performance
-                await ensure_text_search_indexes(qdrant_client, collection_name)
+                ensure_text_search_indexes(qdrant_client, collection_name)
 
     except Exception as e:
         logger.error("Error initializing Qdrant client: %s", e)
@@ -221,7 +217,7 @@ async def lifespan(app: FastAPI):
     logger.info("FastAPI application shutdown...")
     if qdrant_client:
         try:
-            await qdrant_client.close()
+            qdrant_client.close()
             logger.info("Qdrant client closed.")
         except Exception as e:
             logger.error("Error closing Qdrant client: %s", e)
@@ -452,10 +448,10 @@ async def health_check(request: Request):
     if embed_client and qdrant_client:
         # Optionally, perform a quick check on clients
         try:
-            # Test embed client
-            embed_client.models.list()
-            # Test qdrant client
-            await qdrant_client.get_collections()
+            # Test embed client (run in thread pool to avoid blocking)
+            await asyncio.to_thread(embed_client.models.list)
+            # Test qdrant client (run in thread pool to avoid blocking)
+            await asyncio.to_thread(qdrant_client.get_collections)
             return {"status": "healthy"}
         except Exception:
             raise HTTPException(

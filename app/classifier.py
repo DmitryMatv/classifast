@@ -1,14 +1,13 @@
-import asyncio
 import logging
 import re
 import time
 from typing import Any, Dict, List, Optional
 
+import tenacity
 from fastapi import HTTPException
 from google import genai
 from google.genai import types
-from qdrant_client import AsyncQdrantClient, models
-from tenacity import retry, stop_after_attempt, wait_exponential
+from qdrant_client import QdrantClient, models
 
 from .classifier_config import CLASSIFIER_CONFIG
 
@@ -96,8 +95,13 @@ def normalize_for_partial_match(query: str) -> str:
 # ===== Embedding Generation =====
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=4, min=4, max=10))
-async def get_embedding(
+@tenacity.retry(
+    stop=tenacity.stop_after_attempt(3),
+    wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
+    retry=tenacity.retry_if_exception_type((ConnectionError, TimeoutError)),
+    reraise=True,
+)
+def get_embedding(
     embed_client: genai.Client,
     model_name: str,
     text: str,
@@ -136,9 +140,9 @@ async def get_embedding(
         )
 
         api_start = time.time()
-        response = await embed_client.aio.models.embed_content(
+        response = embed_client.models.embed_content(
             model=model_name,
-            contents=[text],
+            contents=text,
             config=config,
         )
         api_duration = time.time() - api_start
@@ -173,8 +177,8 @@ async def get_embedding(
 # ===== Search Functions =====
 
 
-async def perform_semantic_search(
-    qdrant_client: AsyncQdrantClient,
+def perform_semantic_search(
+    qdrant_client: QdrantClient,
     collection_name: str,
     query_embedding: List[float],
     top_k: int = 10,
@@ -213,7 +217,7 @@ async def perform_semantic_search(
             )
 
         query_start = time.time()
-        search_result = await qdrant_client.query_points(
+        search_result = qdrant_client.query_points(
             collection_name=collection_name,
             query=query_embedding,
             query_filter=None,
@@ -244,8 +248,8 @@ async def perform_semantic_search(
         )
 
 
-async def perform_partial_id_search(
-    qdrant_client: AsyncQdrantClient,
+def perform_partial_id_search(
+    qdrant_client: QdrantClient,
     collection_name: str,
     normalized_query: str,
 ) -> List[Dict[str, Any]]:
@@ -271,7 +275,7 @@ async def perform_partial_id_search(
             ]
         )
 
-        scroll_result = await qdrant_client.scroll(
+        scroll_result = qdrant_client.scroll(
             collection_name=collection_name,
             scroll_filter=partial_filter,
             limit=100,
@@ -298,8 +302,8 @@ async def perform_partial_id_search(
         return []
 
 
-async def perform_hybrid_search(
-    qdrant_client: AsyncQdrantClient,
+def perform_hybrid_search(
+    qdrant_client: QdrantClient,
     collection_name: str,
     query_text: str,
     query_embedding: List[float],
@@ -337,56 +341,46 @@ async def perform_hybrid_search(
             ]
         )
 
-        text_search_task = asyncio.create_task(
-            qdrant_client.scroll(
+        # Execute text search and semantic search sequentially
+        text_result = None
+        text_results: List[Dict[str, Any]] = []
+        try:
+            text_result = qdrant_client.scroll(
                 collection_name=collection_name,
                 scroll_filter=id_filter,
                 limit=3,  # Max 3 exact ID matches
                 with_payload=True,
                 with_vectors=False,
             )
-        )
-
-        semantic_search_task = asyncio.create_task(
-            perform_semantic_search(
-                qdrant_client, collection_name, query_embedding, top_k, has_quantization
-            )
-        )
-
-        # Wait for both with exception handling
-        text_result, semantic_result = await asyncio.gather(
-            text_search_task, semantic_search_task, return_exceptions=True
-        )
-
-        # Process text results (exact ID matches get score=1.0)
-        text_results: List[Dict[str, Any]] = []
-        if isinstance(text_result, Exception):
-            logger.warning(f"Text search failed: {text_result}")
-        elif isinstance(text_result, tuple):
-            points: List[Any] = text_result[0]
-            text_results = [
-                {"score": 1.0, "payload": point.payload, "id": point.id}
-                for point in points
-            ]
+            if isinstance(text_result, tuple):
+                points: List[Any] = text_result[0]
+                text_results = [
+                    {"score": 1.0, "payload": point.payload, "id": point.id}
+                    for point in points
+                ]
+        except Exception as e:
+            logger.warning("Text search failed: %s", e)
 
         # 2. Partial ID match only if no exact matches found
         partial_results: List[Dict[str, Any]] = []
         if not text_results:
             normalized_query = normalize_for_partial_match(safe_query)
             if len(normalized_query) >= 3:
-                partial_results = await perform_partial_id_search(
+                partial_results = perform_partial_id_search(
                     qdrant_client, collection_name, normalized_query
                 )
 
-        # Process semantic results
+        # Execute semantic search
         semantic_results: List[Dict[str, Any]] = []
-        if isinstance(semantic_result, Exception):
-            logger.error(f"Semantic search failed: {semantic_result}")
+        try:
+            semantic_results = perform_semantic_search(
+                qdrant_client, collection_name, query_embedding, top_k, has_quantization
+            )
+        except Exception as e:
+            logger.error("Semantic search failed: %s", e)
             raise HTTPException(
                 status_code=500, detail="Semantic search failed. Please try again."
             )
-        elif isinstance(semantic_result, list):
-            semantic_results = semantic_result
 
         # Deduplicate - text and partial results have priority
         seen_ids = set()
@@ -430,7 +424,7 @@ async def perform_hybrid_search(
 # ===== Classification Functions =====
 
 
-async def validate_and_prepare_classification(
+def validate_and_prepare_classification(
     classifier_type: str,
     version: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -475,9 +469,9 @@ async def validate_and_prepare_classification(
     }
 
 
-async def perform_classification(
+def perform_classification(
     embed_client: genai.Client,
-    qdrant_client: AsyncQdrantClient,
+    qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
     version: Optional[str] = None,
@@ -501,7 +495,7 @@ async def perform_classification(
     """
     # Validate and prepare configuration
     try:
-        validation_result = await validate_and_prepare_classification(
+        validation_result = validate_and_prepare_classification(
             classifier_type, version
         )
         config = validation_result["config"]
@@ -544,7 +538,7 @@ async def perform_classification(
             has_quantization = quantization_cache.get(collection_name, False)
 
         # Generate embedding for the query
-        query_embedding = await get_embedding(
+        query_embedding = get_embedding(
             embed_client=embed_client,
             model_name=embed_model_name,
             text=normalized_query,
@@ -553,7 +547,7 @@ async def perform_classification(
         )
 
         # Perform hybrid search (exact text + semantic)
-        classification_results = await perform_hybrid_search(
+        classification_results = perform_hybrid_search(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
             query_text=normalized_query,

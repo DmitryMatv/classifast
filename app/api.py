@@ -40,7 +40,7 @@ class RapidAPIResponse(BaseModel):
 RAPIDAPI_SECRET = os.getenv("RAPIDAPI_SECRET")
 
 
-async def verify_rapidapi_auth(request: Request) -> bool:
+def verify_rapidapi_auth(request: Request) -> bool:
     """
     Verify RapidAPI authentication via proxy secret.
 
@@ -76,7 +76,7 @@ async def verify_rapidapi_auth(request: Request) -> bool:
     dependencies=[Depends(verify_rapidapi_auth)],
 )
 @rapid_limiter.limit("600/minute")
-async def rapid_classify(
+def rapid_classify(
     request: Request,
     query: str = Query(..., description="Product or service description to classify"),
     standard: str = Query(
@@ -102,7 +102,7 @@ async def rapid_classify(
             request.app.state, "collection_quantization_cache", {}
         )
         # Use shared classification service
-        result = await perform_classification(
+        result = perform_classification(
             embed_client=request.app.state.embed_client,
             qdrant_client=request.app.state.qdrant_client,
             query=normalized_query,
@@ -148,7 +148,7 @@ async def rapid_classify(
 
 @router.get("/standards", dependencies=[Depends(verify_rapidapi_auth)])
 @rapid_limiter.limit("600/minute")
-async def rapid_standards(request: Request):
+def rapid_standards(request: Request):
     """List available classification standards and their versions."""
     standards_info = {}
 
@@ -165,7 +165,7 @@ async def rapid_standards(request: Request):
 
 @router.get("/ping")
 @rapid_limiter.limit("600/minute")
-async def rapid_health_public(request: Request):
+def rapid_health_public(request: Request):
     """Public health check endpoint for RapidAPI consumers."""
     health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
 
@@ -185,7 +185,7 @@ async def rapid_health_public(request: Request):
     # Check Qdrant service
     if qdrant_client:
         try:
-            await qdrant_client.get_collections()
+            qdrant_client.get_collections()
             health_status["services"]["database"] = "healthy"
         except Exception:
             health_status["services"]["database"] = "unhealthy"
@@ -200,7 +200,7 @@ async def rapid_health_public(request: Request):
 
 
 @router.get("/debug-headers")
-async def debug_headers(request: Request):
+def debug_headers(request: Request):
     """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
     # Only allow in development mode
     if os.getenv("DEBUG_MODE", "false").lower() != "true":

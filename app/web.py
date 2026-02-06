@@ -208,7 +208,7 @@ async def get_classification_fragment(
             request.app.state, "collection_quantization_cache", {}
         )
         # Use shared classification service
-        result = await perform_classification(
+        result = perform_classification(
             embed_client=request.app.state.embed_client,
             qdrant_client=request.app.state.qdrant_client,
             query=normalized_description,
