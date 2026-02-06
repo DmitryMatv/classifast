@@ -30,13 +30,14 @@ from dotenv import load_dotenv
 from google import genai
 from qdrant_client import QdrantClient
 
-from app.classifier import get_embedding, perform_semantic_search
+from app.classifier import get_embeddings_batch, perform_semantic_search_batch
 from app.classifier_config import CLASSIFIER_CONFIG
 
 # Configuration
 INPUT_FILE = Path(__file__).parent.parent / "data/unspsc-english-v260801.1.xlsx"
 OUTPUT_FILE = Path(__file__).parent / "unspsc_to_cpv_mapping.csv"
-ROWS_PER_BATCH = 100
+ROWS_PER_BATCH = 128
+EMBEDDING_BATCH_SIZE = 32  # Process embeddings in batches of 32 for efficiency
 
 # Load environment variables from project root
 env_path = Path(__file__).parent.parent / ".env"
@@ -185,69 +186,105 @@ def load_existing_results(output_file: Path) -> set:
     return processed
 
 
-def classify_single(
+def classify_batch(
     embed_client: genai.Client,
     qdrant_client: QdrantClient,
-    row: pd.Series,
+    rows: List[pd.Series],
     cpv_collection: str,
     cpv_config: Dict,
     quantization_cache: Dict[str, bool],
-) -> Optional[Dict]:
-    """Classify a single UNSPSC record against CPV using semantic search only."""
-    query = build_query(row)
+) -> List[Optional[Dict]]:
+    """
+    Classify multiple UNSPSC records against CPV using batch embedding and search.
 
-    if not query:
-        print(f"  Warning: Empty query for {get_unspsc_code(row)}, skipping")
-        return None
+    Args:
+        embed_client: The Google GenAI client
+        qdrant_client: The Qdrant client
+        rows: List of DataFrame rows to classify
+        cpv_collection: Name of the CPV collection
+        cpv_config: CPV classifier configuration
+        quantization_cache: Cache of collection quantization status
+
+    Returns:
+        List of classification results (one per input row, None if failed)
+    """
+    if not rows:
+        return []
+
+    # Build queries for all rows
+    queries = []
+    valid_indices = []
+
+    for i, row in enumerate(rows):
+        query = build_query(row)
+        if query:
+            queries.append(query)
+            valid_indices.append(i)
+        else:
+            print(f"  Warning: Empty query for {get_unspsc_code(row)}, skipping")
+
+    if not queries:
+        return [None] * len(rows)
 
     try:
-        # Generate embedding for the query
-        query_embedding = get_embedding(
+        # Generate embeddings for all queries in one batch call
+        embeddings = get_embeddings_batch(
             embed_client=embed_client,
             model_name=cpv_config.get("embed_model_name", ""),
-            text=query,
+            texts=queries,
             task_type="RETRIEVAL_QUERY",
             embed_dims=cpv_config.get("embed_dims"),
         )
 
-        # Perform semantic search only (faster than hybrid)
+        # Perform semantic search for all embeddings in one batch call
         has_quantization = quantization_cache.get(cpv_collection, False)
-        matches = perform_semantic_search(
+        all_matches = perform_semantic_search_batch(
             qdrant_client=qdrant_client,
             collection_name=cpv_collection,
-            query_embedding=query_embedding,
+            query_embeddings=embeddings,
             top_k=3,
             has_quantization=has_quantization,
         )
 
-        # Build result row
-        row_data = {
-            "unspsc_code": get_unspsc_code(row),
-            "unspsc_type": get_unspsc_type(row),
-            "unspsc_title": get_unspsc_title(row),
-            "unspsc_definition": get_unspsc_definition(row),
-            "embedding_text": query,
-        }
+        # Build results for all rows
+        results = [None] * len(rows)
 
-        # Add CPV matches (limit to top 3, even if more returned)
-        top_matches = matches[:3]
-        for i, match in enumerate(top_matches):
-            payload = match.get("payload", {})
-            row_data[f"cpv_match_{i + 1}_code"] = payload.get("original_id", "")
-            row_data[f"cpv_match_{i + 1}_name"] = payload.get("class_name", "")
-            row_data[f"cpv_match_{i + 1}_score"] = round(match.get("score", 0), 4)
+        for result_idx, row_idx in enumerate(valid_indices):
+            row = rows[row_idx]
+            matches = all_matches[result_idx]
+            query = queries[result_idx]
 
-        # Fill empty matches with empty strings
-        for i in range(len(top_matches), 3):
-            row_data[f"cpv_match_{i + 1}_code"] = ""
-            row_data[f"cpv_match_{i + 1}_name"] = ""
-            row_data[f"cpv_match_{i + 1}_score"] = ""
+            # Build result row
+            row_data = {
+                "unspsc_code": get_unspsc_code(row),
+                "unspsc_type": get_unspsc_type(row),
+                "unspsc_title": get_unspsc_title(row),
+                "unspsc_definition": get_unspsc_definition(row),
+                "embedding_text": query,
+            }
 
-        return row_data
+            # Add CPV matches (limit to top 3, even if more returned)
+            top_matches = matches[:3]
+            for i, match in enumerate(top_matches):
+                payload = match.get("payload", {})
+                row_data[f"cpv_match_{i + 1}_code"] = payload.get("original_id", "")
+                row_data[f"cpv_match_{i + 1}_name"] = payload.get("class_name", "")
+                row_data[f"cpv_match_{i + 1}_score"] = round(match.get("score", 0), 4)
+
+            # Fill empty matches with empty strings
+            for i in range(len(top_matches), 3):
+                row_data[f"cpv_match_{i + 1}_code"] = ""
+                row_data[f"cpv_match_{i + 1}_name"] = ""
+                row_data[f"cpv_match_{i + 1}_score"] = ""
+
+            results[row_idx] = row_data
+
+        return results
 
     except Exception as e:
-        print(f"  Error classifying {get_unspsc_code(row)}: {e}")
-        return None
+        print(f"  Error in batch classification: {e}")
+        # Return None for all rows in the batch on failure
+        return [None] * len(rows)
 
 
 def main():
@@ -325,42 +362,58 @@ def main():
 
     print(f"\nProcessing {len(df_to_process)} remaining records...")
     print(f"Output will be saved to: {OUTPUT_FILE}")
-    print(f"Progress saved every {ROWS_PER_BATCH} rows\n")
+    print(f"Progress saved every {ROWS_PER_BATCH} rows")
+    print(f"Embedding batch size: {EMBEDDING_BATCH_SIZE} (API calls per batch)\n")
 
-    # Process in batches
+    # Process in embedding batches for efficiency
     batch_results = []
     total_processed = len(processed_codes)
 
-    for idx, (_, row) in enumerate(df_to_process.iterrows(), 1):
-        unspsc_code = get_unspsc_code(row)
-        unspsc_type = get_unspsc_type(row)
-        query_preview = build_query(row)[:80]
+    # Convert DataFrame to list of rows for batch processing
+    rows_to_process = [row for _, row in df_to_process.iterrows()]
+    total_rows = len(rows_to_process)
 
-        print("=" * 70)
-        print(f"[{total_processed + idx}/{len(df)}] {unspsc_code}: {query_preview}...")
+    # Process in embedding batches
+    for batch_start in range(0, total_rows, EMBEDDING_BATCH_SIZE):
+        batch_end = min(batch_start + EMBEDDING_BATCH_SIZE, total_rows)
+        current_batch = rows_to_process[batch_start:batch_end]
 
-        # Classify
-        result = classify_single(
+        # Print batch info
+        first_code = get_unspsc_code(current_batch[0])
+        last_code = get_unspsc_code(current_batch[-1])
+        print(
+            f"\n[Batch {batch_start // EMBEDDING_BATCH_SIZE + 1}] Processing {len(current_batch)} records ({first_code} to {last_code})"
+        )
+
+        # Classify batch
+        results = classify_batch(
             embed_client,
             qdrant_client,
-            row,
+            current_batch,
             cpv_collection,
             cpv_config,
             quantization_cache,
         )
 
-        if result:
-            batch_results.append(result)
-            print(
-                f"  -> CPV: {result.get('cpv_match_1_code', 'N/A')} ({result.get('cpv_match_1_name', 'N/A')[:50]}...)"
-            )
+        # Process results
+        for i, (row, result) in enumerate(zip(current_batch, results)):
+            idx = batch_start + i + 1
+            unspsc_code = get_unspsc_code(row)
+
+            if result:
+                batch_results.append(result)
+                print(
+                    f"  [{total_processed + idx}/{len(df)}] {unspsc_code} -> CPV: {result.get('cpv_match_1_code', 'N/A')} ({result.get('cpv_match_1_name', 'N/A')[:40]}...)"
+                )
+            else:
+                print(f"  [{total_processed + idx}/{len(df)}] {unspsc_code} -> FAILED")
 
         # Save progress every N rows
         if len(batch_results) >= ROWS_PER_BATCH:
             save_results(batch_results, OUTPUT_FILE)
             batch_results = []
             print(
-                f"\n*** Progress saved! {total_processed + idx} records completed ***\n"
+                f"\n*** Progress saved! {total_processed + batch_end} records completed ***\n"
             )
 
     # Save remaining results

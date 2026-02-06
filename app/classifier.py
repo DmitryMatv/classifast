@@ -1,7 +1,7 @@
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import tenacity
 from fastapi import HTTPException
@@ -169,8 +169,114 @@ def get_embedding(
     except Exception as e:
         elapsed = time.time() - start_time
         logger.error("Embedding generation failed: %s (%.3fs elapsed)", e, elapsed)
+        # Re-raise retryable exceptions for tenacity to handle
+        if isinstance(e, (ConnectionError, TimeoutError)):
+            raise
         raise HTTPException(
             status_code=500, detail="Failed to generate embedding for classification"
+        )
+
+
+@tenacity.retry(
+    stop=tenacity.stop_after_attempt(3),
+    wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
+    retry=tenacity.retry_if_exception_type((ConnectionError, TimeoutError)),
+    reraise=True,
+)
+def get_embeddings_batch(
+    embed_client: genai.Client,
+    model_name: str,
+    texts: Union[str, List[str]],
+    task_type: str = "RETRIEVAL_QUERY",
+    embed_dims: Optional[int] = None,
+) -> List[List[float]]:
+    """
+    Generate embeddings for single or multiple texts using Google GenAI.
+
+    Args:
+        embed_client: The Google GenAI client
+        model_name: The embedding model name
+        texts: Single text string or list of text strings to embed
+        task_type: Task type for embedding (RETRIEVAL_QUERY, RETRIEVAL_DOCUMENT, etc.)
+        embed_dims: Expected embedding dimensions
+
+    Returns:
+        List of embedding vectors, where each vector is a list of floats.
+        For single text input, returns a list with one embedding.
+        For multiple texts, returns embeddings in the same order as input.
+
+    Raises:
+        HTTPException: If embedding generation fails
+    """
+    start_time = time.time()
+
+    # Normalize input to list
+    is_single = isinstance(texts, str)
+    contents = [texts] if is_single else list(texts)
+
+    if not contents:
+        raise HTTPException(status_code=400, detail="No texts provided for embedding")
+
+    try:
+        logger.debug(
+            "Generating embeddings batch: model=%s, task_type=%s, dims=%s, count=%d",
+            model_name,
+            task_type,
+            embed_dims,
+            len(contents),
+        )
+
+        config = types.EmbedContentConfig(
+            task_type=task_type,
+            output_dimensionality=embed_dims,
+        )
+
+        api_start = time.time()
+        response = embed_client.models.embed_content(
+            model=model_name,
+            contents=contents,
+            config=config,
+        )
+        api_duration = time.time() - api_start
+        logger.debug(
+            "Gemini API embedding batch call: %.3fs for %d texts",
+            api_duration,
+            len(contents),
+        )
+
+        # Validate response
+        if response.embeddings is None:
+            raise RuntimeError("No embeddings returned from API")
+
+        if len(response.embeddings) != len(contents):
+            raise RuntimeError(
+                f"Expected {len(contents)} embeddings, got {len(response.embeddings)}"
+            )
+
+        embeddings = []
+        for i, embedding in enumerate(response.embeddings):
+            if not embedding.values:
+                raise RuntimeError(f"Empty embedding generated for text at index {i}")
+
+            if embed_dims and len(embedding.values) != embed_dims:
+                raise RuntimeError(
+                    f"Embedding dimension mismatch at index {i}: expected {embed_dims}, got {len(embedding.values)}"
+                )
+
+            embeddings.append(embedding.values)
+
+        return embeddings
+
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(
+            "Batch embedding generation failed: %s (%.3fs elapsed)", e, elapsed
+        )
+        # Re-raise retryable exceptions for tenacity to handle
+        if isinstance(e, (ConnectionError, TimeoutError)):
+            raise
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate embeddings batch: {str(e)}"
         )
 
 
@@ -245,6 +351,127 @@ def perform_semantic_search(
         logger.error("Semantic search failed: %s (%.3fs elapsed)", e, elapsed)
         raise HTTPException(
             status_code=500, detail="Semantic search failed. Please try again."
+        )
+
+
+def perform_semantic_search_batch(
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    query_embeddings: Union[List[float], List[List[float]]],
+    top_k: int = 10,
+    has_quantization: bool = False,
+) -> List[List[Dict[str, Any]]]:
+    """
+    Perform semantic search for single or multiple query embeddings.
+
+    Args:
+        qdrant_client: The Qdrant client instance
+        collection_name: The name of the Qdrant collection
+        query_embeddings: Single embedding vector or list of embedding vectors
+        top_k: Maximum number of results to return per query
+        has_quantization: Whether collection has quantization enabled
+
+    Returns:
+        List of search results lists. Each inner list contains search results
+        for the corresponding query embedding.
+        For single embedding input, returns a list with one results list.
+
+    Raises:
+        HTTPException: If search fails
+    """
+    start_time = time.time()
+
+    try:
+        # Normalize input to list of embeddings
+        # Check if it's a single embedding (list of floats) or multiple (list of lists)
+        if not query_embeddings:
+            raise HTTPException(status_code=400, detail="No query embeddings provided")
+
+        # Determine if it's a single embedding by checking if first element is a number (float/int)
+        is_single = isinstance(query_embeddings[0], (int, float))
+
+        if is_single:
+            embeddings_list = [query_embeddings]
+        else:
+            embeddings_list = list(query_embeddings)
+
+        logger.debug(
+            "Performing semantic search batch: collection=%s, queries=%d, top_k=%d",
+            collection_name,
+            len(embeddings_list),
+            top_k,
+        )
+
+        # For single query, use regular search for simplicity
+        if len(embeddings_list) == 1:
+            results = perform_semantic_search(
+                qdrant_client=qdrant_client,
+                collection_name=collection_name,
+                query_embedding=embeddings_list[0],
+                top_k=top_k,
+                has_quantization=has_quantization,
+            )
+            return [results]
+
+        # For multiple queries, use batch search
+        internal_top_k = 50 if has_quantization else top_k
+
+        search_params = models.SearchParams(
+            hnsw_ef=256,
+            exact=False,
+        )
+
+        if has_quantization:
+            search_params.quantization = models.QuantizationSearchParams(
+                ignore=False,
+                rescore=True,
+                oversampling=2.0,
+            )
+
+        # Build batch query requests
+        requests = [
+            models.QueryRequest(
+                query=embedding,
+                limit=internal_top_k,
+                with_payload=True,
+                with_vector=False,
+                params=search_params,
+            )
+            for embedding in embeddings_list
+        ]
+
+        batch_start = time.time()
+        batch_result = qdrant_client.query_batch_points(
+            collection_name=collection_name,
+            requests=requests,
+        )
+        batch_duration = time.time() - batch_start
+
+        # Process results - batch_result is a list of lists (one list per query)
+        all_results = []
+        for i, query_results in enumerate(batch_result):
+            query_results_list = [
+                {"score": hit.score, "payload": hit.payload, "id": hit.id}
+                for hit in query_results.points
+            ]
+            all_results.append(query_results_list)
+
+        logger.debug(
+            "Qdrant semantic search batch: %.3fs for %d queries, avg=%.3fs/query",
+            batch_duration,
+            len(embeddings_list),
+            batch_duration / len(embeddings_list),
+        )
+
+        return all_results
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error("Batch semantic search failed: %s (%.3fs elapsed)", e, elapsed)
+        raise HTTPException(
+            status_code=500, detail=f"Batch semantic search failed: {str(e)}"
         )
 
 
