@@ -3,6 +3,7 @@ import re
 import time
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import tenacity
 from fastapi import HTTPException
 from google import genai
@@ -357,7 +358,7 @@ def perform_semantic_search(
 def perform_semantic_search_batch(
     qdrant_client: QdrantClient,
     collection_name: str,
-    query_embeddings: Union[List[float], List[List[float]]],
+    query_embeddings: List[float] | List[List[float]],
     top_k: int = 10,
     has_quantization: bool = False,
 ) -> List[List[Dict[str, Any]]]:
@@ -387,13 +388,18 @@ def perform_semantic_search_batch(
         if not query_embeddings:
             raise HTTPException(status_code=400, detail="No query embeddings provided")
 
-        # Determine if it's a single embedding by checking if first element is a number (float/int)
-        is_single = isinstance(query_embeddings[0], (int, float))
+        # Determine if it's a single embedding by checking if first element is a number
+        # Handles list[float] and numpy arrays by checking if first element is scalar
+        first_elem = query_embeddings[0]
+        is_single = isinstance(first_elem, (int, float, np.floating, np.integer))
 
         if is_single:
-            embeddings_list = [query_embeddings]
+            # Single embedding case: wrap in list
+            single_emb: List[float] = query_embeddings  # type: ignore
+            embeddings_list = [single_emb]
         else:
-            embeddings_list = list(query_embeddings)
+            # Multiple embeddings case: convert each to list
+            embeddings_list = [list(emb) for emb in query_embeddings]  # type: ignore
 
         logger.debug(
             "Performing semantic search batch: collection=%s, queries=%d, top_k=%d",
@@ -412,6 +418,16 @@ def perform_semantic_search_batch(
                 has_quantization=has_quantization,
             )
             return [results]
+
+        # Validate uniform embedding dimensions for batch search
+        if len(embeddings_list) > 1:
+            expected_dim = len(embeddings_list[0])
+            for i, emb in enumerate(embeddings_list[1:], 1):
+                if len(emb) != expected_dim:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Inconsistent embedding dimensions: query 0 has {expected_dim} dimensions, query {i} has {len(emb)} dimensions",
+                    )
 
         # For multiple queries, use batch search
         internal_top_k = 50 if has_quantization else top_k
@@ -457,7 +473,8 @@ def perform_semantic_search_batch(
             all_results.append(query_results_list)
 
         logger.debug(
-            "Qdrant semantic search batch: %.3fs for %d queries, avg=%.3fs/query",
+            "Qdrant semantic search batch: collection=%s, %.3fs for %d queries, avg=%.3fs/query",
+            collection_name,
             batch_duration,
             len(embeddings_list),
             batch_duration / len(embeddings_list),
@@ -465,8 +482,6 @@ def perform_semantic_search_batch(
 
         return all_results
 
-    except HTTPException:
-        raise
     except Exception as e:
         elapsed = time.time() - start_time
         logger.error("Batch semantic search failed: %s (%.3fs elapsed)", e, elapsed)
