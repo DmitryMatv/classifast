@@ -101,7 +101,8 @@ def rapid_classify(
         quantization_cache = getattr(
             request.app.state, "collection_quantization_cache", {}
         )
-        # Use shared classification service
+        # Use shared classification service with ZeroEntropy reranking
+        zclient = getattr(request.app.state, "zclient", None)
         result = perform_classification(
             embed_client=request.app.state.embed_client,
             qdrant_client=request.app.state.qdrant_client,
@@ -110,6 +111,7 @@ def rapid_classify(
             version=version,
             top_k=top_k or 1,
             quantization_cache=quantization_cache,
+            zclient=zclient,
         )
 
         classification_results = result["results"]

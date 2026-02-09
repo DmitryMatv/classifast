@@ -214,7 +214,8 @@ async def get_classification_fragment(
         quantization_cache = getattr(
             request.app.state, "collection_quantization_cache", {}
         )
-        # Use shared classification service
+        # Use shared classification service with ZeroEntropy reranking
+        zclient = getattr(request.app.state, "zclient", None)
         result = perform_classification(
             embed_client=request.app.state.embed_client,
             qdrant_client=request.app.state.qdrant_client,
@@ -223,6 +224,7 @@ async def get_classification_fragment(
             version=version,
             top_k=top_k,
             quantization_cache=quantization_cache,
+            zclient=zclient,
         )
 
         classification_results = result["results"]

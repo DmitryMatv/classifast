@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from google import genai
 from qdrant_client import QdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
+from zeroentropy import ZeroEntropy
 
 from . import api, payments, web
 from .classifier_config import CLASSIFIER_CONFIG
@@ -206,8 +207,22 @@ async def lifespan(app: FastAPI):
                 pass
         redis_client = None
 
+    # Initialize ZeroEntropy client for reranking
+    ZEROENTROPY_API_KEY = os.getenv("ZEROENTROPY_API_KEY")
+    zclient = None
+    if not ZEROENTROPY_API_KEY:
+        logger.warning("ZEROENTROPY_API_KEY not found - reranking disabled")
+    else:
+        try:
+            zclient = ZeroEntropy()
+            logger.info("ZeroEntropy client initialized successfully.")
+        except Exception as e:
+            logger.error("Error initializing ZeroEntropy client: %s", e)
+            zclient = None
+
     # Store clients and caches in app state
     app.state.embed_client = embed_client
+    app.state.zclient = zclient
     app.state.qdrant_client = qdrant_client
     app.state.collection_quantization_cache = collection_quantization_cache
     app.state.redis_client = redis_client

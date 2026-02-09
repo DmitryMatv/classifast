@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import time
 from typing import Any, Dict, List, Optional
@@ -352,22 +351,6 @@ def perform_partial_id_search(
         return []
 
 
-def create_zeroentropy_client() -> Optional[ZeroEntropy]:
-    """Create a ZeroEntropy client if API key is available.
-
-    Returns:
-        ZeroEntropy client instance if ZEROENTROPY_API_KEY is set, None otherwise.
-    """
-    api_key = os.getenv("ZEROENTROPY_API_KEY")
-    if api_key:
-        try:
-            return ZeroEntropy()
-        except Exception as e:
-            logger.warning("Failed to initialize ZeroEntropy client: %s", e)
-            return None
-    return None
-
-
 # ===== Cache Control Helpers =====
 
 
@@ -429,7 +412,11 @@ def rerank_with_zeroentropy(
         documents.append(doc)
 
     try:
-        logger.debug("Reranking top %d candidates with ZeroEntropy...", len(documents))
+        logger.info(
+            "RERANK: ZeroEntropy reranking %d candidates for query='%s'",
+            len(documents),
+            query[:50],
+        )
 
         # Call ZeroEntropy rerank API
         response = zclient.models.rerank(
@@ -464,15 +451,17 @@ def rerank_with_zeroentropy(
                 reranked_candidates.append(candidate_copy)
 
         if reranked_candidates:
-            logger.debug(
-                "ZeroEntropy reranking complete. Top result: %s (score: %.2f)",
+            logger.info(
+                "RERANK_COMPLETE: Top result=%s score=%.2f (reranked %d docs)",
                 reranked_candidates[0].get("payload", {}).get("original_id", "N/A"),
                 reranked_candidates[0].get("zeroentropy_relevance_score", 0),
+                len(documents),
             )
 
     except Exception as e:
         logger.warning(
-            "ZeroEntropy reranking failed: %s, using semantic search scores", e
+            "RERANK_FAILED: ZeroEntropy reranking failed: %s, using semantic search scores",
+            e,
         )
         # Return original candidates with zeroentropy_relevance_score = 0
         reranked_candidates = []
@@ -654,6 +643,10 @@ def perform_classification(
 
         # Step 7: Rerank only semantic results if ZeroEntropy is available
         if zclient and filtered_semantic:
+            logger.info(
+                "RERANK_STATUS: Using ZeroEntropy for %d semantic candidates",
+                len(filtered_semantic),
+            )
             reranked_semantic = rerank_with_zeroentropy(
                 zclient=zclient,
                 query=normalized_query,
@@ -663,6 +656,12 @@ def perform_classification(
             )
         else:
             # No ZeroEntropy, just limit results and add zero score
+            if not zclient:
+                logger.info(
+                    "RERANK_STATUS: ZeroEntropy not available, skipping reranking"
+                )
+            elif not filtered_semantic:
+                logger.debug("RERANK_STATUS: No semantic candidates to rerank")
             reranked_semantic = []
             for result in filtered_semantic[:top_k]:
                 result_copy = result.copy()
@@ -676,6 +675,7 @@ def perform_classification(
             ze_score = result.get("zeroentropy_relevance_score", 0)
             if ze_score > 0:
                 result["score"] = ze_score / 100.0
+            # else: keep original semantic search score
 
         classification_results = scroll_results + reranked_semantic
 
