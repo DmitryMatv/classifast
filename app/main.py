@@ -180,6 +180,7 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         logger.error("Error initializing Qdrant client: %s", e)
+        raise RuntimeError(f"Failed to initialize Qdrant client: {e}") from e
 
     # Initialize Redis client for usage tracking
     redis_client = None
@@ -272,7 +273,7 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
 
         # Check combined URL content
         combined_url = "".join(url_parts)
-        if combined_url and self._is_suspicious_encoding(combined_url):
+        if combined_url and len(combined_url) > 4000:
             logger.warning(
                 "Suspicious URL encoding detected: %s...", combined_url[:100]
             )
@@ -280,13 +281,6 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         return response
-
-    def _is_suspicious_encoding(self, text: str) -> bool:
-        """Simplified check for obvious encoding attacks"""
-        if not text or len(text) > 4000:
-            return len(text) > 4000
-
-        return bool(self._attack_patterns.search(text.lower()))
 
     def _create_error_response(self) -> JSONResponse:
         """Create standardized error response"""
@@ -354,19 +348,16 @@ class CachedStaticFiles(StaticFiles):
             # Long cache for versioned assets (fonts, images), shorter for CSS/JS that might change
             if path.endswith((".woff", ".woff2", ".png", ".jpg", ".ico")):
                 # Immutable assets - cache for 1 year at edge, 1 week in browser
-                response.headers["Cache-Control"] = (
-                    "public, max-age=604800, s-maxage=31536000, immutable"
-                )
+                response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=31536000"
             elif path.endswith((".css", ".js")):
-                # CSS/JS - 1 hour browser, 24 hours CF edge, allow stale
-                response.headers["Cache-Control"] = (
-                    "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600, stale-if-error=86400"
-                )
+                # CSS/JS - 1 hour browser, 24 hours CF edge
+                response.headers["Cache-Control"] = "public, max-age=3600"
+                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=86400"
             else:
-                # Other files - 5 min browser, 1 hour edge
-                response.headers["Cache-Control"] = (
-                    "public, max-age=300, s-maxage=3600, stale-while-revalidate=300, stale-if-error=1800"
-                )
+                # Other files - 4 hours browser, 7 days edge
+                response.headers["Cache-Control"] = "public, max-age=14400"
+                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
 
             # ETag for conditional requests (CF uses this for revalidation)
             try:
@@ -396,16 +387,15 @@ app.mount(
 # Root-level static files (browsers/crawlers expect these at root)
 # Cached at CF edge for 24h since these rarely change but get frequent requests
 def static_file_response(
-    path: str, max_age: int = 3600, s_maxage: int = 86400
+    path: str, max_age: int = 14400, cdn_max_age: int = 604800
 ) -> FileResponse:
     """Serve a static file with Cloudflare-optimized cache headers."""
     file_path = BASE_DIR / "app" / "static" / path
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     response = FileResponse(file_path)
-    response.headers["Cache-Control"] = (
-        f"public, max-age={max_age}, s-maxage={s_maxage}, stale-if-error={s_maxage}"
-    )
+    response.headers["Cache-Control"] = f"public, max-age={max_age}"
+    response.headers["Cloudflare-CDN-Cache-Control"] = f"max-age={cdn_max_age}"
     response.headers["Cache-Tag"] = "static-files"
     return response
 

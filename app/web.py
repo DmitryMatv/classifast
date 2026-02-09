@@ -7,7 +7,7 @@ from urllib.parse import quote, unquote_plus, urlencode
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from .classifier import perform_classification
+from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import limiter, templates
 from .usage_tracker import (
@@ -51,7 +51,8 @@ async def read_root(request: Request):
     # For HEAD requests, return just headers
     if request.method == "HEAD":
         headers = {
-            "Cache-Control": "public, max-age=300, s-maxage=3600, stale-if-error=1800",  # 5 min browser, 1 hour CDN
+            "Cache-Control": "public, max-age=14400",
+            "Cloudflare-CDN-Cache-Control": "max-age=604800",
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
             "Link": '<https://classifast.com/>; rel="canonical"',
@@ -64,9 +65,8 @@ async def read_root(request: Request):
     )
 
     # Cloudflare-friendly cache headers (same as classifier pages)
-    response.headers["Cache-Control"] = (
-        "public, max-age=300, s-maxage=3600, stale-if-error=1800"  # 5 min browser, 1 hour CDN
-    )
+    response.headers["Cache-Control"] = "public, max-age=14400"
+    response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = '<https://classifast.com/>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"
@@ -110,7 +110,7 @@ async def get_classification_fragment(
     request: Request,
     classifier_type: str,
     product_description: str = Query(..., alias="product_description"),
-    top_k: int = Query(10),
+    top_k: int = Query(10, ge=1, le=100),
     version: str = Query(...),
     url_change: bool = Query(True),
 ):
@@ -192,7 +192,7 @@ async def get_classification_fragment(
     # Handle empty query gracefully
     # normalized_description was already set above for URL building
     if not normalized_description:
-        return templates.TemplateResponse(
+        response = templates.TemplateResponse(
             "results.html",
             {
                 "request": request,
@@ -200,6 +200,13 @@ async def get_classification_fragment(
                 "results_for_query": [],
             },
         )
+        response.headers["Cache-Control"] = "public, max-age=14400"
+        response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
+        response.headers["Vary"] = "Accept-Encoding"
+        add_quota_headers(response, usage_status)
+        if usage_status.tracking_id:
+            set_tracking_cookie(response, usage_status.tracking_id)
+        return response
 
     start_total_time = time.perf_counter()
 
@@ -255,12 +262,14 @@ async def get_classification_fragment(
         },
     )
 
-    # Add caching headers for this fragment
-    # This is safe because it's for specific query/version combinations
-    response.headers["Cache-Control"] = (
-        "public, max-age=300, s-maxage=3600, stale-while-revalidate=300, stale-if-error=1800"  # 5 min browser, 1 hour CDN
-    )
-    response.headers["Vary"] = "Accept-Encoding"
+    # Cache classification results to save expensive API calls (ZeroEntropy, Gemini, Qdrant)
+    # Cloudflare edge cache handles this - cache hits don't consume quotas
+    cache_headers = get_classification_cache_headers()
+    response.headers["Cache-Control"] = cache_headers["Cache-Control"]
+    response.headers["Cloudflare-CDN-Cache-Control"] = cache_headers[
+        "Cloudflare-CDN-Cache-Control"
+    ]
+    response.headers["Vary"] = cache_headers["Vary"]
 
     # Set HTMX header to update URL in browser address bar (new_url was built earlier)
     if url_change:
@@ -307,7 +316,7 @@ async def show_classifier_page_with_query(
         return RedirectResponse(url=f"{redirect_url}{query_string}", status_code=301)
 
     # Use the uppercase classifier_type from here
-    classifier_type = upper_type
+    effective_classifier_type = upper_type
 
     # Handle checkout return with token verification
     checkout_success = request.query_params.get("checkout")
@@ -332,7 +341,7 @@ async def show_classifier_page_with_query(
 
     # Build canonical URL
     # URL-encode slug to handle non-Latin characters in HTTP headers
-    canonical_url = f"https://classifast.com/{classifier_type}"
+    canonical_url = f"https://classifast.com/{effective_classifier_type}"
     if decoded_search_query:
         slug = slugify(decoded_search_query)
         canonical_url += f"/{quote(slug, safe='')}"
@@ -344,7 +353,8 @@ async def show_classifier_page_with_query(
     # For HEAD requests, return just headers
     if request.method == "HEAD":
         headers = {
-            "Cache-Control": "public, max-age=300, s-maxage=3600, stale-if-error=1800",  # 5 min browser, 1 hour CDN
+            "Cache-Control": "public, max-age=14400",
+            "Cloudflare-CDN-Cache-Control": "max-age=604800",
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
             "Link": f'<{canonical_url}>; rel="canonical"',
@@ -389,7 +399,7 @@ async def show_classifier_page_with_query(
         "classifier_page.html",
         {
             "request": request,
-            "classifier_type": classifier_type,
+            "classifier_type": effective_classifier_type,
             "title": config["title"],
             "heading": config["heading"],
             "description": config["description"],
@@ -409,9 +419,8 @@ async def show_classifier_page_with_query(
     )
 
     # Cloudflare-friendly cache headers (aligned with homepage)
-    response.headers["Cache-Control"] = (
-        "public, max-age=300, s-maxage=3600, stale-if-error=1800"  # 5 min browser, 1 hour CDN
-    )
+    response.headers["Cache-Control"] = "public, max-age=14400"
+    response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"

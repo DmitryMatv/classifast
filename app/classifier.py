@@ -1,14 +1,15 @@
 import logging
+import os
 import re
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-import numpy as np
 import tenacity
 from fastapi import HTTPException
 from google import genai
 from google.genai import types
 from qdrant_client import QdrantClient, models
+from zeroentropy import ZeroEntropy
 
 from .classifier_config import CLASSIFIER_CONFIG
 
@@ -67,33 +68,6 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
         )
 
     return query.strip()
-
-
-def normalize_for_partial_match(query: str) -> str:
-    """
-    Normalize query for partial matching by removing dots, spaces, dashes,
-    and both leading/trailing zeros.
-
-    Args:
-        query: Sanitized query string
-
-    Returns:
-        Normalized query string for partial matching
-    """
-    # Remove dots, spaces, and dashes
-    normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
-
-    # Strip leading and trailing zeros
-    normalized = normalized.lstrip("0").rstrip("0")
-
-    # If empty after stripping, return original (handles case of "000")
-    if not normalized:
-        normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
-
-    return normalized
-
-
-# ===== Embedding Generation =====
 
 
 @tenacity.retry(
@@ -178,109 +152,6 @@ def get_embedding(
         )
 
 
-@tenacity.retry(
-    stop=tenacity.stop_after_attempt(3),
-    wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
-    retry=tenacity.retry_if_exception_type((ConnectionError, TimeoutError)),
-    reraise=True,
-)
-def get_embeddings_batch(
-    embed_client: genai.Client,
-    model_name: str,
-    texts: Union[str, List[str]],
-    task_type: str = "RETRIEVAL_QUERY",
-    embed_dims: Optional[int] = None,
-) -> List[List[float]]:
-    """
-    Generate embeddings for single or multiple texts using Google GenAI.
-
-    Args:
-        embed_client: The Google GenAI client
-        model_name: The embedding model name
-        texts: Single text string or list of text strings to embed
-        task_type: Task type for embedding (RETRIEVAL_QUERY, RETRIEVAL_DOCUMENT, etc.)
-        embed_dims: Expected embedding dimensions
-
-    Returns:
-        List of embedding vectors, where each vector is a list of floats.
-        For single text input, returns a list with one embedding.
-        For multiple texts, returns embeddings in the same order as input.
-
-    Raises:
-        HTTPException: If embedding generation fails
-    """
-    start_time = time.time()
-
-    # Normalize input to list
-    is_single = isinstance(texts, str)
-    contents = [texts] if is_single else list(texts)
-
-    if not contents:
-        raise HTTPException(status_code=400, detail="No texts provided for embedding")
-
-    try:
-        logger.debug(
-            "Generating embeddings batch: model=%s, task_type=%s, dims=%s, count=%d",
-            model_name,
-            task_type,
-            embed_dims,
-            len(contents),
-        )
-
-        config = types.EmbedContentConfig(
-            task_type=task_type,
-            output_dimensionality=embed_dims,
-        )
-
-        api_start = time.time()
-        response = embed_client.models.embed_content(
-            model=model_name,
-            contents=contents,
-            config=config,
-        )
-        api_duration = time.time() - api_start
-        logger.debug(
-            "Gemini API embedding batch call: %.3fs for %d texts",
-            api_duration,
-            len(contents),
-        )
-
-        # Validate response
-        if response.embeddings is None:
-            raise RuntimeError("No embeddings returned from API")
-
-        if len(response.embeddings) != len(contents):
-            raise RuntimeError(
-                f"Expected {len(contents)} embeddings, got {len(response.embeddings)}"
-            )
-
-        embeddings = []
-        for i, embedding in enumerate(response.embeddings):
-            if not embedding.values:
-                raise RuntimeError(f"Empty embedding generated for text at index {i}")
-
-            if embed_dims and len(embedding.values) != embed_dims:
-                raise RuntimeError(
-                    f"Embedding dimension mismatch at index {i}: expected {embed_dims}, got {len(embedding.values)}"
-                )
-
-            embeddings.append(embedding.values)
-
-        return embeddings
-
-    except Exception as e:
-        elapsed = time.time() - start_time
-        logger.error(
-            "Batch embedding generation failed: %s (%.3fs elapsed)", e, elapsed
-        )
-        # Re-raise retryable exceptions for tenacity to handle
-        if isinstance(e, (ConnectionError, TimeoutError)):
-            raise
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate embeddings batch: {str(e)}"
-        )
-
-
 # ===== Search Functions =====
 
 
@@ -320,7 +191,7 @@ def perform_semantic_search(
             search_params.quantization = models.QuantizationSearchParams(
                 ignore=False,
                 rescore=True,
-                oversampling=2.0,
+                oversampling=3.0,
             )
 
         query_start = time.time()
@@ -355,139 +226,76 @@ def perform_semantic_search(
         )
 
 
-def perform_semantic_search_batch(
+def perform_exact_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
-    query_embeddings: List[float] | List[List[float]],
-    top_k: int = 10,
-    has_quantization: bool = False,
-) -> List[List[Dict[str, Any]]]:
+    query_text: str,
+) -> List[Dict[str, Any]]:
     """
-    Perform semantic search for single or multiple query embeddings.
+    Perform exact ID match search on original_id field.
 
     Args:
         qdrant_client: The Qdrant client instance
         collection_name: The name of the Qdrant collection
-        query_embeddings: Single embedding vector or list of embedding vectors
-        top_k: Maximum number of results to return per query
-        has_quantization: Whether collection has quantization enabled
+        query_text: Query text to match against original_id
 
     Returns:
-        List of search results lists. Each inner list contains search results
-        for the corresponding query embedding.
-        For single embedding input, returns a list with one results list.
-
-    Raises:
-        HTTPException: If search fails
+        List of exact match results with score=1.0
     """
-    start_time = time.time()
-
     try:
-        # Normalize input to list of embeddings
-        # Check if it's a single embedding (list of floats) or multiple (list of lists)
-        if not query_embeddings:
-            raise HTTPException(status_code=400, detail="No query embeddings provided")
-
-        # Determine if it's a single embedding by checking if first element is a number
-        # Handles list[float] and numpy arrays by checking if first element is scalar
-        first_elem = query_embeddings[0]
-        is_single = isinstance(first_elem, (int, float, np.floating, np.integer))
-
-        if is_single:
-            # Single embedding case: wrap in list
-            single_emb: List[float] = query_embeddings  # type: ignore
-            embeddings_list = [single_emb]
-        else:
-            # Multiple embeddings case: convert each to list
-            embeddings_list = [list(emb) for emb in query_embeddings]  # type: ignore
-
-        logger.debug(
-            "Performing semantic search batch: collection=%s, queries=%d, top_k=%d",
-            collection_name,
-            len(embeddings_list),
-            top_k,
-        )
-
-        # For single query, use regular search for simplicity
-        if len(embeddings_list) == 1:
-            results = perform_semantic_search(
-                qdrant_client=qdrant_client,
-                collection_name=collection_name,
-                query_embedding=embeddings_list[0],
-                top_k=top_k,
-                has_quantization=has_quantization,
-            )
-            return [results]
-
-        # Validate uniform embedding dimensions for batch search
-        if len(embeddings_list) > 1:
-            expected_dim = len(embeddings_list[0])
-            for i, emb in enumerate(embeddings_list[1:], 1):
-                if len(emb) != expected_dim:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Inconsistent embedding dimensions: query 0 has {expected_dim} dimensions, query {i} has {len(emb)} dimensions",
-                    )
-
-        # For multiple queries, use batch search
-        internal_top_k = 50 if has_quantization else top_k
-
-        search_params = models.SearchParams(
-            hnsw_ef=256,
-            exact=False,
-        )
-
-        if has_quantization:
-            search_params.quantization = models.QuantizationSearchParams(
-                ignore=False,
-                rescore=True,
-                oversampling=2.0,
-            )
-
-        # Build batch query requests
-        requests = [
-            models.QueryRequest(
-                query=embedding,
-                limit=internal_top_k,
-                with_payload=True,
-                with_vector=False,
-                params=search_params,
-            )
-            for embedding in embeddings_list
-        ]
-
-        batch_start = time.time()
-        batch_result = qdrant_client.query_batch_points(
-            collection_name=collection_name,
-            requests=requests,
-        )
-        batch_duration = time.time() - batch_start
-
-        # Process results - batch_result is a list of lists (one list per query)
-        all_results = []
-        for i, query_results in enumerate(batch_result):
-            query_results_list = [
-                {"score": hit.score, "payload": hit.payload, "id": hit.id}
-                for hit in query_results.points
+        safe_query = sanitize_query_text(query_text, for_search=True)
+        id_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="original_id",
+                    match=models.MatchValue(value=safe_query),
+                )
             ]
-            all_results.append(query_results_list)
-
-        logger.debug(
-            "Qdrant semantic search batch: collection=%s, %.3fs for %d queries, avg=%.3fs/query",
-            collection_name,
-            batch_duration,
-            len(embeddings_list),
-            batch_duration / len(embeddings_list),
         )
 
-        return all_results
+        scroll_result = qdrant_client.scroll(
+            collection_name=collection_name,
+            scroll_filter=id_filter,
+            limit=3,  # Max 3 exact ID matches
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        if isinstance(scroll_result, tuple):
+            points = scroll_result[0]
+            return [
+                {"score": 1.0, "payload": point.payload, "id": point.id}
+                for point in points
+            ]
+        return []
 
     except Exception as e:
-        elapsed = time.time() - start_time
-        logger.error("Batch semantic search failed: %s (%.3fs elapsed)", e, elapsed)
-        raise HTTPException(
-            status_code=500, detail=f"Batch semantic search failed: {str(e)}"
-        )
+        logger.warning("Exact ID search failed: %s", e)
+        return []
+
+
+def normalize_for_partial_match(query: str) -> str:
+    """
+    Normalize query for partial matching by removing dots and spaces,
+    and stripping leading/trailing zeros.
+
+    Args:
+        query: Sanitized query string
+
+    Returns:
+        Normalized query string for partial matching
+    """
+    # Remove dots, spaces, and dashes
+    normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
+
+    # Strip leading and trailing zeros
+    normalized = normalized.lstrip("0").rstrip("0")
+
+    # If empty after stripping, return original (handles case of "000")
+    if not normalized:
+        normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
+
+    return normalized
 
 
 def perform_partial_id_search(
@@ -544,126 +352,145 @@ def perform_partial_id_search(
         return []
 
 
-def perform_hybrid_search(
-    qdrant_client: QdrantClient,
-    collection_name: str,
-    query_text: str,
-    query_embedding: List[float],
-    top_k: int = 10,
-    has_quantization: bool = False,
-) -> List[Dict[str, Any]]:
-    """
-    Perform hybrid search combining exact text matches and semantic search.
-    Text matches (exact ID) are prioritized (score=1.0), then semantic results are appended.
-    If no exact matches, partial ID matching is attempted with lower score (0.95).
-    Duplicates are removed.
-
-    Args:
-        qdrant_client: The Qdrant client instance
-        collection_name: The name of the Qdrant collection
-        query_text: Original query text (sanitized for general use)
-        query_embedding: Query embedding vector
-        top_k: Maximum number of results to return
-        has_quantization: Whether collection has quantization enabled
+def create_zeroentropy_client() -> Optional[ZeroEntropy]:
+    """Create a ZeroEntropy client if API key is available.
 
     Returns:
-        Merged list of search results
+        ZeroEntropy client instance if ZEROENTROPY_API_KEY is set, None otherwise.
     """
-    start_time = time.time()
+    api_key = os.getenv("ZEROENTROPY_API_KEY")
+    if api_key:
+        try:
+            return ZeroEntropy()
+        except Exception as e:
+            logger.warning("Failed to initialize ZeroEntropy client: %s", e)
+            return None
+    return None
+
+
+# ===== Cache Control Helpers =====
+
+
+def get_classification_cache_headers() -> Dict[str, str]:
+    """Generate Cloudflare-friendly Cache-Control headers for classification responses.
+
+    Returns:
+        Dictionary with Cache-Control and Vary headers
+    """
+    # Uniform cache policy across all endpoints
+    # Browser: 4 hours, Cloudflare CDN: 7 days
+    # Cloudflare-CDN-Cache-Control is Cloudflare-specific and not proxied downstream
+    return {
+        "Cache-Control": "public, max-age=14400",
+        "Cloudflare-CDN-Cache-Control": "max-age=604800",
+        "Vary": "Accept-Encoding",
+    }
+
+
+def rerank_with_zeroentropy(
+    zclient: ZeroEntropy,
+    query: str,
+    candidates: List[Dict[str, Any]],
+    top_k: int = 5,
+    rerank_top_n: int = 15,
+) -> List[Dict[str, Any]]:
+    """Rerank semantic search results using ZeroEntropy rerank API.
+
+    Args:
+        zclient: Initialized ZeroEntropy client
+        query: The search query text
+        candidates: List of candidate matches from semantic search
+        top_k: Number of top results to return after reranking
+        rerank_top_n: Number of candidates to send to ZeroEntropy
+
+    Returns:
+        List of reranked candidates with zeroentropy_relevance_score field.
+        Falls back to original candidates if API fails.
+    """
+    if not candidates or not zclient:
+        return candidates
+
+    # Limit candidates to rerank
+    candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
+    remaining_candidates = candidates[len(candidates_to_rerank) :]
+
+    # Prepare documents for ZeroEntropy - use class_name and definition
+    documents = []
+    for candidate in candidates_to_rerank:
+        payload = candidate.get("payload", {})
+        class_name = payload.get("class_name", "")
+        definition = payload.get("definition", "")
+
+        # Build document text with class_name and definition if available
+        if definition:
+            doc = f"{class_name}\n\nDefinition: {definition}"
+        else:
+            doc = class_name
+        documents.append(doc)
 
     try:
-        # 1. Exact ID match via text search (fast, synchronous with semantic)
-        safe_query = sanitize_query_text(query_text, for_search=True)
-        id_filter = models.Filter(
-            must=[
-                models.FieldCondition(
-                    key="original_id",
-                    match=models.MatchValue(value=safe_query),
-                )
-            ]
+        logger.debug("Reranking top %d candidates with ZeroEntropy...", len(documents))
+
+        # Call ZeroEntropy rerank API
+        response = zclient.models.rerank(
+            model="zerank-2",
+            query=query,
+            documents=documents,
         )
 
-        # Execute text search and semantic search sequentially
-        text_result = None
-        text_results: List[Dict[str, Any]] = []
-        try:
-            text_result = qdrant_client.scroll(
-                collection_name=collection_name,
-                scroll_filter=id_filter,
-                limit=3,  # Max 3 exact ID matches
-                with_payload=True,
-                with_vectors=False,
-            )
-            if isinstance(text_result, tuple):
-                points: List[Any] = text_result[0]
-                text_results = [
-                    {"score": 1.0, "payload": point.payload, "id": point.id}
-                    for point in points
-                ]
-        except Exception as e:
-            logger.warning("Text search failed: %s", e)
+        # Map rerank results back to original candidates
+        reranked_candidates = []
+        seen_indices = set()
 
-        # 2. Partial ID match only if no exact matches found
-        partial_results: List[Dict[str, Any]] = []
-        if not text_results:
-            normalized_query = normalize_for_partial_match(safe_query)
-            if len(normalized_query) >= 3:
-                partial_results = perform_partial_id_search(
-                    qdrant_client, collection_name, normalized_query
-                )
+        # Process results from ZeroEntropy
+        for result in response.results:
+            original_index = result.index
+            seen_indices.add(original_index)
+            original_candidate = candidates_to_rerank[original_index].copy()
 
-        # Execute semantic search
-        semantic_results: List[Dict[str, Any]] = []
-        try:
-            semantic_results = perform_semantic_search(
-                qdrant_client, collection_name, query_embedding, top_k, has_quantization
-            )
-        except Exception as e:
-            logger.error("Semantic search failed: %s", e)
-            raise HTTPException(
-                status_code=500, detail="Semantic search failed. Please try again."
+            # Add ZeroEntropy relevance score (normalize to 0-100 scale)
+            relevance_score = result.relevance_score * 100
+            original_candidate["zeroentropy_relevance_score"] = round(
+                relevance_score, 4
             )
 
-        # Deduplicate - text and partial results have priority
-        seen_ids = set()
-        for r in text_results + partial_results:
-            if r.get("id") is not None:
-                seen_ids.add(r.get("id"))
+            reranked_candidates.append(original_candidate)
 
-        # Filter semantic results, excluding duplicates
-        filtered_semantic = [
-            {"score": r["score"], "payload": r["payload"]}
-            for r in semantic_results
-            if r.get("id") not in seen_ids
-        ]
+        # Add any candidates that weren't returned with 0 score
+        for i, candidate in enumerate(candidates_to_rerank):
+            if i not in seen_indices:
+                candidate_copy = candidate.copy()
+                candidate_copy["zeroentropy_relevance_score"] = 0.0
+                reranked_candidates.append(candidate_copy)
 
-        # Merge: exact matches first, then partial, then semantic results
-        merged_results = (
-            [{"score": r["score"], "payload": r["payload"]} for r in text_results]
-            + [{"score": r["score"], "payload": r["payload"]} for r in partial_results]
-            + filtered_semantic
-        )
+        if reranked_candidates:
+            logger.debug(
+                "ZeroEntropy reranking complete. Top result: %s (score: %.2f)",
+                reranked_candidates[0].get("payload", {}).get("original_id", "N/A"),
+                reranked_candidates[0].get("zeroentropy_relevance_score", 0),
+            )
 
-        query_duration = time.time() - start_time
-        logger.debug(
-            "Hybrid search completed: %.3fs, exact_id=%d, partial=%d, semantic=%d, merged=%d",
-            query_duration,
-            len(text_results),
-            len(partial_results),
-            len(semantic_results),
-            len(merged_results[:top_k]),
-        )
-
-        return merged_results[:top_k]
-
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error("Hybrid search failed: %s", e)
-        raise HTTPException(status_code=500, detail="Search failed. Please try again.")
+        logger.warning(
+            "ZeroEntropy reranking failed: %s, using semantic search scores", e
+        )
+        # Return original candidates with zeroentropy_relevance_score = 0
+        reranked_candidates = []
+        for c in candidates_to_rerank:
+            c_copy = c.copy()
+            c_copy["zeroentropy_relevance_score"] = 0.0
+            reranked_candidates.append(c_copy)
+
+    # Add remaining candidates (not reranked) with 0 score
+    for c in remaining_candidates:
+        c_copy = c.copy()
+        c_copy["zeroentropy_relevance_score"] = 0.0
+        reranked_candidates.append(c_copy)
+
+    return reranked_candidates[:top_k]
 
 
-# ===== Classification Functions =====
+# ===== Classification Function =====
 
 
 def validate_and_prepare_classification(
@@ -719,9 +546,10 @@ def perform_classification(
     version: Optional[str] = None,
     top_k: int = 3,
     quantization_cache: Optional[Dict[str, bool]] = None,
+    zclient: Optional[ZeroEntropy] = None,
 ) -> Dict[str, Any]:
     """
-    Classify a single query using hybrid search (exact text + semantic).
+    Classify a single query using hybrid search (exact text + semantic) with optional ZeroEntropy reranking.
 
     Args:
         embed_client: The Google GenAI client
@@ -731,6 +559,7 @@ def perform_classification(
         version: Optional specific version to use
         top_k: Number of results to return
         quantization_cache: Optional cache mapping collection names to quantization status
+        zclient: Optional ZeroEntropy client for reranking results
 
     Returns:
         Dict containing classification results and metadata
@@ -779,7 +608,24 @@ def perform_classification(
         if quantization_cache:
             has_quantization = quantization_cache.get(collection_name, False)
 
-        # Generate embedding for the query
+        # Step 1: Perform exact ID search (scroll) - these always stay on top
+        scroll_results = perform_exact_id_search(
+            qdrant_client=qdrant_client,
+            collection_name=collection_name,
+            query_text=normalized_query,
+        )
+
+        # Step 2: If no exact matches, try partial ID search
+        if not scroll_results:
+            normalized_id_query = normalize_for_partial_match(normalized_query)
+            if len(normalized_id_query) >= 3:
+                scroll_results = perform_partial_id_search(
+                    qdrant_client=qdrant_client,
+                    collection_name=collection_name,
+                    normalized_query=normalized_id_query,
+                )
+
+        # Step 3: Generate embedding for semantic search
         query_embedding = get_embedding(
             embed_client=embed_client,
             model_name=embed_model_name,
@@ -788,15 +634,56 @@ def perform_classification(
             embed_dims=config.get("embed_dims"),
         )
 
-        # Perform hybrid search (exact text + semantic)
-        classification_results = perform_hybrid_search(
+        # Step 4: Perform semantic search with more candidates if reranking
+        semantic_top_k = 50 if zclient else top_k
+        semantic_results = perform_semantic_search(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
-            query_text=normalized_query,
             query_embedding=query_embedding,
-            top_k=top_k,
+            top_k=semantic_top_k,
             has_quantization=has_quantization,
         )
+
+        # Step 5: Get IDs from scroll results to deduplicate semantic results
+        scroll_ids = {r.get("id") for r in scroll_results if r.get("id") is not None}
+
+        # Step 6: Filter out semantic results that match scroll results
+        filtered_semantic = [
+            r for r in semantic_results if r.get("id") not in scroll_ids
+        ]
+
+        # Step 7: Rerank only semantic results if ZeroEntropy is available
+        if zclient and filtered_semantic:
+            reranked_semantic = rerank_with_zeroentropy(
+                zclient=zclient,
+                query=normalized_query,
+                candidates=filtered_semantic,
+                top_k=top_k,  # Will be limited later with scroll results
+                rerank_top_n=30,
+            )
+        else:
+            # No ZeroEntropy, just limit results and add zero score
+            reranked_semantic = []
+            for result in filtered_semantic[:top_k]:
+                result_copy = result.copy()
+                result_copy["zeroentropy_relevance_score"] = 0.0
+                reranked_semantic.append(result_copy)
+
+        # Step 8: Merge results - scroll first, then reranked semantic
+        # For reranked semantic results, update score to use normalized ZeroEntropy score
+        # This ensures proper sorting - ZeroEntropy scores are 0-100, normalize to 0-1
+        for result in reranked_semantic:
+            ze_score = result.get("zeroentropy_relevance_score", 0)
+            if ze_score > 0:
+                result["score"] = ze_score / 100.0
+
+        classification_results = scroll_results + reranked_semantic
+
+        # Step 9: Sort all results by score descending (top scores first)
+        classification_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        # Step 10: Limit to top_k (scroll + semantic count toward limit)
+        classification_results = classification_results[:top_k]
 
         return {
             "results": classification_results,

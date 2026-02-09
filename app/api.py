@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .classifier import perform_classification
+from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import rapid_limiter
 
@@ -131,13 +131,18 @@ def rapid_classify(
 
         processing_time = time.perf_counter() - start_time
 
-        return RapidAPIResponse(
+        response_data = RapidAPIResponse(
             query=normalized_query,
             standard=standard.lower(),
             version=result["version_name"],
             results=formatted_results,
             processing_time=processing_time,
         )
+
+        # Cache classification results to save expensive API calls via Cloudflare edge cache
+        cache_headers = get_classification_cache_headers()
+
+        return JSONResponse(content=response_data.model_dump(), headers=cache_headers)
 
     except HTTPException:
         raise
@@ -160,7 +165,11 @@ def rapid_standards(request: Request):
             "example": config["example"].replace("Example:", "").strip(),
         }
 
-    return JSONResponse(content={"standards": standards_info, "timestamp": time.time()})
+    cache_headers = get_classification_cache_headers()
+    return JSONResponse(
+        content={"standards": standards_info, "timestamp": time.time()},
+        headers=cache_headers,
+    )
 
 
 @router.get("/ping")
