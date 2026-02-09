@@ -1,6 +1,4 @@
-import os
-
-_CLASSIFIER_CONFIG = {
+CLASSIFIER_CONFIG = {
     "ETIM": {
         "title": "ETIM International Classifier",
         "heading": "Find relevant EC classes from the ETIM standard",
@@ -154,26 +152,3 @@ _CLASSIFIER_CONFIG = {
         },
     },
 }
-
-# Test classifier only available in debug mode
-_TEST_CLASSIFIER = {
-    "TEST": {
-        "title": "Embedding Test Classifier",
-        "heading": "Get codes for your goods",
-        "description": "Test classifier for development",
-        "example": "Example:\nElectric motor",
-        "embed_model_name": "text-embedding-004",
-        "embed_dims": 768,
-        "versions": {
-            "Old UNSPSC collection (text-embedding-004, 768)": {
-                "collection_name": "UNSPSC_eng_UNv260801-1_768",
-                "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
-            },
-        },
-    },
-}
-
-# Only include test classifier if DEBUG_MODE is enabled
-CLASSIFIER_CONFIG = _CLASSIFIER_CONFIG.copy()
-if os.getenv("DEBUG_MODE", "").lower() == "true":
-    CLASSIFIER_CONFIG.update(_TEST_CLASSIFIER)

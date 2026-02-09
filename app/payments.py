@@ -7,7 +7,6 @@ import httpx
 import jwt
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from jwt import PyJWKClient
 from polar_sdk import Polar
 from polar_sdk._webhooks import WebhookVerificationError, validate_event
 from polar_sdk.models import (
@@ -18,6 +17,13 @@ from polar_sdk.models import (
     WebhookSubscriptionUpdatedPayload,
 )
 
+from .dependencies import (
+    CLERK_FRONTEND_API,
+    CLERK_PERMITTED_ORIGINS,
+    CLERK_SECRET_KEY,
+    get_jwks_client,
+)
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -25,27 +31,8 @@ router = APIRouter()
 
 POLAR_ACCESS_TOKEN = os.getenv("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET")
-CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
-CLERK_FRONTEND_API = os.getenv("CLERK_FRONTEND_API", "")
-if CLERK_FRONTEND_API:
-    CLERK_FRONTEND_API = (
-        CLERK_FRONTEND_API.replace("https://", "").replace("http://", "").rstrip("/")
-    )
-CLERK_PERMITTED_ORIGINS = os.getenv("CLERK_PERMITTED_ORIGINS", "")
 
 CHECKOUT_PENDING_TTL = 900  # 15 minutes - token validity
-
-# Cached JWKS client for Clerk JWT verification
-_jwks_client = None
-
-
-def get_jwks_client():
-    global _jwks_client
-    if _jwks_client is None and CLERK_FRONTEND_API:
-        _jwks_client = PyJWKClient(
-            f"https://{CLERK_FRONTEND_API}/.well-known/jwks.json"
-        )
-    return _jwks_client
 
 
 # Dependency to get authenticated user ID from Clerk
@@ -299,11 +286,9 @@ async def update_clerk_user_metadata(user_id, metadata):
         )
 
         if response.status_code == 200:
-            logger.info(
-                f"Successfully updated Clerk metadata for user {user_id}: {metadata}"
-            )
+            logger.info(f"Successfully updated Clerk metadata for user {user_id}")
         else:
-            logger.error(f"Failed to update Clerk metadata: {response.text}")
+            logger.error(f"Failed to update Clerk metadata: {response.status_code}")
 
 
 async def get_clerk_user_details(user_id: str) -> dict:

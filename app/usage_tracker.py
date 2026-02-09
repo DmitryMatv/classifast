@@ -148,7 +148,7 @@ def extract_user_info_from_token(
     Returns (None, None) if token is invalid or unverifiable.
     """
     # Import here to avoid circular imports
-    from .payments import CLERK_FRONTEND_API, get_jwks_client
+    from .dependencies import CLERK_FRONTEND_API, get_jwks_client
 
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
