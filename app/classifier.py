@@ -623,13 +623,20 @@ def perform_classification(
             embed_dims=config.get("embed_dims"),
         )
 
-        # Step 4: Perform semantic search with more candidates if reranking
-        semantic_top_k = 50 if zclient else top_k
+        # Step 4: Perform semantic search
+        # If reranking, scale candidates with top_k (minimum 30 for quality)
+        rerank_top_n = max(top_k, 30) if zclient else top_k
+        logger.info(
+            "SEMANTIC_SEARCH: Fetching top %d candidates for top_k=%d (reranking=%s)",
+            rerank_top_n,
+            top_k,
+            "enabled" if zclient else "disabled",
+        )
         semantic_results = perform_semantic_search(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
             query_embedding=query_embedding,
-            top_k=semantic_top_k,
+            top_k=rerank_top_n,
             has_quantization=has_quantization,
         )
 
@@ -652,14 +659,12 @@ def perform_classification(
                 query=normalized_query,
                 candidates=filtered_semantic,
                 top_k=top_k,  # Will be limited later with scroll results
-                rerank_top_n=30,
+                rerank_top_n=rerank_top_n,
             )
         else:
             # No ZeroEntropy, just limit results and add zero score
             if not zclient:
-                logger.info(
-                    "RERANK_STATUS: ZeroEntropy not available, skipping reranking"
-                )
+                logger.info("RERANK_STATUS: ZeroEntropy not available")
             elif not filtered_semantic:
                 logger.debug("RERANK_STATUS: No semantic candidates to rerank")
             reranked_semantic = []
