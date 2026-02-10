@@ -7,6 +7,9 @@ load_dotenv()
 QDRANT_REMOTE_URL = os.getenv("QDRANT_URL")
 QDRANT_REMOTE_API_KEY = os.getenv("QDRANT_API_KEY")
 
+if not QDRANT_REMOTE_URL or not QDRANT_REMOTE_API_KEY:
+    raise ValueError("QDRANT_URL and QDRANT_API_KEY environment variables must be set")
+
 # Your existing client setup
 client = QdrantClient(
     host=QDRANT_REMOTE_URL,
@@ -20,9 +23,7 @@ client = QdrantClient(
 # --- Add the code below ---
 
 # Define your collection name
-COLLECTION_NAME = (
-    "collection_name"  # <--- IMPORTANT: Change this!
-)
+COLLECTION_NAME = "collection_name"  # <--- IMPORTANT: Change this!
 
 # 1. & 2. Update Quantization and HNSW Config
 # This operation tells Qdrant to update the collection's configuration.
@@ -40,9 +41,9 @@ client.update_collection(
                 m=32,
                 ef_construct=256,
                 max_indexing_threads=2,
-                on_disk=True,
+                on_disk=False,
             ),
-            on_disk=True,  # Change to False to enable RAM storage
+            on_disk=False,  # Move vectors to RAM for speed
         )
     },
     # Global HNSW config
@@ -50,8 +51,9 @@ client.update_collection(
         m=32,
         ef_construct=256,
         max_indexing_threads=2,
-        on_disk=True,
+        on_disk=False,
         inline_storage=True,
+        full_scan_threshold=5000,  # Force index use earlier
     ),
     # Quantization config
     quantization_config=models.ScalarQuantization(
@@ -61,7 +63,7 @@ client.update_collection(
     ),
     optimizer_config=models.OptimizersConfigDiff(
         memmap_threshold=100000,
-        indexing_threshold=10000,
+        indexing_threshold=5000,  # Trigger HNSW build now
         max_optimization_threads=2,
     ),
 )

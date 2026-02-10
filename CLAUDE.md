@@ -49,16 +49,16 @@ Install dependencies:
 
 ### Core Modules
 
-| Module | Purpose |
-|--------|---------|
-| `app/main.py` | FastAPI app, lifespan management, middleware stack, client initialization |
-| `app/classifier.py` | Embedding generation, Qdrant search, `classify_string_batch()` and `perform_classification()` |
-| `app/classifier_config.py` | `CLASSIFIER_CONFIG` dict with all classification standards and versions |
-| `app/api.py` | RapidAPI endpoints (`/api/v1/rapid/classify`, `/standards`, `/ping`) |
-| `app/web.py` | Web interface routes, HTMX form handling |
-| `app/payments.py` | Polar checkout/webhooks, Clerk JWT verification, subscription tier management |
-| `app/usage_tracker.py` | Redis-based usage quotas, user tier caching, IP/cookie tracking |
-| `app/dependencies.py` | Rate limiters, Jinja2 templates |
+| Module                     | Purpose                                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| `app/main.py`              | FastAPI app, lifespan management, middleware stack, client initialization                     |
+| `app/classifier.py`        | Embedding generation, Qdrant search, `classify_string_batch()` and `perform_classification()` |
+| `app/classifier_config.py` | `CLASSIFIER_CONFIG` dict with all classification standards and versions                       |
+| `app/api.py`               | RapidAPI endpoints (`/api/v1/rapid/classify`, `/standards`, `/ping`)                          |
+| `app/web.py`               | Web interface routes, HTMX form handling                                                      |
+| `app/payments.py`          | Polar checkout/webhooks, Clerk JWT verification, subscription tier management                 |
+| `app/usage_tracker.py`     | Redis-based usage quotas, user tier caching, IP/cookie tracking                               |
+| `app/dependencies.py`      | Rate limiters, Jinja2 templates                                                               |
 
 ### Classification System
 

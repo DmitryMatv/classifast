@@ -15,16 +15,19 @@ Classifast is a web application that provides easy classification of any text in
 ## Supported Classification Standards (Top 3 Most Used)
 
 ### UNSPSC (United Nations Standard Products and Services Codes)
+
 - Global standard for product and service categorization
 - Improves spend analytics and procurement processes
 - Version: UNv260801 (August 14, 2023)
 
 ### ETIM (European Technical Information Model)
+
 - B2B open standard for technical product classification
 - Specialized for electrical and technical products
 - Version: 10.0 (2024-12-10)
 
 ### NAICS 2022 (North American Industry Classification System)
+
 - Industry classification for business activities
 - Essential for government contracting and reporting
 
@@ -50,7 +53,7 @@ Visit the working preview at [classifast.com](https://classifast.com) to try.
 ## API Endpoints (WIP)
 
 - `GET /` - Homepage
-- `GET /{classifier_type}` - Classification page (etim, unspsc)
+- `GET /{classifier_type}` - Classification page (unspsc, etim, naics)
 - `POST /{classifier_type}` - Submit classification request
 - `GET /health` - Health check endpoint
 

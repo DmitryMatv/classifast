@@ -311,6 +311,46 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
 app.add_middleware(URLEncodingValidationMiddleware)
 
 
+# Query Parameter Normalization Middleware
+class QueryNormalizationMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        """Normalize query parameters by stripping whitespace and redirect to canonical URL."""
+        query_items = list(request.query_params.multi_items())
+        normalized_items = []
+        needs_redirect = False
+
+        for key, value in query_items:
+            # Normalize: replace multiple spaces/newlines with single space and strip
+            normalized = re.sub(r"\s+", " ", value).strip()
+            normalized_items.append((key, normalized))
+            if normalized != value:
+                needs_redirect = True
+
+        if needs_redirect:
+            # Build canonical URL with normalized parameters
+            from urllib.parse import urlencode, urlparse, urlunparse
+
+            parsed = urlparse(str(request.url))
+            canonical_query = urlencode(normalized_items)
+            canonical_url = urlunparse(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    parsed.path,
+                    parsed.params,
+                    canonical_query,
+                    parsed.fragment,
+                )
+            )
+            logger.info("Redirecting to normalized URL for path: %s", parsed.path)
+            return Response(status_code=308, headers={"Location": canonical_url})
+
+        return await call_next(request)
+
+
+app.add_middleware(QueryNormalizationMiddleware)
+
+
 # Security Headers Middleware
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

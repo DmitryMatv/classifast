@@ -20,7 +20,7 @@ import csv
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path for app imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,6 +29,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from google import genai
 from qdrant_client import QdrantClient
+from zeroentropy import ZeroEntropy
 
 from app.classifier import get_embedding, perform_semantic_search
 from app.classifier_config import CLASSIFIER_CONFIG
@@ -146,12 +147,15 @@ def save_results(results: List[Dict], output_file: Path) -> None:
         "cpv_match_1_code",
         "cpv_match_1_name",
         "cpv_match_1_score",
+        "cpv_match_1_zeroentropy_score",
         "cpv_match_2_code",
         "cpv_match_2_name",
         "cpv_match_2_score",
+        "cpv_match_2_zeroentropy_score",
         "cpv_match_3_code",
         "cpv_match_3_name",
         "cpv_match_3_score",
+        "cpv_match_3_zeroentropy_score",
     ]
 
     file_exists = output_file.exists()
@@ -185,15 +189,114 @@ def load_existing_results(output_file: Path) -> set:
     return processed
 
 
+def rerank_with_zeroentropy(
+    zclient: ZeroEntropy,
+    query: str,
+    candidates: List[Dict[str, Any]],
+    top_k: int = 5,
+    rerank_top_n: int = 15,
+) -> List[Dict[str, Any]]:
+    """Rerank semantic search results using ZeroEntropy rerank API.
+
+    Args:
+        zclient: Initialized ZeroEntropy client
+        query: The search query (UNSPSC title/description)
+        candidates: List of candidate matches from semantic search
+        top_k: Number of top results to return after reranking
+        rerank_top_n: Number of candidates to send to ZeroEntropy
+
+    Returns:
+        List of reranked candidates with zeroentropy_relevance_score field.
+        Falls back to original candidates if API fails.
+    """
+    if not candidates or not zclient:
+        # Return candidates with default zeroentropy score for consistency
+        return [{**c, "zeroentropy_relevance_score": 0.0} for c in candidates[:top_k]]
+
+    # Limit candidates to rerank
+    candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
+    remaining_candidates = candidates[len(candidates_to_rerank) :]
+
+    # Prepare documents for ZeroEntropy - use just class_name as text
+    # but keep track of index to map back to original candidates
+    documents = []
+    for i, candidate in enumerate(candidates_to_rerank):
+        payload = candidate.get("payload", {})
+        class_name = payload.get("class_name", "")
+        documents.append(class_name)
+
+    try:
+        print(f"    Reranking top {len(documents)} candidates with ZeroEntropy...")
+
+        # Call ZeroEntropy rerank API
+        response = zclient.models.rerank(
+            model="zerank-2",
+            query=query,
+            documents=documents,
+        )
+
+        # Map rerank results back to original candidates
+        reranked_candidates = []
+        seen_indices = set()
+
+        # Process results from ZeroEntropy
+        for result in response.results:
+            original_index = result.index
+            seen_indices.add(original_index)
+            original_candidate = candidates_to_rerank[original_index].copy()
+
+            # Add ZeroEntropy relevance score (normalize to 0-100 scale)
+            relevance_score = result.relevance_score * 100
+            original_candidate["zeroentropy_relevance_score"] = round(
+                relevance_score, 4
+            )
+
+            reranked_candidates.append(original_candidate)
+
+        # Add any candidates that weren't returned (shouldn't happen, but safe)
+        for i, candidate in enumerate(candidates_to_rerank):
+            if i not in seen_indices:
+                candidate_copy = candidate.copy()
+                candidate_copy["zeroentropy_relevance_score"] = 0.0
+                reranked_candidates.append(candidate_copy)
+
+        if reranked_candidates:
+            print(
+                f"    ZeroEntropy reranking complete. Top result: {reranked_candidates[0].get('payload', {}).get('original_id', 'N/A')} (score: {reranked_candidates[0].get('zeroentropy_relevance_score', 0):.2f})"
+            )
+        else:
+            print("    ZeroEntropy reranking complete. No results returned.")
+
+    except Exception as e:
+        print(
+            f"    Warning: ZeroEntropy reranking failed: {e}, using semantic search scores"
+        )
+        # Return original candidates with zeroentropy_relevance_score = 0
+        reranked_candidates = []
+        for c in candidates_to_rerank:
+            c_copy = c.copy()
+            c_copy["zeroentropy_relevance_score"] = 0.0
+            reranked_candidates.append(c_copy)
+
+    # Add remaining candidates (not reranked) with 0 score
+    for c in remaining_candidates:
+        c_copy = c.copy()
+        c_copy["zeroentropy_relevance_score"] = 0.0
+        reranked_candidates.append(c_copy)
+
+    return reranked_candidates[:top_k]
+
+
 def classify_single(
     embed_client: genai.Client,
     qdrant_client: QdrantClient,
+    zclient: Optional[ZeroEntropy],
     row: pd.Series,
     cpv_collection: str,
     cpv_config: Dict,
     quantization_cache: Dict[str, bool],
 ) -> Optional[Dict]:
-    """Classify a single UNSPSC record against CPV using semantic search only."""
+    """Classify a single UNSPSC record against CPV using semantic search + ZeroEntropy reranking."""
     query = build_query(row)
 
     if not query:
@@ -210,15 +313,30 @@ def classify_single(
             embed_dims=cpv_config.get("embed_dims"),
         )
 
-        # Perform semantic search only (faster than hybrid)
+        # Perform semantic search - get top N for reranking
         has_quantization = quantization_cache.get(cpv_collection, False)
         matches = perform_semantic_search(
             qdrant_client=qdrant_client,
             collection_name=cpv_collection,
             query_embedding=query_embedding,
-            top_k=3,
+            top_k=100,  # Get more candidates for better reranking results
             has_quantization=has_quantization,
         )
+
+        # Rerank with ZeroEntropy if available
+        if zclient and matches:
+            reranked_matches = rerank_with_zeroentropy(
+                zclient=zclient,
+                query=query,
+                candidates=matches,
+                top_k=3,  # Get top 3 to match CSV fieldnames
+                rerank_top_n=50,  # Rerank top N candidates for better results
+            )
+        else:
+            # No ZeroEntropy available, use original semantic search scores
+            reranked_matches = [
+                {**match, "zeroentropy_relevance_score": 0.0} for match in matches[:3]
+            ]
 
         # Build result row
         row_data = {
@@ -229,19 +347,22 @@ def classify_single(
             "embedding_text": query,
         }
 
-        # Add CPV matches (limit to top 3, even if more returned)
-        top_matches = matches[:3]
-        for i, match in enumerate(top_matches):
+        # Add CPV matches with both semantic and ZeroEntropy scores
+        for i, match in enumerate(reranked_matches):
             payload = match.get("payload", {})
             row_data[f"cpv_match_{i + 1}_code"] = payload.get("original_id", "")
             row_data[f"cpv_match_{i + 1}_name"] = payload.get("class_name", "")
             row_data[f"cpv_match_{i + 1}_score"] = round(match.get("score", 0), 4)
+            row_data[f"cpv_match_{i + 1}_zeroentropy_score"] = round(
+                match.get("zeroentropy_relevance_score", 0), 4
+            )
 
         # Fill empty matches with empty strings
-        for i in range(len(top_matches), 3):
+        for i in range(len(reranked_matches), 3):
             row_data[f"cpv_match_{i + 1}_code"] = ""
             row_data[f"cpv_match_{i + 1}_name"] = ""
             row_data[f"cpv_match_{i + 1}_score"] = ""
+            row_data[f"cpv_match_{i + 1}_zeroentropy_score"] = ""
 
         return row_data
 
@@ -260,6 +381,7 @@ def main():
     gemini_key = os.getenv("GEMINI_API_KEY")
     qdrant_url = os.getenv("QDRANT_URL")
     qdrant_key = os.getenv("QDRANT_API_KEY")
+    zeroentropy_key = os.getenv("ZEROENTROPY_API_KEY")
 
     if not gemini_key:
         print("Error: GEMINI_API_KEY not set in environment")
@@ -282,6 +404,18 @@ def main():
         api_key=qdrant_key,
         timeout=60,
     )
+
+    # Initialize ZeroEntropy client (optional - reads ZEROENTROPY_API_KEY from env)
+    zclient = None
+    if zeroentropy_key:
+        zclient = ZeroEntropy()
+        print(
+            f"ZeroEntropy API Key: {'*' * 10}{zeroentropy_key[-4:]} (reranking enabled)"
+        )
+    else:
+        print(
+            "ZeroEntropy API Key: NOT SET (reranking disabled - using semantic scores only)"
+        )
 
     # Get CPV configuration
     quantization_cache: Dict[str, bool] = {}
@@ -333,7 +467,7 @@ def main():
 
     for idx, (_, row) in enumerate(df_to_process.iterrows(), 1):
         unspsc_code = get_unspsc_code(row)
-        unspsc_type = get_unspsc_type(row)
+        # unspsc_type = get_unspsc_type(row)
         query_preview = build_query(row)[:80]
 
         print("=" * 70)
@@ -343,6 +477,7 @@ def main():
         result = classify_single(
             embed_client,
             qdrant_client,
+            zclient,
             row,
             cpv_collection,
             cpv_config,
