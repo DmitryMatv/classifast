@@ -433,10 +433,9 @@ def rerank_with_zeroentropy(
             seen_indices.add(original_index)
             original_candidate = candidates_to_rerank[original_index].copy()
 
-            # Add ZeroEntropy relevance score (normalize to 0-100 scale)
-            relevance_score = result.relevance_score * 100
+            # Add ZeroEntropy relevance score (0-1 scale)
             original_candidate["zeroentropy_relevance_score"] = round(
-                relevance_score, 4
+                result.relevance_score, 4
             )
 
             reranked_candidates.append(original_candidate)
@@ -452,7 +451,7 @@ def rerank_with_zeroentropy(
             logger.info(
                 "RERANK_COMPLETE: Top result=%s score=%.2f (reranked %d docs)",
                 reranked_candidates[0].get("payload", {}).get("original_id", "N/A"),
-                reranked_candidates[0].get("zeroentropy_relevance_score", 0),
+                reranked_candidates[0].get("zeroentropy_relevance_score", 0) * 100,
                 len(documents),
             )
 
@@ -596,21 +595,25 @@ def perform_classification(
             has_quantization = quantization_cache.get(collection_name, False)
 
         # Step 1: Perform exact ID search (scroll) - these always stay on top
-        scroll_results = perform_exact_id_search(
+        exact_results = perform_exact_id_search(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
             query_text=normalized_query,
         )
 
         # Step 2: If no exact matches, try partial ID search
-        if not scroll_results:
+        partial_results = []
+        if not exact_results:
             normalized_id_query = normalize_for_partial_match(normalized_query)
             if len(normalized_id_query) >= 3:
-                scroll_results = perform_partial_id_search(
+                partial_results = perform_partial_id_search(
                     qdrant_client=qdrant_client,
                     collection_name=collection_name,
                     normalized_query=normalized_id_query,
                 )
+
+        # Combine exact and partial results
+        id_match_results = exact_results + partial_results
 
         # Step 3: Generate embedding for semantic search
         query_embedding = get_embedding(
@@ -621,14 +624,16 @@ def perform_classification(
             embed_dims=config.get("embed_dims"),
         )
 
-        # Step 4: Perform semantic search with more candidates if reranking
-        semantic_top_k = top_k * 2 if zclient else top_k
+        # Step 4: Perform semantic search
+        # Only use reranking if no ID matches found and ZeroEntropy is available
+        use_reranking = zclient is not None and not id_match_results
+        semantic_top_k = top_k * 2 if use_reranking else top_k
 
         logger.info(
-            "SEMANTIC_SEARCH: Fetching top %d candidates for top_k=%d (reranking=%s)",
+            "SEMANTIC_SEARCH: Fetching top %d candidates (reranking=%s, id_matches=%d)",
             semantic_top_k,
-            top_k,
-            "enabled" if zclient else "disabled",
+            "enabled" if use_reranking else "disabled",
+            len(id_match_results),
         )
         semantic_results = perform_semantic_search(
             qdrant_client=qdrant_client,
@@ -638,54 +643,50 @@ def perform_classification(
             has_quantization=has_quantization,
         )
 
-        # Step 5: Get IDs from scroll results to deduplicate semantic results
-        scroll_ids = {r.get("id") for r in scroll_results if r.get("id") is not None}
+        # Step 5: Get IDs from ID match results to deduplicate semantic results
+        match_ids = {r.get("id") for r in id_match_results if r.get("id") is not None}
 
-        # Step 6: Filter out semantic results that match scroll results
+        # Step 6: Filter out semantic results that match ID results
         filtered_semantic = [
-            r for r in semantic_results if r.get("id") not in scroll_ids
+            r for r in semantic_results if r.get("id") not in match_ids
         ]
 
-        # Step 7: Rerank only semantic results if ZeroEntropy is available
-        if zclient and filtered_semantic:
+        # Step 7: Apply reranking only if no ID matches and ZeroEntropy is available
+        if use_reranking and filtered_semantic:
             logger.info(
                 "RERANK_STATUS: Using ZeroEntropy for %d semantic candidates",
                 len(filtered_semantic),
             )
+            assert zclient is not None  # use_reranking ensures this
             reranked_semantic = rerank_with_zeroentropy(
                 zclient=zclient,
                 query=normalized_query,
                 candidates=filtered_semantic,
-                top_k=top_k,  # Will be limited later even more with scroll results
-                rerank_top_n=semantic_top_k,  # Rerank all fetched candidates
+                top_k=top_k,
+                rerank_top_n=semantic_top_k,  # Rerank all candidates from semantic search
             )
+            # Use ZeroEntropy scores directly (already 0-1 range)
+            for result in reranked_semantic:
+                result["score"] = result.get("zeroentropy_relevance_score", 0)
         else:
-            # No ZeroEntropy, just limit results and add zero score
-            if not zclient:
-                logger.info("RERANK_STATUS: ZeroEntropy not available")
-            elif not filtered_semantic:
-                logger.debug("RERANK_STATUS: No semantic candidates to rerank")
+            # No reranking - just add zero scores and limit results
+            if id_match_results:
+                logger.info("RERANK_STATUS: Skipped - ID matches present")
+            elif not zclient:
+                logger.info("RERANK_STATUS: Skipped - ZeroEntropy not available")
             reranked_semantic = []
             for result in filtered_semantic[:top_k]:
                 result_copy = result.copy()
                 result_copy["zeroentropy_relevance_score"] = 0.0
                 reranked_semantic.append(result_copy)
 
-        # Step 8: Merge results - scroll first, then reranked semantic
-        # For reranked semantic results, update score to use normalized ZeroEntropy score
-        # This ensures proper sorting - ZeroEntropy scores are 0-100, normalize to 0-1
-        for result in reranked_semantic:
-            ze_score = result.get("zeroentropy_relevance_score", 0)
-            if ze_score > 0:
-                result["score"] = ze_score / 100.0
-            # else: keep original semantic search score
-
-        classification_results = scroll_results + reranked_semantic
+        # Step 8: Merge results - ID matches first, then semantic
+        classification_results = id_match_results + reranked_semantic
 
         # Step 9: Sort all results by score descending (top scores first)
         classification_results.sort(key=lambda x: x.get("score", 0), reverse=True)
 
-        # Step 10: Limit to top_k (scroll + semantic count toward limit)
+        # Step 10: Limit to top_k
         classification_results = classification_results[:top_k]
 
         return {
