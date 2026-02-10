@@ -328,10 +328,11 @@ class QueryNormalizationMiddleware(BaseHTTPMiddleware):
 
         if needs_redirect:
             # Build canonical URL with normalized parameters
-            from urllib.parse import urlencode, urlparse, urlunparse
+            from urllib.parse import quote, urlencode, urlparse, urlunparse
 
             parsed = urlparse(str(request.url))
-            canonical_query = urlencode(normalized_items)
+            # Use quote to preserve %20 encoding (not +) for consistency with Cloudflare cache
+            canonical_query = urlencode(normalized_items, doseq=True, quote_via=quote)
             canonical_url = urlunparse(
                 (
                     parsed.scheme,
