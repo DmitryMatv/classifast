@@ -178,8 +178,6 @@ def perform_semantic_search(
 
     try:
         # Prepare search parameters
-        internal_top_k = 50 if has_quantization else top_k
-
         search_params = models.SearchParams(
             hnsw_ef=256,  # Default is 128, higher ef improves recall
             exact=False,
@@ -198,7 +196,7 @@ def perform_semantic_search(
             collection_name=collection_name,
             query=query_embedding,
             query_filter=None,
-            limit=internal_top_k,
+            limit=top_k,
             with_payload=True,
             with_vectors=False,
             search_params=search_params,
@@ -208,7 +206,7 @@ def perform_semantic_search(
             "Qdrant semantic search: %.3fs, collection=%s, top_k=%d, found=%d results",
             query_duration,
             collection_name,
-            internal_top_k,
+            top_k,
             len(search_result.points),
         )
 
@@ -623,12 +621,12 @@ def perform_classification(
             embed_dims=config.get("embed_dims"),
         )
 
-        # Step 4: Perform semantic search
-        # If reranking, scale candidates with top_k (minimum 30 for quality)
-        rerank_top_n = max(top_k, 30) if zclient else top_k
+        # Step 4: Perform semantic search with more candidates if reranking
+        semantic_top_k = top_k * 2 if zclient else top_k
+
         logger.info(
             "SEMANTIC_SEARCH: Fetching top %d candidates for top_k=%d (reranking=%s)",
-            rerank_top_n,
+            semantic_top_k,
             top_k,
             "enabled" if zclient else "disabled",
         )
@@ -636,7 +634,7 @@ def perform_classification(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
             query_embedding=query_embedding,
-            top_k=rerank_top_n,
+            top_k=semantic_top_k,
             has_quantization=has_quantization,
         )
 
@@ -658,8 +656,8 @@ def perform_classification(
                 zclient=zclient,
                 query=normalized_query,
                 candidates=filtered_semantic,
-                top_k=top_k,  # Will be limited later with scroll results
-                rerank_top_n=rerank_top_n,
+                top_k=top_k,  # Will be limited later even more with scroll results
+                rerank_top_n=semantic_top_k,  # Rerank all fetched candidates
             )
         else:
             # No ZeroEntropy, just limit results and add zero score

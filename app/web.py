@@ -81,7 +81,7 @@ async def redirect_classifier_page_no_slash(classifier_type: str, request: Reque
     Redirects URLs without trailing slash to versions with trailing slash for SEO consistency.
     Also redirects lowercase classifier types to uppercase.
     """
-    upper_type = classifier_type.upper()
+    upper_type = classifier_type.strip().upper()
     if upper_type in CLASSIFIER_CONFIG:
         query_string = f"?{request.url.query}" if request.url.query else ""
         return RedirectResponse(url=f"/{upper_type}/{query_string}", status_code=301)
@@ -118,9 +118,13 @@ async def get_classification_fragment(
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
     """
+    # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
+    normalized_description = re.sub(r"\s+", " ", product_description).strip()
+    upper_type = classifier_type.strip().upper()
+
     logger.info(
         "WEB received GET fragment request for '%s' with version '%s'. URL change: %s",
-        classifier_type,
+        upper_type,
         version,
         url_change,
     )
@@ -134,9 +138,6 @@ async def get_classification_fragment(
 
     # Build the new URL early so we can set it before usage check
     # This ensures the URL updates even if user hits the paywall
-    # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
-    normalized_description = re.sub(r"\s+", " ", product_description).strip()
-    upper_type = classifier_type.upper()
     slug = slugify(normalized_description.replace("/", " "))
     new_url = f"/{upper_type}"
     if slug:
@@ -220,7 +221,7 @@ async def get_classification_fragment(
             embed_client=request.app.state.embed_client,
             qdrant_client=request.app.state.qdrant_client,
             query=normalized_description,
-            classifier_type=classifier_type,
+            classifier_type=upper_type,
             version=version,
             top_k=top_k,
             quantization_cache=quantization_cache,
@@ -233,9 +234,7 @@ async def get_classification_fragment(
         # Let HTTP exceptions propagate
         raise
     except Exception as e:
-        logger.error(
-            "Error during '%s' fragment classification: %s", classifier_type, e
-        )
+        logger.error("Error during '%s' fragment classification: %s", upper_type, e)
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
@@ -246,9 +245,7 @@ async def get_classification_fragment(
     # Calculate dynamic page title for OOB swap
     page_title = None
     if url_change:
-        page_title = (
-            f"{classifier_type.upper()} codes for '{normalized_description.title()}'"
-        )
+        page_title = f"{upper_type} codes for '{normalized_description.title()}'"
 
     # Render the results partial with normalized query
     response = templates.TemplateResponse(
@@ -302,7 +299,8 @@ async def show_classifier_page_with_query(
     Handles both base URLs like /NAICS and search URLs like /NAICS/gamedev-studio
     Also redirects lowercase classifier types to uppercase.
     """
-    upper_type = classifier_type.upper()
+    # Normalize classifier type early
+    upper_type = classifier_type.strip().upper()
     config = CLASSIFIER_CONFIG.get(upper_type)
     if not config:
         raise HTTPException(

@@ -92,8 +92,20 @@ def rapid_classify(
 
     This endpoint provides programmatic access to classification services via RapidAPI.
     """
+    # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
     normalized_query = query.strip()
-    logger.info("RapidAPI classification request: %s <- %s", standard, normalized_query)
+    normalized_standard = standard.strip().upper()
+
+    if not normalized_query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    if not normalized_standard:
+        raise HTTPException(status_code=400, detail="Standard cannot be empty")
+
+    logger.info(
+        "RapidAPI classification request: %s <- %s",
+        normalized_standard,
+        normalized_query,
+    )
 
     start_time = time.perf_counter()
 
@@ -107,7 +119,7 @@ def rapid_classify(
             embed_client=request.app.state.embed_client,
             qdrant_client=request.app.state.qdrant_client,
             query=normalized_query,
-            classifier_type=standard,
+            classifier_type=normalized_standard,
             version=version,
             top_k=top_k or 1,
             quantization_cache=quantization_cache,
@@ -135,7 +147,7 @@ def rapid_classify(
 
         response_data = RapidAPIResponse(
             query=normalized_query,
-            standard=standard.lower(),
+            standard=normalized_standard.lower(),
             version=result["version_name"],
             results=formatted_results,
             processing_time=processing_time,
