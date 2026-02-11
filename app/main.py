@@ -332,7 +332,14 @@ class QueryNormalizationMiddleware(BaseHTTPMiddleware):
 
             parsed = urlparse(str(request.url))
             # Use quote to preserve %20 encoding (not +) for consistency with Cloudflare cache
-            canonical_query = urlencode(normalized_items, doseq=True, quote_via=quote)
+            # Use safe='()' to preserve parentheses as they were in the original URL
+            canonical_query = urlencode(
+                normalized_items,
+                doseq=True,
+                quote_via=lambda s, safe, encoding=None, errors=None: quote(
+                    s, safe="()!$'*,;:" + safe, encoding=encoding, errors=errors
+                ),
+            )
             canonical_url = urlunparse(
                 (
                     parsed.scheme,
