@@ -639,7 +639,9 @@
             </div>
             <button id="description-toggle" type="button" aria-expanded="false"
                 class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none underline decoration-sky-700 underline-offset-2"
-                aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button">
+                aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button"
+                data-classifier-type="{{ classifier_type.upper() }}">
+                Learn more about {{ classifier_type.upper() }}
             </button>
 
             <!-- Description is completely hidden by default and shown when the button is pressed -->

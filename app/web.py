@@ -279,8 +279,13 @@ async def get_classification_fragment(
     if url_change:
         await increment_usage(request, redis_client, usage_status)
     add_quota_headers(response, usage_status)
-    # Note: We don't set tracking cookie here to allow Cloudflare caching
-    # The tracking_id is already used in increment_usage for rate limiting
+
+    # Set tracking cookie for anonymous users to enable cross-request tracking
+    # Note: Vary header is "Accept-Encoding" only, so Cloudflare caches the response
+    # regardless of cookie. The cookie is set on every response, but cached responses
+    # are served to all users with their own cookies applied by Cloudflare.
+    if usage_status.tracking_id:
+        set_tracking_cookie(response, usage_status.tracking_id)
 
     return response
 
