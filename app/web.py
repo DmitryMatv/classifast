@@ -274,13 +274,13 @@ async def get_classification_fragment(
     if url_change:
         response.headers["HX-Push-Url"] = new_url
 
-    # Increment usage counter and set tracking cookie
+    # Increment usage counter and add quota headers
     # Skip incrementing for initial page load (example query with url_change=False)
     if url_change:
         await increment_usage(request, redis_client, usage_status)
     add_quota_headers(response, usage_status)
-    if usage_status.tracking_id:
-        set_tracking_cookie(response, usage_status.tracking_id)
+    # Note: We don't set tracking cookie here to allow Cloudflare caching
+    # The tracking_id is already used in increment_usage for rate limiting
 
     return response
 
