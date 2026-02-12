@@ -250,6 +250,9 @@
   .left-0 {
     left: calc(var(--spacing) * 0);
   }
+  .isolate {
+    isolation: isolate;
+  }
   .z-50 {
     z-index: 50;
   }
@@ -340,6 +343,9 @@
   .inline-flex {
     display: inline-flex;
   }
+  .table {
+    display: table;
+  }
   .size-12 {
     width: calc(var(--spacing) * 12);
     height: calc(var(--spacing) * 12);
@@ -359,17 +365,17 @@
   .h-16 {
     height: calc(var(--spacing) * 16);
   }
+  .h-20 {
+    height: calc(var(--spacing) * 20);
+  }
   .h-21\.5 {
     height: calc(var(--spacing) * 21.5);
   }
   .h-24 {
     height: calc(var(--spacing) * 24);
   }
-  .h-\[120px\] {
-    height: 120px;
-  }
-  .max-h-\[800px\] {
-    max-height: 800px;
+  .max-h-200 {
+    max-height: calc(var(--spacing) * 200);
   }
   .min-h-20 {
     min-height: calc(var(--spacing) * 20);
@@ -529,11 +535,6 @@
       margin-inline-start: calc(calc(var(--spacing) * 6) * var(--tw-space-x-reverse));
       margin-inline-end: calc(calc(var(--spacing) * 6) * calc(1 - var(--tw-space-x-reverse)));
     }
-  }
-  .truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .overflow-x-auto {
     overflow-x: auto;
