@@ -58,7 +58,7 @@ Install dependencies:
 | `app/web.py`               | Web interface routes, HTMX form handling                                                      |
 | `app/payments.py`          | Polar checkout/webhooks, Clerk JWT verification, subscription tier management                 |
 | `app/usage_tracker.py`     | Redis-based usage quotas, user tier caching, IP/cookie tracking                               |
-| `app/dependencies.py`      | Rate limiters, Jinja2 templates                                                               |
+| `app/dependencies.py`      | Jinja2 templates, Clerk JWT utilities                                                         |
 
 ### Classification System
 

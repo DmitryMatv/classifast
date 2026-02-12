@@ -20,7 +20,6 @@ from zeroentropy import ZeroEntropy
 
 from . import api, payments, web
 from .classifier_config import CLASSIFIER_CONFIG
-from .dependencies import limiter
 from .usage_tracker import (
     QDRANT_API_KEY,
     QDRANT_HOST,
@@ -337,7 +336,7 @@ class QueryNormalizationMiddleware(BaseHTTPMiddleware):
                 normalized_items,
                 doseq=True,
                 quote_via=lambda s, safe, encoding=None, errors=None: quote(
-                    s, safe="()!$'*,;:" + safe, encoding=encoding, errors=errors
+                    s, safe="()*,:" + safe, encoding=encoding, errors=errors
                 ),
             )
             canonical_url = urlunparse(
@@ -481,10 +480,6 @@ async def sitemap_xml():
 @app.get("/llms.txt", response_class=FileResponse)
 async def llms_txt():
     return static_file_response("llms.txt")
-
-
-# Set state for limiter
-app.state.limiter = limiter
 
 
 # Healthcheck

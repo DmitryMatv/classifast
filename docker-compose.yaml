@@ -11,8 +11,8 @@ services:
       test:
         - CMD
         - curl
-        - '-f'
-        - 'http://localhost:8001/health'
+        - "-f"
+        - "http://localhost:8001/health"
       interval: 10m
       timeout: 30s
       retries: 3

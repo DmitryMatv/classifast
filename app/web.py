@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
-from .dependencies import limiter, templates
+from .dependencies import templates
 from .usage_tracker import (
     FREE_USER_LIMIT,
     UsageStatus,
@@ -105,7 +105,6 @@ async def show_classifier_page(
 
 
 @router.get("/{classifier_type}/fragment", response_class=HTMLResponse)
-@limiter.limit("60/minute")
 async def get_classification_fragment(
     request: Request,
     classifier_type: str,

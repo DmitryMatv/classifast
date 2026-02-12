@@ -23,7 +23,7 @@ app/
 ├── classifier_config.py  # Configuration
 ├── payments.py       # Polar checkout & Clerk JWT
 ├── usage_tracker.py  # Redis-based quotas
-└── dependencies.py   # Rate limiters, templates
+└── dependencies.py   # Templates, Clerk JWT
 
 utilities/            # Integration test scripts
 ```

@@ -2,17 +2,17 @@
 
 ## File Structure
 
-| File | Purpose |
-|------|---------|
-| `app/main.py` | FastAPI app, middleware, lifespan management |
-| `app/classifier.py` | Embedding generation, Qdrant search, classification |
-| `app/classifier_config.py` | Standards, versions, collections config |
-| `app/api.py` | RapidAPI endpoints |
-| `app/web.py` | Web interface, HTMX forms, SEO |
-| `app/payments.py` | Polar checkout/webhooks, Clerk JWT verification |
-| `app/usage_tracker.py` | Redis-based usage quotas, user tier caching |
-| `app/dependencies.py` | Rate limiters, Jinja2 templates |
-| `utilities/` | Integration test scripts |
+| File                       | Purpose                                             |
+| -------------------------- | --------------------------------------------------- |
+| `app/main.py`              | FastAPI app, middleware, lifespan management        |
+| `app/classifier.py`        | Embedding generation, Qdrant search, classification |
+| `app/classifier_config.py` | Standards, versions, collections config             |
+| `app/api.py`               | RapidAPI endpoints                                  |
+| `app/web.py`               | Web interface, HTMX forms, SEO                      |
+| `app/payments.py`          | Polar checkout/webhooks, Clerk JWT verification     |
+| `app/usage_tracker.py`     | Redis-based usage quotas, user tier caching         |
+| `app/dependencies.py`      | Jinja2 templates, Clerk JWT utilities               |
+| `utilities/`               | Integration test scripts                            |
 
 ## Middleware Stack (Critical - Do Not Reorder)
 
@@ -31,7 +31,7 @@ async def lifespan():
     app.state.qdrant = AsyncQdrantClient(...)
     app.state.redis = redis.from_url(...)
     # ...
-    
+
 @app.on_event("shutdown")
 async def shutdown():
     await app.state.qdrant.close()

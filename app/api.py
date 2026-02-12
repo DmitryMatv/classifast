@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
-from .dependencies import rapid_limiter
+from .usage_tracker import check_usage, increment_usage, add_quota_headers
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +75,7 @@ def verify_rapidapi_auth(request: Request) -> bool:
     response_model=RapidAPIResponse,
     dependencies=[Depends(verify_rapidapi_auth)],
 )
-@rapid_limiter.limit("600/minute")
-def rapid_classify(
+async def rapid_classify(
     request: Request,
     query: str = Query(..., description="Product or service description to classify"),
     standard: str = Query(
@@ -92,6 +91,16 @@ def rapid_classify(
 
     This endpoint provides programmatic access to classification services via RapidAPI.
     """
+    # Check usage limits before processing
+    redis_client = getattr(request.app.state, "redis_client", None)
+    usage_status = await check_usage(request, redis_client)
+
+    if not usage_status.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please upgrade for higher limits.",
+        )
+
     # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
     normalized_query = query.strip()
     normalized_standard = standard.strip().upper()
@@ -156,7 +165,19 @@ def rapid_classify(
         # Cache classification results to save expensive API calls via Cloudflare edge cache
         cache_headers = get_classification_cache_headers()
 
-        return JSONResponse(content=response_data.model_dump(), headers=cache_headers)
+        response = JSONResponse(
+            content=response_data.model_dump(), headers=cache_headers
+        )
+
+        # Increment usage counter and add quota headers
+        try:
+            await increment_usage(request, redis_client, usage_status)
+            add_quota_headers(response, usage_status)
+        except Exception as e:
+            logger.warning("Failed to increment usage: %s", e)
+            # Still return response - fail open for usage tracking
+
+        return response
 
     except HTTPException:
         raise
@@ -166,8 +187,7 @@ def rapid_classify(
 
 
 @router.get("/standards", dependencies=[Depends(verify_rapidapi_auth)])
-@rapid_limiter.limit("600/minute")
-def rapid_standards(request: Request):
+async def rapid_standards(request: Request):
     """List available classification standards and their versions."""
     standards_info = {}
 
@@ -187,8 +207,7 @@ def rapid_standards(request: Request):
 
 
 @router.get("/ping")
-@rapid_limiter.limit("600/minute")
-def rapid_health_public(request: Request):
+async def rapid_health_public(request: Request):
     """Public health check endpoint for RapidAPI consumers."""
     health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
 
