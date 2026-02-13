@@ -21,6 +21,16 @@ declare global {
   // ============================================
   interface HtmxInstance {
     trigger: (element: Element | string, event: string) => void;
+    process: (element: Element) => void;
+    ajax: (
+      method: string,
+      url: string,
+      options: {
+        source?: Element;
+        target?: string | Element;
+        swap?: string;
+      },
+    ) => Promise<void>;
   }
 
   // ============================================
@@ -88,6 +98,8 @@ declare global {
   interface HtmxConfigRequestEvent extends CustomEvent {
     detail: {
       headers: Record<string, string>;
+      xhr: XMLHttpRequest;
+      elt: Element;
     };
   }
 

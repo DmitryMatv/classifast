@@ -13,6 +13,7 @@ class ClassifierPage {
   private init(): void {
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
+    this.setupDescriptionToggle();
   }
 
   /**
@@ -73,6 +74,8 @@ class ClassifierPage {
         if (resultsSection) {
           resultsSection.classList.remove("hidden");
         }
+        // Attach share button listener after results are swapped in
+        this.attachShareButtonListener();
       }
     });
 
@@ -97,6 +100,82 @@ class ClassifierPage {
         }
       }
     });
+  }
+
+  /**
+   * Attach click listener to the share button
+   * Called after HTMX swaps in the results
+   */
+  private attachShareButtonListener(): void {
+    const shareButton = document.getElementById("share-button");
+    if (shareButton) {
+      // Remove any existing listeners to avoid duplicates
+      const newButton = shareButton.cloneNode(true) as HTMLElement;
+      shareButton.parentNode?.replaceChild(newButton, shareButton);
+
+      // Add the click listener
+      newButton.addEventListener("click", () => {
+        this.copyShareableLink();
+      });
+    }
+  }
+
+  /**
+   * Setup description toggle button functionality
+   * Toggles the visibility of the description content
+   */
+  private setupDescriptionToggle(): void {
+    const toggleButton = document.getElementById(
+      "description-toggle",
+    ) as HTMLButtonElement | null;
+    const descriptionContent = document.getElementById(
+      "description-content",
+    ) as HTMLElement | null;
+    const container = document.getElementById("description-container");
+
+    if (!toggleButton || !descriptionContent || !container) return;
+
+    // Hide entire block if description empty
+    const text = descriptionContent.textContent ?? "";
+    if (!text.trim()) {
+      toggleButton.style.display = "none";
+      container.style.display = "none";
+      return;
+    }
+
+    if (toggleButton && descriptionContent) {
+      // Update button text to include the classifier name
+      const classifierType =
+        toggleButton.getAttribute("data-classifier-type") || "";
+      const learnMoreText = classifierType
+        ? `Learn more about ${classifierType}`
+        : "Learn more";
+      const isExpanded = toggleButton.getAttribute("aria-expanded") === "true";
+      // Sync initial visibility state
+      descriptionContent.style.display = isExpanded ? "block" : "none";
+      descriptionContent.setAttribute("aria-hidden", String(!isExpanded));
+      toggleButton.textContent = isExpanded ? "Show less" : learnMoreText;
+
+      toggleButton.addEventListener("click", () => {
+        const currentlyExpanded =
+          toggleButton.getAttribute("aria-expanded") === "true";
+        const newExpandedState = !currentlyExpanded;
+
+        // Toggle aria-expanded attribute
+        toggleButton.setAttribute("aria-expanded", String(newExpandedState));
+
+        // Toggle visibility
+        if (newExpandedState) {
+          descriptionContent.style.display = "block";
+          descriptionContent.setAttribute("aria-hidden", "false");
+          toggleButton.textContent = "Show less";
+        } else {
+          descriptionContent.style.display = "none";
+          descriptionContent.setAttribute("aria-hidden", "true");
+          toggleButton.textContent = learnMoreText;
+        }
+      });
+    }
   }
 
   /**

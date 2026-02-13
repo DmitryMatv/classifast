@@ -157,94 +157,6 @@ export class TextareaEnhancer {
   }
 }
 
-// Toggle functionality for classifier description sections
-export class DescriptionToggle {
-  constructor() {
-    this.init();
-  }
-
-  private init() {
-    const toggle = document.getElementById("description-toggle");
-    const content = document.getElementById("description-content");
-    const container = document.getElementById("description-container");
-
-    if (!toggle || !content || !container) return;
-
-    // Hide entire block if description empty
-    const text = content.textContent ?? "";
-    if (!text.trim()) {
-      toggle.style.display = "none";
-      container.style.display = "none";
-      return;
-    }
-
-    this.setupToggle(toggle, content);
-  }
-
-  private setupToggle(toggle: HTMLElement, content: HTMLElement) {
-    const logos = document.querySelectorAll<HTMLElement>(
-      "[data-classifier-logo]",
-    );
-    const learnLabel =
-      toggle.getAttribute("aria-label")?.replace(" button", "") ?? "Learn more";
-    const showLessLabel = "Show less";
-
-    // Initialize state: hidden
-    content.style.display = "none";
-    content.setAttribute("aria-hidden", "true");
-    toggle.setAttribute("aria-expanded", "false");
-    toggle.textContent = learnLabel;
-
-    toggle.addEventListener("click", (e) => {
-      e.preventDefault();
-      const isHidden =
-        content.style.display === "none" || content.style.display === "";
-
-      if (isHidden) {
-        this.showContent(content, toggle, logos, showLessLabel);
-      } else {
-        this.hideContent(content, toggle, logos, learnLabel);
-      }
-    });
-  }
-
-  private showContent(
-    content: HTMLElement,
-    toggle: HTMLElement,
-    logos: NodeListOf<HTMLElement>,
-    showLessLabel: string,
-  ) {
-    content.style.display = "block";
-    content.setAttribute("aria-hidden", "false");
-    toggle.setAttribute("aria-expanded", "true");
-    toggle.textContent = showLessLabel;
-
-    logos.forEach((logo) => {
-      if (!logo.dataset.originalDisplay) {
-        logo.dataset.originalDisplay = logo.style.display ?? "";
-      }
-      logo.style.display = "none";
-    });
-  }
-
-  private hideContent(
-    content: HTMLElement,
-    toggle: HTMLElement,
-    logos: NodeListOf<HTMLElement>,
-    learnLabel: string,
-  ) {
-    content.style.display = "none";
-    content.setAttribute("aria-hidden", "true");
-    toggle.setAttribute("aria-expanded", "false");
-    toggle.textContent = learnLabel;
-
-    logos.forEach((logo) => {
-      const original = logo.dataset.originalDisplay ?? "";
-      logo.style.display = original;
-    });
-  }
-}
-
 // Cached auth token for synchronous HTMX header injection
 let cachedAuthToken: string | null = null;
 
@@ -409,19 +321,111 @@ export class ClerkAuth {
     }
   }
 
+  // Track if we're currently refreshing token to prevent duplicate retries
+  private static isRefreshingToken = false;
+  // Queue of pending retry requests
+  private static pendingRetries: Array<{
+    element: HTMLElement;
+    originalTrigger: string;
+  }> = [];
+
   private registerHtmxAuthHeader() {
-    document.body.addEventListener("htmx:configRequest", (event) => {
+    document.body.addEventListener("htmx:configRequest", async (event) => {
       const htmxEvent = event as HtmxConfigRequestEvent;
 
       // Add token to request if available
       if (cachedAuthToken) {
         htmxEvent.detail.headers["Authorization"] = `Bearer ${cachedAuthToken}`;
       } else if (window.Clerk?.user) {
-        // Log diagnostic when user exists but token is missing
+        // User is logged in but we don't have a token - need to refresh and retry
         console.warn(
-          "HTMX request: User is logged in but no auth token available - request will be treated as anonymous. " +
-            "This can happen if Clerk hasn't finished loading or token refresh failed.",
+          "HTMX request: User is logged in but no auth token available. " +
+            "Cancelling request to refresh token and retry...",
         );
+
+        // Cancel this request - we'll retry after getting a fresh token
+        htmxEvent.detail.xhr.abort();
+
+        // Store the element that triggered this request for retry
+        const triggerElement = htmxEvent.detail.elt as HTMLElement;
+        const originalTrigger = triggerElement.getAttribute("hx-trigger") || "";
+
+        // Add to pending retries if not already there
+        const alreadyPending = ClerkAuth.pendingRetries.some(
+          (r) => r.element === triggerElement,
+        );
+        if (!alreadyPending) {
+          ClerkAuth.pendingRetries.push({
+            element: triggerElement,
+            originalTrigger: originalTrigger,
+          });
+        }
+
+        // If we're not already refreshing, start a refresh
+        if (!ClerkAuth.isRefreshingToken) {
+          ClerkAuth.isRefreshingToken = true;
+          console.log("Refreshing auth token before retrying HTMX requests...");
+
+          try {
+            // Force a fresh token refresh
+            const newToken = await ClerkAuth.performTokenRefresh();
+
+            if (newToken) {
+              console.log(
+                "Token refreshed successfully, retrying",
+                ClerkAuth.pendingRetries.length,
+                "requests",
+              );
+
+              // Retry all pending requests
+              const retries = [...ClerkAuth.pendingRetries];
+              ClerkAuth.pendingRetries = [];
+
+              for (const request of retries) {
+                // Use htmx.ajax() to programmatically trigger the request
+                // This is the cleanest approach - no need to modify trigger attributes
+                if (window.htmx) {
+                  const method = request.element.getAttribute("hx-get")
+                    ? "GET"
+                    : "POST";
+                  const url =
+                    request.element.getAttribute("hx-get") ||
+                    request.element.getAttribute("hx-post") ||
+                    "";
+                  const target =
+                    request.element.getAttribute("hx-target") || "";
+                  const swap =
+                    request.element.getAttribute("hx-swap") || "innerHTML";
+
+                  window.htmx.ajax(method, url, {
+                    source: request.element,
+                    target: target,
+                    swap: swap,
+                  });
+                }
+              }
+            } else {
+              console.error(
+                "Failed to refresh token - requests will remain blocked",
+              );
+              // Clear pending retries as we can't proceed
+              ClerkAuth.pendingRetries = [];
+              // Notify user of failure
+              document.body.dispatchEvent(
+                new CustomEvent("htmx:authRefreshFailed", {
+                  detail: {
+                    message: "Authentication failed. Please try again.",
+                  },
+                }),
+              );
+            }
+          } catch (err) {
+            console.error("Error during token refresh for HTMX retry:", err);
+            ClerkAuth.pendingRetries = [];
+          } finally {
+            ClerkAuth.isRefreshingToken = false;
+          }
+        }
       }
     });
   }
@@ -719,7 +723,6 @@ export class ResultCopier {
 // Initialize common functionality
 document.addEventListener("DOMContentLoaded", () => {
   new MobileMenu();
-  new DescriptionToggle();
   new ClerkAuth();
   new TextareaEnhancer("product_description_area");
   new ResultCopier();
