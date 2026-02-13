@@ -329,8 +329,61 @@ export class ClerkAuth {
     originalTrigger: string;
   }> = [];
 
+  private static async handleTokenRefreshAndRetry(_triggerElement: HTMLElement) {
+    ClerkAuth.isRefreshingToken = true;
+    console.log("Refreshing auth token before retrying HTMX requests...");
+
+    try {
+      const newToken = await ClerkAuth.performTokenRefresh();
+
+      if (newToken) {
+        console.log(
+          "Token refreshed successfully, retrying",
+          ClerkAuth.pendingRetries.length,
+          "requests",
+        );
+
+        const retries = [...ClerkAuth.pendingRetries];
+        ClerkAuth.pendingRetries = [];
+
+        for (const request of retries) {
+          if (window.htmx) {
+            const method = request.element.getAttribute("hx-get")
+              ? "GET"
+              : "POST";
+            const url =
+              request.element.getAttribute("hx-get") ||
+              request.element.getAttribute("hx-post") ||
+              "";
+            const target = request.element.getAttribute("hx-target") || "";
+            const swap = request.element.getAttribute("hx-swap") || "innerHTML";
+
+            window.htmx.ajax(method, url, {
+              source: request.element,
+              target: target,
+              swap: swap,
+            });
+          }
+        }
+      } else {
+        console.error("Failed to refresh token - requests will remain blocked");
+        ClerkAuth.pendingRetries = [];
+        document.body.dispatchEvent(
+          new CustomEvent("htmx:authRefreshFailed", {
+            detail: { message: "Authentication failed. Please try again." },
+          }),
+        );
+      }
+    } catch (err) {
+      console.error("Error during token refresh for HTMX retry:", err);
+      ClerkAuth.pendingRetries = [];
+    } finally {
+      ClerkAuth.isRefreshingToken = false;
+    }
+  }
+
   private registerHtmxAuthHeader() {
-    document.body.addEventListener("htmx:configRequest", async (event) => {
+    document.body.addEventListener("htmx:configRequest", (event) => {
       const htmxEvent = event as HtmxConfigRequestEvent;
 
       // Add token to request if available
@@ -343,12 +396,11 @@ export class ClerkAuth {
             "Cancelling request to refresh token and retry...",
         );
 
-        // Cancel this request - we'll retry after getting a fresh token
-        htmxEvent.detail.xhr.abort();
+        // Synchronously prevent this request
+        event.preventDefault();
 
         // Store the element that triggered this request for retry
         const triggerElement = htmxEvent.detail.elt as HTMLElement;
-        const originalTrigger = triggerElement.getAttribute("hx-trigger") || "";
 
         // Add to pending retries if not already there
         const alreadyPending = ClerkAuth.pendingRetries.some(
@@ -357,74 +409,13 @@ export class ClerkAuth {
         if (!alreadyPending) {
           ClerkAuth.pendingRetries.push({
             element: triggerElement,
-            originalTrigger: originalTrigger,
+            originalTrigger: triggerElement.getAttribute("hx-trigger") || "",
           });
         }
 
-        // If we're not already refreshing, start a refresh
+        // Handle async refresh separately
         if (!ClerkAuth.isRefreshingToken) {
-          ClerkAuth.isRefreshingToken = true;
-          console.log("Refreshing auth token before retrying HTMX requests...");
-
-          try {
-            // Force a fresh token refresh
-            const newToken = await ClerkAuth.performTokenRefresh();
-
-            if (newToken) {
-              console.log(
-                "Token refreshed successfully, retrying",
-                ClerkAuth.pendingRetries.length,
-                "requests",
-              );
-
-              // Retry all pending requests
-              const retries = [...ClerkAuth.pendingRetries];
-              ClerkAuth.pendingRetries = [];
-
-              for (const request of retries) {
-                // Use htmx.ajax() to programmatically trigger the request
-                // This is the cleanest approach - no need to modify trigger attributes
-                if (window.htmx) {
-                  const method = request.element.getAttribute("hx-get")
-                    ? "GET"
-                    : "POST";
-                  const url =
-                    request.element.getAttribute("hx-get") ||
-                    request.element.getAttribute("hx-post") ||
-                    "";
-                  const target =
-                    request.element.getAttribute("hx-target") || "";
-                  const swap =
-                    request.element.getAttribute("hx-swap") || "innerHTML";
-
-                  window.htmx.ajax(method, url, {
-                    source: request.element,
-                    target: target,
-                    swap: swap,
-                  });
-                }
-              }
-            } else {
-              console.error(
-                "Failed to refresh token - requests will remain blocked",
-              );
-              // Clear pending retries as we can't proceed
-              ClerkAuth.pendingRetries = [];
-              // Notify user of failure
-              document.body.dispatchEvent(
-                new CustomEvent("htmx:authRefreshFailed", {
-                  detail: {
-                    message: "Authentication failed. Please try again.",
-                  },
-                }),
-              );
-            }
-          } catch (err) {
-            console.error("Error during token refresh for HTMX retry:", err);
-            ClerkAuth.pendingRetries = [];
-          } finally {
-            ClerkAuth.isRefreshingToken = false;
-          }
+          ClerkAuth.handleTokenRefreshAndRetry(triggerElement);
         }
       }
     });
