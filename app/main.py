@@ -275,6 +275,8 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
         r"\d{50,}"  # 50+ consecutive digits
         r"|"  # OR
         r"%3c%3c|%3e%3e"  # HTML injection attempts
+        r"|"  # OR
+        r"(?<![a-zA-Z0-9])[0-9A-Fa-f]{64,}(?![a-zA-Z0-9])"  # 64+ hex chars at word boundaries (catches excessively long hex strings)
     )
 
     async def dispatch(self, request: Request, call_next):
@@ -291,6 +293,11 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
             logger.warning(
                 "Suspicious URL encoding detected: %s...", combined_url[:100]
             )
+            return self._create_error_response()
+
+        # Check for attack patterns
+        if self._attack_patterns.search(combined_url):
+            logger.warning("Suspicious pattern detected: %s...", combined_url[:100])
             return self._create_error_response()
 
         response = await call_next(request)
