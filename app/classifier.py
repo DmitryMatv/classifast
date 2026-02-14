@@ -55,6 +55,41 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
             status_code=400, detail="Query too short (min 2 characters)"
         )
 
+    # Check if query is pure numeric (e.g., UNSPSC 25100000, HS 8471) - skip hex density checks
+    # Classification codes are typically numeric, possibly with dots/dashes, but don't contain A-F letters
+    is_pure_numeric = bool(re.match(r"^[\d\s\.\-]+$", query))
+
+    # Detect malicious encoding patterns (e.g., %25%25%25 = 25252525)
+    # Pattern 1: Repeated %25 encoding (appears as 2525 repeated 2+ times)
+    if re.search(r"(?:25){2,}", query):  # 252525, 25252525, 2525252525, etc.
+        raise HTTPException(
+            status_code=400,
+            detail="Query contains suspicious URL encoding patterns",
+        )
+
+    # Pattern 2: High density of hex-like sequences (10+ occurrences of 4+ hex chars)
+    # Skip for pure numeric codes which may be valid classification IDs
+    if not is_pure_numeric:
+        hex_sequences = re.findall(r"[0-9A-Fa-f]{4,}", query)
+        if len(hex_sequences) >= 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Query contains suspicious hex encoding patterns",
+            )
+
+    # Pattern 3: Detect queries that are mostly hex letters (70%+ A-F) AND contain digits
+    # Only flag queries that have both hex letters AND digits - pure letter words like
+    # "cafe", "facade" are legitimate but hex+digits like "25252525" are suspicious
+    if not is_pure_numeric:
+        hex_letters = len(re.findall(r"[A-Fa-f]", query))
+        has_digits = bool(re.search(r"\d", query))
+        non_space_chars = len(query.replace(" ", ""))
+        if has_digits and non_space_chars > 0 and hex_letters / non_space_chars > 0.7:
+            raise HTTPException(
+                status_code=400,
+                detail="Query appears to be encoded garbage",
+            )
+
     # Normalize whitespace
     query = re.sub(r"\s+", " ", query)
 
