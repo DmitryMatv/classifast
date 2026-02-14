@@ -155,6 +155,13 @@ class ClassifierPage {
       descriptionContent.style.display = isExpanded ? "block" : "none";
       descriptionContent.setAttribute("aria-hidden", String(!isExpanded));
       toggleButton.textContent = isExpanded ? "Show less" : learnMoreText;
+      // Sync initial logo visibility with expanded state
+      const initialLogoElements = document.querySelectorAll(
+        '[data-classifier-logo="true"]',
+      ) as NodeListOf<HTMLElement>;
+      initialLogoElements.forEach((logo) => {
+        logo.style.display = isExpanded ? "none" : "";
+      });
 
       toggleButton.addEventListener("click", () => {
         const currentlyExpanded =
@@ -164,15 +171,28 @@ class ClassifierPage {
         // Toggle aria-expanded attribute
         toggleButton.setAttribute("aria-expanded", String(newExpandedState));
 
+        // Re-query logo elements to get fresh references after potential HTMX swaps
+        const currentLogoElements = document.querySelectorAll(
+          '[data-classifier-logo="true"]',
+        ) as NodeListOf<HTMLElement>;
+
         // Toggle visibility
         if (newExpandedState) {
           descriptionContent.style.display = "block";
           descriptionContent.setAttribute("aria-hidden", "false");
           toggleButton.textContent = "Show less";
+          // Hide logos when description is expanded
+          currentLogoElements.forEach((logo) => {
+            logo.style.display = "none";
+          });
         } else {
           descriptionContent.style.display = "none";
           descriptionContent.setAttribute("aria-hidden", "true");
           toggleButton.textContent = learnMoreText;
+          // Show logos when description is collapsed (restore default display)
+          currentLogoElements.forEach((logo) => {
+            logo.style.display = "";
+          });
         }
       });
     }
