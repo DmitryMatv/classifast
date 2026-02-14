@@ -172,6 +172,9 @@ async def get_classification_fragment(
                     "free_user_limit": FREE_USER_LIMIT,
                 },
             )
+            # Prevent Cloudflare from caching paywall - always serve fresh
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
             # Set URL change before returning paywall
             response.headers["HX-Push-Url"] = new_url
             add_quota_headers(response, usage_status)
