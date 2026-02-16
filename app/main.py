@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from google import genai
 from qdrant_client import QdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Scope, Receive, Send
 from zeroentropy import ZeroEntropy
 
 from . import api, payments, web
@@ -260,8 +261,21 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 app.add_middleware(PerformanceMiddleware)
 
 
-# Add Gzip compression middleware
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# Add Gzip compression middleware, excluding sitemap.xml and robots.txt
+# Googlebot may not handle gzipped sitemaps properly
+class GZipMiddlewareExcludingSitemap(GZipMiddleware):
+    def __init__(self, app: ASGIApp, minimum_size: int = 500, compresslevel: int = 9):
+        super().__init__(app, minimum_size, compresslevel)
+        self.exclude_paths = {"/sitemap.xml", "/robots.txt", "/llms.txt"}
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope.get("path") in self.exclude_paths:
+            await self.app(scope, receive, send)
+        else:
+            await super().__call__(scope, receive, send)
+
+
+app.add_middleware(GZipMiddlewareExcludingSitemap, minimum_size=1000)
 
 
 # URL Encoding Validation Middleware
