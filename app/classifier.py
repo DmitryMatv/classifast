@@ -438,10 +438,12 @@ def rerank_with_zeroentropy(
         definition = payload.get("definition", "")
 
         # Build document text with class_name and definition if available
-        if definition:
-            doc = f"{class_name}\n\nDefinition: {definition}"
+        if class_name and definition:
+            doc = f"{class_name} - Definition: {definition}"
+        elif definition:
+            doc = definition
         else:
-            doc = class_name
+            doc = class_name or ""
         documents.append(doc)
 
     try:
