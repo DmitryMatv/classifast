@@ -1,50 +1,22 @@
-# --- Stage 1: Builder ---
-# This stage builds Python wheels for our dependencies
-# and creates a virtual environment to keep things clean.
-FROM python:3.14-slim-bookworm AS builder
-
-# Set environment variables for builder
-ENV PYTHONUNBUFFERED=1
+FROM python:3.14-slim-bookworm
 
 WORKDIR /service_root
 
-# Create a virtual environment
-RUN python -m venv /opt/venv
-
-# Install dependencies directly into the venv path without activating
+# Install Python deps directly (no venv for simplicity)
 COPY requirements.txt .
-RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-
-# --- Stage 2: Final ---
-# This stage takes the installed dependencies and application code
-# to create a lean production image.
-FROM python:3.14-slim-bookworm AS final
-
-# Set environment variables for the final image
-ENV PYTHONUNBUFFERED=1 \
-    # Path to the virtual environment's executables
-    PATH="/opt/venv/bin:$PATH" \
-    # FastAPI production settings
-    PYTHONDONTWRITEBYTECODE=1
-
-WORKDIR /service_root
-
-# Install curl for health checks as root user
+# Install curl for health checks
 USER root
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y curl && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install --no-install-recommends -y curl
 
-# Create a non-root user and group
+
+# Create non-root user
 RUN groupadd --system appgroup && \
     useradd --system --gid appgroup --no-create-home appuser
 
-# Copy the virtual environment from the builder stage
-COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
-
-# Copy application code and dependencies
-COPY --chown=appuser:appgroup ./app ./app
+# Copy application code (entire app directory)
+COPY --chown=appuser:appgroup ./app /service_root/app/
 
 USER appuser
 
