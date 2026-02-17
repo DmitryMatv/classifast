@@ -1,166 +1,307 @@
-# Classifast - AGENTS.md
+# AGENTS.md - Agentic Coding Guidelines for Classifast
 
-A FastAPI-based classification service with semantic search powered by Qdrant vector database.
+This document provides guidelines for agents working on the Classifast codebase.
 
-## Quick Start
+## Project Overview
+
+Classifast is a classification API service that uses embeddings and vector search (Qdrant) to classify products into UNSPSC/CPV categories. It has:
+
+- **Backend**: Python FastAPI with async/await patterns
+- **Frontend**: TypeScript with Tailwind CSS, served via FastAPI
+- **Infrastructure**: Redis (usage tracking), Qdrant (vector database), Clerk (authentication), ZeroEntropy (reranking)
+
+---
+
+## Build/Lint/Test Commands
+
+### Frontend (TypeScript + CSS)
 
 ```bash
-# Development server
-uvicorn app.main:app --reload --port 8001
+# Install dependencies
+bun install
 
-# Health check
-curl http://localhost:8001/health
+# Build production assets
+bun run build          # Builds both TS and CSS
+bun run build:ts      # Build TypeScript only
+bun run build:css      # Build CSS with Tailwind
+
+# Development
+bun run watch          # Watch TypeScript changes
+bun run watch:css     # Watch CSS changes
+bun run dev           # Run full dev server (Tailwind + TS watch + uvicorn)
+
+# Type checking
+bun run typecheck      # Run TypeScript type checker (tsc --noEmit)
 ```
 
-## Build, Lint & Test Commands
+### Backend (Python)
 
 ```bash
-# Development server with auto-reload
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Run the application
 uvicorn app.main:app --reload --port 8001
 
-# Run with docker-compose (includes Redis, Qdrant)
-docker-compose up -d
-
-# Build and run Docker container
-docker build -t classifast . && docker run -p 8001:8001 classifast
-
-# Run specific integration test
-python utilities/test_<name>.py
-
-# Examples
+# Run a single Python test file
+python utilities/test_title_functionality.py
+python utilities/test_subscription_events.py
 python utilities/test_rapidapi.py
 python utilities/test_embedding_ordering.py
 
-# CSS development (watch mode)
-npx @tailwindcss/cli -i ./app/static/css/input.css -o ./app/static/css/styles.css --watch
+# Linting (if ruff is installed)
+ruff check .
+ruff check app/        # Check specific directory
 ```
 
-## Project Structure
+### Docker
 
+```bash
+# Build and run with docker-compose
+docker-compose up --build
+
+# Or build manually
+docker build -t classifast .
+docker run -p 8001:8001 classifast
 ```
-app/
-├── main.py           # FastAPI app, middleware, lifespan
-├── api.py            # RapidAPI endpoints
-├── web.py            # Web interface (HTMX)
-├── classifier.py     # Embedding & classification logic
-├── classifier_config.py  # Configuration
-├── payments.py       # Polar checkout & Clerk JWT
-├── usage_tracker.py  # Redis-based quotas
-└── dependencies.py   # Templates, Clerk JWT
-utilities/            # Integration test scripts
-```
-
-## Critical Rules
-
-1. **Always use relative imports** for app modules: `from .classifier import ...`
-2. **Middleware order matters** (see docs/ARCHITECTURE.md#middleware-stack)
-3. **Use Pydantic models** for all API responses (JSONResponse only for custom headers)
 
 ---
 
 ## Code Style Guidelines
 
-### Import Order
+### Python (Backend)
+
+**Imports**
+
+- Standard library first, then third-party, then local
+- Use absolute imports from package root (e.g., `from app.classifier import ...`)
+- Group imports with blank lines between groups
+
+**Naming Conventions**
+
+- Functions/variables: `snake_case`
+- Classes: `PascalCase`
+- Constants: `UPPER_SNAKE_CASE`
+- Private methods: prefix with `_`
+
+**Type Hints**
+
+- Use explicit type hints for function parameters and return values
+- Use `Optional[X]` instead of `X | None` for compatibility
+- Enable strict typing where practical
+
+**Error Handling**
+
+- Use specific exception types when possible
+- Always chain exceptions with `from e` for debugging
+- Log errors before re-raising
+- Use custom error responses for API errors
+
+**Async/Await**
+
+- Use `async def` for all route handlers
+- Use `await asyncio.to_thread()` for blocking operations
+- Initialize async clients in lifespan context
+
+**Logging**
+
+- Use module-level logger: `logger = logging.getLogger(__name__)`
+- Use JSON formatter for production (already configured)
+- Log at appropriate levels: ERROR for failures, WARNING for recoverable issues, INFO for important events
+
+**Example Function:**
 
 ```python
-1. Standard library (os, sys, logging, asyncio, typing, etc.)
-2. Third-party (fastapi, qdrant_client, redis, httpx, tenacity, etc.)
-3. Local imports (always relative: `from .classifier import ...`)
+async def classify_product(
+    client: QdrantClient,
+    text: str,
+    collection: str,
+) -> list[ClassificationResult]:
+    """Classify a product description against a collection.
+
+    Args:
+        client: Qdrant client instance
+        text: Product description to classify
+        collection: Name of the collection to search
+
+    Returns:
+        List of classification results sorted by score
+    """
+    try:
+        embeddings = await get_embeddings(client, text)
+        results = await search_similar(client, embeddings, collection)
+        return results
+    except Exception as e:
+        logger.error("Classification failed: %s", e)
+        raise ClassificationError(f"Failed to classify: {e}") from e
 ```
 
-### Formatting & Types
+### TypeScript (Frontend)
 
-- **Type hints**: Use Python 3.10+ syntax (`str | None`, not `Optional[str]`)
-- **Indentation**: 4 spaces
-- **Line length**: Keep lines under 120 chars when possible
-- **Async/await**: Required for all I/O (Redis, Qdrant, HTTP)
-- **Dataclasses**: Use `@dataclass` for structured data models
+**Configuration**
 
-### Naming Conventions
+- Strict mode is enabled in `tsconfig.json`
+- Module resolution: `bundler`
+- Target: `ESNext`
 
-| Type            | Convention       | Examples                                  |
-| --------------- | ---------------- | ----------------------------------------- |
-| Classes         | PascalCase       | `JsonFormatter`, `UsageStatus`            |
-| Functions       | snake_case       | `get_embedding`, `perform_classification` |
-| Constants       | UPPER_SNAKE_CASE | `ANON_LIMIT`, `TRACKING_COOKIE_NAME`      |
-| Private         | `_prefix`        | `_is_suspicious_encoding`                 |
-| Pydantic models | PascalCase       | `ClassificationResult`                    |
+**Naming Conventions**
 
-### Logging
+- Variables/functions: `camelCase`
+- Classes: `PascalCase`
+- Components: `PascalCase`
+- Constants: `UPPER_SNAKE_CASE` or `camelCase` with prefix
 
-```python
-logger = logging.getLogger(__name__)
-# logger.info() - User actions
-# logger.debug() - Details + timing for external API calls
-# logger.error() - Errors
-# logger.warning() - Non-critical issues
+**Types**
+
+- Use explicit types for function parameters and returns
+- Use interfaces for object shapes
+- Avoid `any` - use `unknown` when type is truly unknown
+
+**Error Handling**
+
+- Use try/catch with typed error variables
+- Log errors to console with descriptive messages
+- Show user-friendly feedback in UI
+
+**Example:**
+
+```typescript
+interface SearchResult {
+  id: string;
+  score: number;
+  className: string;
+}
+
+async function searchProducts(query: string): Promise<SearchResult[]> {
+  try {
+    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.statusText}`);
+    }
+    return (await response.json()) as SearchResult[];
+  } catch (err) {
+    console.error("Search error:", err);
+    throw err;
+  }
+}
 ```
 
-## Error Handling
+**HTML/CSS**
 
-```python
-from fastapi import HTTPException
+- Use Tailwind CSS utility classes
+- Keep HTML templates in `app/templates/`
+- Use semantic HTML elements
 
-# Input validation
-if not valid:
-    raise HTTPException(status_code=400, detail="Invalid input")
+### General
 
-# External service failures
-try:
-    result = await external_api.call()
-except ExternalError as e:
-    logger.error("External API failed: %s", e)
-    raise HTTPException(status_code=502, detail="External service unavailable")
+**Security**
 
-# External API retries - use Tenacity
-from tenacity import retry, stop_after_attempt, wait_exponential
-@retry(stop_after_attempt=3, wait_exponential(multiplier=4, min=4, max=10))
-async def call_external_api(): ...
+- Never commit secrets to git (use `.env` files, gitignored)
+- Validate and sanitize all user inputs
+- Use parameterized queries for database operations
+- Apply security headers (already configured in middleware)
+
+**Git**
+
+- Create feature branches for new work
+- Write meaningful commit messages
+- Run typecheck before committing
+
+**File Organization**
+
+```
+app/
+  main.py           # FastAPI app entry, middleware, lifespan
+  api.py            # API routes
+  web.py            # Web UI routes
+  classifier.py     # Core classification logic
+  classifier_config.py  # Configuration
+  payments.py       # Payment handling
+  dependencies.py   # FastAPI dependencies
+  usage_tracker.py # Redis usage tracking
+  static/           # Built assets
+  templates/        # Jinja2 templates
+app/assets/ts/     # TypeScript source
+app/assets/css/    # CSS source (Tailwind input)
+utilities/         # Utility scripts and tests
+mapping/           # UNSPSC/CPV mapping scripts
+embedders/         # Embedding-related code
 ```
 
-## Async Patterns
+---
 
-```python
-# Client initialization in lifespan()
-@app.on_event("startup")
-async def lifespan():
-    app.state.qdrant = AsyncQdrantClient(...)
-    app.state.redis = redis.from_url(...)
+## Common Development Tasks
 
-@app.on_event("shutdown")
-async def shutdown():
-    await app.state.qdrant.close()
-    await app.state.redis.close()
+### Running a Single Test
 
-# Parallel operations
-results = await asyncio.gather(redis_operation(), qdrant_operation())
+```bash
+python utilities/test_title_functionality.py
+python utilities/test_rapidapi.py
 ```
 
-## Redis Patterns
+### Adding a New API Endpoint
 
-```python
-import redis.asyncio as redis
-# Counters with TTL
-await redis.incr(key)
-await redis.expire(key, ttl)
-# Cache tier lookups - ttl = 60 if result else 10
-# Fail open on Redis errors
-try:
-    result = await redis.get(key)
-except redis.RedisError:
-    result = None
-```
+1. Add route to `app/api.py` or create new route file
+2. Use dependency injection for clients from `app.state`
+3. Return appropriate response types (JSONResponse, FileResponse, etc.)
+4. Add error handling with proper HTTP status codes
 
-## Security
+### Modifying Frontend
 
-- **Never log**: secrets, tokens, sensitive headers
-- **IP hashing**: Use `hashlib.sha256` before storage
-- **Input sanitization**: See `sanitize_query_text()` in classifier.py
-- **JWT verification**: Verify signatures with PyJWKClient before trusting claims
+1. Edit TypeScript in `app/assets/ts/`
+2. Run `bun run watch` to auto-rebuild
+3. Refresh browser to see changes
 
-## Documentation
+### Adding Environment Variables
 
-- [Code Style](docs/STYLE.md) - Imports, formatting, naming, logging
-- [Architecture](docs/ARCHITECTURE.md) - Async patterns, Redis, Qdrant, security
-- [API Patterns](docs/API_PATTERNS.md) - Endpoints, error handling
-- [Testing](docs/TESTING.md) - Integration test utilities
+1. Add to `.env` file (gitignored)
+2. Document in `.env` with comments
+3. Load with `from dotenv import load_dotenv; load_dotenv()`
+4. Access via `os.getenv("VARIABLE_NAME")`
+
+---
+
+## Dependencies
+
+### Key Packages
+
+- **Backend**: FastAPI, uvicorn, qdrant-client, google-genai, redis, python-jose, cryptography
+- **Frontend**: TypeScript, Tailwind CSS, Bun (build tool)
+- **Testing**: Manual test scripts in `utilities/`
+
+### External Services
+
+- **Qdrant**: Vector database for embeddings
+- **Redis**: Session and usage tracking
+- **Clerk**: Authentication
+- **ZeroEntropy**: Reranking
+- **Google Gemini**: Text embeddings
+
+---
+
+## Deployment Infrastructure
+
+### Hardware & Hosting
+
+- **Hardware**: Raspberry Pi 4 (4GB RAM)
+- **Location**: Self-hosted on-premises
+- **Public Access**: Cloudflare Tunnel (`cloudflared` service) handles:
+  - DDoS protection
+  - Dynamic IP resolution
+  - SSL termination at the edge
+
+### Container Management
+
+- **PaaS**: Coolify running on the Raspberry Pi
+- **All services run as Docker containers**:
+  - Classifast (this application)
+  - Qdrant (vector database)
+  - Redis (caching/sessions)
+  - WordPress (blog)
+
+### Deployment Notes
+
+- When modifying the app, rebuild the Docker image and redeploy via Coolify
+- Ensure memory usage stays within 4GB (Qdrant can be memory-intensive)
+- Cloudflare tunnel forwards traffic to the container's internal port (8001)
+- Health checks are configured at `/health` endpoint
