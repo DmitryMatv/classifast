@@ -160,6 +160,24 @@ export class TextareaEnhancer {
 // Cached auth token for synchronous HTMX header injection
 let cachedAuthToken: string | null = null;
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    const payloadB64 = parts[1];
+    if (parts.length !== 3 || !payloadB64) return true;
+    
+    const base64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
+    
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    if (!payload.exp) return true;
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp < now;
+  } catch {
+    return true;
+  }
+}
+
 // Track if auth-ready event has been fired (fire only once on initial load)
 let authReadyFired = false;
 
@@ -233,7 +251,8 @@ export class ClerkAuth {
         window.__clerkInteractionListenersRegistered = true;
         let refreshPending = false;
         const refreshOnInteraction = () => {
-          if (window.Clerk?.session && !cachedAuthToken && !refreshPending) {
+          const tokenExpired = cachedAuthToken ? isTokenExpired(cachedAuthToken) : true;
+          if (window.Clerk?.session && (!cachedAuthToken || tokenExpired) && !refreshPending) {
             refreshPending = true;
             console.log("Refreshing token on user interaction...");
             this.refreshAuthToken().finally(() => {
@@ -273,14 +292,14 @@ export class ClerkAuth {
   private static async performTokenRefresh(): Promise<string | null> {
     try {
       if (window.Clerk?.session) {
-        const newToken = await window.Clerk.session.getToken();
+        const newToken = await window.Clerk.session.getToken({ skipCache: true });
         if (newToken) {
           cachedAuthToken = newToken;
         } else {
           console.warn(
-            "Clerk session exists but getToken() returned empty - keeping old token if valid",
+            "Clerk session exists but getToken() returned empty - clearing stale token",
           );
-          // Don't clear cachedAuthToken on empty response - old token might still be valid
+          cachedAuthToken = null;
         }
         return cachedAuthToken;
       }
@@ -297,7 +316,7 @@ export class ClerkAuth {
           await window.Clerk.load?.();
           // Retry token retrieval after reload
           if (window.Clerk?.session) {
-            const recoveredToken = await window.Clerk.session.getToken();
+            const recoveredToken = await window.Clerk.session.getToken({ skipCache: true });
             if (recoveredToken) {
               cachedAuthToken = recoveredToken;
               console.log("Session recovered successfully");
@@ -316,8 +335,10 @@ export class ClerkAuth {
       return cachedAuthToken;
     } catch (e) {
       console.error("Failed to refresh auth token:", e);
-      // Don't clear cachedAuthToken on errors - the old token might still be valid
-      return cachedAuthToken;
+      if (cachedAuthToken && !isTokenExpired(cachedAuthToken)) {
+        return cachedAuthToken;
+      }
+      return null;
     }
   }
 
@@ -386,15 +407,21 @@ export class ClerkAuth {
     document.body.addEventListener("htmx:configRequest", (event) => {
       const htmxEvent = event as HtmxConfigRequestEvent;
 
-      // Add token to request if available
-      if (cachedAuthToken) {
+      const tokenExpired = cachedAuthToken ? isTokenExpired(cachedAuthToken) : true;
+
+      if (cachedAuthToken && !tokenExpired) {
         htmxEvent.detail.headers["Authorization"] = `Bearer ${cachedAuthToken}`;
       } else if (window.Clerk?.user) {
-        // User is logged in but we don't have a token - need to refresh and retry
-        console.warn(
-          "HTMX request: User is logged in but no auth token available. " +
-            "Cancelling request to refresh token and retry...",
-        );
+        if (tokenExpired && cachedAuthToken) {
+          console.warn(
+            "HTMX request: Auth token expired. Cancelling request to refresh token and retry...",
+          );
+        } else {
+          console.warn(
+            "HTMX request: User is logged in but no auth token available. " +
+              "Cancelling request to refresh token and retry...",
+          );
+        }
 
         // Synchronously prevent this request
         event.preventDefault();
@@ -602,6 +629,9 @@ export class ClerkAuth {
 
   // Public method to get current auth token
   static getCachedAuthToken(): string | null {
+    if (cachedAuthToken && isTokenExpired(cachedAuthToken)) {
+      return null;
+    }
     return cachedAuthToken;
   }
 
