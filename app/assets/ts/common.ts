@@ -165,10 +165,10 @@ function isTokenExpired(token: string): boolean {
     const parts = token.split(".");
     const payloadB64 = parts[1];
     if (parts.length !== 3 || !payloadB64) return true;
-    
+
     const base64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
     const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
-    
+
     const payload = JSON.parse(atob(padded)) as { exp?: number };
     if (!payload.exp) return true;
     const now = Math.floor(Date.now() / 1000);
@@ -241,7 +241,8 @@ export class ClerkAuth {
       }
 
       // Refresh token every 50s (Clerk tokens expire in ~60s)
-      // Needed for long sessions on single page
+      // getToken with expirationBufferSeconds handles caching automatically
+      // and only makes network requests when the token is near expiration
       setInterval(() => this.refreshAuthToken(), 50000);
 
       // Also refresh on user interaction to ensure token is fresh before requests
@@ -251,8 +252,14 @@ export class ClerkAuth {
         window.__clerkInteractionListenersRegistered = true;
         let refreshPending = false;
         const refreshOnInteraction = () => {
-          const tokenExpired = cachedAuthToken ? isTokenExpired(cachedAuthToken) : true;
-          if (window.Clerk?.session && (!cachedAuthToken || tokenExpired) && !refreshPending) {
+          const tokenExpired = cachedAuthToken
+            ? isTokenExpired(cachedAuthToken)
+            : true;
+          if (
+            window.Clerk?.session &&
+            (!cachedAuthToken || tokenExpired) &&
+            !refreshPending
+          ) {
             refreshPending = true;
             console.log("Refreshing token on user interaction...");
             this.refreshAuthToken().finally(() => {
@@ -292,7 +299,9 @@ export class ClerkAuth {
   private static async performTokenRefresh(): Promise<string | null> {
     try {
       if (window.Clerk?.session) {
-        const newToken = await window.Clerk.session.getToken({ skipCache: true });
+        const newToken = await window.Clerk.session.getToken({
+          expirationBufferSeconds: 15,
+        });
         if (newToken) {
           cachedAuthToken = newToken;
         } else {
@@ -304,19 +313,18 @@ export class ClerkAuth {
         return cachedAuthToken;
       }
 
-      // Log when user exists but session doesn't - this is the problematic state
       if (window.Clerk?.user) {
         console.warn(
           "Clerk user exists but session is missing - user will be treated as anonymous",
         );
         console.warn("Attempting to recover session...");
 
-        // Try to recover: reload Clerk to re-initialize session
         try {
           await window.Clerk.load?.();
-          // Retry token retrieval after reload
           if (window.Clerk?.session) {
-            const recoveredToken = await window.Clerk.session.getToken({ skipCache: true });
+            const recoveredToken = await window.Clerk.session.getToken({
+              expirationBufferSeconds: 15,
+            });
             if (recoveredToken) {
               cachedAuthToken = recoveredToken;
               console.log("Session recovered successfully");
@@ -328,7 +336,6 @@ export class ClerkAuth {
           console.error("Failed to recover Clerk session:", recoveryErr);
         }
       } else {
-        // Only clear token if user is definitely logged out (no user AND no session)
         cachedAuthToken = null;
       }
 
@@ -350,7 +357,9 @@ export class ClerkAuth {
     originalTrigger: string;
   }> = [];
 
-  private static async handleTokenRefreshAndRetry(_triggerElement: HTMLElement) {
+  private static async handleTokenRefreshAndRetry(
+    _triggerElement: HTMLElement,
+  ) {
     ClerkAuth.isRefreshingToken = true;
     console.log("Refreshing auth token before retrying HTMX requests...");
 
@@ -407,7 +416,9 @@ export class ClerkAuth {
     document.body.addEventListener("htmx:configRequest", (event) => {
       const htmxEvent = event as HtmxConfigRequestEvent;
 
-      const tokenExpired = cachedAuthToken ? isTokenExpired(cachedAuthToken) : true;
+      const tokenExpired = cachedAuthToken
+        ? isTokenExpired(cachedAuthToken)
+        : true;
 
       if (cachedAuthToken && !tokenExpired) {
         htmxEvent.detail.headers["Authorization"] = `Bearer ${cachedAuthToken}`;

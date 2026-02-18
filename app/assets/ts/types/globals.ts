@@ -53,7 +53,11 @@ declare global {
   }
 
   interface ClerkSession {
-    getToken: (options?: { skipCache?: boolean }) => Promise<string | null>;
+    getToken: (options?: {
+      skipCache?: boolean;
+      expirationBufferSeconds?: number;
+      template?: string;
+    }) => Promise<string | null>;
   }
 
   interface ClerkUser {
