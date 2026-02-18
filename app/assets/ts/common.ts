@@ -183,6 +183,8 @@ let authReadyFired = false;
 
 // Simple Clerk Authentication using official SDK patterns
 export class ClerkAuth {
+  private static htmxAuthHeaderRegistered = false;
+
   constructor() {
     this.init();
   }
@@ -357,9 +359,7 @@ export class ClerkAuth {
     originalTrigger: string;
   }> = [];
 
-  private static async handleTokenRefreshAndRetry(
-    _triggerElement: HTMLElement,
-  ) {
+  private static async handleTokenRefreshAndRetry() {
     ClerkAuth.isRefreshingToken = true;
     console.log("Refreshing auth token before retrying HTMX requests...");
 
@@ -413,6 +413,9 @@ export class ClerkAuth {
   }
 
   private registerHtmxAuthHeader() {
+    if (ClerkAuth.htmxAuthHeaderRegistered) return;
+    ClerkAuth.htmxAuthHeaderRegistered = true;
+
     document.body.addEventListener("htmx:configRequest", (event) => {
       const htmxEvent = event as HtmxConfigRequestEvent;
 
@@ -453,7 +456,7 @@ export class ClerkAuth {
 
         // Handle async refresh separately
         if (!ClerkAuth.isRefreshingToken) {
-          ClerkAuth.handleTokenRefreshAndRetry(triggerElement);
+          ClerkAuth.handleTokenRefreshAndRetry();
         }
       }
     });

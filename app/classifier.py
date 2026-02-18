@@ -360,7 +360,7 @@ def perform_partial_id_search(
         scroll_result = qdrant_client.scroll(
             collection_name=collection_name,
             scroll_filter=partial_filter,
-            limit=100,
+            limit=10,
             with_payload=True,
             with_vectors=False,
         )
@@ -664,6 +664,7 @@ def perform_classification(
         # Step 4: Perform semantic search
         # Only use reranking if no ID matches found and ZeroEntropy is available
         use_reranking = zclient is not None and not id_match_results
+        # If reranking is enabled, fetch more candidates to give ZeroEntropy a better pool to rank from
         semantic_top_k = top_k * 2 if use_reranking else top_k
 
         logger.info(

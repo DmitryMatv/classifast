@@ -683,6 +683,7 @@
                             <option value="3">Top 3</option>
                             <option value="10" selected>Top 10</option>
                             <option value="30">Top 30</option>
+                            <option value="100">Top 100</option>
                         </select>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center" role="status"
                             aria-label="Processing request" aria-live="polite">
@@ -1141,62 +1142,6 @@
             </div>
         </section>
         {% endif %}
-
-        <!-- TL;DR Summary Box -->
-        <section class="bg-sky-50 border-l-4 border-sky-600 p-4 rounded-r-lg mt-4 mb-4" aria-label="Quick summary">
-            <h2 class="text-lg font-semibold text-gray-800 mb-2">⚡ Quick summary</h2>
-            <p class="text-gray-700">
-                {% if classifier_type == 'UNSPSC' %}
-                <strong>UNSPSC (United Nations Standard Products and Services Code)</strong> is an 8-digit hierarchical
-                classification system for products and services used globally in procurement and supply chain
-                management. Enter any product description below to instantly find the matching UNSPSC code.
-                {% elif classifier_type == 'NAICS' %}
-                <strong>NAICS (North American Industry Classification System)</strong> is a 6-digit code classifying
-                businesses by their primary economic activity. Essential for US government contracting, SAM.gov
-                registration, and industry statistics. Enter your business activity below to find the correct NAICS
-                code.
-                {% elif classifier_type == 'HS' %}
-                <strong>HS (Harmonized System)</strong> codes are 6-digit international trade codes used by customs
-                authorities in 200+ countries. Essential for import/export duties, trade agreements, and customs
-                declarations. Enter your product below to find the HS code.
-                {% elif classifier_type == 'ETIM' %}
-                <strong>ETIM (Technical Information Model)</strong> is an open standard for classifying technical and
-                electrical products with detailed attributes. Used across Europe for product data exchange. Enter your
-                technical product below to find the ETIM class.
-                {% elif classifier_type == 'ISIC' %}
-                <strong>ISIC (International Standard Industrial Classification)</strong> is the UN's global standard for
-                classifying economic activities, used by 200+ countries for GDP comparisons and economic statistics.
-                Enter your activity below to find the ISIC code.
-                {% elif classifier_type == 'CN' %}
-                <strong>CN (Combined Nomenclature)</strong> is the EU's 8-digit customs classification extending HS
-                codes for European Union trade and tariffs. Essential for EU customs declarations and Intrastat
-                reporting. Enter your product below to find the CN code.
-                {% elif classifier_type == 'HTS' %}
-                <strong>HTS (Harmonized Tariff Schedule)</strong> is the 10-digit US customs classification for imports.
-                Required for US customs declarations and duty calculation. Enter your product below to find the HTS
-                code.
-                {% elif classifier_type == 'NACE' %}
-                <strong>NACE (Statistical Classification of Economic Activities)</strong> is the EU's standard for
-                classifying economic activities. Used by Eurostat and national statistics offices across Europe. Enter
-                your activity below to find the NACE code.
-                {% elif classifier_type == 'CPV' %}
-                <strong>CPV (Common Procurement Vocabulary)</strong> is a 9-digit EU standard for public procurement.
-                Required for EU tender notices on TED. Enter your product or service below to find the CPV code.
-                {% elif classifier_type == 'NSN' %}
-                <strong>NSN (NATO Stock Number)</strong> is a 13-digit identification code used by NATO and allied
-                nations for defense logistics. Enter your item below to find the relevant NSN/FSC classification.
-                {% else %}
-                <strong>{{ classifier_type }}</strong>: {{ description | e }} Enter your product or service description
-                below to find the correct code.
-                {% endif %}
-            </p>
-            <p class="text-sm text-gray-500 mt-2">
-                <span class="mr-4">✍️ By <a href="https://github.com/DmitryMatv"
-                        class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
-                        rel="author">Dmitry Matv</a></span>
-                <span>📅 Last updated: {{ current_month_name }} {{ current_year }}</span>
-            </p>
-        </section>
 
         <!-- Cross-standard comparison section for enhanced internal linking -->
         <section id="comparison-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4"

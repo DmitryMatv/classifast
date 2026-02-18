@@ -1,4 +1,4 @@
-/*! tailwindcss v4.1.18 | MIT License | https://tailwindcss.com */
+/*! tailwindcss v4.2.0 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -229,6 +229,12 @@
   .static {
     position: static;
   }
+  .start {
+    inset-inline-start: var(--spacing);
+  }
+  .end {
+    inset-inline-end: var(--spacing);
+  }
   .top-0 {
     top: calc(var(--spacing) * 0);
   }
@@ -249,9 +255,6 @@
   }
   .left-0 {
     left: calc(var(--spacing) * 0);
-  }
-  .isolate {
-    isolation: isolate;
   }
   .z-50 {
     z-index: 50;
@@ -298,9 +301,6 @@
   .mr-2 {
     margin-right: calc(var(--spacing) * 2);
   }
-  .mr-4 {
-    margin-right: calc(var(--spacing) * 4);
-  }
   .mb-1 {
     margin-bottom: calc(var(--spacing) * 1);
   }
@@ -342,9 +342,6 @@
   }
   .inline-flex {
     display: inline-flex;
-  }
-  .table {
-    display: table;
   }
   .size-12 {
     width: calc(var(--spacing) * 12);
@@ -548,10 +545,6 @@
   .rounded-lg {
     border-radius: var(--radius-lg);
   }
-  .rounded-r-lg {
-    border-top-right-radius: var(--radius-lg);
-    border-bottom-right-radius: var(--radius-lg);
-  }
   .border {
     border-style: var(--tw-border-style);
     border-width: 1px;
@@ -567,10 +560,6 @@
   .border-b {
     border-bottom-style: var(--tw-border-style);
     border-bottom-width: 1px;
-  }
-  .border-l-4 {
-    border-left-style: var(--tw-border-style);
-    border-left-width: 4px;
   }
   .border-amber-200 {
     border-color: var(--color-amber-200);
@@ -640,9 +629,6 @@
   }
   .p-3 {
     padding: calc(var(--spacing) * 3);
-  }
-  .p-4 {
-    padding: calc(var(--spacing) * 4);
   }
   .p-6 {
     padding: calc(var(--spacing) * 6);

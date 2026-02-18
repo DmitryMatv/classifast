@@ -17,7 +17,7 @@ CLASSIFIER_CONFIG = {
         "title": "UNSPSC Code Finder",
         "heading": "Get right UNSPSC codes for your products and services",
         "description": "The United Nations Standard Products and Services Code (UNSPSC) is a comprehensive, global classification system developed by the United Nations Development Programme (UNDP). This open, multi-sector standard enables organizations worldwide to classify products and services with precision and consistency. UNSPSC is essential for e-procurement platforms, supply chain optimization, spend analysis, vendor management, and facilitating B2B commerce across industries and borders.",
-        "example": "Example:\nOffice supplies",
+        "example": "Example:\nApple MacBook Air (13-inch, M3, 2024)",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
