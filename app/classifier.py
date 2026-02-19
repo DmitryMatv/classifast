@@ -345,7 +345,7 @@ def perform_partial_id_search(
         normalized_query: Normalized query (dots, spaces, dashes, leading/trailing zeros removed)
 
     Returns:
-        List of partial match results with score=0.95
+        List of partial match results with score=0.90
     """
     try:
         partial_filter = models.Filter(
@@ -374,7 +374,7 @@ def perform_partial_id_search(
                 # Check if normalized original_id contains the normalized query
                 if normalized_query in normalized_original_id:  # .lower() ?
                     partial_results.append(
-                        {"score": 0.95, "payload": point.payload, "id": point.id}
+                        {"score": 0.90, "payload": point.payload, "id": point.id}
                     )
 
         return partial_results

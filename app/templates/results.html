@@ -22,17 +22,11 @@
     {% endif %}
     <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
-        {%- set score_pct = (([[(result.score * 100), 0] | max, 100] | min) if result.score is not none else 0) -%}
-        {%- if score_pct >= 70 -%}
-        {%- set tint_color = "16, 185, 129" -%}
-        {%- elif score_pct >= 40 -%}
-        {%- set tint_color = "245, 158, 11" -%}
-        {%- else -%}
-        {%- set tint_color = "239, 68, 68" -%}
-        {%- endif -%}
-        <li class="p-3 rounded shadow border border-gray-200" role="listitem"
-            style="background: linear-gradient(to right, #f9fafb {{ score_pct }}%, rgba({{ tint_color }}, 0.08) {{ 100 if score_pct + 10 > 100 else score_pct + 10 }}%, rgba({{ tint_color }}, 0.12) 100%);">
-            <div class="flex items-start justify-between">
+        {%- set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | int if result.score is not none else 0)
+        -%}
+        <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem">
+            <div class="absolute inset-y-0 left-0" style="width: {{ score_pct }}%; background: linear-gradient(to right, #f9fafb, #f3f4f6);"></div>
+            <div class="relative p-3">
                 <div class="flex-1">
                     <div class="flex items-baseline gap-2">
                         <button type="button"
@@ -103,7 +97,7 @@
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}
                         <span class="ml-auto bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
-                            {{ "%.1f"|format(result.score * 100) }}%
+                            {{ "%.1f"|format(score_pct) }}%
                         </span>
                     </div>
 
