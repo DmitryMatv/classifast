@@ -25,7 +25,7 @@
         {%- set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | int if result.score is not none else 0)
         -%}
         <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem">
-            <div class="absolute inset-y-0 left-0" style="width: {{ score_pct }}%; background: linear-gradient(to right, #f9fafb, #f3f4f6);"></div>
+            <div class="absolute inset-y-0 left-0" style="width: {{ score_pct }}%; background: linear-gradient(to right, #ffffff, #e6e6e6);"></div>
             <div class="relative p-3">
                 <div class="flex-1">
                     <div class="flex items-baseline gap-2">
