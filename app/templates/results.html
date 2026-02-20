@@ -1,13 +1,5 @@
 {% if query %}
 <style>
-    .code-spacer-halfs {
-        display: inline-block;
-        width: 0.23ch;
-        margin: 0 0.08ch;
-        color: #d1d5db;
-        line-height: 1;
-    }
-
     .score-bar {
         background: linear-gradient(to right, #f9fafb, #f3f4f6);
     }
@@ -100,7 +92,7 @@
                         {% if result.payload.id_level %}
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}
-                        <span class="ml-auto bg-gray-100 text-gray-400 px-2 py-1 rounded-full">
+                        <span class="ml-auto text-gray-600">
                             {{ "%.1f"|format(score_pct) }}%
                         </span>
                     </div>
