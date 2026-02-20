@@ -9,7 +9,7 @@
     }
 
     .score-bar {
-        background: linear-gradient(to right, #f9fafb, #e5e7eb);
+        background: linear-gradient(to right, #f9fafb, #f3f4f6);
     }
 </style>
 <section aria-labelledby="results-heading">
@@ -100,7 +100,7 @@
                         {% if result.payload.id_level %}
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}
-                        <span class="ml-auto bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                        <span class="ml-auto bg-gray-100 text-gray-400 px-2 py-1 rounded-full">
                             {{ "%.1f"|format(score_pct) }}%
                         </span>
                     </div>
