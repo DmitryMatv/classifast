@@ -40,23 +40,63 @@ app/assets/css/     # CSS source (Tailwind)
 utilities/          # Test scripts
 ```
 
-## Development Tasks
+## Development
 
-**Frontend**: Edit TS in `app/assets/ts/`, don't run build (I do it), don't edit JS files.
+**Frontend**: Edit TS in `app/assets/ts/`, don't run build (I will do it), don't edit JS files.
 
 **Backend**: `pip install -r requirements.txt`, set up `.env`, run `uvicorn app.main:app --reload --port 8001`.
 
 **Adding Tests**: Create script in `utilities/`
 
-## Dependencies
+### Dependencies
 
 - **Backend**: FastAPI, uvicorn, qdrant-client, google-genai, redis, polar-sdk, cryptography, zeroentropy
 - **Frontend**: TypeScript, Tailwind CSS, Bun
 - **External**: Qdrant (vectors), Redis (caching), Clerk (auth), Polar (payments), ZeroEntropy (reranking), Google Gemini (embeddings)
 
-## Deployment
+### Deployment
 
 - **Host**: Raspberry Pi 4 (4GB) self-hosted via Coolify
 - **Access**: Cloudflare Tunnel (DDoS protection, SSL termination)
 - **Containers**: Classifast, Qdrant, Redis, WordPress (Docker)
 - **Notes**: Rebuild Docker image on changes, stay within 4GB memory, tunnel routes to port 8001, health check at `/health`
+
+### Cloudflare CDN Caching
+
+The app uses Cloudflare's CDN edge caching to reduce API costs and improve performance. Classification results (Gemini embeddings, ZeroEntropy reranking, Qdrant search) are cached at edge for 7 days.
+
+#### CF Cache Rule
+
+- **Rule**: Cache everything respecting headers (no path-based filtering)
+- **Edge TTL**: Use `Cache-Control` header if present, bypass if not
+- **Key**: CF does NOT cache responses with `Set-Cookie` header (regardless of `Cache-Control: public`)
+
+#### Cache Headers
+
+- **Browser**: `Cache-Control: public, max-age=14400` (4 hours)
+- **CDN**: `Cloudflare-CDN-Cache-Control: max-age=604800` (7 days)
+- **Vary**: `Accept-Encoding`
+- **Paywall**: `Cache-Control: no-store` (never cached)
+
+#### Cookie & Caching Architecture
+
+| Endpoint                      | Sets Cookie | CF Cached              |
+| ----------------------------- | ----------- | ---------------------- |
+| `/{type}/fragment?...`        | No          | Yes                    |
+| `/{type}/`, `/{type}/{query}` | Yes         | No                     |
+| Paywall response              | Yes         | No (explicit no-store) |
+
+#### Usage Tracking with Cached Fragments
+
+Since fragments don't set cookies, usage tracking works via:
+
+1. **Cookie from request header** - Returning visitors already have cookie from full page load
+2. **IP hash fallback** - New visitors tracked by hashed IP (handles cookie absence)
+
+Redis stores both `anon:{tracking_id}:usage_count` and `anon:ip:{ip_hash}:usage_count`, using the higher value to prevent abuse via cookie clearing.
+
+#### When Modifying Cache Behavior
+
+- **Never add `Set-Cookie` to fragment responses** - breaks CDN caching
+- **Paywalls must use `no-store`** - prevents serving cached paywall to allowed users
+- **Full pages can set cookies** - they're browser-only anyway due to `Set-Cookie` header

@@ -15,6 +15,7 @@ from .usage_tracker import (
     UsageStatus,
     add_quota_headers,
     check_usage,
+    get_or_create_tracking_id,
     increment_usage,
     set_tracking_cookie,
     verify_checkout_token,
@@ -207,8 +208,6 @@ async def get_classification_fragment(
         response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
         response.headers["Vary"] = "Accept-Encoding"
         add_quota_headers(response, usage_status)
-        if usage_status.tracking_id:
-            set_tracking_cookie(response, usage_status.tracking_id)
         return response
 
     start_total_time = time.perf_counter()
@@ -281,13 +280,6 @@ async def get_classification_fragment(
     if url_change:
         await increment_usage(request, redis_client, usage_status)
     add_quota_headers(response, usage_status)
-
-    # Set tracking cookie for anonymous users to enable cross-request tracking
-    # Note: Vary header is "Accept-Encoding" only, so Cloudflare caches the response
-    # regardless of cookie. The cookie is set on every response, but cached responses
-    # are served to all users with their own cookies applied by Cloudflare.
-    if usage_status.tracking_id:
-        set_tracking_cookie(response, usage_status.tracking_id)
 
     return response
 
@@ -431,5 +423,8 @@ async def show_classifier_page_with_query(
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"
+
+    tracking_id, _ = get_or_create_tracking_id(request)
+    set_tracking_cookie(response, tracking_id)
 
     return response
