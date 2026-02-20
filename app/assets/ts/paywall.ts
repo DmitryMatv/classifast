@@ -206,7 +206,7 @@ if (!window.__paywallScriptParsed) {
         } finally {
           clearTimeout(timeoutId);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         this.handleError(err, button);
       }
     }

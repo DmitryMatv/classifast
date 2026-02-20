@@ -8,7 +8,7 @@ body {
 }
 
 /* Visual spacer used to group code digits (very small, roughly half of a normal space) */
-.code-spacer-halfs {
+.code-spacer-halves {
   display: inline-block;
   width: 0.23ch;
   margin: 0 0.08ch;

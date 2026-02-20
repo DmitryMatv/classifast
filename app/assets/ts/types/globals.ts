@@ -14,6 +14,9 @@ declare global {
     copyOriginalId?: (text: string, buttonElement: HTMLButtonElement) => void;
     showInitialLoadingIndicator?: () => void;
     htmx?: HtmxInstance;
+    ShareLink?: {
+      copyShareableLink: () => Promise<void>;
+    };
   }
 
   // ============================================

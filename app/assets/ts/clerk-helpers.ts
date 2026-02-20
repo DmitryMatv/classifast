@@ -72,8 +72,8 @@ export class ClerkHelpers {
         const url = new URL(targetUrl, window.location.origin);
         url.searchParams.set("redirect_url", window.location.href);
         window.location.href = url.toString();
-      } catch {
-        // Fallback to simple concatenation if URL parsing fails
+      } catch (err: unknown) {
+        console.error("Error parsing URL, using fallback:", err);
         const separator = targetUrl.includes("?") ? "&" : "?";
         window.location.href = `${targetUrl}${separator}redirect_url=${encodeURIComponent(window.location.href)}`;
       }

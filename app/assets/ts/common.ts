@@ -3,6 +3,15 @@ import { ClerkHelpers } from "./clerk-helpers";
 
 // Shared TypeScript functionality for Classifast application
 
+// Global error handlers
+window.addEventListener("error", (event) => {
+  console.error("Global error:", event.error);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("Unhandled promise rejection:", event.reason);
+});
+
 // Mobile menu functionality
 export class MobileMenu {
   private button: HTMLElement | null = null;
@@ -69,7 +78,7 @@ export class ShareLink {
     try {
       await navigator.clipboard.writeText(url);
       this.showFeedback(button);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Could not copy URL: ", err);
       this.fallbackCopy(url, button);
     }
@@ -98,7 +107,7 @@ export class ShareLink {
       document.execCommand("copy");
       console.log("URL copied using fallback");
       this.showFeedback(button);
-    } catch (fallbackErr) {
+    } catch (fallbackErr: unknown) {
       console.error("Fallback copy failed: ", fallbackErr);
     }
 
@@ -173,7 +182,8 @@ function isTokenExpired(token: string): boolean {
     if (!payload.exp) return true;
     const now = Math.floor(Date.now() / 1000);
     return payload.exp < now;
-  } catch {
+  } catch (err: unknown) {
+    console.error("Error parsing JWT token:", err);
     return true;
   }
 }
@@ -287,7 +297,7 @@ export class ClerkAuth {
           // Auto-classification should only happen on initial page load
         });
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error initializing Clerk:", err);
       this.renderFallbackAuth();
     }
@@ -334,7 +344,7 @@ export class ClerkAuth {
             }
           }
           console.warn("Session recovery failed - session still missing");
-        } catch (recoveryErr) {
+        } catch (recoveryErr: unknown) {
           console.error("Failed to recover Clerk session:", recoveryErr);
         }
       } else {
@@ -342,7 +352,7 @@ export class ClerkAuth {
       }
 
       return cachedAuthToken;
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Failed to refresh auth token:", e);
       if (cachedAuthToken && !isTokenExpired(cachedAuthToken)) {
         return cachedAuthToken;
@@ -404,7 +414,7 @@ export class ClerkAuth {
           }),
         );
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error during token refresh for HTMX retry:", err);
       ClerkAuth.pendingRetries = [];
     } finally {
@@ -501,7 +511,7 @@ export class ClerkAuth {
         };
         window.Clerk.openGoogleOneTap(params);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error opening Google One Tap:", err);
     }
   }
@@ -528,7 +538,7 @@ export class ClerkAuth {
           },
         },
       });
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(`Error mounting ${type} user button:`, err);
     }
   }
@@ -696,7 +706,7 @@ export class ResultCopier {
     try {
       document.execCommand("copy");
       this.showTooltip(buttonElement, "Copied!");
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Fallback: Oops, unable to copy", err);
       this.showTooltip(buttonElement, "Copy failed");
     }
@@ -764,4 +774,4 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Expose ShareLink globally for inline onclick handlers
-(window as any).ShareLink = ShareLink;
+window.ShareLink = ShareLink;
