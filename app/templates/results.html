@@ -74,7 +74,7 @@
                                 The separator is aria-hidden and will not affect the value copied by the copy button
                                 because the copy button uses the raw original_id passed into JS. #}
                                 {%- if should_group and not loop.last and ((loop.index0 + 1) % 2) == 0 -%}
-                                <span aria-hidden="true" class="code-spacer-halfs"></span>
+                                <span aria-hidden="true" class="code-spacer-halves"></span>
                                 {%- endif -%}
                                 {%- endfor -%}
                                 {% if base_url and base_url.strip() %}<svg xmlns="http://www.w3.org/2000/svg" width="24"
