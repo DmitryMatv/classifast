@@ -12,4 +12,6 @@ body {
   display: inline-block;
   width: 0.23ch;
   margin: 0 0.08ch;
+  color: transparent;
+  line-height: 1;
 }

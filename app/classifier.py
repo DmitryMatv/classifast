@@ -396,6 +396,8 @@ def get_classification_cache_headers() -> Dict[str, str]:
     # Uniform cache policy across all endpoints
     # Browser: 4 hours, Cloudflare CDN: 7 days
     # Cloudflare-CDN-Cache-Control is Cloudflare-specific and not proxied downstream
+    # Note: We don't set __cf_bm or other Cloudflare cookies on fragment responses
+    # so Cloudflare should cache these regardless of client cookies
     return {
         "Cache-Control": "public, max-age=14400",
         "Cloudflare-CDN-Cache-Control": "max-age=604800",

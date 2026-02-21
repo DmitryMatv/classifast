@@ -155,15 +155,13 @@ async def get_classification_fragment(
         if version and version != default_version:
             new_url += f"?{urlencode({'version': version})}"
 
-    # Check usage limits before processing (only for non-example queries)
+    # Check usage limits before processing (only for user queries, not examples)
     redis_client = getattr(request.app.state, "redis_client", None)
 
-    # Only check usage limits for actual user queries, not example queries
     if url_change:
         usage_status = await check_usage(request, redis_client)
 
         if not usage_status.allowed:
-            # Return paywall template
             response = templates.TemplateResponse(
                 "paywall.html",
                 {
@@ -173,20 +171,17 @@ async def get_classification_fragment(
                     "free_user_limit": FREE_USER_LIMIT,
                 },
             )
-            # Prevent Cloudflare from caching paywall - always serve fresh
             response.headers["Cache-Control"] = "no-store, max-age=0"
             response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
-            # Set URL change before returning paywall
             response.headers["HX-Push-Url"] = new_url
             add_quota_headers(response, usage_status)
             if usage_status.tracking_id:
                 set_tracking_cookie(response, usage_status.tracking_id)
             return response
     else:
-        # Example queries: create dummy usage_status for headers
         usage_status = UsageStatus(
             allowed=True,
-            remaining=-1,  # Unlimited for examples
+            remaining=-1,
             limit=-1,
             is_authenticated=False,
             is_pro=False,
