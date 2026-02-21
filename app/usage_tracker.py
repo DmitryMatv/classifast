@@ -147,29 +147,37 @@ def extract_user_info_from_token(
     Extract user_id and tier from verified JWT token.
     Returns (None, None) if token is invalid or unverifiable.
     """
-    # Import here to avoid circular imports
+    # First try: Authorization header (from Clerk JS)
+    user_id, tier = extract_from_auth_header(request)
+    if user_id:
+        return user_id, tier
+
+    # Second try: __session cookie (available on page load, before Clerk JS)
+    user_id, tier = extract_from_session_cookie(request)
+    if user_id:
+        logger.debug("User authenticated via __session cookie: %s", user_id)
+        return user_id, tier
+
+    return None, None
+
+
+def extract_from_auth_header(
+    request: Request,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Extract user info from Authorization header."""
     from .dependencies import CLERK_FRONTEND_API, get_jwks_client
 
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
-        # Diagnostic: log if Authorization header is missing
-        if not auth_header:
-            logger.debug(
-                "No Authorization header provided - treating as anonymous user"
-            )
-        else:
-            logger.debug(f"Invalid Authorization header format: {auth_header[:20]}...")
         return None, None
 
     token = auth_header[7:]
 
-    # Get JWKS client for signature verification
     jwks_client = get_jwks_client()
     if not jwks_client:
-        return None, None  # Treat as anonymous if JWKS not configured
+        return None, None
 
     try:
-        # Verify signature before trusting claims
         signing_key = jwks_client.get_signing_key_from_jwt(token)
         expected_issuer = f"https://{CLERK_FRONTEND_API}"
 
@@ -185,12 +193,56 @@ def extract_user_info_from_token(
         )
 
         user_id = payload.get("sub")
+        if not user_id:
+            return None, None
+
         public_metadata = payload.get("public_metadata", {})
         tier = public_metadata.get("tier", "free") if public_metadata else "free"
 
         return user_id, tier
     except (jwt.PyJWTError, ValueError, KeyError):
-        return None, None  # Treat invalid tokens as anonymous
+        return None, None
+
+
+def extract_from_session_cookie(
+    request: Request,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Extract user info from Clerk's __session cookie."""
+    from .dependencies import CLERK_FRONTEND_API, get_jwks_client
+
+    session_cookie = request.cookies.get("__session")
+    if not session_cookie:
+        return None, None
+
+    jwks_client = get_jwks_client()
+    if not jwks_client:
+        return None, None
+
+    try:
+        signing_key = jwks_client.get_signing_key_from_jwt(session_cookie)
+        expected_issuer = f"https://{CLERK_FRONTEND_API}"
+
+        payload = jwt.decode(
+            session_cookie,
+            signing_key.key,
+            algorithms=["RS256"],
+            issuer=expected_issuer,
+            options={
+                "verify_signature": True,
+                "verify_exp": True,
+            },
+        )
+
+        user_id = payload.get("sub")
+        if not user_id:
+            return None, None
+
+        public_metadata = payload.get("public_metadata", {})
+        tier = public_metadata.get("tier", "free") if public_metadata else "free"
+
+        return user_id, tier
+    except (jwt.PyJWTError, ValueError, KeyError):
+        return None, None
 
 
 async def fetch_clerk_user_tier(user_id: str) -> str | None:
@@ -295,13 +347,19 @@ async def check_usage(
 
     # Log diagnostic info for debugging mismatches between frontend and backend
     if not user_id:
-        # Check if there's any indication this should be an authenticated request
         auth_header = request.headers.get("authorization", "")
-        if not auth_header:
-            logger.debug("Anonymous request - no Authorization header")
-        else:
+        session_cookie = request.cookies.get("__session")
+        if not auth_header and not session_cookie:
             logger.debug(
-                "Authorization header present but token extraction failed - treating as anonymous"
+                "Anonymous request - no Authorization header, no __session cookie"
+            )
+        elif not auth_header and session_cookie:
+            logger.debug(
+                "__session cookie present but token extraction failed - treating as anon"
+            )
+        elif auth_header:
+            logger.debug(
+                "Auth header present but token extract failed - treating as anon"
             )
 
     # Check for pro user status (combines JWT, cache, and grace period)
