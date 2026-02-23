@@ -66,6 +66,15 @@ class ClassifierPage {
    * Setup HTMX event listeners for response handling
    */
   private setupHTMXListeners(): void {
+    // Handle HTMX after request completes - fade out spinner smoothly
+    document.body.addEventListener("htmx:afterRequest", (evt: Event) => {
+      const htmxEvent = evt as HtmxAfterRequestEvent;
+      const indicator = document.getElementById("loading-indicator");
+      if (indicator && htmxEvent.detail.target.id === "results-container") {
+        indicator.classList.remove("htmx-request");
+      }
+    });
+
     // Handle HTMX after swap for results visibility
     document.body.addEventListener("htmx:afterSwap", (evt: Event) => {
       const htmxEvent = evt as HtmxAfterSwapEvent;

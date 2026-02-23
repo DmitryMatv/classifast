@@ -702,6 +702,13 @@
       }
     }
     setupHTMXListeners() {
+      document.body.addEventListener("htmx:afterRequest", (evt) => {
+        const htmxEvent = evt;
+        const indicator = document.getElementById("loading-indicator");
+        if (indicator && htmxEvent.detail.target.id === "results-container") {
+          indicator.classList.remove("htmx-request");
+        }
+      });
       document.body.addEventListener("htmx:afterSwap", (evt) => {
         const htmxEvent = evt;
         if (htmxEvent.detail.target.id === "results-container") {

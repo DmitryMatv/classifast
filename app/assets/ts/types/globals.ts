@@ -116,6 +116,12 @@ declare global {
     };
   }
 
+  interface HtmxAfterRequestEvent extends CustomEvent {
+    detail: {
+      target: HTMLElement;
+    };
+  }
+
   interface HtmxResponseErrorEvent extends CustomEvent {
     detail: {
       xhr: XMLHttpRequest;
@@ -126,6 +132,7 @@ declare global {
   interface HTMLElementEventMap {
     "htmx:configRequest": HtmxConfigRequestEvent;
     "htmx:afterSwap": HtmxAfterSwapEvent;
+    "htmx:afterRequest": HtmxAfterRequestEvent;
     "htmx:responseError": HtmxResponseErrorEvent;
     "htmx:authReady": CustomEvent;
     "clerk:loaded": CustomEvent;

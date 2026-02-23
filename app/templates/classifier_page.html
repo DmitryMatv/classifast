@@ -401,14 +401,18 @@
         }
 
         /* HTMX loading indicator styles */
-        #loading-indicator.htmx-indicator {
+        #loading-indicator {
             display: none;
-            /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.15s ease-out;
+        }
+
+        #loading-indicator.htmx-indicator {
+            display: flex;
         }
 
         #loading-indicator.htmx-indicator.htmx-request {
-            display: flex;
-            /* Show as flex when htmx-request class is added */
+            opacity: 1;
         }
 
         /* Mobile menu styles */
