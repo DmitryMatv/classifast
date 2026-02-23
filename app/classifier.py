@@ -317,7 +317,6 @@ def normalize_for_partial_match(query: str) -> str:
     Returns:
         Normalized query string for partial matching
     """
-    # Remove dots, spaces, and dashes
     normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
 
     # Strip leading and trailing zeros
@@ -325,7 +324,7 @@ def normalize_for_partial_match(query: str) -> str:
 
     # If empty after stripping, return original (handles case of "000")
     if not normalized:
-        normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
+        return query.replace(".", "").replace(" ", "")  # .replace("-", "")
 
     return normalized
 

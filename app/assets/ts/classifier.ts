@@ -1,4 +1,4 @@
-import { ShareLink, ResultCopier } from "./common";
+import { ShareLink } from "./common";
 
 /**
  * Classifier page specific functionality
@@ -143,59 +143,50 @@ class ClassifierPage {
       return;
     }
 
-    if (toggleButton && descriptionContent) {
-      // Update button text to include the classifier name
-      const classifierType =
-        toggleButton.getAttribute("data-classifier-type") || "";
-      const learnMoreText = classifierType
-        ? `Learn more about ${classifierType}`
-        : "Learn more";
-      const isExpanded = toggleButton.getAttribute("aria-expanded") === "true";
-      // Sync initial visibility state
-      descriptionContent.style.display = isExpanded ? "block" : "none";
-      descriptionContent.setAttribute("aria-hidden", String(!isExpanded));
-      toggleButton.textContent = isExpanded ? "Show less" : learnMoreText;
-      // Sync initial logo visibility with expanded state
-      const initialLogoElements = document.querySelectorAll(
+    const classifierType =
+      toggleButton.getAttribute("data-classifier-type") || "";
+    const learnMoreText = classifierType
+      ? `Learn more about ${classifierType}`
+      : "Learn more";
+    const isExpanded = toggleButton.getAttribute("aria-expanded") === "true";
+    descriptionContent.style.display = isExpanded ? "block" : "none";
+    descriptionContent.setAttribute("aria-hidden", String(!isExpanded));
+    toggleButton.textContent = isExpanded ? "Show less" : learnMoreText;
+
+    const initialLogoElements = document.querySelectorAll(
+      '[data-classifier-logo="true"]',
+    ) as NodeListOf<HTMLElement>;
+    initialLogoElements.forEach((logo) => {
+      logo.style.display = isExpanded ? "none" : "";
+    });
+
+    toggleButton.addEventListener("click", () => {
+      const currentlyExpanded =
+        toggleButton.getAttribute("aria-expanded") === "true";
+      const newExpandedState = !currentlyExpanded;
+
+      toggleButton.setAttribute("aria-expanded", String(newExpandedState));
+
+      const currentLogoElements = document.querySelectorAll(
         '[data-classifier-logo="true"]',
       ) as NodeListOf<HTMLElement>;
-      initialLogoElements.forEach((logo) => {
-        logo.style.display = isExpanded ? "none" : "";
-      });
 
-      toggleButton.addEventListener("click", () => {
-        const currentlyExpanded =
-          toggleButton.getAttribute("aria-expanded") === "true";
-        const newExpandedState = !currentlyExpanded;
-
-        // Toggle aria-expanded attribute
-        toggleButton.setAttribute("aria-expanded", String(newExpandedState));
-
-        // Re-query logo elements to get fresh references after potential HTMX swaps
-        const currentLogoElements = document.querySelectorAll(
-          '[data-classifier-logo="true"]',
-        ) as NodeListOf<HTMLElement>;
-
-        // Toggle visibility
-        if (newExpandedState) {
-          descriptionContent.style.display = "block";
-          descriptionContent.setAttribute("aria-hidden", "false");
-          toggleButton.textContent = "Show less";
-          // Hide logos when description is expanded
-          currentLogoElements.forEach((logo) => {
-            logo.style.display = "none";
-          });
-        } else {
-          descriptionContent.style.display = "none";
-          descriptionContent.setAttribute("aria-hidden", "true");
-          toggleButton.textContent = learnMoreText;
-          // Show logos when description is collapsed (restore default display)
-          currentLogoElements.forEach((logo) => {
-            logo.style.display = "";
-          });
-        }
-      });
-    }
+      if (newExpandedState) {
+        descriptionContent.style.display = "block";
+        descriptionContent.setAttribute("aria-hidden", "false");
+        toggleButton.textContent = "Show less";
+        currentLogoElements.forEach((logo) => {
+          logo.style.display = "none";
+        });
+      } else {
+        descriptionContent.style.display = "none";
+        descriptionContent.setAttribute("aria-hidden", "true");
+        toggleButton.textContent = learnMoreText;
+        currentLogoElements.forEach((logo) => {
+          logo.style.display = "";
+        });
+      }
+    });
   }
 
   /**
@@ -220,9 +211,16 @@ function showInitialLoadingIndicator(): void {
 
 // Initialize classifier page functionality when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
-  // Initialize the classifier page
   new ClassifierPage();
 });
+
+// Also run immediately if DOM is already loaded
+if (
+  document.readyState === "complete" ||
+  document.readyState === "interactive"
+) {
+  new ClassifierPage();
+}
 
 // Run immediately if DOM is already ready, otherwise the listener above will handle it
 if (

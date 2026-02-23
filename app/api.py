@@ -111,15 +111,6 @@ async def rapid_classify(
             detail="Rate limit exceeded. Please upgrade for higher limits.",
         )
 
-    # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
-    normalized_query = query.strip()
-    normalized_standard = standard.strip().upper()
-
-    if not normalized_query:
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-    if not normalized_standard:
-        raise HTTPException(status_code=400, detail="Standard cannot be empty")
-
     logger.info(
         "RapidAPI classification request: %s <- %s",
         normalized_standard,

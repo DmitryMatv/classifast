@@ -97,6 +97,8 @@
   }
 
   // app/assets/ts/common.ts
+  var SIGN_IN_CLASS = "bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
+  var SIGN_UP_CLASS = "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
   window.addEventListener("error", (event) => {
     console.error("Global error:", event.error);
   });
@@ -500,15 +502,13 @@
         container.style.display = "flex";
         container.style.alignItems = "center";
       }
-      const signInClass = "bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
-      const signUpClass = "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
       const signInBtn = document.createElement("div");
       if (type === "desktop") {
         signInBtn.id = "clerk-sign-in-button-desktop";
-        signInBtn.className = signInClass;
+        signInBtn.className = SIGN_IN_CLASS;
       } else {
         signInBtn.id = "clerk-sign-in-button-mobile";
-        signInBtn.className = signInClass + " w-full text-center mb-2";
+        signInBtn.className = SIGN_IN_CLASS + " w-full text-center mb-2";
       }
       signInBtn.textContent = "Sign In";
       signInBtn.addEventListener("click", (e) => {
@@ -519,10 +519,10 @@
       const signUpBtn = document.createElement("div");
       if (type === "desktop") {
         signUpBtn.id = "clerk-sign-up-button-desktop";
-        signUpBtn.className = signUpClass + " ml-2";
+        signUpBtn.className = SIGN_UP_CLASS + " ml-2";
       } else {
         signUpBtn.id = "clerk-sign-up-button-mobile";
-        signUpBtn.className = signUpClass + " w-full text-center mb-2";
+        signUpBtn.className = SIGN_UP_CLASS + " w-full text-center mb-2";
       }
       signUpBtn.textContent = "Sign Up";
       signUpBtn.addEventListener("click", (e) => {
@@ -535,8 +535,6 @@
       const desktopContainer = document.getElementById("desktop-auth-container");
       const mobileContainer = document.getElementById("mobile-auth-container");
       const redirectUrl = encodeURIComponent(window.location.href);
-      const signInClass = "bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded";
-      const signUpClass = "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform auth-loaded";
       if (desktopContainer) {
         desktopContainer.style.display = "flex";
         desktopContainer.style.alignItems = "center";
@@ -549,11 +547,11 @@
         signUpLink.href = "https://accounts.classifast.com/sign-up?redirect_url=" + redirectUrl;
         signUpLink.textContent = "Sign Up";
         if (type === "desktop") {
-          signInLink.className = signInClass;
-          signUpLink.className = signUpClass + " ml-2";
+          signInLink.className = SIGN_IN_CLASS;
+          signUpLink.className = SIGN_UP_CLASS + " ml-2";
         } else {
-          signInLink.className = signInClass + " w-full text-center mb-2 block";
-          signUpLink.className = signUpClass + " w-full text-center mb-2 block";
+          signInLink.className = SIGN_IN_CLASS + " w-full text-center mb-2 block";
+          signUpLink.className = SIGN_UP_CLASS + " w-full text-center mb-2 block";
         }
         return [signInLink, signUpLink];
       };
@@ -659,6 +657,12 @@
     new TextareaEnhancer("product_description_area");
     new ResultCopier;
   });
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    new MobileMenu;
+    new ClerkAuth;
+    new TextareaEnhancer("product_description_area");
+    new ResultCopier;
+  }
   window.ShareLink = ShareLink;
 
   // app/assets/ts/classifier.ts
@@ -747,39 +751,37 @@
         container.style.display = "none";
         return;
       }
-      if (toggleButton && descriptionContent) {
-        const classifierType = toggleButton.getAttribute("data-classifier-type") || "";
-        const learnMoreText = classifierType ? `Learn more about ${classifierType}` : "Learn more";
-        const isExpanded = toggleButton.getAttribute("aria-expanded") === "true";
-        descriptionContent.style.display = isExpanded ? "block" : "none";
-        descriptionContent.setAttribute("aria-hidden", String(!isExpanded));
-        toggleButton.textContent = isExpanded ? "Show less" : learnMoreText;
-        const initialLogoElements = document.querySelectorAll('[data-classifier-logo="true"]');
-        initialLogoElements.forEach((logo) => {
-          logo.style.display = isExpanded ? "none" : "";
-        });
-        toggleButton.addEventListener("click", () => {
-          const currentlyExpanded = toggleButton.getAttribute("aria-expanded") === "true";
-          const newExpandedState = !currentlyExpanded;
-          toggleButton.setAttribute("aria-expanded", String(newExpandedState));
-          const currentLogoElements = document.querySelectorAll('[data-classifier-logo="true"]');
-          if (newExpandedState) {
-            descriptionContent.style.display = "block";
-            descriptionContent.setAttribute("aria-hidden", "false");
-            toggleButton.textContent = "Show less";
-            currentLogoElements.forEach((logo) => {
-              logo.style.display = "none";
-            });
-          } else {
-            descriptionContent.style.display = "none";
-            descriptionContent.setAttribute("aria-hidden", "true");
-            toggleButton.textContent = learnMoreText;
-            currentLogoElements.forEach((logo) => {
-              logo.style.display = "";
-            });
-          }
-        });
-      }
+      const classifierType = toggleButton.getAttribute("data-classifier-type") || "";
+      const learnMoreText = classifierType ? `Learn more about ${classifierType}` : "Learn more";
+      const isExpanded = toggleButton.getAttribute("aria-expanded") === "true";
+      descriptionContent.style.display = isExpanded ? "block" : "none";
+      descriptionContent.setAttribute("aria-hidden", String(!isExpanded));
+      toggleButton.textContent = isExpanded ? "Show less" : learnMoreText;
+      const initialLogoElements = document.querySelectorAll('[data-classifier-logo="true"]');
+      initialLogoElements.forEach((logo) => {
+        logo.style.display = isExpanded ? "none" : "";
+      });
+      toggleButton.addEventListener("click", () => {
+        const currentlyExpanded = toggleButton.getAttribute("aria-expanded") === "true";
+        const newExpandedState = !currentlyExpanded;
+        toggleButton.setAttribute("aria-expanded", String(newExpandedState));
+        const currentLogoElements = document.querySelectorAll('[data-classifier-logo="true"]');
+        if (newExpandedState) {
+          descriptionContent.style.display = "block";
+          descriptionContent.setAttribute("aria-hidden", "false");
+          toggleButton.textContent = "Show less";
+          currentLogoElements.forEach((logo) => {
+            logo.style.display = "none";
+          });
+        } else {
+          descriptionContent.style.display = "none";
+          descriptionContent.setAttribute("aria-hidden", "true");
+          toggleButton.textContent = learnMoreText;
+          currentLogoElements.forEach((logo) => {
+            logo.style.display = "";
+          });
+        }
+      });
     }
     copyShareableLink() {
       ShareLink.copyShareableLink();
@@ -794,6 +796,9 @@
   document.addEventListener("DOMContentLoaded", () => {
     new ClassifierPage;
   });
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    new ClassifierPage;
+  }
   if (document.readyState === "complete" || document.readyState === "interactive") {
     showInitialLoadingIndicator();
   }

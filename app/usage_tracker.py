@@ -426,10 +426,10 @@ async def check_usage(
             f"Checking usage for anonymous user: tracking_id={tracking_id}, ip_hash={ip_hash}"
         )
 
-        try:
-            cookie_key = f"anon:{tracking_id}:usage_count"
-            ip_key = f"anon:ip:{ip_hash}:usage_count"
+        cookie_key = f"anon:{tracking_id}:usage_count"
+        ip_key = f"anon:ip:{ip_hash}:usage_count"
 
+        try:
             cookie_count = await redis_client.get(cookie_key)
             cookie_count = int(cookie_count) if cookie_count else 0
 
