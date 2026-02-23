@@ -1,6 +1,8 @@
 # AGENTS.md - Agentic Coding Guidelines for Classifast
 
-Classifast is a classification API service using embeddings and vector search (Qdrant) to classify products into UNSPSC/CPV categories.
+The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in the project that surprises you, please alert the developer working with you and indicate that this is the case in the AGENTS.md file to help prevent future agents from having the same issue.
+
+Classifast is a code search & match service that is using embeddings and vector search (Qdrant) to classify any text input (mostly products descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.
 
 - **Backend**: Python FastAPI
 - **Frontend**: TypeScript with Tailwind CSS, served via FastAPI
@@ -26,7 +28,7 @@ Classifast is a classification API service using embeddings and vector search (Q
 ```
 app/
   main.py            # FastAPI app entry, middleware, lifespan
-  api.py             # API routes
+  api.py             # API routes for RapidAPI (unrelated to Web)
   web.py             # Web UI routes
   classifier.py      # Core classification logic
   classifier_config.py  # Configuration
