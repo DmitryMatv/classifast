@@ -317,14 +317,14 @@ def normalize_for_partial_match(query: str) -> str:
     Returns:
         Normalized query string for partial matching
     """
-    normalized = query.replace(".", "").replace(" ", "")  # .replace("-", "")
+    normalized = query.replace(" ", "")  # replace(".", "").replace("-", "")
 
     # Strip leading and trailing zeros
     normalized = normalized.lstrip("0").rstrip("0")
 
     # If empty after stripping, return original (handles case of "000")
     if not normalized:
-        return query.replace(".", "").replace(" ", "")  # .replace("-", "")
+        return query.replace(" ", "")  # replace(".", "").replace("-", "")
 
     return normalized
 
@@ -371,7 +371,9 @@ def perform_partial_id_search(
                 # Normalize the stored original_id for comparison
                 normalized_original_id = normalize_for_partial_match(original_id_value)
                 # Check if normalized original_id contains the normalized query
-                if normalized_query in normalized_original_id:  # .lower() ?
+                if normalized_original_id.startswith(
+                    normalized_query
+                ) or normalized_original_id.endswith(normalized_query):
                     partial_results.append(
                         {"score": 0.90, "payload": point.payload, "id": point.id}
                     )

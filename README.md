@@ -1,6 +1,8 @@
-# Classifast - Fastest classifier for UNSPSC, NAICS, ISIC, HS codes, and more
+# Classifast
 
-### Instantly get category codes across many industry standards
+## Get the right `category codes` from the most widely used _industry classification standards_
+
+### Fastest classifier for _UNSPSC, NAICS, ETIM, ISIC, HS codes, and more_
 
 Classifast is a web application that provides easy classification of any text input according to international product and service standards like UNSPSC, NAICS, ISIC, ETIM, HS. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated yet intelligent categorization.
 
@@ -12,7 +14,7 @@ Classifast is a web application that provides easy classification of any text in
 - 🌐 **Modern Interface**: Clean, responsive design built with Tailwind CSS
 - 🔍 **SEO Optimized**: Structured data, meta tags, and performance optimized
 
-## Supported Classification Standards (Top 3 Most Used)
+## Supported classification standards (Top 3 most used)
 
 ### UNSPSC (United Nations Standard Products and Services Codes)
 
@@ -31,7 +33,7 @@ Classifast is a web application that provides easy classification of any text in
 - Industry classification for business activities
 - Essential for government contracting and reporting
 
-## Tech Stack
+## Stack
 
 - **Backend**: FastAPI with Python
 - **Frontend**: HTML5, Tailwind CSS, HTMX
@@ -39,7 +41,7 @@ Classifast is a web application that provides easy classification of any text in
 - **Embedding Models**: Google Gemini
 - **Deployment**: Docker containerized
 
-## Live Demo
+## Demo
 
 Visit the working preview at [classifast.com](https://classifast.com) to try.
 
@@ -50,14 +52,14 @@ Visit the working preview at [classifast.com](https://classifast.com) to try.
 3. Set environment variables for API keys
 4. Run with: `uvicorn app.main:app --reload`
 
-## API Endpoints (WIP)
+## API
 
 - `GET /` - Homepage
 - `GET /{classifier_type}` - Classification page (unspsc, etim, naics)
 - `POST /{classifier_type}` - Submit classification request
 - `GET /health` - Health check endpoint
 
-## SEO Features
+## SEO
 
 - Structured data markup (JSON-LD)
 - FAQ schema for common questions

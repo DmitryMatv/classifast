@@ -18,8 +18,7 @@
     {% endif %}
     <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
-        {%- set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | int if result.score is not none else 0)
-        -%}
+        {%- set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | round(2) if result.score is not none else 0) -%}
         <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem">
             <div class="absolute inset-y-0 left-0 score-bar" style="width: {{ score_pct }}%;"></div>
             <div class="relative p-3">
