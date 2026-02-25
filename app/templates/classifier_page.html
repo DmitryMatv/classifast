@@ -404,7 +404,7 @@
         #loading-indicator {
             display: none;
             opacity: 0;
-            transition: opacity 0.15s ease-out;
+            transition: opacity 0.3s ease-out;
         }
 
         #loading-indicator.htmx-indicator {
@@ -715,105 +715,9 @@
         </script>
         {% endif %}
 
-        <!-- How-To Section (Visible, matching Schema) -->
-        <section id="how-to-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">How to find {{ classifier_type.upper() }} codes</h2>
-            <div class="grid md:grid-cols-3 gap-6">
-                <div class="relative pl-8">
-                    <div
-                        class="absolute left-0 top-0 w-6 h-6 bg-sky-100 text-sky-600 font-bold rounded-full flex items-center justify-center text-sm">
-                        1</div>
-                    <h3 class="font-semibold text-gray-800 mb-2">Enter Description</h3>
-                    <p class="text-gray-600 text-sm">Type a description of your product or service into the search box
-                        above.
-                        Be specific (e.g., "wireless mouse" instead of "mouse").</p>
-                </div>
-                <div class="relative pl-8">
-                    <div
-                        class="absolute left-0 top-0 w-6 h-6 bg-sky-100 text-sky-600 font-bold rounded-full flex items-center justify-center text-sm">
-                        2</div>
-                    <h3 class="font-semibold text-gray-800 mb-2">Click Find Code</h3>
-                    <p class="text-gray-600 text-sm">Press the "Find code" button. Our search will analyze your
-                        description and match it against the {{ classifier_type.upper() }} standard in about 1 second.
-                    </p>
-                </div>
-                <div class="relative pl-8">
-                    <div
-                        class="absolute left-0 top-0 w-6 h-6 bg-sky-100 text-sky-600 font-bold rounded-full flex items-center justify-center text-sm">
-                        3</div>
-                    <h3 class="font-semibold text-gray-800 mb-2">Review Results</h3>
-                    <p class="text-gray-600 text-sm">Browse the ranked list of codes. The most relevant match is usually
-                        at
-                        the top. Click any code to copy it.</p>
-                </div>
-            </div>
-        </section>
-
         <!-- Standard-specific content sections to address Google indexing issues -->
         {% if classifier_type == 'UNSPSC' %}
-        <section id="unspsc-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Understanding UNSPSC</h2>
-
-            <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Structure & Hierarchy</h3>
-                    <p class="text-gray-600 mb-4">UNSPSC uses a hierarchical 8-digit code structure divided into four
-                        levels:</p>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full text-sm text-left text-gray-600 border border-gray-200">
-                            <thead class="text-gray-700 uppercase bg-gray-50 border-b">
-                                <tr>
-                                    <th scope="col" class="px-4 py-2">Level</th>
-                                    <th scope="col" class="px-4 py-2">Digits</th>
-                                    <th scope="col" class="px-4 py-2">Example</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="bg-white border-b">
-                                    <td class="px-4 py-2 font-semibold">Segment</td>
-                                    <td class="px-4 py-2">XX000000</td>
-                                    <td class="px-4 py-2">43 (IT & Broadcasting)</td>
-                                </tr>
-                                <tr class="bg-white border-b">
-                                    <td class="px-4 py-2 font-semibold">Family</td>
-                                    <td class="px-4 py-2">XXYY0000</td>
-                                    <td class="px-4 py-2">43.21 (Computer Equipment)</td>
-                                </tr>
-                                <tr class="bg-white border-b">
-                                    <td class="px-4 py-2 font-semibold">Class</td>
-                                    <td class="px-4 py-2">XXYYZZ00</td>
-                                    <td class="px-4 py-2">43.21.16 (Computer accessories)</td>
-                                </tr>
-                                <tr class="bg-white">
-                                    <td class="px-4 py-2 font-semibold">Commodity</td>
-                                    <td class="px-4 py-2">XXYYZZKK</td>
-                                    <td class="px-4 py-2">43.21.16.07 (Computer speakers)</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Industry Applications</h3>
-                    <p class="text-gray-600 mb-2">UNSPSC is widely used across these sectors:</p>
-                    <ul class="text-gray-600 space-y-1">
-                        <li>• E-procurement platforms and marketplaces</li>
-                        <li>• Supply chain management systems</li>
-                        <li>• Spend analysis and vendor management</li>
-                        <li>• Government procurement (GSA schedules)</li>
-                        <li>• Healthcare supply chain optimization</li>
-                    </ul>
-                </div>
-            </div>
-
-            <div class="mt-4">
-                <h3 class="text-lg font-semibold text-gray-800 mb-2">Version History & Updates</h3>
-                <p class="text-gray-600">UNSPSC is maintained by GS1 US and updated regularly. The current version
-                    (v26.0801 from August 2023) includes over 150000 active codes covering products and services across
-                    all industries.</p>
-            </div>
-        </section>
+        {% include 'unspsc_guide.html' %}
         {% endif %}
 
         {% if classifier_type == 'ETIM' %}
