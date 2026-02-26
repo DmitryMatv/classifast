@@ -98,10 +98,13 @@ async def get_current_user_id(authorization: str = Header(None)):
             logger.error("CLERK_SECRET_KEY not set")
             raise HTTPException(status_code=500, detail="Server configuration error")
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 f"https://api.clerk.com/v1/sessions/{session_id}",
-                headers={"Authorization": f"Bearer {CLERK_SECRET_KEY}"},
+                headers={
+                    "Authorization": f"Bearer {CLERK_SECRET_KEY}",
+                    "Clerk-API-Version": "2025-11-10",
+                },
             )
 
             if response.status_code != 200:
@@ -268,27 +271,39 @@ async def handle_subscription_update(subscription, tier: str):
 
     if user_id:
         logger.info(f"Updating user {user_id} to tier {tier}")
-        await update_clerk_user_metadata(user_id, {"tier": tier})
+        success = await update_clerk_user_metadata(user_id, {"tier": tier})
+        if not success:
+            logger.error(
+                f"Failed to update Clerk metadata for user {user_id}, tier={tier}"
+            )
+            raise HTTPException(
+                status_code=502, detail="Failed to update user metadata"
+            )
     else:
         logger.warning("No user_id found in subscription metadata")
 
 
-async def update_clerk_user_metadata(user_id, metadata):
+async def update_clerk_user_metadata(user_id: str, metadata: dict) -> bool:
     if not CLERK_SECRET_KEY:
         logger.error("CLERK_SECRET_KEY missing, cannot update user metadata")
-        return
+        return False
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.patch(
             f"https://api.clerk.com/v1/users/{user_id}/metadata",
-            headers={"Authorization": f"Bearer {CLERK_SECRET_KEY}"},
+            headers={
+                "Authorization": f"Bearer {CLERK_SECRET_KEY}",
+                "Clerk-API-Version": "2025-11-10",
+            },
             json={"public_metadata": metadata},
         )
 
         if response.status_code == 200:
             logger.info(f"Successfully updated Clerk metadata for user {user_id}")
+            return True
         else:
             logger.error(f"Failed to update Clerk metadata: {response.status_code}")
+            return False
 
 
 async def get_clerk_user_details(user_id: str) -> dict:
@@ -298,10 +313,13 @@ async def get_clerk_user_details(user_id: str) -> dict:
         return {"email": None, "name": None}
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 f"https://api.clerk.com/v1/users/{user_id}",
-                headers={"Authorization": f"Bearer {CLERK_SECRET_KEY}"},
+                headers={
+                    "Authorization": f"Bearer {CLERK_SECRET_KEY}",
+                    "Clerk-API-Version": "2025-11-10",
+                },
             )
             if response.status_code == 200:
                 user_data = response.json()

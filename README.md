@@ -1,20 +1,20 @@
 # Classifast
 
-## Get the right `category codes` from the most widely used _industry classification standards_
+## Accurate classifier of UNSPSC, NAICS, HS/CN codes, and more
 
-### Fastest classifier for _UNSPSC, NAICS, ETIM, ISIC, HS codes, and more_
+### Get the right category codes from the most widely used classification standards
 
 Classifast is a web application that provides easy classification of any text input according to international product and service standards like UNSPSC, NAICS, ISIC, ETIM, HS. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated yet intelligent categorization.
 
 ## Features
 
-- 🚀 **Fast Classification**: Semantic search using advanced embedding models
-- 🎯 **High Accuracy**: Confidence scores for each classification result
-- 📊 **Multiple Standards**: Support for UNSPSC, ETIM, and NAICS classification standards
-- 🌐 **Modern Interface**: Clean, responsive design built with Tailwind CSS
-- 🔍 **SEO Optimized**: Structured data, meta tags, and performance optimized
+- **Fast Classification**: Semantic search using advanced embedding models
+- **High Accuracy**: Confidence scores for each classification result
+- **Multiple Standards**: Support for UNSPSC, ETIM, and NAICS classification standards
+- **Modern Interface**: Clean, responsive design built with Tailwind CSS
+- **SEO Optimized**: Structured data, meta tags, and performance optimized
 
-## Supported classification standards (Top 3 most used)
+## Supported classification standards (Top 3)
 
 ### UNSPSC (United Nations Standard Products and Services Codes)
 
@@ -43,7 +43,7 @@ Classifast is a web application that provides easy classification of any text in
 
 ## Demo
 
-Visit the working preview at [classifast.com](https://classifast.com) to try.
+Visit the working instance at [classifast.com](https://classifast.com) to try.
 
 ## Installation
 
@@ -54,10 +54,10 @@ Visit the working preview at [classifast.com](https://classifast.com) to try.
 
 ## API
 
-- `GET /` - Homepage
-- `GET /{classifier_type}` - Classification page (unspsc, etim, naics)
-- `POST /{classifier_type}` - Submit classification request
-- `GET /health` - Health check endpoint
+- `GET /` Homepage
+- `GET /{classifier_type}` Classification page (unspsc, etim, naics)
+- `POST /{classifier_type}` Submit classification request
+- `GET /health` Health check endpoint
 
 ## SEO
 

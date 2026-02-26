@@ -257,7 +257,10 @@ async def fetch_clerk_user_tier(user_id: str) -> str | None:
             api_start = time.time()
             response = await client.get(
                 f"https://api.clerk.com/v1/users/{user_id}",
-                headers={"Authorization": f"Bearer {clerk_secret}"},
+                headers={
+                    "Authorization": f"Bearer {clerk_secret}",
+                    "Clerk-API-Version": "2025-11-10",
+                },
             )
             api_duration = time.time() - api_start
             logger.debug(
