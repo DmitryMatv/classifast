@@ -14,6 +14,16 @@ class ClassifierPage {
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
+    this.setCursorToEnd();
+  }
+
+  private setCursorToEnd(): void {
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+    if (textarea && textarea.value) {
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
   }
 
   /**
