@@ -6,6 +6,8 @@ import { ShareLink } from "./common";
  */
 
 class ClassifierPage {
+  private htmxLoadHandler: (() => void) | null = null;
+
   constructor() {
     this.init();
   }
@@ -14,7 +16,11 @@ class ClassifierPage {
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
-    this.setCursorToEnd();
+
+    this.htmxLoadHandler = () => {
+      this.setCursorToEnd();
+    };
+    document.body.addEventListener("htmx:load", this.htmxLoadHandler);
   }
 
   private setCursorToEnd(): void {
@@ -22,6 +28,7 @@ class ClassifierPage {
       "product_description_area",
     ) as HTMLTextAreaElement | null;
     if (textarea && textarea.value) {
+      textarea.focus();
       textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     }
   }

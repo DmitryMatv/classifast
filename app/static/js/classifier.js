@@ -667,6 +667,7 @@
 
   // app/assets/ts/classifier.ts
   class ClassifierPage {
+    htmxLoadHandler = null;
     constructor() {
       this.init();
     }
@@ -674,6 +675,17 @@
       this.setupTopKAutosubmit();
       this.setupHTMXListeners();
       this.setupDescriptionToggle();
+      this.htmxLoadHandler = () => {
+        this.setCursorToEnd();
+      };
+      document.body.addEventListener("htmx:load", this.htmxLoadHandler);
+    }
+    setCursorToEnd() {
+      const textarea = document.getElementById("product_description_area");
+      if (textarea && textarea.value) {
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      }
     }
     setupTopKAutosubmit() {
       const topKSelector = document.getElementById("show_top_k_categories");

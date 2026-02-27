@@ -359,7 +359,7 @@ def perform_partial_id_search(
         scroll_result = qdrant_client.scroll(
             collection_name=collection_name,
             scroll_filter=partial_filter,
-            limit=10,
+            limit=100,
             with_payload=True,
             with_vectors=False,
         )
