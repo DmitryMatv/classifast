@@ -29,7 +29,7 @@
 
   // app/assets/ts/clerk-helpers.ts
   class ClerkHelpers {
-    static openSignIn(fallbackButtonId) {
+    static openSignIn() {
       if (window.Clerk?.openSignIn) {
         window.Clerk.openSignIn({ redirectUrl: window.location.href });
       } else {
@@ -157,7 +157,7 @@
             if (window.Clerk?.openSignIn) {
               window.Clerk.openSignIn({ redirectUrl: window.location.href });
             } else {
-              const fallbackUrl = newSigninButton.dataset.fallbackUrl;
+              const fallbackUrl = newSigninButton.dataset["fallbackUrl"];
               ClerkHelpers.showAuthErrorAndRedirect("paywall-buttons", "sign-in", fallbackUrl);
             }
           });
@@ -170,7 +170,7 @@
             if (window.Clerk?.openSignUp) {
               window.Clerk.openSignUp({ redirectUrl: window.location.href });
             } else {
-              const fallbackUrl = newSignupButton.dataset.fallbackUrl;
+              const fallbackUrl = newSignupButton.dataset["fallbackUrl"];
               ClerkHelpers.showAuthErrorAndRedirect("paywall-buttons", "sign-up", fallbackUrl);
             }
           });
@@ -179,7 +179,6 @@
     }
 
     class CheckoutManager {
-      button = null;
       constructor() {
         this.init();
       }
@@ -192,7 +191,6 @@
           return;
         const newUpgradeButton = upgradeButton.cloneNode(true);
         upgradeButton.parentNode?.replaceChild(newUpgradeButton, upgradeButton);
-        this.button = newUpgradeButton;
         newUpgradeButton.addEventListener("click", async (e) => {
           e.preventDefault();
           await this.handleUpgrade(newUpgradeButton);

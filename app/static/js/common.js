@@ -39,7 +39,7 @@
 
   // app/assets/ts/clerk-helpers.ts
   class ClerkHelpers {
-    static openSignIn(fallbackButtonId) {
+    static openSignIn() {
       if (window.Clerk?.openSignIn) {
         window.Clerk.openSignIn({ redirectUrl: window.location.href });
       } else {

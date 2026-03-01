@@ -1,34 +1,18 @@
 {
+  "extends": "@tsconfig/strictest/tsconfig.json",
   "compilerOptions": {
-    // Environment setup & latest features
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "target": "ESNext",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleDetection": "force",
     "jsx": "react-jsx",
     "allowJs": true,
-
-    // Bundler mode (hybrid - emit files for browser)
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
     "outDir": "./app/static/js",
     "rootDir": "./app/assets/ts",
     "noEmit": false,
-    "sourceMap": true,
-
-    // Best practices
-    "strict": true,
-    "noImplicitAny": true,
-    "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "forceConsistentCasingInFileNames": true,
-
-    // Some stricter flags (disabled by default)
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "sourceMap": true
   },
   "include": ["app/assets/ts/**/*"],
   "exclude": ["node_modules"]

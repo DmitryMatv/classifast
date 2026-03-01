@@ -100,7 +100,7 @@ if (!window.__paywallScriptParsed) {
           if (window.Clerk?.openSignIn) {
             window.Clerk.openSignIn({ redirectUrl: window.location.href });
           } else {
-            const fallbackUrl = newSigninButton.dataset.fallbackUrl;
+            const fallbackUrl = newSigninButton.dataset["fallbackUrl"];
             ClerkHelpers.showAuthErrorAndRedirect(
               "paywall-buttons",
               "sign-in",
@@ -119,7 +119,7 @@ if (!window.__paywallScriptParsed) {
           if (window.Clerk?.openSignUp) {
             window.Clerk.openSignUp({ redirectUrl: window.location.href });
           } else {
-            const fallbackUrl = newSignupButton.dataset.fallbackUrl;
+            const fallbackUrl = newSignupButton.dataset["fallbackUrl"];
             ClerkHelpers.showAuthErrorAndRedirect(
               "paywall-buttons",
               "sign-up",
@@ -135,8 +135,6 @@ if (!window.__paywallScriptParsed) {
    * Checkout manager for Pro upgrade flow
    */
   class CheckoutManager {
-    private button: HTMLButtonElement | null = null;
-
     constructor() {
       this.init();
     }
@@ -154,7 +152,6 @@ if (!window.__paywallScriptParsed) {
         true,
       ) as HTMLButtonElement;
       upgradeButton.parentNode?.replaceChild(newUpgradeButton, upgradeButton);
-      this.button = newUpgradeButton;
 
       newUpgradeButton.addEventListener("click", async (e) => {
         e.preventDefault();

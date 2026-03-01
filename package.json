@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.18",
+    "@tsconfig/strictest": "^2.0.8",
     "@types/bun": "^1.3.7",
     "@types/web": "^0.0.323",
     "tailwindcss": "^4.1.18",
