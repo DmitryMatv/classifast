@@ -135,9 +135,9 @@ def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
     if existing:
         try:
             uuid.UUID(existing)
-            logger.info(f"Using existing tracking ID from cookie: {existing}")
+            logger.debug(f"Using existing tracking ID from cookie: {existing}")
             return existing, False
-        except (ValueError, AttributeError):
+        except ValueError:
             pass
     new_id = str(uuid.uuid4())
     logger.info(f"Created new tracking ID: {new_id}")

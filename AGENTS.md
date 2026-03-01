@@ -4,17 +4,17 @@ The role of this file is to describe common mistakes and confusion points that a
 
 ## Coding Agent Guidelines for Classifast
 
-Classifast is a code search service web application that is using embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.
+Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.
 
 ### Tech Stack
 
 - Backend: Python FastAPI
-- Frontend: TypeScript with Tailwind CSS, served via FastAPI, Bun
+- Frontend: TypeScript with Tailwind CSS (built with Bun, served via FastAPI)
 - Infrastructure: Redis (usage tracking), Qdrant (vector database), ZeroEntropy (reranking), Clerk (authentication), Polar (payments)
 
 ### Hardware & Deployment
 
-Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind full Cloudflare Tunnel. The app uses Cloudflare's CDN edge caching to reduce API costs and improve performance. Classification results (Gemini embeddings, ZeroEntropy reranking, Qdrant search) are cached at edge for 7 days.
+Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full HTTPS/TLS Setup for All Resources). The app uses Cloudflare's CDN edge caching to reduce API costs and improve performance. Classification results (Gemini embeddings, ZeroEntropy reranking, Qdrant search) are cached at edge for 7 days.
 
 ### When Modifying Cache Behavior
 
