@@ -132,9 +132,13 @@ async def verify_checkout_token(
 def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
     """Get tracking ID from cookie or create new one."""
     existing = request.cookies.get(TRACKING_COOKIE_NAME)
-    if existing and len(existing) == 36:  # UUID format
-        logger.debug(f"Using existing tracking ID from cookie: {existing}")
-        return existing, False
+    if existing:
+        try:
+            uuid.UUID(existing)
+            logger.info(f"Using existing tracking ID from cookie: {existing}")
+            return existing, False
+        except (ValueError, AttributeError):
+            pass
     new_id = str(uuid.uuid4())
     logger.info(f"Created new tracking ID: {new_id}")
     return new_id, True
