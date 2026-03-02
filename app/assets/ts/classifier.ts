@@ -219,23 +219,18 @@ function showInitialLoadingIndicator(): void {
 }
 
 // Initialize classifier page functionality when DOM is ready
-document.addEventListener("DOMContentLoaded", () => {
-  new ClassifierPage();
-});
-
-// Also run immediately if DOM is already loaded
-if (
-  document.readyState === "complete" ||
-  document.readyState === "interactive"
-) {
+function initClassifierPage(): void {
   new ClassifierPage();
 }
 
-// Run immediately if DOM is already ready, otherwise the listener above will handle it
-if (
-  document.readyState === "complete" ||
-  document.readyState === "interactive"
-) {
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initClassifierPage);
+} else {
+  initClassifierPage();
+}
+
+// Initialize loading indicator - run immediately if DOM ready
+if (document.readyState !== "loading") {
   showInitialLoadingIndicator();
 }
 

@@ -651,17 +651,16 @@
       }, 500);
     }
   }
-  document.addEventListener("DOMContentLoaded", () => {
+  function initCommon() {
     new MobileMenu;
     new ClerkAuth;
     new TextareaEnhancer("product_description_area");
     new ResultCopier;
-  });
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    new MobileMenu;
-    new ClerkAuth;
-    new TextareaEnhancer("product_description_area");
-    new ResultCopier;
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initCommon);
+  } else {
+    initCommon();
   }
   window.ShareLink = ShareLink;
 
@@ -800,13 +799,15 @@
       indicator.classList.add("htmx-request");
     }
   }
-  document.addEventListener("DOMContentLoaded", () => {
-    new ClassifierPage;
-  });
-  if (document.readyState === "complete" || document.readyState === "interactive") {
+  function initClassifierPage() {
     new ClassifierPage;
   }
-  if (document.readyState === "complete" || document.readyState === "interactive") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initClassifierPage);
+  } else {
+    initClassifierPage();
+  }
+  if (document.readyState !== "loading") {
     showInitialLoadingIndicator();
   }
   window.showInitialLoadingIndicator = showInitialLoadingIndicator;

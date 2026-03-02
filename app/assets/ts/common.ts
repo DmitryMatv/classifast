@@ -757,23 +757,18 @@ export class ResultCopier {
   }
 }
 
-// Initialize common functionality
-document.addEventListener("DOMContentLoaded", () => {
+// Initialize common functionality when DOM is ready
+function initCommon() {
   new MobileMenu();
   new ClerkAuth();
   new TextareaEnhancer("product_description_area");
   new ResultCopier();
-});
+}
 
-// Also run immediately if DOM is already loaded (for scripts loaded after DOM is ready)
-if (
-  document.readyState === "complete" ||
-  document.readyState === "interactive"
-) {
-  new MobileMenu();
-  new ClerkAuth();
-  new TextareaEnhancer("product_description_area");
-  new ResultCopier();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initCommon);
+} else {
+  initCommon();
 }
 
 // Expose ShareLink globally for inline onclick handlers

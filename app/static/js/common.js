@@ -651,17 +651,16 @@
       }, 500);
     }
   }
-  document.addEventListener("DOMContentLoaded", () => {
+  function initCommon() {
     new MobileMenu;
     new ClerkAuth;
     new TextareaEnhancer("product_description_area");
     new ResultCopier;
-  });
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    new MobileMenu;
-    new ClerkAuth;
-    new TextareaEnhancer("product_description_area");
-    new ResultCopier;
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initCommon);
+  } else {
+    initCommon();
   }
   window.ShareLink = ShareLink;
 })();
