@@ -5,6 +5,7 @@ import os
 import re
 import time
 from contextlib import asynccontextmanager
+from email.utils import formatdate
 from pathlib import Path
 
 import redis.asyncio as redis
@@ -16,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from google import genai
 from qdrant_client import QdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp, Scope, Receive, Send
+from starlette.types import ASGIApp, Receive, Scope, Send
 from zeroentropy import ZeroEntropy
 
 from . import api, payments, web
@@ -32,6 +33,11 @@ from .usage_tracker import (
 )
 
 BASE_DIR = Path(__file__).parent.parent
+
+
+def get_expires_header(max_age_seconds: int) -> str:
+    """Generate Expires header value in HTTP-date format (RFC 7231)."""
+    return formatdate(time.time() + max_age_seconds, usegmt=True)
 
 
 # Configure logging with Dozzle-friendly JSON formatter
@@ -399,8 +405,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Hardened CSP following Google's recommendations and best practices
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com; "
-            "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com https://ajax.cloudflare.com; "
+            "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com https://ajax.cloudflare.com; "
             "worker-src 'self' blob:; "
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
             "style-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; "
@@ -433,14 +439,17 @@ class CachedStaticFiles(StaticFiles):
                 # Immutable assets - cache for 1 year at edge, 1 week in browser
                 response.headers["Cache-Control"] = "public, max-age=604800, immutable"
                 response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=31536000"
-            elif path.endswith((".css", ".js")):
-                # CSS/JS - 1 hour browser, 24 hours CF edge
-                response.headers["Cache-Control"] = "public, max-age=3600"
-                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=86400"
+                response.headers["Expires"] = get_expires_header(604800)
+            elif path.endswith((".css", ".js", ".min.js")):
+                # CSS/JS - 1 day browser, 10 days edge
+                response.headers["Cache-Control"] = "public, max-age=86400"
+                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=864000"
+                response.headers["Expires"] = get_expires_header(86400)
             else:
                 # Other files - 4 hours browser, 7 days edge
                 response.headers["Cache-Control"] = "public, max-age=14400"
                 response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
+                response.headers["Expires"] = get_expires_header(14400)
 
             # ETag for conditional requests (CF uses this for revalidation)
             try:
@@ -479,6 +488,7 @@ def static_file_response(
     response = FileResponse(file_path)
     response.headers["Cache-Control"] = f"public, max-age={max_age}"
     response.headers["Cloudflare-CDN-Cache-Control"] = f"max-age={cdn_max_age}"
+    response.headers["Expires"] = get_expires_header(max_age)
     response.headers["Cache-Tag"] = "static-files"
     return response
 

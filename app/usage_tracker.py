@@ -26,7 +26,7 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 
 # Constants
 TRACKING_COOKIE_NAME = "cf_track"
-TRACKING_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year
+TRACKING_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days (matches Redis usage data TTL)
 USAGE_TTL = 30 * 24 * 60 * 60  # 30 days
 TIER_CACHE_TTL = 3600  # Cache user tier for 1 hour
 NEGATIVE_TIER_CACHE_TTL = 60  # Cache failed lookups for 1 minute

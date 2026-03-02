@@ -2,6 +2,7 @@ import logging
 import re
 import time
 from datetime import datetime
+from email.utils import formatdate
 from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -24,6 +25,11 @@ from .usage_tracker import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def get_expires_header(max_age_seconds: int) -> str:
+    """Generate Expires header value in HTTP-date format (RFC 7231)."""
+    return formatdate(time.time() + max_age_seconds, usegmt=True)
 
 
 def slugify(text: str) -> str:
@@ -54,6 +60,7 @@ async def read_root(request: Request):
         headers = {
             "Cache-Control": "public, max-age=14400",
             "Cloudflare-CDN-Cache-Control": "max-age=604800",
+            "Expires": get_expires_header(14400),
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
             "Link": '<https://classifast.com/>; rel="canonical"',
@@ -68,6 +75,7 @@ async def read_root(request: Request):
     # Cloudflare-friendly cache headers (same as classifier pages)
     response.headers["Cache-Control"] = "public, max-age=14400"
     response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
+    response.headers["Expires"] = get_expires_header(14400)
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = '<https://classifast.com/>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"
@@ -201,6 +209,7 @@ async def get_classification_fragment(
         )
         response.headers["Cache-Control"] = "public, max-age=14400"
         response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
+        response.headers["Expires"] = get_expires_header(14400)
         response.headers["Vary"] = "Accept-Encoding"
         add_quota_headers(response, usage_status)
         return response
@@ -264,6 +273,7 @@ async def get_classification_fragment(
     response.headers["Cloudflare-CDN-Cache-Control"] = cache_headers[
         "Cloudflare-CDN-Cache-Control"
     ]
+    response.headers["Expires"] = get_expires_header(14400)
     response.headers["Vary"] = cache_headers["Vary"]
 
     # Set HTMX header to update URL in browser address bar (new_url was built earlier)
@@ -349,6 +359,7 @@ async def show_classifier_page_with_query(
         headers = {
             "Cache-Control": "public, max-age=14400",
             "Cloudflare-CDN-Cache-Control": "max-age=604800",
+            "Expires": get_expires_header(14400),
             "Vary": "Accept-Encoding",
             "Content-Type": "text/html; charset=utf-8",
             "Link": f'<{canonical_url}>; rel="canonical"',
@@ -389,6 +400,8 @@ async def show_classifier_page_with_query(
     current_year = today.year
     current_month_name = today.strftime("%B")
 
+    tracking_id, _ = get_or_create_tracking_id(request)
+
     response = templates.TemplateResponse(
         "classifier_page.html",
         {
@@ -409,17 +422,16 @@ async def show_classifier_page_with_query(
             "current_year": current_year,
             "current_month_name": current_month_name,
             **results_data,
+            "tracking_id": tracking_id,
         },
     )
 
     # Cloudflare-friendly cache headers (aligned with homepage)
     response.headers["Cache-Control"] = "public, max-age=14400"
     response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
+    response.headers["Expires"] = get_expires_header(14400)
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"
-
-    tracking_id, _ = get_or_create_tracking_id(request)
-    set_tracking_cookie(response, tracking_id)
 
     return response

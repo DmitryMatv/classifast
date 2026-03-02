@@ -18,7 +18,10 @@
     {% endif %}
     <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
-        {%- set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | round(2) if result.score is not none else 0) -%}
+        {%-
+        set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | round(2)
+        if result.score is not none else 0)
+        -%}
         <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem">
             <div class="absolute inset-y-0 left-0 score-bar" style="width: {{ score_pct }}%;"></div>
             <div class="relative p-3">
@@ -112,10 +115,14 @@
         <p class="mt-4 text-left text-gray-600">Classifast can make mistakes. Double-check important data.</p>
     </div>
     <div class="mt-4 prose max-w-none">
-        <p id="description-help" class="text-gray-600">
-            For best results, please provide relevant and accurate descriptions, in any language.
-            Product specifications, raw unformatted text, tables and lists - any input is accepted
-            as long as it accurately describes what you want to classify.
+        <p id="description-pro-tip" class="text-gray-600">
+            For best results, please provide a relevant and accurate description in any language.
+            Product specifications, raw unformatted text, tables and lists - any input is acceptable
+            as long as it clearly and unambiguously defines what exactly you want to classify.
+        </p>
+        <p id="description-top-100" class="text-gray-600">
+            Top 100 can sometimes produce different results than Top 10 or Top 30. If you don't see what you're
+            looking for, try expanding the number of results shown.
         </p>
     </div>
 

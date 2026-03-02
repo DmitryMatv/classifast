@@ -83,9 +83,7 @@
     <!-- Inter font from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-JK3ESE6CJR"></script>
@@ -604,27 +602,28 @@
                 {% if classifier_type == 'NACE' %}
                 <img src="{{ url_for('static', path='images/Eurostat_Newlogo.png') }}"
                     alt="NACE classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-21.5 w-auto" loading="lazy">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-21.5 w-auto"
+                    fetchpriority="high">
                 {% elif classifier_type == 'CN' %}
                 <img src="{{ url_for('static', path='images/logo_en_brand.png') }}"
                     alt="CN classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-10 top-2 w-auto" loading="lazy">
+                    class="hidden lg:block pointer-events-none absolute right-10 top-2 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'HS' %}
                 <img src="{{ url_for('static', path='images/cl09nx0ml001578c25z5411if.png') }}"
                     alt="HS classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'NAICS' %}
                 <img src="{{ url_for('static', path='images/naics-logo.png') }}"
                     alt="NAICS classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'UNSPSC' %}
                 <img src="{{ url_for('static', path='images/unspc-logo.png') }}"
                     alt="UNSPSC classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'HTS' %}
                 <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="HTS classification standard logo"
                     data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" loading="lazy">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% endif %}
             </div>
             <button id="description-toggle" type="button" aria-expanded="false"
@@ -1241,6 +1240,23 @@
     <script async crossorigin="anonymous" data-clerk-publishable-key="pk_live_Y2xlcmsuY2xhc3NpZmFzdC5jb20k"
         src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js" type="text/javascript">
         </script>
+
+    <!-- Set tracking cookie for anonymous rate limiting (abuse prevention) -->
+    <!-- This is a functional cookie for service protection, not advertising/analytics, so it falls under "strictly necessary" exemptions in most jurisdictions -->
+    <script data-tracking-id="{{ tracking_id | e }}">
+        (function () {
+            var cookieName = "cf_track";
+            if (!document.cookie.split('; ').find(function (row) { return row.startsWith(cookieName + '='); })) {
+                var trackingId = document.currentScript.getAttribute("data-tracking-id");
+                if (trackingId) {
+                    // 30 days max-age to match Redis usage data TTL (prevents abuse of free tier)
+                    var maxAge = 30 * 24 * 60 * 60;
+                    document.cookie = cookieName + "=" + encodeURIComponent(trackingId) +
+                        "; max-age=" + maxAge + "; path=/; secure; samesite=lax";
+                }
+            }
+        })();
+    </script>
 </body>
 
 </html>
