@@ -18,5 +18,8 @@
     "@types/web": "^0.0.323",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3"
-  }
+  },
+  "trustedDependencies": [
+    "@parcel/watcher"
+  ]
 }

@@ -1,17 +1,9 @@
 @import "tailwindcss";
 
-/* Apply Inter font to body and ensure proper inheritance */
-body {
-  font-family:
-    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-}
-
 /* Visual spacer used to group code digits (very small, roughly half of a normal space) */
 .code-spacer-halves {
   display: inline-block;
-  width: 0.23ch;
-  margin: 0 0.08ch;
+  width: 0.12em;
   color: transparent;
   line-height: 1;
 }
