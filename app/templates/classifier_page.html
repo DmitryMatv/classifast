@@ -83,6 +83,7 @@
     <!-- Inter font from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://clerk.classifast.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Google tag (gtag.js) -->
@@ -521,7 +522,7 @@
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-2 md:mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <h1 class="text-sm md:text-xl font-semibold text-gray-800">{{ title }}</h1>
+                <h1 class="text-sm md:text-xl font-medium text-gray-800 mobile-hidden">{{ title }}</h1>
             </a>
 
             <!-- Desktop Navigation -->
@@ -597,8 +598,15 @@
 
         <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4" role="form"
             aria-label="Product Classification Form">
-            <div class="relative mb-2">
-                <h2 class="text-xl font-bold">{{ heading }}</h2>
+            <div class="relative mb-2 flex items-center gap-1">
+                <h2>{{ heading }}</h2>
+                <button id="description-toggle" type="button" aria-expanded="false"
+                    class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none underline decoration-sky-700 underline-offset-2"
+                    aria-controls="description-content"
+                    aria-label="Learn more about {{ classifier_type.upper() }} button"
+                    data-classifier-type="{{ classifier_type.upper() }}">
+                    Learn more about {{ classifier_type.upper() }}
+                </button>
                 {% if classifier_type == 'NACE' %}
                 <img src="{{ url_for('static', path='images/Eurostat_Newlogo.png') }}"
                     alt="NACE classification standard logo" data-classifier-logo="true"
@@ -626,15 +634,9 @@
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% endif %}
             </div>
-            <button id="description-toggle" type="button" aria-expanded="false"
-                class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none underline decoration-sky-700 underline-offset-2"
-                aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button"
-                data-classifier-type="{{ classifier_type.upper() }}">
-                Learn more about {{ classifier_type.upper() }}
-            </button>
 
             <!-- Description is completely hidden by default and shown when the button is pressed -->
-            <div id="description-container" class="mt-2 mb-4">
+            <div id="description-container" class="mt-2 mb-10">
                 <div id="description-content" style="display: none;" aria-hidden="true">
                     {{ description | e }}
                 </div>
@@ -666,8 +668,9 @@
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Lookup code for product description"
-                            class="cursor-pointer bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            🔍︎ Find category code
+                            class="cursor-pointer bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-medium px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
+                            <span class="hidden md:inline">🔍︎ Find category code</span>
+                            <span class="md:hidden">🔍︎</span>
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show" aria-expanded="false" aria-haspopup="listbox"
@@ -693,7 +696,7 @@
 
         <section id="results-section" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto" aria-live="polite"
             role="region" aria-label="Classification Results">
-            <div id="results-container" style="min-height: 400px;">
+            <div id="results-container" style="min-height: 200px;">
                 {% include 'results.html' %}
             </div>
         </section>
