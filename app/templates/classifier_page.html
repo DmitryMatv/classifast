@@ -598,15 +598,8 @@
 
         <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4" role="form"
             aria-label="Product Classification Form">
-            <div class="relative mb-2 flex items-center gap-1">
+            <div class="relative">
                 <h2>{{ heading }}</h2>
-                <button id="description-toggle" type="button" aria-expanded="false"
-                    class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none underline decoration-sky-700 underline-offset-2"
-                    aria-controls="description-content"
-                    aria-label="Learn more about {{ classifier_type.upper() }} button"
-                    data-classifier-type="{{ classifier_type.upper() }}">
-                    Learn more about {{ classifier_type.upper() }}
-                </button>
                 {% if classifier_type == 'NACE' %}
                 <img src="{{ url_for('static', path='images/Eurostat_Newlogo.png') }}"
                     alt="NACE classification standard logo" data-classifier-logo="true"
@@ -634,9 +627,15 @@
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% endif %}
             </div>
+            <button id="description-toggle" type="button" aria-expanded="false"
+                class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none underline decoration-sky-700 underline-offset-2"
+                aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button"
+                data-classifier-type="{{ classifier_type.upper() }}">
+                Learn more about {{ classifier_type.upper() }}
+            </button>
 
             <!-- Description is completely hidden by default and shown when the button is pressed -->
-            <div id="description-container" class="mt-2 mb-10">
+            <div id="description-container" class="mt-2 mb-6">
                 <div id="description-content" style="display: none;" aria-hidden="true">
                     {{ description | e }}
                 </div>
@@ -1246,11 +1245,24 @@
 
     <!-- Set tracking cookie for anonymous rate limiting (abuse prevention) -->
     <!-- This is a functional cookie for service protection, not advertising/analytics, so it falls under "strictly necessary" exemptions in most jurisdictions -->
-    <script data-tracking-id="{{ tracking_id | e }}">
+    <script>
         (function () {
             var cookieName = "cf_track";
             if (!document.cookie.split('; ').find(function (row) { return row.startsWith(cookieName + '='); })) {
-                var trackingId = document.currentScript.getAttribute("data-tracking-id");
+                // Generate UUID v4 client-side (avoids CDN cache pollution from server-generated UUIDs)
+                var trackingId;
+                if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                    trackingId = crypto.randomUUID();
+                } else if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+                    // Polyfill for browsers without crypto.randomUUID
+                    var array = new Uint8Array(16);
+                    crypto.getRandomValues(array);
+                    array[6] = (array[6] & 0x0f) | 0x40; // Version 4
+                    array[8] = (array[8] & 0x3f) | 0x80; // Variant 10
+                    var hex = Array.from(array, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+                    trackingId = hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+                }
+
                 if (trackingId) {
                     // 30 days max-age to match Redis usage data TTL (prevents abuse of free tier)
                     var maxAge = 30 * 24 * 60 * 60;

@@ -16,7 +16,6 @@ from .usage_tracker import (
     UsageStatus,
     add_quota_headers,
     check_usage,
-    get_or_create_tracking_id,
     increment_usage,
     set_tracking_cookie,
     verify_checkout_token,
@@ -45,8 +44,8 @@ def slugify(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     # Preserve periods, commas, apostrophes, and parentheses while removing other special characters
     text = re.sub(r"[^\w\s.,'()-]", "", text)
-    text = re.sub(r"[-\s]+", "-", text)
-    return text.strip("-")
+    text = re.sub(r"[\s]+", "_", text)
+    return text.strip("_")
 
 
 # Serve the main homepage
@@ -333,7 +332,7 @@ async def show_classifier_page_with_query(
     decoded_search_query = ""
     if search_query and search_query.strip():
         decoded_search_query = (
-            unquote_plus(search_query).rstrip("/").replace("/", " ").replace("-", " ")
+            unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
         )
         # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
         decoded_search_query = re.sub(r"\s+", " ", decoded_search_query).strip()
@@ -400,8 +399,6 @@ async def show_classifier_page_with_query(
     current_year = today.year
     current_month_name = today.strftime("%B")
 
-    tracking_id, _ = get_or_create_tracking_id(request)
-
     response = templates.TemplateResponse(
         "classifier_page.html",
         {
@@ -422,7 +419,6 @@ async def show_classifier_page_with_query(
             "current_year": current_year,
             "current_month_name": current_month_name,
             **results_data,
-            "tracking_id": tracking_id,
         },
     )
 

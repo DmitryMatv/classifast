@@ -21,3 +21,7 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - Never add `Set-Cookie` to fragment responses - breaks CDN caching
 - Paywalls must use `no-store` - prevents serving cached paywall to allowed users
 - Full pages can set cookies - they're browser-only anyway due to `Set-Cookie` header
+
+### Rapid API
+
+api.py is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
