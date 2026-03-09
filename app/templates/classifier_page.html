@@ -700,23 +700,12 @@
             </div>
         </section>
 
-        <script>
-            function showInitialLoadingIndicator() {
-                const indicator = document.getElementById('loading-indicator');
-                if (indicator) {
-                    indicator.classList.add('htmx-request');
-                }
-            }
-        </script>
-
         {% if trigger_search_on_load and versions %}
         <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}" hx-trigger="load"
             hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
-            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}{% if not url_params.search %}, "url_change": false{% endif %}}'>
+            data-initial-results-loader="true"
+            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}, "push_url": false, "track_usage": {{ "true" if url_params.search else "false" }}}'>
         </div>
-        <script>
-            showInitialLoadingIndicator();
-        </script>
         {% endif %}
 
         <!-- Standard-specific content sections to address Google indexing issues -->

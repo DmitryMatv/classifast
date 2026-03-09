@@ -12,7 +12,6 @@ declare global {
     __paywallInitialized?: boolean;
     __paywallScriptParsed?: boolean;
     copyOriginalId?: (text: string, buttonElement: HTMLButtonElement) => void;
-    showInitialLoadingIndicator?: () => void;
     htmx?: HtmxInstance;
     ShareLink?: {
       copyShareableLink: () => Promise<void>;
@@ -110,6 +109,13 @@ declare global {
     };
   }
 
+  interface HtmxBeforeRequestEvent extends CustomEvent {
+    detail: {
+      elt: Element;
+      target: HTMLElement;
+    };
+  }
+
   interface HtmxAfterSwapEvent extends CustomEvent {
     detail: {
       target: HTMLElement;
@@ -118,6 +124,7 @@ declare global {
 
   interface HtmxAfterRequestEvent extends CustomEvent {
     detail: {
+      elt: Element;
       target: HTMLElement;
     };
   }
@@ -130,12 +137,17 @@ declare global {
   }
 
   interface HTMLElementEventMap {
+    "htmx:beforeRequest": HtmxBeforeRequestEvent;
     "htmx:configRequest": HtmxConfigRequestEvent;
     "htmx:afterSwap": HtmxAfterSwapEvent;
     "htmx:afterRequest": HtmxAfterRequestEvent;
     "htmx:responseError": HtmxResponseErrorEvent;
     "htmx:authReady": CustomEvent;
     "clerk:loaded": CustomEvent;
+    "htmx:sendAbort": CustomEvent;
+    "htmx:timeout": CustomEvent;
+    "htmx:beforeHistorySave": CustomEvent;
+    "htmx:historyRestore": CustomEvent;
   }
 }
 
