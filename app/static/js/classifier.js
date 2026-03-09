@@ -673,6 +673,66 @@
       this.setupTopKAutosubmit();
       this.setupHTMXListeners();
       this.setupDescriptionToggle();
+      this.attachShareButtonListener();
+    }
+    getLoadingIndicator() {
+      return document.getElementById("loading-indicator");
+    }
+    showLoadingIndicator() {
+      this.getLoadingIndicator()?.classList.add("htmx-request");
+    }
+    hideLoadingIndicator() {
+      this.getLoadingIndicator()?.classList.remove("htmx-request");
+    }
+    isResultsTarget(target) {
+      return target instanceof HTMLElement && target.id === "results-container";
+    }
+    getInitialResultsLoader() {
+      return document.querySelector("[data-initial-results-loader='true']");
+    }
+    cleanupInitialResultsLoader() {
+      this.getInitialResultsLoader()?.remove();
+    }
+    ensureResultsSectionVisible() {
+      const resultsContainer = document.getElementById("results-container");
+      const resultsSection = document.getElementById("results-section");
+      if (!resultsContainer || !resultsSection) {
+        return;
+      }
+      if (resultsContainer.innerHTML.trim()) {
+        resultsSection.classList.remove("hidden");
+      }
+    }
+    syncTextareaState() {
+      const productDescriptionArea = document.getElementById("product_description_area");
+      if (!productDescriptionArea) {
+        return;
+      }
+      productDescriptionArea.defaultValue = productDescriptionArea.value;
+      productDescriptionArea.textContent = productDescriptionArea.value;
+    }
+    syncSelectState(selectId) {
+      const select = document.getElementById(selectId);
+      if (!select) {
+        return;
+      }
+      Array.from(select.options).forEach((option) => {
+        const isSelected = option.selected;
+        option.defaultSelected = isSelected;
+        option.toggleAttribute("selected", isSelected);
+      });
+    }
+    syncHistoryState() {
+      this.syncTextareaState();
+      this.syncSelectState("version_selector");
+      this.syncSelectState("show_top_k_categories");
+      this.hideLoadingIndicator();
+      this.cleanupInitialResultsLoader();
+    }
+    handleResultsSwap() {
+      this.ensureResultsSectionVisible();
+      this.attachShareButtonListener();
+      this.cleanupInitialResultsLoader();
     }
     setupTopKAutosubmit() {
       const topKSelector = document.getElementById("show_top_k_categories");
@@ -701,38 +761,53 @@
       }
     }
     setupHTMXListeners() {
+      document.body.addEventListener("htmx:beforeRequest", (evt) => {
+        const htmxEvent = evt;
+        if (this.isResultsTarget(htmxEvent.detail.target)) {
+          this.showLoadingIndicator();
+        }
+      });
       document.body.addEventListener("htmx:afterRequest", (evt) => {
         const htmxEvent = evt;
-        const indicator = document.getElementById("loading-indicator");
-        if (indicator && htmxEvent.detail.target.id === "results-container") {
-          indicator.classList.remove("htmx-request");
+        if (this.isResultsTarget(htmxEvent.detail.target)) {
+          this.hideLoadingIndicator();
+        }
+        if (htmxEvent.detail.elt instanceof HTMLElement && htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")) {
+          this.cleanupInitialResultsLoader();
         }
       });
       document.body.addEventListener("htmx:afterSwap", (evt) => {
         const htmxEvent = evt;
-        if (htmxEvent.detail.target.id === "results-container") {
-          const resultsSection = document.getElementById("results-section");
-          if (resultsSection) {
-            resultsSection.classList.remove("hidden");
-          }
-          this.attachShareButtonListener();
+        if (this.isResultsTarget(htmxEvent.detail.target)) {
+          this.handleResultsSwap();
         }
       });
       document.body.addEventListener("htmx:responseError", (evt) => {
         const htmxEvent = evt;
         if (htmxEvent.detail.xhr.status === 429) {
-          if (htmxEvent.detail.target.id === "results-container") {
+          if (this.isResultsTarget(htmxEvent.detail.target)) {
             htmxEvent.detail.target.innerHTML = htmxEvent.detail.xhr.response;
-            const resultsSection = document.getElementById("results-section");
-            if (resultsSection) {
-              resultsSection.classList.remove("hidden");
-            }
-            const loadingIndicator = document.getElementById("loading-indicator");
-            if (loadingIndicator) {
-              loadingIndicator.classList.remove("htmx-request");
-            }
+            this.ensureResultsSectionVisible();
+            this.hideLoadingIndicator();
+            this.cleanupInitialResultsLoader();
           }
         }
+      });
+      document.body.addEventListener("htmx:sendAbort", () => {
+        this.hideLoadingIndicator();
+      });
+      document.body.addEventListener("htmx:timeout", () => {
+        this.hideLoadingIndicator();
+      });
+      document.body.addEventListener("htmx:beforeHistorySave", () => {
+        this.syncHistoryState();
+      });
+      document.body.addEventListener("htmx:historyRestore", () => {
+        this.hideLoadingIndicator();
+        this.handleResultsSwap();
+      });
+      window.addEventListener("pageshow", () => {
+        this.hideLoadingIndicator();
       });
     }
     attachShareButtonListener() {
@@ -793,12 +868,6 @@
       ShareLink.copyShareableLink();
     }
   }
-  function showInitialLoadingIndicator() {
-    const indicator = document.getElementById("loading-indicator");
-    if (indicator) {
-      indicator.classList.add("htmx-request");
-    }
-  }
   function initClassifierPage() {
     new ClassifierPage;
   }
@@ -807,8 +876,4 @@
   } else {
     initClassifierPage();
   }
-  if (document.readyState !== "loading") {
-    showInitialLoadingIndicator();
-  }
-  window.showInitialLoadingIndicator = showInitialLoadingIndicator;
 })();

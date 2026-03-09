@@ -119,7 +119,9 @@ async def get_classification_fragment(
     product_description: str = Query(..., alias="product_description"),
     top_k: int = Query(10, ge=1, le=100),
     version: str = Query(...),
-    url_change: bool = Query(True),
+    push_url: bool | None = Query(None),
+    track_usage: bool = Query(True),
+    url_change: bool | None = Query(None),
 ):
     """
     GET endpoint for retrieving classification results as an HTML fragment.
@@ -130,11 +132,15 @@ async def get_classification_fragment(
     upper_type = classifier_type.strip().upper()
 
     logger.info(
-        "WEB received GET fragment request for '%s' with version '%s'. URL change: %s",
+        "WEB received GET fragment request for '%s' with version '%s'. Push URL: %s. Track usage: %s",
         upper_type,
         version,
-        url_change,
+        push_url,
+        track_usage,
     )
+
+    if push_url is None:
+        push_url = True if url_change is None else url_change
 
     # Handle checkout return with token verification (also on fragment requests)
     checkout_success = request.query_params.get("checkout")
@@ -165,7 +171,7 @@ async def get_classification_fragment(
     # Check usage limits before processing (only for user queries, not examples)
     redis_client = getattr(request.app.state, "redis_client", None)
 
-    if url_change:
+    if track_usage:
         usage_status = await check_usage(request, redis_client)
 
         if not usage_status.allowed:
@@ -180,7 +186,8 @@ async def get_classification_fragment(
             )
             response.headers["Cache-Control"] = "no-store, max-age=0"
             response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
-            response.headers["HX-Push-Url"] = new_url
+            if push_url:
+                response.headers["HX-Push-Url"] = new_url
             add_quota_headers(response, usage_status)
             if usage_status.tracking_id:
                 set_tracking_cookie(response, usage_status.tracking_id)
@@ -248,7 +255,7 @@ async def get_classification_fragment(
 
     # Calculate dynamic page title for OOB swap
     page_title = None
-    if url_change:
+    if push_url:
         page_title = f"{upper_type} codes for '{normalized_description.title()}'"
 
     # Render the results partial with normalized query
@@ -276,12 +283,11 @@ async def get_classification_fragment(
     response.headers["Vary"] = cache_headers["Vary"]
 
     # Set HTMX header to update URL in browser address bar (new_url was built earlier)
-    if url_change:
+    if push_url:
         response.headers["HX-Push-Url"] = new_url
 
-    # Increment usage counter and add quota headers
-    # Skip incrementing for initial page load (example query with url_change=False)
-    if url_change:
+    # Increment usage counter for real user-triggered searches.
+    if track_usage:
         await increment_usage(request, redis_client, usage_status)
     add_quota_headers(response, usage_status)
 
