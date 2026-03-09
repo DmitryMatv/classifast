@@ -141,6 +141,8 @@ async def get_classification_fragment(
 
     if push_url is None:
         push_url = True if url_change is None else url_change
+    if "track_usage" not in request.query_params and url_change is not None:
+        track_usage = url_change
 
     # Handle checkout return with token verification (also on fragment requests)
     checkout_success = request.query_params.get("checkout")

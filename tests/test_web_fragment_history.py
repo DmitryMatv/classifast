@@ -161,6 +161,24 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
 
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_legacy_url_change_false_preserves_old_no_tracking_behavior(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(url_change="false")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Push-Url", response.headers)
+        check_usage_mock.assert_not_awaited()
+        increment_usage_mock.assert_not_awaited()
+
 
 if __name__ == "__main__":
     unittest.main()
