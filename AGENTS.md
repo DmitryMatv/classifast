@@ -6,6 +6,10 @@ The role of this file is to describe common mistakes and confusion points that a
 
 Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.
 
+## Agent Notes
+
+- `app/web.py` still uses the older `templates.TemplateResponse(name, context)` signature. Route-level tests emit a Starlette deprecation warning until it is updated to `TemplateResponse(request, name, context)` style.
+
 ## Tech Stack
 
 - Backend: Python FastAPI
