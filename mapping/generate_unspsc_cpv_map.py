@@ -17,6 +17,7 @@ Progress is saved every 100 rows in case of interruption.
 """
 
 import csv
+import logging
 import os
 import sys
 from pathlib import Path
@@ -26,22 +27,24 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pandas as pd
+import tenacity
 from dotenv import load_dotenv
 from google import genai
 from qdrant_client import QdrantClient
-from zeroentropy import ZeroEntropy
+from qdrant_client.http.exceptions import ApiException as QdrantApiException
+from zeroentropy import ZeroEntropy, APIError as ZeroEntropyAPIError
 
-from app.classifier import get_embedding, perform_semantic_search
+from app.classifier import (
+    get_embedding,
+    perform_semantic_search,
+    rerank_with_zeroentropy,
+)
 from app.classifier_config import CLASSIFIER_CONFIG
 
 # Configuration
 INPUT_FILE = Path(__file__).parent.parent / "data/unspsc-english-v260801.1.xlsx"
 OUTPUT_FILE = Path(__file__).parent / "unspsc_to_cpv_mapping.csv"
 ROWS_PER_BATCH = 100
-
-# Load environment variables from project root
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
 
 
 def load_unspsc_data() -> pd.DataFrame:
@@ -161,6 +164,16 @@ def save_results(results: List[Dict], output_file: Path) -> None:
     file_exists = output_file.exists()
     mode = "a" if file_exists else "w"
 
+    if file_exists:
+        with open(output_file, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            existing_header = next(reader, [])
+        if existing_header != fieldnames:
+            raise ValueError(
+                f"CSV header mismatch. Expected {fieldnames}, got {existing_header}. "
+                "Delete the output file and re-run, or reconcile manually."
+            )
+
     with open(output_file, mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
@@ -189,104 +202,14 @@ def load_existing_results(output_file: Path) -> set:
     return processed
 
 
-def rerank_with_zeroentropy(
-    zclient: ZeroEntropy,
-    query: str,
-    candidates: List[Dict[str, Any]],
-    top_k: int = 5,
-    rerank_top_n: int = 15,
-) -> List[Dict[str, Any]]:
-    """Rerank semantic search results using ZeroEntropy rerank API.
-
-    Args:
-        zclient: Initialized ZeroEntropy client
-        query: The search query (UNSPSC title/description)
-        candidates: List of candidate matches from semantic search
-        top_k: Number of top results to return after reranking
-        rerank_top_n: Number of candidates to send to ZeroEntropy
-
-    Returns:
-        List of reranked candidates with zeroentropy_relevance_score field.
-        Falls back to original candidates if API fails.
-    """
-    if not candidates or not zclient:
-        # Return candidates with default zeroentropy score for consistency
-        return [{**c, "zeroentropy_relevance_score": 0.0} for c in candidates[:top_k]]
-
-    # Limit candidates to rerank
-    candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
-    remaining_candidates = candidates[len(candidates_to_rerank) :]
-
-    # Prepare documents for ZeroEntropy - use just class_name as text
-    # but keep track of index to map back to original candidates
-    documents = []
-    for i, candidate in enumerate(candidates_to_rerank):
-        payload = candidate.get("payload", {})
-        class_name = payload.get("class_name", "")
-        documents.append(class_name)
-
-    try:
-        print(f"    Reranking top {len(documents)} candidates with ZeroEntropy...")
-
-        # Call ZeroEntropy rerank API
-        response = zclient.models.rerank(
-            model="zerank-2",
-            query=query,
-            documents=documents,
-        )
-
-        # Map rerank results back to original candidates
-        reranked_candidates = []
-        seen_indices = set()
-
-        # Process results from ZeroEntropy
-        for result in response.results:
-            original_index = result.index
-            seen_indices.add(original_index)
-            original_candidate = candidates_to_rerank[original_index].copy()
-
-            # Add ZeroEntropy relevance score (normalize to 0-100 scale)
-            relevance_score = result.relevance_score * 100
-            original_candidate["zeroentropy_relevance_score"] = round(
-                relevance_score, 4
-            )
-
-            reranked_candidates.append(original_candidate)
-
-        # Add any candidates that weren't returned (shouldn't happen, but safe)
-        for i, candidate in enumerate(candidates_to_rerank):
-            if i not in seen_indices:
-                candidate_copy = candidate.copy()
-                candidate_copy["zeroentropy_relevance_score"] = 0.0
-                reranked_candidates.append(candidate_copy)
-
-        if reranked_candidates:
-            print(
-                f"    ZeroEntropy reranking complete. Top result: {reranked_candidates[0].get('payload', {}).get('original_id', 'N/A')} (score: {reranked_candidates[0].get('zeroentropy_relevance_score', 0):.2f})"
-            )
-        else:
-            print("    ZeroEntropy reranking complete. No results returned.")
-
-    except Exception as e:
-        print(
-            f"    Warning: ZeroEntropy reranking failed: {e}, using semantic search scores"
-        )
-        # Return original candidates with zeroentropy_relevance_score = 0
-        reranked_candidates = []
-        for c in candidates_to_rerank:
-            c_copy = c.copy()
-            c_copy["zeroentropy_relevance_score"] = 0.0
-            reranked_candidates.append(c_copy)
-
-    # Add remaining candidates (not reranked) with 0 score
-    for c in remaining_candidates:
-        c_copy = c.copy()
-        c_copy["zeroentropy_relevance_score"] = 0.0
-        reranked_candidates.append(c_copy)
-
-    return reranked_candidates[:top_k]
-
-
+@tenacity.retry(
+    stop=tenacity.stop_after_attempt(3),
+    wait=tenacity.wait_exponential(multiplier=2, min=2, max=30),
+    retry=tenacity.retry_if_exception_type((QdrantApiException, ZeroEntropyAPIError)),
+    before_sleep=tenacity.before_sleep_log(
+        logging.getLogger(__name__), logging.WARNING
+    ),
+)
 def classify_single(
     embed_client: genai.Client,
     qdrant_client: QdrantClient,
@@ -332,6 +255,11 @@ def classify_single(
                 top_k=3,  # Get top 3 to match CSV fieldnames
                 rerank_top_n=50,  # Rerank top N candidates for better results
             )
+            # ZeroEntropy returns scores in 0-1 range; scale to 0-100 for consistency with semantic search scores
+            for match in reranked_matches:
+                match["zeroentropy_relevance_score"] = round(
+                    match.get("zeroentropy_relevance_score", 0) * 100, 4
+                )
         else:
             # No ZeroEntropy available, use original semantic search scores
             reranked_matches = [
@@ -373,6 +301,10 @@ def classify_single(
 
 def main():
     """Main entry point."""
+    # Load environment variables from project root
+    env_path = Path(__file__).parent.parent / ".env"
+    load_dotenv(dotenv_path=env_path)
+
     print("=" * 70)
     print("UNSPSC to CPV Mapping Generator")
     print("=" * 70)
@@ -462,47 +394,53 @@ def main():
     print(f"Progress saved every {ROWS_PER_BATCH} rows\n")
 
     # Process in batches
-    batch_results = []
+    batch_results: List[Dict[str, Any]] = []
     total_processed = len(processed_codes)
+    last_idx = 0
 
-    for idx, (_, row) in enumerate(df_to_process.iterrows(), 1):
-        unspsc_code = get_unspsc_code(row)
-        # unspsc_type = get_unspsc_type(row)
-        query_preview = build_query(row)[:80]
+    try:
+        for idx, (_, row) in enumerate(df_to_process.iterrows(), 1):
+            last_idx = idx
+            unspsc_code = get_unspsc_code(row)
+            # unspsc_type = get_unspsc_type(row)
+            query_preview = build_query(row)[:80]
 
-        print("=" * 70)
-        print(f"[{total_processed + idx}/{len(df)}] {unspsc_code}: {query_preview}...")
-
-        # Classify
-        result = classify_single(
-            embed_client,
-            qdrant_client,
-            zclient,
-            row,
-            cpv_collection,
-            cpv_config,
-            quantization_cache,
-        )
-
-        if result:
-            batch_results.append(result)
+            print("=" * 70)
             print(
-                f"  -> CPV: {result.get('cpv_match_1_code', 'N/A')} ({result.get('cpv_match_1_name', 'N/A')[:50]}...)"
+                f"[{total_processed + idx}/{len(df)}] {unspsc_code}: {query_preview}..."
             )
 
-        # Save progress every N rows
-        if len(batch_results) >= ROWS_PER_BATCH:
+            # Classify
+            result = classify_single(
+                embed_client,
+                qdrant_client,
+                zclient,
+                row,
+                cpv_collection,
+                cpv_config,
+                quantization_cache,
+            )
+
+            if result:
+                batch_results.append(result)
+                print(
+                    f"  -> CPV: {result.get('cpv_match_1_code', 'N/A')} ({result.get('cpv_match_1_name', 'N/A')[:50]}...)"
+                )
+
+            # Save progress every N rows
+            if len(batch_results) >= ROWS_PER_BATCH:
+                save_results(batch_results, OUTPUT_FILE)
+                batch_results = []
+                print(
+                    f"\n*** Progress saved! {total_processed + idx} records completed ***\n"
+                )
+    finally:
+        if batch_results:
             save_results(batch_results, OUTPUT_FILE)
-            batch_results = []
             print(
-                f"\n*** Progress saved! {total_processed + idx} records completed ***\n"
+                f"\n*** Final progress saved! {total_processed + last_idx} records completed ***\n"
             )
-
-    # Save remaining results
-    if batch_results:
-        save_results(batch_results, OUTPUT_FILE)
-
-    qdrant_client.close()
+        qdrant_client.close()
 
     print("\n" + "=" * 70)
     print("Mapping complete!")
@@ -514,9 +452,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except KeyboardInterrupt:
-        print("\n\nInterrupted by user. Checkpoint results have been saved.")
-        sys.exit(0)
     except Exception:
         import traceback
 

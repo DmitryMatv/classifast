@@ -16,6 +16,7 @@ Progress is saved every 10 rows in case of interruption.
 """
 
 import csv
+import logging
 import os
 import sys
 from pathlib import Path
@@ -24,16 +25,26 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pandas as pd
+import tenacity
 from dotenv import load_dotenv
 from google import genai
 from qdrant_client import QdrantClient
-from zeroentropy import ZeroEntropy
+from qdrant_client.http.exceptions import ApiException as QdrantApiException
+from zeroentropy import ZeroEntropy, APIError as ZeroEntropyAPIError
 
-from app.classifier import get_embedding, perform_semantic_search
+from app.classifier import (
+    get_embedding,
+    perform_semantic_search,
+    rerank_with_zeroentropy,
+)
 
 INPUT_FILE = Path(__file__).parent.parent / "data/cpv_2008_ver_2013.xlsx"
 UNSPSC_FILE = Path(__file__).parent.parent / "data/unspsc-english-v260801.1.xlsx"
 OUTPUT_FILE = Path(__file__).parent / "cpv_to_unspsc_mapping.csv"
+
+# Set to False to use just names without hierarchy/definition (for performance comparison)
+USE_UNSPSC_CONTEXT = False
+
 ROWS_PER_BATCH = 10
 
 
@@ -107,6 +118,25 @@ def build_parent_index(
     return index
 
 
+HIERARCHY_LEVELS = [
+    ("category", 5, "000"),
+    ("class", 4, "0000"),
+    ("group", 3, "00000"),
+    ("division", 2, "000000"),
+]
+
+
+def _level_includes(level: str, target_level: str) -> bool:
+    """Check if a CPV level should include the target level in its hierarchy."""
+    level_order = ["subcategory", "category", "class", "group", "division"]
+    try:
+        level_idx = level_order.index(level)
+        target_idx = level_order.index(target_level)
+        return level_idx <= target_idx
+    except ValueError:
+        return False
+
+
 def build_hierarchy_text(
     code: str,
     description: str,
@@ -127,29 +157,12 @@ def build_hierarchy_text(
 
     parents = []
 
-    if level == "subcategory":
-        cat_pattern = clean_code[:5] + "000"
-        cat_code = find_parent_code(cat_pattern, "category", parent_index)
-        if cat_code:
-            parents.append(code_to_description[cat_code])
-
-    if level in ["subcategory", "category"]:
-        class_pattern = clean_code[:4] + "0000"
-        class_code = find_parent_code(class_pattern, "class", parent_index)
-        if class_code:
-            parents.append(code_to_description[class_code])
-
-    if level in ["subcategory", "category", "class"]:
-        group_pattern = clean_code[:3] + "00000"
-        group_code = find_parent_code(group_pattern, "group", parent_index)
-        if group_code:
-            parents.append(code_to_description[group_code])
-
-    if level in ["subcategory", "category", "class", "group"]:
-        div_pattern = clean_code[:2] + "000000"
-        div_code = find_parent_code(div_pattern, "division", parent_index)
-        if div_code:
-            parents.append(code_to_description[div_code])
+    for level_name, prefix_len, suffix in HIERARCHY_LEVELS:
+        if _level_includes(level, level_name):
+            pattern = clean_code[:prefix_len] + suffix
+            parent_code = find_parent_code(pattern, level_name, parent_index)
+            if parent_code:
+                parents.append(code_to_description[parent_code])
 
     if parents:
         hierarchy_chain = " < ".join(parents)
@@ -177,27 +190,49 @@ def get_unspsc_level(code: str) -> str:
         return "commodity"
 
 
+def _make_unspsc_entry(
+    level: str,
+    code: str,
+    title: str,
+    definition: str,
+    segment: Optional[str],
+    family: Optional[str],
+    class_code: Optional[str],
+    commodity: Optional[str],
+    segment_title: str,
+    family_title: str,
+    class_title: str,
+    commodity_title: str,
+    segment_def: str,
+    family_def: str,
+    class_def: str,
+    commodity_def: str,
+) -> Dict[str, Any]:
+    """Build a single UNSPSC lookup entry dict."""
+    return {
+        "title": title,
+        "definition": definition,
+        "level": level,
+        "segment": segment,
+        "family": family,
+        "class": class_code,
+        "commodity": commodity,
+        "segment_title": segment_title,
+        "family_title": family_title,
+        "class_title": class_title,
+        "commodity_title": commodity_title,
+        "segment_def": segment_def,
+        "family_def": family_def,
+        "class_def": class_def,
+        "commodity_def": commodity_def,
+    }
+
+
 def load_unspsc_data() -> Dict[str, Dict]:
     """Load UNSPSC Excel and build hierarchy lookup tables.
 
     Returns:
-        Dict mapping UNSPSC code (str) to {
-            'title': str,
-            'definition': str,
-            'level': str,
-            'segment': str,
-            'family': str,
-            'class': str,
-            'commodity': str,
-            'segment_title': str,
-            'family_title': str,
-            'class_title': str,
-            'commodity_title': str,
-            'segment_def': str,
-            'family_def': str,
-            'class_def': str,
-            'commodity_def': str,
-        }
+        Dict mapping UNSPSC code (str) to entry dict from _make_unspsc_entry.
     """
     if not UNSPSC_FILE.exists():
         raise FileNotFoundError(f"UNSPSC data file not found: {UNSPSC_FILE}")
@@ -206,7 +241,7 @@ def load_unspsc_data() -> Dict[str, Dict]:
 
     df = pd.read_excel(UNSPSC_FILE, header=12)
 
-    unspsc_lookup = {}
+    unspsc_lookup: Dict[str, Dict[str, Any]] = {}
 
     for _, row in df.iterrows():
         segment = (
@@ -246,99 +281,85 @@ def load_unspsc_data() -> Dict[str, Dict]:
             else ""
         )
 
-        if commodity and commodity_title:
-            level = "commodity"
-            title = commodity_title
-            definition = commodity_def
-            unspsc_lookup[commodity] = {
-                "title": title,
-                "definition": definition,
-                "level": level,
-                "segment": segment,
-                "family": family,
-                "class": class_code,
-                "commodity": commodity,
-                "segment_title": segment_title,
-                "family_title": family_title,
-                "class_title": class_title,
-                "commodity_title": commodity_title,
-                "segment_def": segment_def,
-                "family_def": family_def,
-                "class_def": class_def,
-                "commodity_def": commodity_def,
-            }
+        if commodity and commodity_title and commodity not in unspsc_lookup:
+            unspsc_lookup[commodity] = _make_unspsc_entry(
+                level="commodity",
+                code=commodity,
+                title=commodity_title,
+                definition=commodity_def,
+                segment=segment,
+                family=family,
+                class_code=class_code,
+                commodity=commodity,
+                segment_title=segment_title,
+                family_title=family_title,
+                class_title=class_title,
+                commodity_title=commodity_title,
+                segment_def=segment_def,
+                family_def=family_def,
+                class_def=class_def,
+                commodity_def=commodity_def,
+            )
 
-        if (
-            class_code
-            and class_title
-            and (not commodity or class_code not in unspsc_lookup)
-        ):
-            level = "class"
-            title = class_title
-            definition = class_def
-            if class_code not in unspsc_lookup:
-                unspsc_lookup[class_code] = {
-                    "title": title,
-                    "definition": definition,
-                    "level": level,
-                    "segment": segment,
-                    "family": family,
-                    "class": class_code,
-                    "commodity": None,
-                    "segment_title": segment_title,
-                    "family_title": family_title,
-                    "class_title": class_title,
-                    "commodity_title": "",
-                    "segment_def": segment_def,
-                    "family_def": family_def,
-                    "class_def": class_def,
-                    "commodity_def": "",
-                }
+        if class_code and class_title and class_code not in unspsc_lookup:
+            unspsc_lookup[class_code] = _make_unspsc_entry(
+                level="class",
+                code=class_code,
+                title=class_title,
+                definition=class_def,
+                segment=segment,
+                family=family,
+                class_code=class_code,
+                commodity=None,
+                segment_title=segment_title,
+                family_title=family_title,
+                class_title=class_title,
+                commodity_title="",
+                segment_def=segment_def,
+                family_def=family_def,
+                class_def=class_def,
+                commodity_def="",
+            )
 
-        if family and family_title and (not class_code or family not in unspsc_lookup):
-            level = "family"
-            title = family_title
-            definition = family_def
-            if family not in unspsc_lookup:
-                unspsc_lookup[family] = {
-                    "title": title,
-                    "definition": definition,
-                    "level": level,
-                    "segment": segment,
-                    "family": family,
-                    "class": None,
-                    "commodity": None,
-                    "segment_title": segment_title,
-                    "family_title": family_title,
-                    "class_title": "",
-                    "commodity_title": "",
-                    "segment_def": segment_def,
-                    "family_def": family_def,
-                    "class_def": "",
-                    "commodity_def": "",
-                }
+        if family and family_title and family not in unspsc_lookup:
+            unspsc_lookup[family] = _make_unspsc_entry(
+                level="family",
+                code=family,
+                title=family_title,
+                definition=family_def,
+                segment=segment,
+                family=family,
+                class_code=None,
+                commodity=None,
+                segment_title=segment_title,
+                family_title=family_title,
+                class_title="",
+                commodity_title="",
+                segment_def=segment_def,
+                family_def=family_def,
+                class_def="",
+                commodity_def="",
+            )
 
         if segment and segment_title and segment not in unspsc_lookup:
-            level = "segment"
-            title = segment_title
-            definition = segment_def
-            unspsc_lookup[segment] = {
-                "title": title,
-                "definition": definition,
-                "level": level,
-                "segment": segment,
-                "family": None,
-                "class": None,
-                "commodity": None,
-                "segment_title": segment_title,
-                "family_title": "",
-                "class_title": "",
-                "commodity_title": "",
-                "segment_def": segment_def,
-                "family_def": "",
-                "class_def": "",
-                "commodity_def": "",
-            }
+            unspsc_lookup[segment] = _make_unspsc_entry(
+                level="segment",
+                code=segment,
+                title=segment_title,
+                definition=segment_def,
+                segment=segment,
+                family=None,
+                class_code=None,
+                commodity=None,
+                segment_title=segment_title,
+                family_title="",
+                class_title="",
+                commodity_title="",
+                segment_def=segment_def,
+                family_def="",
+                class_def="",
+                commodity_def="",
+            )
 
     print(
         f"Loaded {len(unspsc_lookup)} UNSPSC codes (Segments + Families + Classes + Commodities)"
@@ -349,17 +370,35 @@ def load_unspsc_data() -> Dict[str, Dict]:
 def build_unspsc_hierarchy_text(unspsc_code: str, unspsc_lookup: Optional[Dict]) -> str:
     """Build hierarchical text for a UNSPSC code.
 
-    Format: {Title} ({Parent1} < {Parent2} < {Parent3} ...)
+    Format varies by level:
+    - Segment: {Title} (Definition: ...)
+    - Family: {Title} (Parent: {Segment})
+    - Class: {Title} (Hierarchy: {Family} < {Segment})
+    - Commodity: {Title} (Hierarchy: {Class} < {Family} < {Segment})
 
     Example for commodity 10101501 (Cats):
-    Cats (Livestock < Live animals < Live Plant and Animal Material...)
+    Cats (Hierarchy: Livestock < Live animals < Live Plant and Animal Material...)
     """
     if unspsc_lookup is None or unspsc_code not in unspsc_lookup:
         return ""
 
     data = unspsc_lookup[unspsc_code]
     level = data["level"]
+    title = data["title"]
 
+    if level == "segment":
+        definition = data.get("segment_def", "")
+        if definition:
+            return f"{title} (Definition: {definition})"
+        return title
+
+    if level == "family":
+        segment_title = data.get("segment_title", "")
+        if segment_title:
+            return f"{title} (Parent category: {segment_title})"
+        return title
+
+    # Class and Commodity - keep original format
     parents = []
 
     if level == "commodity" and data["class_title"]:
@@ -369,17 +408,11 @@ def build_unspsc_hierarchy_text(unspsc_code: str, unspsc_lookup: Optional[Dict])
     if level in ["commodity", "class", "family"] and data["segment_title"]:
         parents.append(data["segment_title"])
 
-    title = data["title"]
-
     if parents:
         hierarchy_chain = " < ".join(parents)
         return f"{title} (Hierarchy: {hierarchy_chain})"
     else:
         return title
-
-
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
 
 
 def load_cpv_data() -> tuple[pd.DataFrame, Dict[str, str], Dict[str, Dict[str, str]]]:
@@ -442,6 +475,20 @@ def save_results(results: List[Dict], output_file: Path) -> None:
     file_exists = output_file.exists()
     mode = "a" if file_exists else "w"
 
+    if file_exists:
+        with open(output_file, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            existing_header = next(reader, None)
+        if existing_header is None:
+            # File is empty, treat as new file
+            mode = "w"
+            file_exists = False
+        elif existing_header != fieldnames:
+            raise ValueError(
+                f"CSV header mismatch. Expected {fieldnames}, got {existing_header}. "
+                "Delete the output file and re-run, or reconcile manually."
+            )
+
     with open(output_file, mode, newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
@@ -470,89 +517,14 @@ def load_existing_results(output_file: Path) -> set:
     return processed
 
 
-def rerank_with_zeroentropy(
-    zclient: ZeroEntropy,
-    query: str,
-    candidates: List[Dict[str, Any]],
-    top_k: int = 5,
-    rerank_top_n: int = 15,
-    unspsc_lookup: Optional[Dict[str, Dict]] = None,
-) -> List[Dict[str, Any]]:
-    """Rerank semantic search results using ZeroEntropy rerank API."""
-    if not candidates or not zclient:
-        return [{**c, "zeroentropy_relevance_score": 0.0} for c in candidates[:top_k]]
-
-    candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
-    remaining_candidates = candidates[len(candidates_to_rerank) :]
-
-    documents = []
-    for candidate in candidates_to_rerank:
-        payload = candidate.get("payload", {})
-        class_name = payload.get("class_name", "")
-
-        if unspsc_lookup:
-            original_id = payload.get("original_id", "")
-            hierarchy_text = build_unspsc_hierarchy_text(original_id, unspsc_lookup)
-            if hierarchy_text:
-                documents.append(hierarchy_text)
-            else:
-                documents.append(class_name)
-        else:
-            documents.append(class_name)
-
-    try:
-        print(f"    Reranking top {len(documents)} candidates with ZeroEntropy...")
-
-        response = zclient.models.rerank(
-            model="zerank-2",
-            query=query,
-            documents=documents,
-        )
-
-        reranked_candidates = []
-        seen_indices = set()
-
-        for result in response.results:
-            original_index = result.index
-            seen_indices.add(original_index)
-            original_candidate = candidates_to_rerank[original_index].copy()
-
-            relevance_score = result.relevance_score * 100
-            original_candidate["zeroentropy_relevance_score"] = round(
-                relevance_score, 4
-            )
-
-            reranked_candidates.append(original_candidate)
-
-        for i, candidate in enumerate(candidates_to_rerank):
-            if i not in seen_indices:
-                candidate_copy = candidate.copy()
-                candidate_copy["zeroentropy_relevance_score"] = 0.0
-                reranked_candidates.append(candidate_copy)
-
-        if reranked_candidates:
-            print(
-                f"    ZeroEntropy reranking complete. Top result: {reranked_candidates[0].get('payload', {}).get('original_id', 'N/A')} (score: {reranked_candidates[0].get('zeroentropy_relevance_score', 0):.2f})"
-            )
-
-    except Exception as e:
-        print(
-            f"    Warning: ZeroEntropy reranking failed: {e}, using semantic search scores"
-        )
-        reranked_candidates = []
-        for c in candidates_to_rerank:
-            c_copy = c.copy()
-            c_copy["zeroentropy_relevance_score"] = 0.0
-            reranked_candidates.append(c_copy)
-
-    for c in remaining_candidates:
-        c_copy = c.copy()
-        c_copy["zeroentropy_relevance_score"] = 0.0
-        reranked_candidates.append(c_copy)
-
-    return reranked_candidates[:top_k]
-
-
+@tenacity.retry(
+    stop=tenacity.stop_after_attempt(3),
+    wait=tenacity.wait_exponential(multiplier=2, min=2, max=30),
+    retry=tenacity.retry_if_exception_type((QdrantApiException, ZeroEntropyAPIError)),
+    before_sleep=tenacity.before_sleep_log(
+        logging.getLogger(__name__), logging.WARNING
+    ),
+)
 def classify_single(
     embed_client: genai.Client,
     qdrant_client: QdrantClient,
@@ -577,6 +549,17 @@ def classify_single(
     )
     query = embedding_text
 
+    def document_builder(candidate: Dict[str, Any]) -> str:
+        """Build document text from candidate using UNSPSC hierarchy."""
+        payload = candidate.get("payload", {})
+        class_name = payload.get("class_name", "")
+        if USE_UNSPSC_CONTEXT and unspsc_lookup:
+            original_id = payload.get("original_id", "")
+            hierarchy_text = build_unspsc_hierarchy_text(original_id, unspsc_lookup)
+            if hierarchy_text:
+                return hierarchy_text
+        return class_name
+
     try:
         query_embedding = get_embedding(
             embed_client=embed_client,
@@ -591,7 +574,7 @@ def classify_single(
             qdrant_client=qdrant_client,
             collection_name=unspsc_collection,
             query_embedding=query_embedding,
-            top_k=100,
+            top_k=300,
             has_quantization=has_quantization,
         )
 
@@ -601,9 +584,14 @@ def classify_single(
                 query=query,
                 candidates=matches,
                 top_k=3,
-                rerank_top_n=50,
-                unspsc_lookup=unspsc_lookup,
+                rerank_top_n=100,
+                document_builder=document_builder,
             )
+            # Multiply scores by 100 to match expected scale
+            for match in reranked_matches:
+                match["zeroentropy_relevance_score"] = round(
+                    match.get("zeroentropy_relevance_score", 0) * 100, 4
+                )
         else:
             reranked_matches = [
                 {**match, "zeroentropy_relevance_score": 0.0} for match in matches[:3]
@@ -638,12 +626,18 @@ def classify_single(
         return row_data
 
     except Exception as e:
-        print(f"  Error classifying {cpv_code}: {e}")
+        logging.getLogger(__name__).warning(
+            f"Error classifying {cpv_code}: {e}", exc_info=True
+        )
         return None
 
 
 def main():
     """Main entry point."""
+    # Load environment variables from project root
+    env_path = Path(__file__).parent.parent / ".env"
+    load_dotenv(dotenv_path=env_path)
+
     print("=" * 70)
     print("CPV to UNSPSC Mapping Generator")
     print("=" * 70)
@@ -718,43 +712,49 @@ def main():
     print(f"Output will be saved to: {OUTPUT_FILE}")
     print(f"Progress saved every {ROWS_PER_BATCH} rows\n")
 
-    batch_results = []
+    batch_results: List[Dict[str, Any]] = []
     total_processed = len(processed_codes)
 
-    for idx, (_, row) in enumerate(df_to_process.iterrows(), 1):
-        cpv_code = str(row["CODE"])
-        query_preview = str(row["EN"])[:80]
+    success_count = 0
+    try:
+        for idx, (_, row) in enumerate(df_to_process.iterrows(), 1):
+            cpv_code = str(row["CODE"])
+            query_preview = str(row["EN"])[:80]
 
-        print("=" * 70)
-        print(f"[{total_processed + idx}/{len(df)}] {cpv_code}: {query_preview}...")
+            print("=" * 70)
+            print(f"[{total_processed + idx}/{len(df)}] {cpv_code}: {query_preview}...")
 
-        result = classify_single(
-            embed_client,
-            qdrant_client,
-            zclient,
-            row,
-            unspsc_collection,
-            quantization_cache,
-            code_to_description,
-            parent_index,
-            unspsc_lookup,
-        )
-
-        if result:
-            batch_results.append(result)
-            print(
-                f"  -> UNSPSC: {result.get('unspsc_match_1_code', 'N/A')} ({result.get('unspsc_match_1_title', 'N/A')[:50]}...)"
+            result = classify_single(
+                embed_client,
+                qdrant_client,
+                zclient,
+                row,
+                unspsc_collection,
+                quantization_cache,
+                code_to_description,
+                parent_index,
+                unspsc_lookup,
             )
 
-        if len(batch_results) >= ROWS_PER_BATCH:
+            if result:
+                batch_results.append(result)
+                success_count += 1
+                print(
+                    f"  -> UNSPSC: {result.get('unspsc_match_1_code', 'N/A')} ({result.get('unspsc_match_1_title', 'N/A')[:50]}...)"
+                )
+
+            if len(batch_results) >= ROWS_PER_BATCH:
+                save_results(batch_results, OUTPUT_FILE)
+                batch_results = []
+                print(
+                    f"\n*** Progress saved! {total_processed + idx} records completed ***\n"
+                )
+    finally:
+        if batch_results:
             save_results(batch_results, OUTPUT_FILE)
-            batch_results = []
             print(
-                f"\n*** Progress saved! {total_processed + idx} records completed ***\n"
+                f"\n*** Final progress saved! {total_processed + success_count} records completed ***\n"
             )
-
-    if batch_results:
-        save_results(batch_results, OUTPUT_FILE)
 
     qdrant_client.close()
 
@@ -768,11 +768,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except KeyboardInterrupt:
-        print("\n\nInterrupted by user.")
-        # Note: Partial batch results since last checkpoint are lost.
-        # Consider refactoring main() to save on interrupt if this is critical.
-        sys.exit(0)
     except Exception:
         import traceback
 

@@ -1,12 +1,12 @@
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import tenacity
 from fastapi import HTTPException
 from google import genai
-from google.genai import types
+from google.genai import errors as genai_errors, types
 from qdrant_client import QdrantClient, models
 from zeroentropy import ZeroEntropy
 
@@ -107,7 +107,7 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
 @tenacity.retry(
     stop=tenacity.stop_after_attempt(3),
     wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
-    retry=tenacity.retry_if_exception_type((ConnectionError, TimeoutError)),
+    retry=tenacity.retry_if_exception_type(genai_errors.ServerError),
     reraise=True,
 )
 def get_embedding(
@@ -178,8 +178,7 @@ def get_embedding(
     except Exception as e:
         elapsed = time.time() - start_time
         logger.error("Embedding generation failed: %s (%.3fs elapsed)", e, elapsed)
-        # Re-raise retryable exceptions for tenacity to handle
-        if isinstance(e, (ConnectionError, TimeoutError)):
+        if isinstance(e, genai_errors.ServerError):
             raise
         raise HTTPException(
             status_code=500, detail="Failed to generate embedding for classification"
@@ -412,6 +411,7 @@ def rerank_with_zeroentropy(
     candidates: List[Dict[str, Any]],
     top_k: int = 5,
     rerank_top_n: int = 15,
+    document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
 ) -> List[Dict[str, Any]]:
     """Rerank semantic search results using ZeroEntropy rerank API.
 
@@ -421,6 +421,9 @@ def rerank_with_zeroentropy(
         candidates: List of candidate matches from semantic search
         top_k: Number of top results to return after reranking
         rerank_top_n: Number of candidates to send to ZeroEntropy
+        document_builder: Optional callback to build document text from a candidate.
+            Receives the full candidate dict and returns a string.
+            If None, uses class_name + definition from payload.
 
     Returns:
         List of reranked candidates with zeroentropy_relevance_score field.
@@ -433,21 +436,24 @@ def rerank_with_zeroentropy(
     candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
     remaining_candidates = candidates[len(candidates_to_rerank) :]
 
-    # Prepare documents for ZeroEntropy - use class_name and definition
+    # Prepare documents for ZeroEntropy
     documents = []
     for candidate in candidates_to_rerank:
-        payload = candidate.get("payload", {})
-        class_name = payload.get("class_name", "")
-        definition = payload.get("definition", "")
-
-        # Build document text with class_name and definition if available
-        if class_name and definition:
-            doc = f"{class_name} - Definition: {definition}"
-        elif definition:
-            doc = definition
+        if document_builder is not None:
+            documents.append(document_builder(candidate))
         else:
-            doc = class_name or ""
-        documents.append(doc)
+            # Default: use class_name and definition from payload
+            payload = candidate.get("payload", {})
+            class_name = payload.get("class_name", "")
+            definition = payload.get("definition", "")
+
+            if class_name and definition:
+                doc = f"{class_name} - Definition: {definition}"
+            elif definition:
+                doc = definition
+            else:
+                doc = class_name or ""
+            documents.append(doc)
 
     try:
         logger.info(
