@@ -321,9 +321,11 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
             list(request.query_params.values()) if request.query_params else []
         )
 
-        # Length checks should count the logical request content once, not both the raw
-        # query string and the decoded parameter values.
-        length_checked_content = "".join([request.url.path or "", *decoded_values])
+        # Length checks should count the raw URL once so oversized keys and encoded
+        # query text are still bounded without double-counting decoded values.
+        length_checked_content = "".join(
+            [request.url.path or "", request.url.query or ""]
+        )
         if length_checked_content and len(length_checked_content) > 4000:
             logger.warning(
                 "Suspicious URL encoding detected: %s...",

@@ -26,7 +26,9 @@ def _build_middleware_test_app() -> FastAPI:
 
 def _build_web_test_app() -> FastAPI:
     app = FastAPI()
-    app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
+    app.mount(
+        "/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static"
+    )
     app.include_router(router)
     return app
 
@@ -38,7 +40,7 @@ class RequestValidationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_long_benign_query_is_not_rejected_by_double_counted_length(self):
         transport = httpx.ASGITransport(app=self.app)
-        long_query = ("industrial pump " * 243).strip()
+        long_query = ("industrial-pump-" * 240).rstrip("-")
 
         async with httpx.AsyncClient(
             transport=transport,
@@ -48,6 +50,19 @@ class RequestValidationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["q"], long_query)
+
+    async def test_oversized_query_key_is_rejected(self):
+        transport = httpx.ASGITransport(app=self.app)
+        oversized_key = "k" * 5001
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(f"/echo?{oversized_key}=1")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "INVALID_ENCODING")
 
     async def test_suspicious_encoding_pattern_is_still_rejected(self):
         transport = httpx.ASGITransport(app=self.app)
