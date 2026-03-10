@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 
 from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
-from .usage_tracker import check_usage, increment_usage, add_quota_headers
 
 logger = logging.getLogger(__name__)
 
@@ -101,16 +100,6 @@ async def rapid_classify(
     if not normalized_standard:
         raise HTTPException(status_code=400, detail="Standard cannot be empty")
 
-    # Check usage limits before processing
-    redis_client = getattr(request.app.state, "redis_client", None)
-    usage_status = await check_usage(request, redis_client)
-
-    if not usage_status.allowed:
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded. Please upgrade for higher limits.",
-        )
-
     logger.info(
         "RapidAPI classification request: %s <- %s",
         normalized_standard,
@@ -163,22 +152,9 @@ async def rapid_classify(
             processing_time=processing_time,
         )
 
-        # Cache classification results to save expensive API calls via Cloudflare edge cache
+        # RapidAPI does its own metering upstream, so this surface bypasses website quota tracking.
         cache_headers = get_classification_cache_headers()
-
-        response = JSONResponse(
-            content=response_data.model_dump(), headers=cache_headers
-        )
-
-        # Increment usage counter and add quota headers
-        try:
-            await increment_usage(request, redis_client, usage_status)
-            add_quota_headers(response, usage_status)
-        except Exception as e:
-            logger.warning("Failed to increment usage: %s", e)
-            # Still return response - fail open for usage tracking
-
-        return response
+        return JSONResponse(content=response_data.model_dump(), headers=cache_headers)
 
     except HTTPException:
         raise

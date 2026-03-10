@@ -239,6 +239,7 @@ export class ClerkAuth {
       if (isCheckoutSuccess) {
         // Clean up checkout params from URL
         urlParams.delete("checkout");
+        urlParams.delete("checkout_token");
         urlParams.delete("customer_session_token");
         const cleanUrl = urlParams.toString()
           ? `${window.location.pathname}?${urlParams.toString()}`
