@@ -14,6 +14,87 @@ class ClassifierPage {
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
+    this.attachShareButtonListener();
+  }
+
+  private getLoadingIndicator(): HTMLElement | null {
+    return document.getElementById("loading-indicator");
+  }
+
+  private showLoadingIndicator(): void {
+    this.getLoadingIndicator()?.classList.add("htmx-request");
+  }
+
+  private hideLoadingIndicator(): void {
+    this.getLoadingIndicator()?.classList.remove("htmx-request");
+  }
+
+  private isResultsTarget(target: EventTarget | null): target is HTMLElement {
+    return target instanceof HTMLElement && target.id === "results-container";
+  }
+
+  private getInitialResultsLoader(): HTMLElement | null {
+    return document.querySelector("[data-initial-results-loader='true']");
+  }
+
+  private cleanupInitialResultsLoader(): void {
+    this.getInitialResultsLoader()?.remove();
+  }
+
+  private ensureResultsSectionVisible(): void {
+    const resultsContainer = document.getElementById("results-container");
+    const resultsSection = document.getElementById("results-section");
+
+    if (!resultsContainer || !resultsSection) {
+      return;
+    }
+
+    if (resultsContainer.innerHTML.trim()) {
+      resultsSection.classList.remove("hidden");
+    }
+  }
+
+  private syncTextareaState(): void {
+    const productDescriptionArea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+
+    if (!productDescriptionArea) {
+      return;
+    }
+
+    productDescriptionArea.defaultValue = productDescriptionArea.value;
+    productDescriptionArea.textContent = productDescriptionArea.value;
+  }
+
+  private syncSelectState(selectId: string): void {
+    const select = document.getElementById(
+      selectId,
+    ) as HTMLSelectElement | null;
+
+    if (!select) {
+      return;
+    }
+
+    Array.from(select.options).forEach((option) => {
+      const isSelected = option.selected;
+      option.defaultSelected = isSelected;
+      option.toggleAttribute("selected", isSelected);
+    });
+  }
+
+  private syncHistoryState(): void {
+    this.syncTextareaState();
+    this.syncSelectState("version_selector");
+    this.syncSelectState("show_top_k_categories");
+    this.hideLoadingIndicator();
+    this.cleanupInitialResultsLoader();
+  }
+
+  private handleResultsSwap(): void {
+    this.ensureResultsSectionVisible();
+    this.attachShareButtonListener();
+    this.cleanupInitialResultsLoader();
   }
 
   /**
@@ -66,25 +147,33 @@ class ClassifierPage {
    * Setup HTMX event listeners for response handling
    */
   private setupHTMXListeners(): void {
+    document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
+      const htmxEvent = evt as HtmxBeforeRequestEvent;
+      if (this.isResultsTarget(htmxEvent.detail.target)) {
+        this.showLoadingIndicator();
+      }
+    });
+
     // Handle HTMX after request completes - fade out spinner smoothly
     document.body.addEventListener("htmx:afterRequest", (evt: Event) => {
       const htmxEvent = evt as HtmxAfterRequestEvent;
-      const indicator = document.getElementById("loading-indicator");
-      if (indicator && htmxEvent.detail.target.id === "results-container") {
-        indicator.classList.remove("htmx-request");
+      if (this.isResultsTarget(htmxEvent.detail.target)) {
+        this.hideLoadingIndicator();
+      }
+
+      if (
+        htmxEvent.detail.elt instanceof HTMLElement &&
+        htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
+      ) {
+        this.cleanupInitialResultsLoader();
       }
     });
 
     // Handle HTMX after swap for results visibility
     document.body.addEventListener("htmx:afterSwap", (evt: Event) => {
       const htmxEvent = evt as HtmxAfterSwapEvent;
-      if (htmxEvent.detail.target.id === "results-container") {
-        const resultsSection = document.getElementById("results-section");
-        if (resultsSection) {
-          resultsSection.classList.remove("hidden");
-        }
-        // Attach share button listener after results are swapped in
-        this.attachShareButtonListener();
+      if (this.isResultsTarget(htmxEvent.detail.target)) {
+        this.handleResultsSwap();
       }
     });
 
@@ -93,21 +182,36 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxResponseErrorEvent;
 
       if (htmxEvent.detail.xhr.status === 429) {
-        if (htmxEvent.detail.target.id === "results-container") {
+        if (this.isResultsTarget(htmxEvent.detail.target)) {
           // Display the paywall/error content returned by the server
           htmxEvent.detail.target.innerHTML = htmxEvent.detail.xhr.response;
 
-          const resultsSection = document.getElementById("results-section");
-          if (resultsSection) {
-            resultsSection.classList.remove("hidden");
-          }
-
-          const loadingIndicator = document.getElementById("loading-indicator");
-          if (loadingIndicator) {
-            loadingIndicator.classList.remove("htmx-request");
-          }
+          this.ensureResultsSectionVisible();
+          this.hideLoadingIndicator();
+          this.cleanupInitialResultsLoader();
         }
       }
+    });
+
+    document.body.addEventListener("htmx:sendAbort", () => {
+      this.hideLoadingIndicator();
+    });
+
+    document.body.addEventListener("htmx:timeout", () => {
+      this.hideLoadingIndicator();
+    });
+
+    document.body.addEventListener("htmx:beforeHistorySave", () => {
+      this.syncHistoryState();
+    });
+
+    document.body.addEventListener("htmx:historyRestore", () => {
+      this.hideLoadingIndicator();
+      this.handleResultsSwap();
+    });
+
+    window.addEventListener("pageshow", () => {
+      this.hideLoadingIndicator();
     });
   }
 
@@ -207,17 +311,6 @@ class ClassifierPage {
   }
 }
 
-/**
- * Show loading indicator immediately while waiting for auth
- * This runs immediately when the script loads to avoid delay
- */
-function showInitialLoadingIndicator(): void {
-  const indicator = document.getElementById("loading-indicator");
-  if (indicator) {
-    indicator.classList.add("htmx-request");
-  }
-}
-
 // Initialize classifier page functionality when DOM is ready
 function initClassifierPage(): void {
   new ClassifierPage();
@@ -228,11 +321,3 @@ if (document.readyState === "loading") {
 } else {
   initClassifierPage();
 }
-
-// Initialize loading indicator - run immediately if DOM ready
-if (document.readyState !== "loading") {
-  showInitialLoadingIndicator();
-}
-
-// Also expose the loading indicator function for template use
-window.showInitialLoadingIndicator = showInitialLoadingIndicator;

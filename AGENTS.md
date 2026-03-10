@@ -25,7 +25,7 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 
 ## Rapid API (API.py)
 
-api.py is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
+`app/api.py` is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
 
 ## Docker Build Context Gotcha
 
@@ -34,3 +34,8 @@ This repo already has a `.dockerignore`. Before changing Docker/Coolify build be
 ## Compose Config Secret Leakage Gotcha
 
 `docker compose config` expands values from `.env` and prints them in plaintext. Do not paste its full output into chat or logs when validating Docker/Compose changes in this repo unless secrets are redacted first.
+
+## Browser History / HTMX
+
+- `app/web.py` fragment requests used to overload `url_change` for three unrelated concerns: pushing browser history, updating the page title, and deciding whether usage tracking/paywalls applied. This coupling caused confusing Back/Forward behavior, especially for direct search URLs that auto-loaded results via HTMX.
+- Keep history concerns (`push_url`) separate from quota concerns (`track_usage`) when touching classifier fragments or the initial hidden HTMX loader in `classifier_page.html`.
