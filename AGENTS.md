@@ -26,3 +26,11 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 ## Rapid API (API.py)
 
 api.py is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
+
+## Docker Build Context Gotcha
+
+This repo already has a `.dockerignore`. Before changing Docker/Coolify build behavior, inspect it first instead of assuming the Docker build context matches the git tree. It may already exclude files you expect to be available during image build.
+
+## Compose Config Secret Leakage Gotcha
+
+`docker compose config` expands values from `.env` and prints them in plaintext. Do not paste its full output into chat or logs when validating Docker/Compose changes in this repo unless secrets are redacted first.

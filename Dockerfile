@@ -1,10 +1,22 @@
-FROM python:3.14-slim-bookworm
+# syntax=docker/dockerfile:1
+
+FROM oven/bun:1 AS frontend-builder
+
+WORKDIR /frontend
+
+COPY package.json bun.lock tsconfig.json ./
+RUN --mount=type=cache,target=/root/.bun bun install --frozen-lockfile
+
+COPY app/assets ./app/assets
+RUN mkdir -p app/static/js app/static/css && bun run build
+
+FROM python:3.14-slim-bookworm AS runtime
 
 WORKDIR /service_root
 
-# Install Python deps directly (no venv for simplicity)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-compile -r requirements.txt
 
 # Install curl for health checks
 USER root
@@ -15,8 +27,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y curl
 RUN groupadd --system appgroup && \
     useradd --system --gid appgroup --no-create-home appuser
 
-# Copy application code (entire app directory)
-COPY --chown=appuser:appgroup ./app /service_root/app/
+COPY --chown=appuser:appgroup app ./app
+COPY --from=frontend-builder --chown=appuser:appgroup /frontend/app/static/ ./app/static/
 
 USER appuser
 

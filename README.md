@@ -36,7 +36,7 @@ Classifast is a web application that provides easy classification of any text in
 ## Stack
 
 - **Backend**: FastAPI with Python
-- **Frontend**: HTML5, Tailwind CSS, HTMX
+- **Frontend**: TypeScript, Tailwind CSS, HTMX
 - **Vector Database**: Qdrant for semantic search
 - **Embedding Models**: Google Gemini
 - **Deployment**: Docker containerized
@@ -48,9 +48,25 @@ Visit the working instance at [classifast.com](https://classifast.com) to try.
 ## Installation
 
 1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Set environment variables for API keys
-4. Run with: `uvicorn app.main:app --reload`
+2. Install Python dependencies: `pip install -r requirements.txt`
+3. Install frontend dependencies: `bun install`
+4. Set environment variables for API keys
+5. Run frontend watchers and the app: `bun run dev`
+
+Frontend JS/CSS files under `app/static/` are build artifacts. They are generated from `app/assets/` and are intentionally not committed to git.
+
+## Deployment
+
+For production, deploy from the repo root with the provided `Dockerfile`. The image builds the frontend assets in a Bun builder stage and copies only the compiled files into the final Python runtime image.
+
+For Coolify, use:
+
+- Source directory: repo root
+- Build pack: Dockerfile
+- Dockerfile path: `./Dockerfile`
+- Include Source Commit in Build: disabled
+
+`docker-compose.yaml` can still be used for local or manual container runs, but the recommended Coolify production path is the Dockerfile build directly.
 
 ## API
 

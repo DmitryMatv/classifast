@@ -1,10 +1,12 @@
 # Git
 .git
 .gitignore
-.gitattribute
+.gitattributes
 
 # Node.js packages and dependencies
 node_modules/
+app/static/js/*.js
+app/static/css/styles.css
 
 # Data files (not needed in container)
 data/
@@ -13,7 +15,6 @@ data/
 
 # Docker
 docker-compose.y*ml
-Dockerfile
 .docker
 .dockerignore
 
