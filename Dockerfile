@@ -8,6 +8,7 @@ COPY package.json bun.lock tsconfig.json ./
 RUN --mount=type=cache,target=/root/.bun bun install --frozen-lockfile
 
 COPY app/assets ./app/assets
+COPY app/templates ./app/templates
 RUN mkdir -p app/static/js app/static/css && bun run build
 
 FROM python:3.14-slim-bookworm AS runtime
@@ -19,9 +20,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-compile -r requirements.txt
 
 # Install curl for health checks
-USER root
-RUN apt-get update && apt-get install --no-install-recommends -y curl
-
+RUN apt-get update && apt-get install --no-install-recommends -y curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd --system appgroup && \
