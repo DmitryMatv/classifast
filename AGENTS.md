@@ -39,3 +39,7 @@ This repo already has a `.dockerignore`. Before changing Docker/Coolify build be
 
 - `app/web.py` fragment requests used to overload `url_change` for three unrelated concerns: pushing browser history, updating the page title, and deciding whether usage tracking/paywalls applied. This coupling caused confusing Back/Forward behavior, especially for direct search URLs that auto-loaded results via HTMX.
 - Keep history concerns (`push_url`) separate from quota concerns (`track_usage`) when touching classifier fragments or the initial hidden HTMX loader in `classifier_page.html`.
+
+## Template Path Checks Gotcha
+
+- `app/web.py` normalizes classifier routes to uppercase before rendering. Do not make template behavior depend on case-sensitive lowercase path sniffing like `'unspsc' in request.url.path`; pass explicit state or use data-driven formatting instead.

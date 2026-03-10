@@ -50,11 +50,7 @@
                             {% else %}
                             <span class="text-gray-600 text-2xl font-bold font-mono">
                                 {% endif %}
-                                {%- set id_str = result.payload.original_id | string -%}
-                                {# Group visually every 2 characters for UNSPSC and NAICS only #}
-                                {%- set should_group = ('unspsc' in request.url.path) or ('naics' in request.url.path)
-                                or ('hs' in request.url.path) or ('cn' in request.url.path)
-                                -%}
+                                {%- set id_tokens = result.payload.original_id | group_original_id_tokens -%}
                                 {%- set digit_colors = {
                                 '1': 'text-[#ff488a]',
                                 '2': 'text-[#8f360b]',
@@ -66,16 +62,15 @@
                                 '8': 'text-[#7561eb]',
                                 '9': 'text-[#853666]',
                                 } -%}
-                                {%- for char_item in id_str -%}
-                                {%- if char_item in digit_colors -%}
-                                <span class="{{ digit_colors[char_item] }}">{{ char_item }}</span>
+                                {%- for token in id_tokens -%}
+                                {%- if token.char in digit_colors -%}
+                                <span class="{{ digit_colors[token.char] }}">{{ token.char }}</span>
                                 {%- else -%}
-                                <span class="text-gray-400">{{ char_item }}</span>
+                                <span class="text-gray-400">{{ token.char }}</span>
                                 {%- endif -%}
-                                {# Insert a small visual-only separator after every 2 characters for better readability.
-                                The separator is aria-hidden and will not affect the value copied by the copy button
-                                because the copy button uses the raw original_id passed into JS. #}
-                                {%- if should_group and not loop.last and ((loop.index0 + 1) % 2) == 0 -%}
+                                {# Insert a small visual-only separator after every 2 digits within a contiguous
+                                digit run. The copy button still uses the raw original_id passed into JS. #}
+                                {%- if token.gap_after -%}
                                 <span aria-hidden="true" class="code-spacer-halves"></span>
                                 {%- endif -%}
                                 {%- endfor -%}

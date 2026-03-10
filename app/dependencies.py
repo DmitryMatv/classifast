@@ -3,8 +3,11 @@ import os
 from fastapi.templating import Jinja2Templates
 from jwt import PyJWKClient
 
+from .template_filters import group_original_id_tokens
+
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
+templates.env.filters["group_original_id_tokens"] = group_original_id_tokens
 
 # Clerk Authentication Configuration
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")

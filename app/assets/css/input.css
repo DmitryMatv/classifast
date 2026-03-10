@@ -3,7 +3,7 @@
 /* Visual spacer used to group code digits (very small, roughly half of a normal space) */
 .code-spacer-halves {
   display: inline-block;
-  width: 0.12em;
+  width: 0.25ch;
   color: transparent;
   line-height: 1;
 }
