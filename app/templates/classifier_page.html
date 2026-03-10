@@ -418,42 +418,23 @@
             background: linear-gradient(to right, #f9fafb, #e5e7eb);
         }
 
-        .js-score-animations [data-score-card] {
-            opacity: 0;
-            transform: translateY(8px);
-            transition:
-                opacity 280ms ease,
-                transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-            transition-delay: var(--score-stagger-delay, 0ms);
-        }
-
-        .js-score-animations [data-score-card].is-score-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
         .js-score-animations [data-score-bar] {
             transform: scaleX(0);
             transform-origin: left center;
             transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
-            transition-delay: calc(var(--score-stagger-delay, 0ms) + 60ms);
+            transition-delay: var(--score-stagger-delay, 0ms);
             will-change: transform;
         }
 
-        .js-score-animations [data-score-card].is-score-visible [data-score-bar] {
+        .js-score-animations [data-score-bar].is-score-bar-visible {
             transform: scaleX(1);
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .js-score-animations [data-score-card] {
-                opacity: 1;
-                transform: none;
-                transition: none;
-            }
-
             .js-score-animations [data-score-bar] {
                 transform: none;
                 transition: none;
+                will-change: auto;
             }
         }
 

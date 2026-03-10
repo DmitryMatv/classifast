@@ -641,25 +641,65 @@ def perform_classification(
             has_quantization = quantization_cache.get(collection_name, False)
 
         # Step 1: Perform exact ID search (scroll) - these always stay on top
+        exact_start = time.perf_counter()
         exact_results = perform_exact_id_search(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
             query_text=normalized_query,
         )
+        exact_ms = (time.perf_counter() - exact_start) * 1000
+
+        if exact_results:
+            logger.info(
+                "ID_SEARCH: exact=%d partial=%d exact_ms=%.2f partial_ms=%.2f",
+                len(exact_results),
+                0,
+                exact_ms,
+                0.0,
+            )
+            logger.info(
+                "ID_SEARCH_SHORTCUT: classifier=%s query='%s' matches=%d",
+                classifier_type,
+                normalized_query,
+                len(exact_results),
+            )
+            classification_results = sorted(
+                exact_results,
+                key=lambda x: x.get("score", 0),
+                reverse=True,
+            )[:top_k]
+            for result in classification_results:
+                result["zeroentropy_relevance_score"] = 0.0
+            return {
+                "results": classification_results,
+                "collection_name": collection_name,
+                "version_name": version_name,
+                "version_config": version_config,
+                "config": config,
+                "query": normalized_query,
+            }
 
         # Step 2: If no exact matches, try partial ID search
         partial_results = []
-        if not exact_results:
-            normalized_id_query = normalize_for_partial_match(normalized_query)
-            if len(normalized_id_query) >= 3:
-                partial_results = perform_partial_id_search(
-                    qdrant_client=qdrant_client,
-                    collection_name=collection_name,
-                    normalized_query=normalized_id_query,
-                )
+        partial_ms = 0.0
+        normalized_id_query = normalize_for_partial_match(normalized_query)
+        if len(normalized_id_query) >= 3:
+            partial_start = time.perf_counter()
+            partial_results = perform_partial_id_search(
+                qdrant_client=qdrant_client,
+                collection_name=collection_name,
+                normalized_query=normalized_id_query,
+            )
+            partial_ms = (time.perf_counter() - partial_start) * 1000
 
-        # Combine exact and partial results
-        id_match_results = exact_results + partial_results
+        id_match_results = partial_results
+        logger.info(
+            "ID_SEARCH: exact=%d partial=%d exact_ms=%.2f partial_ms=%.2f",
+            0,
+            len(partial_results),
+            exact_ms,
+            partial_ms,
+        )
 
         # Step 3: Generate embedding for semantic search
         query_embedding = get_embedding(

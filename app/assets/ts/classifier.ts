@@ -16,7 +16,7 @@ class ClassifierPage {
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
     this.attachShareButtonListener();
-    this.animateScoreResults(document);
+    this.animateScoreBars(document);
   }
 
   private getLoadingIndicator(): HTMLElement | null {
@@ -93,12 +93,12 @@ class ClassifierPage {
     this.cleanupInitialResultsLoader();
   }
 
-  private animateScoreResults(root: ParentNode = document): void {
-    const scoreCards = Array.from(
-      root.querySelectorAll<HTMLElement>("[data-score-card]"),
+  private animateScoreBars(root: ParentNode = document): void {
+    const scoreBars = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-score-bar]"),
     );
 
-    if (scoreCards.length === 0) {
+    if (scoreBars.length === 0) {
       return;
     }
 
@@ -107,15 +107,15 @@ class ClassifierPage {
     ).matches;
 
     if (prefersReducedMotion) {
-      scoreCards.forEach((card) => {
-        card.classList.add("is-score-visible");
+      scoreBars.forEach((bar) => {
+        bar.classList.add("is-score-bar-visible");
       });
       return;
     }
 
-    scoreCards.forEach((card, index) => {
-      card.classList.remove("is-score-visible");
-      card.style.setProperty(
+    scoreBars.forEach((bar, index) => {
+      bar.classList.remove("is-score-bar-visible");
+      bar.style.setProperty(
         "--score-stagger-delay",
         `${Math.min(index * 70, 420)}ms`,
       );
@@ -123,8 +123,8 @@ class ClassifierPage {
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        scoreCards.forEach((card) => {
-          card.classList.add("is-score-visible");
+        scoreBars.forEach((bar) => {
+          bar.classList.add("is-score-bar-visible");
         });
       });
     });
@@ -135,7 +135,7 @@ class ClassifierPage {
     this.attachShareButtonListener();
     const resultsContainer = document.getElementById("results-container");
     if (resultsContainer) {
-      this.animateScoreResults(resultsContainer);
+      this.animateScoreBars(resultsContainer);
     }
     this.cleanupInitialResultsLoader();
   }
