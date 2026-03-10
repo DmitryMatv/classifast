@@ -10,12 +10,13 @@ Usage:
 The script will:
 1. Connect to Qdrant
 2. Iterate through all collections defined in CLASSIFIER_CONFIG
-3. Delete any existing payload index on 'original_id' and 'class_name'
-4. Recreate each field as a text index with the expected tokenizer settings
+3. Inspect existing payload indexes on 'original_id' and 'class_name'
+4. Create or replace indexes only when they do not match the expected text settings
 """
 
 import os
 import sys
+from typing import Any
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
@@ -41,6 +42,68 @@ def build_text_index_params() -> models.TextIndexParams:
     )
 
 
+def get_existing_payload_index(
+    collection_info: Any,
+    field_name: str,
+) -> models.PayloadIndexInfo | None:
+    """Return the payload index metadata for a field, if Qdrant reports one."""
+    payload_schema = getattr(collection_info, "payload_schema", None) or {}
+    return payload_schema.get(field_name)
+
+
+def normalize_text_index_params(
+    params: models.TextIndexParams | None,
+) -> dict[str, object]:
+    """Normalize optional Qdrant defaults before comparing text index settings."""
+    return {
+        "type": "text",
+        "tokenizer": (
+            params.tokenizer
+            if params and params.tokenizer is not None
+            else models.TokenizerType.WORD
+        ),
+        "min_token_len": (
+            params.min_token_len if params and params.min_token_len is not None else 1
+        ),
+        "max_token_len": (
+            params.max_token_len if params and params.max_token_len is not None else 30
+        ),
+        "lowercase": params.lowercase
+        if params and params.lowercase is not None
+        else True,
+        "ascii_folding": (
+            params.ascii_folding
+            if params and params.ascii_folding is not None
+            else False
+        ),
+        "phrase_matching": (
+            params.phrase_matching
+            if params and params.phrase_matching is not None
+            else False
+        ),
+        "stopwords": params.stopwords if params else None,
+        "on_disk": params.on_disk if params and params.on_disk is not None else False,
+        "stemmer": params.stemmer if params else None,
+        "enable_hnsw": (
+            params.enable_hnsw if params and params.enable_hnsw is not None else True
+        ),
+    }
+
+
+def is_expected_text_index(index_info: models.PayloadIndexInfo) -> bool:
+    """Return whether the existing payload index already matches MatchText settings."""
+    if index_info.data_type != models.PayloadSchemaType.TEXT:
+        return False
+
+    params = index_info.params
+    if params is not None and not isinstance(params, models.TextIndexParams):
+        return False
+
+    return normalize_text_index_params(params) == normalize_text_index_params(
+        build_text_index_params()
+    )
+
+
 def create_qdrant_client() -> QdrantClient:
     """Create a Qdrant client for the manual text-index remediation flow."""
     qdrant_remote_url = os.getenv("QDRANT_URL")
@@ -63,7 +126,9 @@ def create_qdrant_client() -> QdrantClient:
 
 def get_all_collection_names(classifier_config: dict | None = None) -> list[str]:
     """Extract all unique collection names from CLASSIFIER_CONFIG."""
-    config_source = classifier_config or CLASSIFIER_CONFIG
+    config_source = (
+        CLASSIFIER_CONFIG if classifier_config is None else classifier_config
+    )
     collection_names = set()
     for config in config_source.values():
         versions = config.get("versions", {})
@@ -89,10 +154,6 @@ def delete_existing_index(
         print(f"  - Deleted existing index on '{field_name}'")
         return True
     except Exception as e:
-        error_msg = str(e).lower()
-        if "not found" in error_msg or "does not exist" in error_msg:
-            print(f"  - No existing index on '{field_name}', continuing")
-            return True
         print(f"  ! Error deleting index on '{field_name}': {e}")
         return False
 
@@ -113,10 +174,37 @@ def create_text_index(
         print(f"  + Recreated text index on '{field_name}'")
         return True
     except Exception as e:
-        if "already exists" in str(e).lower():
-            print(f"  - Text index on '{field_name}' already exists, continuing")
-            return True
-        print(f"  ! Error creating index on '{field_name}': {e}")
+        print(f"  ! Failed to create text index on '{field_name}': {e}")
+        return False
+
+
+def restore_previous_index(
+    client: QdrantClient,
+    collection_name: str,
+    field_name: str,
+    previous_index: models.PayloadIndexInfo,
+) -> bool:
+    """Best-effort rollback to the field schema reported before replacement."""
+    previous_schema = (
+        previous_index.params
+        if previous_index.params is not None
+        else previous_index.data_type
+    )
+    if previous_schema is None:
+        print(f"  ! Rollback failed for '{field_name}': previous schema unavailable")
+        return False
+
+    try:
+        client.create_payload_index(
+            collection_name=collection_name,
+            field_name=field_name,
+            field_schema=previous_schema,
+            wait=True,
+        )
+        print(f"  ! Rollback succeeded for '{field_name}'")
+        return True
+    except Exception as e:
+        print(f"  ! Rollback failed for '{field_name}': {e}")
         return False
 
 
@@ -125,16 +213,44 @@ def migrate_collection_text_indexes(
     collection_name: str,
     fields_to_index: list[str] | None = None,
 ) -> bool:
-    """Delete and recreate the expected text indexes for one collection."""
+    """Inspect and reconcile the expected text indexes for one collection."""
     fields = fields_to_index or TEXT_SEARCH_FIELDS
     collection_success = True
 
+    try:
+        collection_info = client.get_collection(collection_name)
+    except Exception as e:
+        print(f"  ! Collection not found or unavailable: {e}")
+        return False
+
     for field_name in fields:
+        existing_index = get_existing_payload_index(collection_info, field_name)
+
+        if existing_index is None:
+            if not create_text_index(client, collection_name, field_name):
+                collection_success = False
+            continue
+
+        if is_expected_text_index(existing_index):
+            print(f"  = Text index on '{field_name}' already matches expected settings")
+            continue
+
+        print(
+            f"  ~ Replacing existing {existing_index.data_type} index on '{field_name}'"
+        )
         if not delete_existing_index(client, collection_name, field_name):
             collection_success = False
             continue
+
         if not create_text_index(client, collection_name, field_name):
             collection_success = False
+            if not restore_previous_index(
+                client,
+                collection_name,
+                field_name,
+                existing_index,
+            ):
+                print(f"  ⚠ WARNING: '{field_name}' left without any index!")
 
     return collection_success
 
@@ -153,13 +269,6 @@ def migrate_configured_collections(
     for collection_name in collection_names:
         print(f"\nProcessing remediation for: {collection_name}")
 
-        try:
-            client.get_collection(collection_name)
-        except Exception as e:
-            print(f"  ! Collection not found or unavailable: {e}")
-            error_count += 1
-            continue
-
         if migrate_collection_text_indexes(client, collection_name):
             success_count += 1
         else:
@@ -168,7 +277,7 @@ def migrate_configured_collections(
     return success_count, error_count
 
 
-def main():
+def main() -> int:
     print("=" * 60)
     print("Qdrant Text Index Remediation")
     print("=" * 60)
@@ -184,7 +293,8 @@ def main():
     if error_count:
         print(f"Errors: {error_count} collections had issues")
     print("=" * 60)
+    return 0 if error_count == 0 else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
