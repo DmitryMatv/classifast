@@ -100,10 +100,10 @@
     {
         "@context": "https://schema.org",
         "@type": "WebApplication",
-        {% if url_params.query %}
-        "name": "{{ classifier_type.upper() }} Code for {{ url_params.query }} | Classifast",
-        "description": "Find accurate {{ classifier_type.upper() }} codes for {{ url_params.query }} with fastest classification tool. Semantic search technology for precise results.",
-        "keywords": "{{ classifier_type.upper() }} code {{ url_params.query }}, {{ url_params.query }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.query }}, {{ classifier_type.lower() }} classification {{ url_params.query }}, semantic search {{ classifier_type.upper() }}",
+        {% if url_params.search %}
+        "name": "{{ classifier_type.upper() }} Code for {{ url_params.search }} | Classifast",
+        "description": "Find accurate {{ classifier_type.upper() }} codes for {{ url_params.search }} with fastest classification tool. Semantic search technology for precise results.",
+        "keywords": "{{ classifier_type.upper() }} code {{ url_params.search }}, {{ url_params.search }} {{ classifier_type.upper() }}, find {{ classifier_type.upper() }} code {{ url_params.search }}, {{ classifier_type.lower() }} classification {{ url_params.search }}, semantic search {{ classifier_type.upper() }}",
         {% elif classifier_type == 'UNSPSC' %}
         "name": "UNSPSC Code Lookup & Classification | Classifast",
         "description": "Find UNSPSC codes quickly with Classifast. Accurate UNSPSC code lookup, search, and classification for products and services. Explore UNSPSC categories and commodity codes.",

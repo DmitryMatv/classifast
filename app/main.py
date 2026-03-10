@@ -317,24 +317,29 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
     )
 
     async def dispatch(self, request: Request, call_next):
-        # Combine all URL parts for single check
-        url_parts = [request.url.path or "", request.url.query or ""]
+        decoded_values = (
+            list(request.query_params.values()) if request.query_params else []
+        )
 
-        # Add query parameters
-        if request.query_params:
-            url_parts.extend(request.query_params.values())
-
-        # Check combined URL content
-        combined_url = "".join(url_parts)
-        if combined_url and len(combined_url) > 4000:
+        # Length checks should count the logical request content once, not both the raw
+        # query string and the decoded parameter values.
+        length_checked_content = "".join([request.url.path or "", *decoded_values])
+        if length_checked_content and len(length_checked_content) > 4000:
             logger.warning(
-                "Suspicious URL encoding detected: %s...", combined_url[:100]
+                "Suspicious URL encoding detected: %s...",
+                length_checked_content[:100],
             )
             return self._create_error_response()
 
+        pattern_checked_content = "".join(
+            [request.url.path or "", request.url.query or "", *decoded_values]
+        )
+
         # Check for attack patterns
-        if self._attack_patterns.search(combined_url):
-            logger.warning("Suspicious pattern detected: %s...", combined_url[:100])
+        if self._attack_patterns.search(pattern_checked_content):
+            logger.warning(
+                "Suspicious pattern detected: %s...", pattern_checked_content[:100]
+            )
             return self._create_error_response()
 
         response = await call_next(request)
