@@ -1,9 +1,4 @@
 {% if query %}
-<style>
-    .score-bar {
-        background: linear-gradient(to right, #f9fafb, #e5e7eb);
-    }
-</style>
 <section aria-labelledby="results-heading">
     <figure class="mb-2" hidden> <!-- Unhide for debug -->
         <figcaption id="results-heading" class="font-semibold">Results for:</figcaption>
@@ -22,8 +17,8 @@
         set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | round(2)
         if result.score is not none else 0)
         -%}
-        <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem">
-            <div class="absolute inset-y-0 left-0 score-bar" style="width: {{ score_pct }}%;"></div>
+        <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem" data-score-card>
+            <div class="absolute inset-y-0 left-0 score-bar" data-score-bar style="width: {{ score_pct }}%;"></div>
             <div class="relative p-3">
                 <div class="flex-1">
                     <div class="flex items-baseline gap-2">

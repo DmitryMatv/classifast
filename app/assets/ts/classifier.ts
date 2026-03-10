@@ -11,10 +11,12 @@ class ClassifierPage {
   }
 
   private init(): void {
+    document.documentElement.classList.add("js-score-animations");
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
     this.attachShareButtonListener();
+    this.animateScoreResults(document);
   }
 
   private getLoadingIndicator(): HTMLElement | null {
@@ -91,9 +93,50 @@ class ClassifierPage {
     this.cleanupInitialResultsLoader();
   }
 
+  private animateScoreResults(root: ParentNode = document): void {
+    const scoreCards = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-score-card]"),
+    );
+
+    if (scoreCards.length === 0) {
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (prefersReducedMotion) {
+      scoreCards.forEach((card) => {
+        card.classList.add("is-score-visible");
+      });
+      return;
+    }
+
+    scoreCards.forEach((card, index) => {
+      card.classList.remove("is-score-visible");
+      card.style.setProperty(
+        "--score-stagger-delay",
+        `${Math.min(index * 70, 420)}ms`,
+      );
+    });
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scoreCards.forEach((card) => {
+          card.classList.add("is-score-visible");
+        });
+      });
+    });
+  }
+
   private handleResultsSwap(): void {
     this.ensureResultsSectionVisible();
     this.attachShareButtonListener();
+    const resultsContainer = document.getElementById("results-container");
+    if (resultsContainer) {
+      this.animateScoreResults(resultsContainer);
+    }
     this.cleanupInitialResultsLoader();
   }
 
