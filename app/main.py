@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -219,7 +220,9 @@ async def lifespan(app: FastAPI):
             socket_timeout=5,
             socket_connect_timeout=5,
         )
-        await redis_client.ping()
+        ping_result = redis_client.ping()
+        if inspect.isawaitable(ping_result):
+            await ping_result
         logger.info("Redis client initialized successfully.")
     except Exception as e:
         logger.warning("Redis not available, usage tracking disabled: %s", e)
