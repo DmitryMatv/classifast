@@ -8,8 +8,6 @@ Classifast is a classification service web application that uses embeddings and 
 
 ## Agent Notes
 
-- `app/web.py` still uses the older `templates.TemplateResponse(name, context)` signature. Route-level tests emit a Starlette deprecation warning until it is updated to `TemplateResponse(request, name, context)` style.
-
 ## Tech Stack
 
 - Backend: Python FastAPI

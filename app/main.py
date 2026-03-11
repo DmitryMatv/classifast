@@ -65,7 +65,7 @@ load_dotenv()
 def build_text_search_index_params() -> models.TextIndexParams:
     """Return the Qdrant text index settings used by MatchText search."""
     return models.TextIndexParams(
-        type="text",
+        type=models.TextIndexType.TEXT,
         tokenizer=models.TokenizerType.WORD,
         min_token_len=1,
         max_token_len=30,
@@ -164,7 +164,7 @@ async def lifespan(app: FastAPI):
         # Verify collections exist and store their vector sizes
         for classifier_type, config in CLASSIFIER_CONFIG.items():
             embed_dims = config.get("embed_dims")
-            for version, version_config in config.get("versions", {}).items():
+            for version, version_config in config["versions"].items():
                 collection_name = version_config.get("collection_name")
                 if not collection_name:
                     continue

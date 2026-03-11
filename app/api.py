@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -172,7 +172,7 @@ async def rapid_standards(request: Request):
         standards_info[standard_key] = {
             "title": config["title"],
             "description": config["description"],
-            "versions": list(config.get("versions", {}).keys()),
+            "versions": list(config["versions"].keys()),
             "example": config["example"].replace("Example:", "").strip(),
         }
 
@@ -186,7 +186,11 @@ async def rapid_standards(request: Request):
 @router.get("/ping")
 async def rapid_health_public(request: Request):
     """Public health check endpoint for RapidAPI consumers."""
-    health_status = {"status": "healthy", "timestamp": time.time(), "services": {}}
+    health_status: dict[str, Any] = {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "services": {},
+    }
 
     embed_client = getattr(request.app.state, "embed_client", None)
     qdrant_client = getattr(request.app.state, "qdrant_client", None)

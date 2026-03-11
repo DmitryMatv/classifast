@@ -68,7 +68,9 @@ async def read_root(request: Request):
 
     today = datetime.now()
     response = templates.TemplateResponse(
-        "index.html", {"request": request, "current_year": today.year}
+        request,
+        "index.html",
+        {"current_year": today.year},
     )
 
     # Cloudflare-friendly cache headers (same as classifier pages)
@@ -163,7 +165,7 @@ async def get_classification_fragment(
     # Handle version query param
     config = CLASSIFIER_CONFIG.get(upper_type)
     if config:
-        versions_list = list(config.get("versions", {}).keys())
+        versions_list = list(config["versions"].keys())
         default_version = versions_list[0] if versions_list else None
 
         # Only append version if it's not the default one
@@ -178,9 +180,9 @@ async def get_classification_fragment(
 
         if not usage_status.allowed:
             response = templates.TemplateResponse(
+                request,
                 "paywall.html",
                 {
-                    "request": request,
                     "limit": usage_status.limit,
                     "is_authenticated": usage_status.is_authenticated,
                     "free_user_limit": FREE_USER_LIMIT,
@@ -208,9 +210,9 @@ async def get_classification_fragment(
     # normalized_description was already set above for URL building
     if not normalized_description:
         response = templates.TemplateResponse(
+            request,
             "results.html",
             {
-                "request": request,
                 "query": normalized_description,
                 "results_for_query": [],
             },
@@ -262,9 +264,9 @@ async def get_classification_fragment(
 
     # Render the results partial with normalized query
     response = templates.TemplateResponse(
+        request,
         "results.html",
         {
-            "request": request,
             "query": normalized_description,
             "results_for_query": classification_results,
             "base_url": result["version_config"].get("base_url", ""),
@@ -378,7 +380,7 @@ async def show_classifier_page_with_query(
         top_k = 10
 
     # Get first version for default handling
-    versions_list = list(config.get("versions", {}).keys())
+    versions_list = list(config["versions"].keys())
     first_version = versions_list[0] if versions_list else ""
 
     # Initialize results data structure
@@ -398,7 +400,7 @@ async def show_classifier_page_with_query(
         trigger_search_on_load = True
     else:
         # If no search query (base URL), use example query
-        example_query = config.get("example", "").replace("Example:", "").strip()
+        example_query = config["example"].replace("Example:", "").strip()
         if example_query:
             results_data["query"] = example_query
             trigger_search_on_load = True
@@ -408,14 +410,14 @@ async def show_classifier_page_with_query(
     current_month_name = today.strftime("%B")
 
     response = templates.TemplateResponse(
+        request,
         "classifier_page.html",
         {
-            "request": request,
             "classifier_type": effective_classifier_type,
             "title": config["title"],
             "heading": config["heading"],
             "description": config["description"],
-            "versions": list(config.get("versions", {}).keys()),
+            "versions": list(config["versions"].keys()),
             "example": config["example"],
             "url_params": {
                 "search": decoded_search_query,

@@ -548,7 +548,7 @@ def validate_and_prepare_classification(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
-    versions = config.get("versions", {})
+    versions = config["versions"]
     if version:
         if version not in versions:
             raise HTTPException(
