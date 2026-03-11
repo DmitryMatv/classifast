@@ -132,6 +132,34 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response.text,
         )
 
+    async def test_homepage_renders_stable_desktop_auth_slot(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('class="auth-slot"', response.text)
+        self.assertIn('data-auth-slot="desktop"', response.text)
+        self.assertIn('id="desktop-auth-container"', response.text)
+
+    async def test_classifier_page_renders_stable_desktop_auth_slot(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(f"/{self.classifier_type}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('class="auth-slot"', response.text)
+        self.assertIn('data-auth-slot="desktop"', response.text)
+        self.assertIn('id="desktop-auth-container"', response.text)
+
     def _expected_generic_name(self) -> str:
         if self.classifier_type == "UNSPSC":
             return "UNSPSC Code Lookup & Classification | Classifast"

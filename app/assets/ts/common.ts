@@ -4,9 +4,11 @@ import { ClerkHelpers } from "./clerk-helpers";
 // Shared TypeScript functionality for Classifast application
 
 const SIGN_IN_CLASS =
-  "bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
+  "bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const SIGN_UP_CLASS =
-  "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white px-4 py-1 rounded text-sm transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
+  "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
+const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "px-5 py-1.5";
+const MOBILE_AUTH_BUTTON_SIZE_CLASS = "px-4 py-1";
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -199,6 +201,9 @@ let authReadyFired = false;
 // Simple Clerk Authentication using official SDK patterns
 export class ClerkAuth {
   private static htmxAuthHeaderRegistered = false;
+  private clerkStarted = false;
+  private readonly clerkScriptSelector =
+    'script[src*="@clerk/clerk-js"], script[src*="clerk.browser.js"]';
 
   constructor() {
     this.init();
@@ -210,22 +215,13 @@ export class ClerkAuth {
       return;
     }
 
-    if (document.readyState === "complete") {
-      this.renderFallbackAuth();
-      return;
-    }
-
-    window.addEventListener("load", async () => {
-      if (window.Clerk) {
-        await this.startClerk();
-      } else {
-        console.error("Clerk script failed to load");
-        this.renderFallbackAuth();
-      }
-    });
+    await this.waitForClerk();
   }
 
   private async startClerk() {
+    if (this.clerkStarted) return;
+    this.clerkStarted = true;
+
     try {
       await window.Clerk?.load();
 
@@ -304,9 +300,99 @@ export class ClerkAuth {
         });
       }
     } catch (err: unknown) {
+      this.clerkStarted = false;
       console.error("Error initializing Clerk:", err);
       this.renderFallbackAuth();
     }
+  }
+
+  private async waitForClerk() {
+    if (window.Clerk) {
+      await this.startClerk();
+      return;
+    }
+
+    const script = document.querySelector(
+      this.clerkScriptSelector,
+    ) as HTMLScriptElement | null;
+
+    if (!script) {
+      console.error("Clerk script tag not found");
+      this.renderFallbackAuth();
+      return;
+    }
+
+    let settled = false;
+    let timeoutId: number | null = null;
+
+    const cleanup = () => {
+      script.removeEventListener("load", onScriptLoaded);
+      script.removeEventListener("error", onScriptError);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const settleWithFallback = (message: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      console.error(message);
+      this.renderFallbackAuth();
+    };
+
+    const onScriptLoaded = async () => {
+      if (settled) return;
+      const clerk = await this.pollForClerk();
+      if (clerk) {
+        settled = true;
+        cleanup();
+        await this.startClerk();
+      } else {
+        settleWithFallback(
+          "Clerk script loaded but window.Clerk was unavailable",
+        );
+      }
+    };
+
+    const onScriptError = () => {
+      settleWithFallback("Clerk script failed to load");
+    };
+
+    script.addEventListener("load", onScriptLoaded, { once: true });
+    script.addEventListener("error", onScriptError, { once: true });
+
+    const existingClerk = await this.pollForClerk(1000);
+    if (existingClerk) {
+      settled = true;
+      cleanup();
+      await this.startClerk();
+      return;
+    }
+
+    timeoutId = window.setTimeout(async () => {
+      if (settled) return;
+      if (window.Clerk) {
+        settled = true;
+        cleanup();
+        await this.startClerk();
+        return;
+      }
+
+      settleWithFallback("Timed out waiting for Clerk script readiness");
+    }, 4000);
+  }
+
+  private async pollForClerk(timeoutMs = 4000) {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      if (window.Clerk) return window.Clerk;
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+
+    return window.Clerk;
   }
 
   private async refreshAuthToken() {
@@ -488,12 +574,6 @@ export class ClerkAuth {
     if (mobileContainer) mobileContainer.innerHTML = "";
 
     if (user) {
-      // Enable flex layout for desktop to align items
-      if (desktopContainer) {
-        desktopContainer.style.display = "flex";
-        desktopContainer.style.alignItems = "center";
-      }
-
       // Render User Button
       this.mountUserButton(desktopContainer, "desktop");
       this.mountUserButton(mobileContainer, "mobile");
@@ -530,9 +610,10 @@ export class ClerkAuth {
 
     const el = document.createElement("div");
     el.id = `clerk-user-button-${type}`;
-    if (type === "desktop") {
-      el.className = "flex items-center";
-    }
+    el.className =
+      type === "desktop"
+        ? "auth-user-button-root flex items-center leading-none"
+        : "auth-user-button-root";
     container.appendChild(el);
 
     try {
@@ -555,18 +636,13 @@ export class ClerkAuth {
   ) {
     if (!container) return;
 
-    if (type === "desktop") {
-      container.style.display = "flex";
-      container.style.alignItems = "center";
-    }
-
     const signInBtn = document.createElement("div");
     if (type === "desktop") {
       signInBtn.id = "clerk-sign-in-button-desktop";
-      signInBtn.className = SIGN_IN_CLASS;
+      signInBtn.className = `${SIGN_IN_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS}`;
     } else {
       signInBtn.id = "clerk-sign-in-button-mobile";
-      signInBtn.className = SIGN_IN_CLASS + " w-full text-center mb-2";
+      signInBtn.className = `${SIGN_IN_CLASS} ${MOBILE_AUTH_BUTTON_SIZE_CLASS} w-full text-center mb-2`;
     }
     signInBtn.textContent = "Sign In";
     signInBtn.addEventListener("click", (e) => {
@@ -578,10 +654,10 @@ export class ClerkAuth {
     const signUpBtn = document.createElement("div");
     if (type === "desktop") {
       signUpBtn.id = "clerk-sign-up-button-desktop";
-      signUpBtn.className = SIGN_UP_CLASS + " ml-2";
+      signUpBtn.className = `${SIGN_UP_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS} ml-2`;
     } else {
       signUpBtn.id = "clerk-sign-up-button-mobile";
-      signUpBtn.className = SIGN_UP_CLASS + " w-full text-center mb-2";
+      signUpBtn.className = `${SIGN_UP_CLASS} ${MOBILE_AUTH_BUTTON_SIZE_CLASS} w-full text-center mb-2`;
     }
     signUpBtn.textContent = "Sign Up";
     signUpBtn.addEventListener("click", (e) => {
@@ -597,11 +673,6 @@ export class ClerkAuth {
 
     const redirectUrl = encodeURIComponent(window.location.href);
 
-    if (desktopContainer) {
-      desktopContainer.style.display = "flex";
-      desktopContainer.style.alignItems = "center";
-    }
-
     const createFallbackLinks = (type: "desktop" | "mobile") => {
       const signInLink = document.createElement("a");
       signInLink.href =
@@ -614,11 +685,11 @@ export class ClerkAuth {
       signUpLink.textContent = "Sign Up";
 
       if (type === "desktop") {
-        signInLink.className = SIGN_IN_CLASS;
-        signUpLink.className = SIGN_UP_CLASS + " ml-2";
+        signInLink.className = `${SIGN_IN_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS}`;
+        signUpLink.className = `${SIGN_UP_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS} ml-2`;
       } else {
-        signInLink.className = SIGN_IN_CLASS + " w-full text-center mb-2 block";
-        signUpLink.className = SIGN_UP_CLASS + " w-full text-center mb-2 block";
+        signInLink.className = `${SIGN_IN_CLASS} ${MOBILE_AUTH_BUTTON_SIZE_CLASS} w-full text-center mb-2 block`;
+        signUpLink.className = `${SIGN_UP_CLASS} ${MOBILE_AUTH_BUTTON_SIZE_CLASS} w-full text-center mb-2 block`;
       }
 
       return [signInLink, signUpLink];

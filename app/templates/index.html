@@ -165,6 +165,23 @@
             scrollbar-width: none;
         }
 
+        .auth-slot {
+            display: flex;
+            align-items: center;
+            min-width: 2rem;
+            min-height: 2rem;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .auth-slot [id$="-auth-container"] {
+            display: flex;
+            align-items: center;
+            min-width: 2rem;
+            min-height: 2rem;
+            line-height: 1;
+        }
+
         /* Mobile menu styles */
         .mobile-menu {
             display: none;
@@ -222,7 +239,7 @@
                 background-color: white;
                 border-top: 1px solid #e5e7eb;
                 box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                z-index: 50;
+                z-index: 60;
                 border-radius: 0;
             }
 
@@ -282,7 +299,9 @@
                     <li><a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank" rel="noopener"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="API Documentation">API</a></li>
-                    <li id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></li>
+                    <li class="auth-slot" data-auth-slot="desktop">
+                        <div id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></div>
+                    </li>
                 </ul>
             </nav>
 

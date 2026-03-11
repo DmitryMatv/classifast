@@ -68,7 +68,7 @@ async def read_root(request: Request):
 
     today = datetime.now()
     response = templates.TemplateResponse(
-        "index.html", {"request": request, "current_year": today.year}
+        request, "index.html", {"request": request, "current_year": today.year}
     )
 
     # Cloudflare-friendly cache headers (same as classifier pages)
@@ -178,6 +178,7 @@ async def get_classification_fragment(
 
         if not usage_status.allowed:
             response = templates.TemplateResponse(
+                request,
                 "paywall.html",
                 {
                     "request": request,
@@ -208,6 +209,7 @@ async def get_classification_fragment(
     # normalized_description was already set above for URL building
     if not normalized_description:
         response = templates.TemplateResponse(
+            request,
             "results.html",
             {
                 "request": request,
@@ -262,6 +264,7 @@ async def get_classification_fragment(
 
     # Render the results partial with normalized query
     response = templates.TemplateResponse(
+        request,
         "results.html",
         {
             "request": request,
@@ -408,6 +411,7 @@ async def show_classifier_page_with_query(
     current_month_name = today.strftime("%B")
 
     response = templates.TemplateResponse(
+        request,
         "classifier_page.html",
         {
             "request": request,
