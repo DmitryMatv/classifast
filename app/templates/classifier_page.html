@@ -619,7 +619,9 @@
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
                         class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">HTS</a>
                 </li>
-                <li id="mobile-auth-container"><!-- Clerk authentication will be mounted here --></li>
+                <li class="auth-slot" data-auth-slot="mobile">
+                    <div id="mobile-auth-container"><!-- Clerk authentication will be mounted here --></div>
+                </li>
             </ul>
         </nav>
         <!-- Google One Tap -->
@@ -678,7 +680,7 @@
             </button>
 
             <!-- Description is completely hidden by default and shown when the button is pressed -->
-            <div id="description-container" class="mt-2 mb-6">
+            <div id="description-container" class="mb-6">
                 <div id="description-content" style="display: none;" aria-hidden="true">
                     {{ description | e }}
                 </div>

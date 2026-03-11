@@ -612,7 +612,7 @@ export class ClerkAuth {
     el.id = `clerk-user-button-${type}`;
     el.className =
       type === "desktop"
-        ? "auth-user-button-root flex items-center leading-none"
+        ? "auth-user-button-root flex h-8 w-8 shrink-0 items-center justify-center leading-none"
         : "auth-user-button-root";
     container.appendChild(el);
 
@@ -620,8 +620,10 @@ export class ClerkAuth {
       window.Clerk?.mountUserButton(el, {
         appearance: {
           elements: {
-            userButtonAvatarBox: "w-8 h-8",
-            userButtonBox: "h-8",
+            userButtonTrigger:
+              "h-8 w-8 rounded-full p-0 leading-none hover:bg-transparent focus:bg-transparent active:bg-transparent focus-visible:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-100",
+            userButtonAvatarBox: "h-8 w-8 rounded-full overflow-hidden",
+            userButtonBox: "h-8 w-8 rounded-full overflow-hidden",
           },
         },
       });

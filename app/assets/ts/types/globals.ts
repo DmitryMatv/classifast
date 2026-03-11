@@ -82,6 +82,7 @@ declare global {
       elements?: {
         userButtonAvatarBox?: string;
         userButtonBox?: string;
+        userButtonTrigger?: string;
       };
     };
   }
