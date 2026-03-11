@@ -399,6 +399,23 @@
             scrollbar-width: none;
         }
 
+        .auth-slot {
+            display: flex;
+            align-items: center;
+            min-width: 2rem;
+            min-height: 2rem;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .auth-slot [id$="-auth-container"] {
+            display: flex;
+            align-items: center;
+            min-width: 2rem;
+            min-height: 2rem;
+            line-height: 1;
+        }
+
         /* HTMX loading indicator styles */
         #loading-indicator {
             display: none;
@@ -499,7 +516,7 @@
                 background-color: white;
                 border-top: 1px solid #e5e7eb;
                 box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                z-index: 50;
+                z-index: 60;
                 border-radius: 0;
             }
 
@@ -570,7 +587,9 @@
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="HTS Classification">HTS</a></li>
-                    <li id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></li>
+                    <li class="auth-slot" data-auth-slot="desktop">
+                        <div id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></div>
+                    </li>
                 </ul>
             </nav>
 
@@ -683,10 +702,7 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
                     autofocus
-                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-20 max-h-200 resize-y mb-1"></textarea>
-                {% if url_params.search %}
-                <script>document.getElementById("product_description_area").value = {{ url_params.search | tojson }};</script>
-                {% endif %}
+                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-20 max-h-200 resize-y mb-1">{%- if url_params.search -%}{{ url_params.search | escape }}{%- endif -%}</textarea>
                 <!-- Textarea enhancer is initialized inline at the bottom -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
