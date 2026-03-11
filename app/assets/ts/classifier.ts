@@ -355,7 +355,7 @@ class ClassifierPage {
 }
 
 // Initialize classifier page functionality when DOM is ready
-function initClassifierPage(): void {
+export function initClassifierPage(): void {
   new ClassifierPage();
 }
 

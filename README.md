@@ -49,9 +49,10 @@ Visit the working instance at [classifast.com](https://classifast.com) to try.
 
 1. Clone the repository
 2. Install Python dependencies: `pip install -r requirements.txt`
-3. Install frontend dependencies: `bun install`
-4. Set environment variables for API keys
-5. Run frontend watchers and the app: `bun run dev`
+3. Install development-only Python tooling: `pip install -r requirements-dev.txt`
+4. Install frontend dependencies: `bun install`
+5. Set environment variables for API keys
+6. Run frontend watchers and the app: `bun run dev`
 
 Frontend JS/CSS files under `app/static/` are build artifacts. They are generated from `app/assets/` and are intentionally not committed to git.
 
@@ -74,6 +75,16 @@ For Coolify, use:
 - `GET /{classifier_type}` Classification page (unspsc, etim, naics)
 - `POST /{classifier_type}` Submit classification request
 - `GET /health` Health check endpoint
+
+## Testing
+
+Automated backend tests live under [`tests/`](/home/dimon/.t3/worktrees/classifast/t3code-b0b635c3/tests) and use Python's standard-library `unittest` framework.
+
+- Run the backend suite: `python -m unittest discover -s tests -v`
+- Run the frontend typecheck: `bun run typecheck`
+- Run the Python typecheck: `python -m mypy`
+
+`utilities/test_*.py` scripts are manual smoke/debug helpers for live integrations and are intentionally separate from the main regression suite.
 
 ## SEO
 

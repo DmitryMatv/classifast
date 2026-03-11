@@ -8,8 +8,10 @@ declare global {
     Clerk?: ClerkInstance;
     __clerkAuthListenerRegistered?: boolean;
     __clerkInteractionListenersRegistered?: boolean;
+    __initPaywall?: () => void;
     __paywallClerkListenerRegistered?: boolean;
     __paywallInitialized?: boolean;
+    __paywallNavigate?: (url: string) => void;
     __paywallScriptParsed?: boolean;
     copyOriginalId?: (text: string, buttonElement: HTMLButtonElement) => void;
     htmx?: HtmxInstance;

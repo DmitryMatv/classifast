@@ -8,9 +8,6 @@ Classifast is a classification service web application that uses embeddings and 
 
 ## Agent Notes
 
-- `app/web.py` still uses the older `templates.TemplateResponse(name, context)` signature. Route-level tests emit a Starlette deprecation warning until it is updated to `TemplateResponse(request, name, context)` style.
-- Clerk auth UI can mount noticeably late if initialization waits for the browser `load` event instead of the Clerk script readiness event. When touching header auth, reserve avatar-sized space in cached templates to avoid CLS when the UserButton mounts.
-
 ## Tech Stack
 
 - Backend: Python FastAPI
