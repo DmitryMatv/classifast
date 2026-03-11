@@ -12,6 +12,19 @@ import { ClerkHelpers } from "./clerk-helpers";
  */
 
 // Guard: Prevent duplicate script parsing (classes can only be declared once)
+export function initPaywall(): void {
+  window.__initPaywall?.();
+}
+
+function redirectToPaywallUrl(url: string): void {
+  if (window.__paywallNavigate) {
+    window.__paywallNavigate(url);
+    return;
+  }
+
+  window.location.assign(url);
+}
+
 if (!window.__paywallScriptParsed) {
   window.__paywallScriptParsed = true;
 
@@ -196,7 +209,7 @@ if (!window.__paywallScriptParsed) {
 
           const data = (await response.json()) as { url?: string };
           if (data.url) {
-            window.location.href = data.url;
+            redirectToPaywallUrl(data.url);
           } else {
             throw new Error("No checkout URL returned");
           }
@@ -248,7 +261,7 @@ if (!window.__paywallScriptParsed) {
   }
 
   // Initialize paywall functionality when DOM is ready
-  function initPaywall(): void {
+  function initPaywallImpl(): void {
     // Guard: Prevent duplicate initialization
     if (window.__paywallInitialized) {
       return;
@@ -274,9 +287,11 @@ if (!window.__paywallScriptParsed) {
     }
   }
 
+  window.__initPaywall = initPaywallImpl;
+
   // Initialize on DOMContentLoaded (first page load)
   document.addEventListener("DOMContentLoaded", () => {
-    initPaywall();
+    initPaywallImpl();
   });
 
   // Initialize on HTMX afterSwap (when paywall is swapped into results-container)
@@ -287,13 +302,13 @@ if (!window.__paywallScriptParsed) {
       // Reset initialization flag to allow re-initialization with new DOM elements
       window.__paywallInitialized = false;
       // Small delay to ensure DOM is updated
-      setTimeout(initPaywall, 0);
+      setTimeout(initPaywallImpl, 0);
     }
   });
 
   // Also try to initialize immediately in case DOM is already ready
   // and this script loaded after HTMX swapped content
   if (document.readyState !== "loading") {
-    setTimeout(initPaywall, 0);
+    setTimeout(initPaywallImpl, 0);
   }
 } // End of __paywallScriptParsed guard

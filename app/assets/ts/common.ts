@@ -830,7 +830,7 @@ export class ResultCopier {
 }
 
 // Initialize common functionality when DOM is ready
-function initCommon() {
+export function initCommon(): void {
   new MobileMenu();
   new ClerkAuth();
   new TextareaEnhancer("product_description_area");

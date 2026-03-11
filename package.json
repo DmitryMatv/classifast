@@ -6,6 +6,8 @@
     "build": "bun run build:ts && bun run build:css",
     "build:ts": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --target=browser --format=iife",
     "build:css": "bun tailwindcss -i ./app/assets/css/input.css -o ./app/static/css/styles.css",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "watch": "bun build app/assets/ts/common.ts app/assets/ts/paywall.ts app/assets/ts/classifier.ts --outdir app/static/js --target=browser --format=iife --watch",
     "watch:css": "bun tailwindcss -i ./app/assets/css/input.css -o ./app/static/css/styles.css --watch",
     "typecheck": "tsc --noEmit",
@@ -16,10 +18,13 @@
     "@tsconfig/strictest": "^2.0.8",
     "@types/bun": "^1.3.7",
     "@types/web": "^0.0.323",
+    "jsdom": "^26.1.0",
     "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   },
   "trustedDependencies": [
-    "@parcel/watcher"
+    "@parcel/watcher",
+    "esbuild"
   ]
 }
