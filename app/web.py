@@ -2,12 +2,17 @@ import logging
 import re
 import time
 from datetime import datetime
-from email.utils import formatdate
 from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from .cache_profiles import (
+    CLASSIFICATION_RESULT,
+    HTML_PAGE,
+    NO_STORE,
+    build_cache_headers,
+)
 from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import templates
@@ -24,11 +29,6 @@ from .usage_tracker import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def get_expires_header(max_age_seconds: int) -> str:
-    """Generate Expires header value in HTTP-date format (RFC 7231)."""
-    return formatdate(time.time() + max_age_seconds, usegmt=True)
 
 
 def slugify(text: str) -> str:
@@ -56,14 +56,10 @@ async def read_root(request: Request):
 
     # For HEAD requests, return just headers
     if request.method == "HEAD":
-        headers = {
-            "Cache-Control": "public, max-age=14400",
-            "Cloudflare-CDN-Cache-Control": "max-age=604800",
-            "Expires": get_expires_header(14400),
-            "Vary": "Accept-Encoding",
-            "Content-Type": "text/html; charset=utf-8",
-            "Link": '<https://classifast.com/>; rel="canonical"',
-        }
+        headers = build_cache_headers(HTML_PAGE)
+        headers["Vary"] = "Accept-Encoding"
+        headers["Content-Type"] = "text/html; charset=utf-8"
+        headers["Link"] = '<https://classifast.com/>; rel="canonical"'
         return Response(headers=headers)
 
     today = datetime.now()
@@ -74,9 +70,7 @@ async def read_root(request: Request):
     )
 
     # Cloudflare-friendly cache headers (same as classifier pages)
-    response.headers["Cache-Control"] = "public, max-age=14400"
-    response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
-    response.headers["Expires"] = get_expires_header(14400)
+    response.headers.update(build_cache_headers(HTML_PAGE))
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = '<https://classifast.com/>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"
@@ -188,8 +182,7 @@ async def get_classification_fragment(
                     "free_user_limit": FREE_USER_LIMIT,
                 },
             )
-            response.headers["Cache-Control"] = "no-store, max-age=0"
-            response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
+            response.headers.update(build_cache_headers(NO_STORE))
             if push_url:
                 response.headers["HX-Push-Url"] = new_url
             add_quota_headers(response, usage_status)
@@ -217,9 +210,7 @@ async def get_classification_fragment(
                 "results_for_query": [],
             },
         )
-        response.headers["Cache-Control"] = "public, max-age=14400"
-        response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
-        response.headers["Expires"] = get_expires_header(14400)
+        response.headers.update(build_cache_headers(CLASSIFICATION_RESULT))
         response.headers["Vary"] = "Accept-Encoding"
         add_quota_headers(response, usage_status)
         return response
@@ -279,12 +270,7 @@ async def get_classification_fragment(
     # Cache classification results to save expensive API calls (ZeroEntropy, Gemini, Qdrant)
     # Cloudflare edge cache handles this - cache hits don't consume quotas
     cache_headers = get_classification_cache_headers()
-    response.headers["Cache-Control"] = cache_headers["Cache-Control"]
-    response.headers["Cloudflare-CDN-Cache-Control"] = cache_headers[
-        "Cloudflare-CDN-Cache-Control"
-    ]
-    response.headers["Expires"] = get_expires_header(14400)
-    response.headers["Vary"] = cache_headers["Vary"]
+    response.headers.update(cache_headers)
 
     # Set HTMX header to update URL in browser address bar (new_url was built earlier)
     if push_url:
@@ -365,14 +351,10 @@ async def show_classifier_page_with_query(
 
     # For HEAD requests, return just headers
     if request.method == "HEAD":
-        headers = {
-            "Cache-Control": "public, max-age=14400",
-            "Cloudflare-CDN-Cache-Control": "max-age=604800",
-            "Expires": get_expires_header(14400),
-            "Vary": "Accept-Encoding",
-            "Content-Type": "text/html; charset=utf-8",
-            "Link": f'<{canonical_url}>; rel="canonical"',
-        }
+        headers = build_cache_headers(HTML_PAGE)
+        headers["Vary"] = "Accept-Encoding"
+        headers["Content-Type"] = "text/html; charset=utf-8"
+        headers["Link"] = f'<{canonical_url}>; rel="canonical"'
         return Response(headers=headers)
 
     # Validate top_k parameter
@@ -433,9 +415,7 @@ async def show_classifier_page_with_query(
     )
 
     # Cloudflare-friendly cache headers (aligned with homepage)
-    response.headers["Cache-Control"] = "public, max-age=14400"
-    response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
-    response.headers["Expires"] = get_expires_header(14400)
+    response.headers.update(build_cache_headers(HTML_PAGE))
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
     response.headers["X-Robots-Tag"] = "index, follow"

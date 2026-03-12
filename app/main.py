@@ -6,7 +6,6 @@ import os
 import re
 import time
 from contextlib import asynccontextmanager
-from email.utils import formatdate
 from pathlib import Path
 
 import redis.asyncio as redis
@@ -22,6 +21,13 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from zeroentropy import ZeroEntropy
 
 from . import api, payments, web
+from .cache_profiles import (
+    STATIC_CODE,
+    STATIC_MEDIA,
+    STATIC_TEXT,
+    CacheProfile,
+    build_cache_headers,
+)
 from .classifier_config import CLASSIFIER_CONFIG
 from .usage_tracker import (
     QDRANT_API_KEY,
@@ -34,11 +40,6 @@ from .usage_tracker import (
 )
 
 BASE_DIR = Path(__file__).parent.parent
-
-
-def get_expires_header(max_age_seconds: int) -> str:
-    """Generate Expires header value in HTTP-date format (RFC 7231)."""
-    return formatdate(time.time() + max_age_seconds, usegmt=True)
 
 
 # Configure logging with Dozzle-friendly JSON formatter
@@ -455,28 +456,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-# Mount static files with caching
-# Optimized for Cloudflare Tunnel (full): CF edge caches based on s-maxage, origin sees tunnel traffic
+# Mount static files with cache-profile-based browser and Cloudflare TTLs.
+def get_static_cache_profile(path: str) -> CacheProfile:
+    """Map a static asset path to the cache profile used for the response."""
+    if path.endswith((".woff", ".woff2", ".png", ".jpg", ".ico")):
+        return STATIC_MEDIA
+    if path.endswith((".css", ".js", ".min.js")):
+        return STATIC_CODE
+    return STATIC_TEXT
+
+
 class CachedStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
         response = await super().get_response(path, scope)
         if isinstance(response, Response):
-            # Long cache for versioned assets (fonts, images), shorter for CSS/JS that might change
-            if path.endswith((".woff", ".woff2", ".png", ".jpg", ".ico")):
-                # Immutable assets - cache for 1 year at edge, 1 week in browser
-                response.headers["Cache-Control"] = "public, max-age=604800, immutable"
-                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=31536000"
-                response.headers["Expires"] = get_expires_header(604800)
-            elif path.endswith((".css", ".js", ".min.js")):
-                # CSS/JS - 1 day browser, 10 days edge
-                response.headers["Cache-Control"] = "public, max-age=86400"
-                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=864000"
-                response.headers["Expires"] = get_expires_header(86400)
-            else:
-                # Other files - 4 hours browser, 7 days edge
-                response.headers["Cache-Control"] = "public, max-age=14400"
-                response.headers["Cloudflare-CDN-Cache-Control"] = "max-age=604800"
-                response.headers["Expires"] = get_expires_header(14400)
+            response.headers.update(build_cache_headers(get_static_cache_profile(path)))
 
             # ETag for conditional requests (CF uses this for revalidation)
             try:
@@ -503,41 +497,38 @@ app.mount(
 )
 
 
-# Root-level static files (browsers/crawlers expect these at root)
-# Cached at CF edge for 24h since these rarely change but get frequent requests
+# Root-level static files (browsers/crawlers expect these at root).
 def static_file_response(
-    path: str, max_age: int = 14400, cdn_max_age: int = 604800
+    path: str, cache_profile: CacheProfile = STATIC_TEXT
 ) -> FileResponse:
     """Serve a static file with Cloudflare-optimized cache headers."""
     file_path = BASE_DIR / "app" / "static" / path
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     response = FileResponse(file_path)
-    response.headers["Cache-Control"] = f"public, max-age={max_age}"
-    response.headers["Cloudflare-CDN-Cache-Control"] = f"max-age={cdn_max_age}"
-    response.headers["Expires"] = get_expires_header(max_age)
+    response.headers.update(build_cache_headers(cache_profile))
     response.headers["Cache-Tag"] = "static-files"
     return response
 
 
 @app.get("/favicon.ico", response_class=FileResponse, include_in_schema=False)
 async def favicon():
-    return static_file_response("images/favicon.ico")
+    return static_file_response("images/favicon.ico", cache_profile=STATIC_MEDIA)
 
 
 @app.get("/robots.txt", response_class=FileResponse)
 async def robots_txt():
-    return static_file_response("robots.txt")
+    return static_file_response("robots.txt", cache_profile=STATIC_TEXT)
 
 
 @app.get("/sitemap.xml", response_class=FileResponse)
 async def sitemap_xml():
-    return static_file_response("sitemap.xml")
+    return static_file_response("sitemap.xml", cache_profile=STATIC_TEXT)
 
 
 @app.get("/llms.txt", response_class=FileResponse)
 async def llms_txt():
-    return static_file_response("llms.txt")
+    return static_file_response("llms.txt", cache_profile=STATIC_TEXT)
 
 
 # Healthcheck

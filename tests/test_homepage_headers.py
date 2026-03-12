@@ -36,14 +36,17 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request("GET", "/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["Cache-Control"], "public, max-age=14400")
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=60, stale-while-revalidate=600",
+        )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=604800",
+            "max-age=7200, stale-while-revalidate=86400",
         )
         self.assertEqual(
             response.headers["Link"],
-            "<https://classifast.com/>; rel=\"canonical\"",
+            '<https://classifast.com/>; rel="canonical"',
         )
         self.assertEqual(response.headers["X-Robots-Tag"], "index, follow")
 
@@ -51,14 +54,17 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request("HEAD", "/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["Cache-Control"], "public, max-age=14400")
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=60, stale-while-revalidate=600",
+        )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=604800",
+            "max-age=7200, stale-while-revalidate=86400",
         )
         self.assertEqual(
             response.headers["Link"],
-            "<https://classifast.com/>; rel=\"canonical\"",
+            '<https://classifast.com/>; rel="canonical"',
         )
 
     async def test_classifier_head_uses_query_specific_canonical_link(self) -> None:
@@ -67,7 +73,7 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["Link"],
-            "<https://classifast.com/NAICS/industrial_pump/>; rel=\"canonical\"",
+            '<https://classifast.com/NAICS/industrial_pump/>; rel="canonical"',
         )
 
 

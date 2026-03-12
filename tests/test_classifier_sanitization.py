@@ -174,8 +174,14 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
     def test_cache_headers_match_cloudflare_policy(self) -> None:
         headers = get_classification_cache_headers()
 
-        self.assertEqual(headers["Cache-Control"], "public, max-age=14400")
-        self.assertEqual(headers["Cloudflare-CDN-Cache-Control"], "max-age=604800")
+        self.assertEqual(
+            headers["Cache-Control"],
+            "public, max-age=60, stale-while-revalidate=600",
+        )
+        self.assertEqual(
+            headers["Cloudflare-CDN-Cache-Control"],
+            "max-age=14400, stale-while-revalidate=86400",
+        )
         self.assertEqual(headers["Vary"], "Accept-Encoding")
 
 

@@ -35,3 +35,7 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 
 - `app/web.py` fragment requests used to overload `url_change` for three unrelated concerns: pushing browser history, updating the page title, and deciding whether usage tracking/paywalls applied. This coupling caused confusing Back/Forward behavior, especially for direct search URLs that auto-loaded results via HTMX.
 - Keep history concerns (`push_url`) separate from quota concerns (`track_usage`) when touching classifier fragments or the initial hidden HTMX loader in `classifier_page.html`.
+
+## Test Harness Gotcha
+
+- Using the full `app.main.app` object in unit tests can leave the test process hanging, especially around static/file-response coverage. Prefer a minimal FastAPI test app or direct helper-level tests for cache-header assertions.

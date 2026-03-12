@@ -23,7 +23,9 @@ def _build_test_app() -> FastAPI:
 
 class SlugifyTests(unittest.TestCase):
     def test_preserves_supported_punctuation(self) -> None:
-        self.assertEqual(slugify("Pump, valve (industrial)'s"), "Pump,_valve_(industrial)'s")
+        self.assertEqual(
+            slugify("Pump, valve (industrial)'s"), "Pump,_valve_(industrial)'s"
+        )
 
     def test_normalizes_internal_whitespace(self) -> None:
         self.assertEqual(slugify("  multi \n spaced\tquery  "), "multi_spaced_query")
@@ -137,6 +139,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             response.headers["Cloudflare-CDN-Cache-Control"],
             "no-store",
         )
+        self.assertNotIn("stale-while-revalidate", response.headers["Cache-Control"])
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
             "/NAICS/industrial_pump",
@@ -155,10 +158,13 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["Cache-Control"], "public, max-age=14400")
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=60, stale-while-revalidate=600",
+        )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=604800",
+            "max-age=14400, stale-while-revalidate=86400",
         )
         perform_classification_mock.assert_not_called()
 

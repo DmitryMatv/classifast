@@ -6,10 +6,12 @@ from typing import Any, Callable, Dict, List, Optional
 import tenacity
 from fastapi import HTTPException
 from google import genai
-from google.genai import errors as genai_errors, types
+from google.genai import errors as genai_errors
+from google.genai import types
 from qdrant_client import QdrantClient, models
 from zeroentropy import ZeroEntropy
 
+from .cache_profiles import CLASSIFICATION_RESULT, add_vary, build_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG
 
 logger = logging.getLogger(__name__)
@@ -393,16 +395,9 @@ def get_classification_cache_headers() -> Dict[str, str]:
     Returns:
         Dictionary with Cache-Control and Vary headers
     """
-    # Uniform cache policy across all endpoints
-    # Browser: 4 hours, Cloudflare CDN: 7 days
-    # Cloudflare-CDN-Cache-Control is Cloudflare-specific and not proxied downstream
-    # Note: We don't set __cf_bm or other Cloudflare cookies on fragment responses
-    # so Cloudflare should cache these regardless of client cookies
-    return {
-        "Cache-Control": "public, max-age=14400",
-        "Cloudflare-CDN-Cache-Control": "max-age=604800",
-        "Vary": "Accept-Encoding",
-    }
+    headers = build_cache_headers(CLASSIFICATION_RESULT)
+    add_vary(headers, "Accept-Encoding")
+    return headers
 
 
 def rerank_with_zeroentropy(
