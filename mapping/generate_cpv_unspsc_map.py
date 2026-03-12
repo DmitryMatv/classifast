@@ -19,6 +19,7 @@ import csv
 import logging
 import os
 import sys
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -42,8 +43,13 @@ INPUT_FILE = Path(__file__).parent.parent / "data/cpv_2008_ver_2013.xlsx"
 UNSPSC_FILE = Path(__file__).parent.parent / "data/unspsc-english-v260801.1.xlsx"
 OUTPUT_FILE = Path(__file__).parent / "cpv_to_unspsc_mapping.csv"
 
-# Set to False to use just names without hierarchy/definition (for performance comparison)
-USE_UNSPSC_CONTEXT = False
+# Keep retrieval and rerank tunable independently for mapping-quality experiments.
+SEMANTIC_RETRIEVE_LIMIT = 300
+RERANK_CANDIDATE_LIMIT = 100
+OUTPUT_TOP_K = 3
+
+# Set to False to use payload-based title/definition text only for reranking.
+USE_UNSPSC_RERANK_CONTEXT = False
 
 ROWS_PER_BATCH = 10
 
@@ -118,23 +124,20 @@ def build_parent_index(
     return index
 
 
-HIERARCHY_LEVELS = [
-    ("category", 5, "000"),
-    ("class", 4, "0000"),
-    ("group", 3, "00000"),
-    ("division", 2, "000000"),
-]
+CPV_PARENT_LEVELS = {
+    "division": [],
+    "group": ["division"],
+    "class": ["group", "division"],
+    "category": ["class", "group", "division"],
+    "subcategory": ["category", "class", "group", "division"],
+}
 
-
-def _level_includes(level: str, target_level: str) -> bool:
-    """Check if a CPV level should include the target level in its hierarchy."""
-    level_order = ["subcategory", "category", "class", "group", "division"]
-    try:
-        level_idx = level_order.index(level)
-        target_idx = level_order.index(target_level)
-        return level_idx <= target_idx
-    except ValueError:
-        return False
+CPV_LEVEL_PATTERNS = {
+    "division": (2, "000000"),
+    "group": (3, "00000"),
+    "class": (4, "0000"),
+    "category": (5, "000"),
+}
 
 
 def build_hierarchy_text(
@@ -156,13 +159,20 @@ def build_hierarchy_text(
     level = get_cpv_level(code)
 
     parents = []
+    seen_parent_codes = set()
 
-    for level_name, prefix_len, suffix in HIERARCHY_LEVELS:
-        if _level_includes(level, level_name):
-            pattern = clean_code[:prefix_len] + suffix
-            parent_code = find_parent_code(pattern, level_name, parent_index)
-            if parent_code:
-                parents.append(code_to_description[parent_code])
+    for level_name in CPV_PARENT_LEVELS.get(level, []):
+        prefix_len, suffix = CPV_LEVEL_PATTERNS[level_name]
+        pattern = clean_code[:prefix_len] + suffix
+        parent_code = find_parent_code(pattern, level_name, parent_index)
+        if (
+            parent_code
+            and parent_code != code
+            and parent_code not in seen_parent_codes
+            and parent_code in code_to_description
+        ):
+            parents.append(code_to_description[parent_code])
+            seen_parent_codes.add(parent_code)
 
     if parents:
         hierarchy_chain = " < ".join(parents)
@@ -372,9 +382,9 @@ def build_unspsc_hierarchy_text(unspsc_code: str, unspsc_lookup: Optional[Dict])
 
     Format varies by level:
     - Segment: {Title} (Definition: ...)
-    - Family: {Title} (Parent: {Segment})
-    - Class: {Title} (Hierarchy: {Family} < {Segment})
-    - Commodity: {Title} (Hierarchy: {Class} < {Family} < {Segment})
+    - Family: {Title} (Definition: ...) (Parent category: {Segment})
+    - Class: {Title} (Definition: ...) (Hierarchy: {Family} < {Segment})
+    - Commodity: {Title} (Definition: ...) (Hierarchy: {Class} < {Family} < {Segment})
 
     Example for commodity 10101501 (Cats):
     Cats (Hierarchy: Livestock < Live animals < Live Plant and Animal Material...)
@@ -385,34 +395,64 @@ def build_unspsc_hierarchy_text(unspsc_code: str, unspsc_lookup: Optional[Dict])
     data = unspsc_lookup[unspsc_code]
     level = data["level"]
     title = data["title"]
+    definition = data.get("definition", "")
+
+    details = []
+    if definition:
+        details.append(f"Definition: {definition}")
 
     if level == "segment":
-        definition = data.get("segment_def", "")
-        if definition:
-            return f"{title} (Definition: {definition})"
+        if details:
+            return f"{title} ({') ('.join(details)})"
         return title
 
     if level == "family":
         segment_title = data.get("segment_title", "")
         if segment_title:
-            return f"{title} (Parent category: {segment_title})"
+            details.append(f"Parent category: {segment_title}")
+        if details:
+            return f"{title} ({') ('.join(details)})"
         return title
 
-    # Class and Commodity - keep original format
     parents = []
 
     if level == "commodity" and data["class_title"]:
         parents.append(data["class_title"])
     if level in ["commodity", "class"] and data["family_title"]:
         parents.append(data["family_title"])
-    if level in ["commodity", "class", "family"] and data["segment_title"]:
+    if level in ["commodity", "class"] and data["segment_title"]:
         parents.append(data["segment_title"])
 
     if parents:
-        hierarchy_chain = " < ".join(parents)
-        return f"{title} (Hierarchy: {hierarchy_chain})"
-    else:
-        return title
+        details.append(f"Hierarchy: {' < '.join(parents)}")
+
+    if details:
+        return f"{title} ({') ('.join(details)})"
+    return title
+
+
+def build_unspsc_rerank_document(
+    candidate: Dict[str, Any],
+    unspsc_lookup: Optional[Dict[str, Dict]] = None,
+    use_context: bool = True,
+) -> str:
+    """Build rerank text for a UNSPSC candidate with context-aware fallback."""
+    payload = candidate.get("payload", {})
+
+    if use_context and unspsc_lookup:
+        original_id = payload.get("original_id", "")
+        hierarchy_text = build_unspsc_hierarchy_text(original_id, unspsc_lookup)
+        if hierarchy_text:
+            return hierarchy_text
+
+    class_name = payload.get("class_name", "")
+    definition = payload.get("definition", "")
+
+    if class_name and definition:
+        return f"{class_name} - Definition: {definition}"
+    if definition:
+        return definition
+    return class_name
 
 
 def load_cpv_data() -> tuple[pd.DataFrame, Dict[str, str], Dict[str, Dict[str, str]]]:
@@ -549,16 +589,11 @@ def classify_single(
     )
     query = embedding_text
 
-    def document_builder(candidate: Dict[str, Any]) -> str:
-        """Build document text from candidate using UNSPSC hierarchy."""
-        payload = candidate.get("payload", {})
-        class_name = payload.get("class_name", "")
-        if USE_UNSPSC_CONTEXT and unspsc_lookup:
-            original_id = payload.get("original_id", "")
-            hierarchy_text = build_unspsc_hierarchy_text(original_id, unspsc_lookup)
-            if hierarchy_text:
-                return hierarchy_text
-        return class_name
+    document_builder = partial(
+        build_unspsc_rerank_document,
+        unspsc_lookup=unspsc_lookup,
+        use_context=USE_UNSPSC_RERANK_CONTEXT,
+    )
 
     try:
         query_embedding = get_embedding(
@@ -574,7 +609,7 @@ def classify_single(
             qdrant_client=qdrant_client,
             collection_name=unspsc_collection,
             query_embedding=query_embedding,
-            top_k=300,
+            top_k=SEMANTIC_RETRIEVE_LIMIT,
             has_quantization=has_quantization,
         )
 
@@ -583,8 +618,8 @@ def classify_single(
                 zclient=zclient,
                 query=query,
                 candidates=matches,
-                top_k=3,
-                rerank_top_n=100,
+                top_k=OUTPUT_TOP_K,
+                rerank_top_n=RERANK_CANDIDATE_LIMIT,
                 document_builder=document_builder,
             )
             # Multiply scores by 100 to match expected scale
@@ -594,7 +629,8 @@ def classify_single(
                 )
         else:
             reranked_matches = [
-                {**match, "zeroentropy_relevance_score": 0.0} for match in matches[:3]
+                {**match, "zeroentropy_relevance_score": 0.0}
+                for match in matches[:OUTPUT_TOP_K]
             ]
 
         cpv_level = get_cpv_level(cpv_code)
@@ -616,7 +652,7 @@ def classify_single(
                 match.get("zeroentropy_relevance_score", 0), 4
             )
 
-        for i in range(len(reranked_matches), 3):
+        for i in range(len(reranked_matches), OUTPUT_TOP_K):
             row_data[f"unspsc_match_{i + 1}_code"] = ""
             row_data[f"unspsc_match_{i + 1}_title"] = ""
             row_data[f"unspsc_match_{i + 1}_type"] = ""
@@ -696,7 +732,7 @@ def main():
     df, code_to_description, parent_index = load_cpv_data()
 
     unspsc_lookup = None
-    if zclient:
+    if zclient and USE_UNSPSC_RERANK_CONTEXT:
         unspsc_lookup = load_unspsc_data()
 
     processed_codes = load_existing_results(OUTPUT_FILE)

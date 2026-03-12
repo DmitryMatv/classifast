@@ -45,6 +45,9 @@ from app.classifier_config import CLASSIFIER_CONFIG
 INPUT_FILE = Path(__file__).parent.parent / "data/unspsc-english-v260801.1.xlsx"
 OUTPUT_FILE = Path(__file__).parent / "unspsc_to_cpv_mapping.csv"
 ROWS_PER_BATCH = 100
+SEMANTIC_RETRIEVE_LIMIT = 100
+RERANK_CANDIDATE_LIMIT = 50
+OUTPUT_TOP_K = 3
 
 
 def load_unspsc_data() -> pd.DataFrame:
@@ -236,13 +239,13 @@ def classify_single(
             embed_dims=cpv_config.get("embed_dims"),
         )
 
-        # Perform semantic search - get top N for reranking
+        # Retrieval and rerank windows stay independently tunable on purpose.
         has_quantization = quantization_cache.get(cpv_collection, False)
         matches = perform_semantic_search(
             qdrant_client=qdrant_client,
             collection_name=cpv_collection,
             query_embedding=query_embedding,
-            top_k=100,  # Get more candidates for better reranking results
+            top_k=SEMANTIC_RETRIEVE_LIMIT,
             has_quantization=has_quantization,
         )
 
@@ -252,8 +255,8 @@ def classify_single(
                 zclient=zclient,
                 query=query,
                 candidates=matches,
-                top_k=3,  # Get top 3 to match CSV fieldnames
-                rerank_top_n=50,  # Rerank top N candidates for better results
+                top_k=OUTPUT_TOP_K,
+                rerank_top_n=RERANK_CANDIDATE_LIMIT,
             )
             # ZeroEntropy returns scores in 0-1 range; scale to 0-100 for consistency with semantic search scores
             for match in reranked_matches:
@@ -263,7 +266,8 @@ def classify_single(
         else:
             # No ZeroEntropy available, use original semantic search scores
             reranked_matches = [
-                {**match, "zeroentropy_relevance_score": 0.0} for match in matches[:3]
+                {**match, "zeroentropy_relevance_score": 0.0}
+                for match in matches[:OUTPUT_TOP_K]
             ]
 
         # Build result row
@@ -286,7 +290,7 @@ def classify_single(
             )
 
         # Fill empty matches with empty strings
-        for i in range(len(reranked_matches), 3):
+        for i in range(len(reranked_matches), OUTPUT_TOP_K):
             row_data[f"cpv_match_{i + 1}_code"] = ""
             row_data[f"cpv_match_{i + 1}_name"] = ""
             row_data[f"cpv_match_{i + 1}_score"] = ""
