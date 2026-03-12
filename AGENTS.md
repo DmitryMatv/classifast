@@ -36,6 +36,13 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - `app/web.py` fragment requests used to overload `url_change` for three unrelated concerns: pushing browser history, updating the page title, and deciding whether usage tracking/paywalls applied. This coupling caused confusing Back/Forward behavior, especially for direct search URLs that auto-loaded results via HTMX.
 - Keep history concerns (`push_url`) separate from quota concerns (`track_usage`) when touching classifier fragments or the initial hidden HTMX loader in `classifier_page.html`.
 
+## Qdrant Index Contract Gotcha
+
+- Do not add a Qdrant full-text index to `original_id`.
+- Exact ID lookup in `app/classifier.py` uses `MatchValue` on `original_id`, so that field should use a `keyword` payload index.
+- Partial ID lookup in `app/classifier.py` uses `MatchText` plus Python-side normalization/filtering, and it relies on `original_id` not having a full-text index so Qdrant keeps substring-style matching behavior for that field.
+- Use `text(word)` payload indexes only for human-readable fields such as `class_name`.
+
 ## Test Harness Gotcha
 
 - Using the full `app.main.app` object in unit tests can leave the test process hanging, especially around static/file-response coverage. Prefer a minimal FastAPI test app or direct helper-level tests for cache-header assertions.

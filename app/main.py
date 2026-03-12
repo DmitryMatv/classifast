@@ -29,6 +29,7 @@ from .cache_profiles import (
     build_cache_headers,
 )
 from .classifier_config import CLASSIFIER_CONFIG
+from .qdrant_indexes import PAYLOAD_INDEX_FIELDS, get_expected_payload_index_schema
 from .usage_tracker import (
     QDRANT_API_KEY,
     QDRANT_HOST,
@@ -64,40 +65,27 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def build_text_search_index_params() -> models.TextIndexParams:
-    """Return the Qdrant text index settings used by MatchText search."""
-    return models.TextIndexParams(
-        type=models.TextIndexType.TEXT,
-        tokenizer=models.TokenizerType.WORD,
-        min_token_len=1,
-        max_token_len=30,
-        lowercase=True,
-    )
-
-
-def provision_text_search_indexes(
+def provision_payload_indexes(
     qdrant_client: QdrantClient,
     collection_name: str,
 ) -> None:
     """
-    Provision Qdrant text-search indexes for fields used by MatchText lookups.
+    Provision Qdrant payload indexes required by classifier lookups.
 
     Args:
         qdrant_client: The Qdrant client instance
         collection_name: The name of the collection to index
     """
-    fields_to_index = ["original_id", "class_name"]
-
-    for field_name in fields_to_index:
+    for field_name in PAYLOAD_INDEX_FIELDS:
         try:
             qdrant_client.create_payload_index(
                 collection_name=collection_name,
                 field_name=field_name,
-                field_schema=build_text_search_index_params(),
+                field_schema=get_expected_payload_index_schema(field_name),
                 wait=True,
             )
             logger.info(
-                "Created text-search payload index for field '%s' in collection '%s'",
+                "Created payload index for field '%s' in collection '%s'",
                 field_name,
                 collection_name,
             )
@@ -105,14 +93,14 @@ def provision_text_search_indexes(
             error_message = str(e).lower()
             if "already exists" in error_message:
                 logger.warning(
-                    "Text-search payload index for field '%s' in collection '%s' already exists. Existing collections may need utilities/create_text_indexes.py if this field was previously indexed as KEYWORD.",
+                    "Payload index for field '%s' in collection '%s' already exists. Existing collections may need utilities/create_text_indexes.py if 'original_id' was previously indexed as TEXT.",
                     field_name,
                     collection_name,
                 )
                 continue
 
             logger.warning(
-                "Could not create text-search payload index for field '%s' in collection '%s': %s",
+                "Could not create payload index for field '%s' in collection '%s': %s",
                 field_name,
                 collection_name,
                 e,
@@ -202,7 +190,7 @@ async def lifespan(app: FastAPI):
                 collection_quantization_cache[collection_name] = has_quantization
 
                 # Ensure text-search indexes exist for MatchText lookups.
-                provision_text_search_indexes(qdrant_client, collection_name)
+                provision_payload_indexes(qdrant_client, collection_name)
 
     except Exception as e:
         logger.error("Error initializing Qdrant client: %s", e)

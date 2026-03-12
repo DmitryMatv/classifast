@@ -1,8 +1,8 @@
 """
-Manual remediation utility for Qdrant collections created with the old keyword-index contract.
+Manual remediation utility for Qdrant collections with mismatched payload indexes.
 
-Run this after deploying the text-index startup fix to recreate payload indexes for
-fields used by MatchText search.
+Run this after deploying the payload-index contract fix to reconcile existing
+collections with the classifier lookup logic.
 
 Usage:
     python utilities/create_text_indexes.py
@@ -10,8 +10,8 @@ Usage:
 The script will:
 1. Connect to Qdrant
 2. Iterate through all collections defined in CLASSIFIER_CONFIG
-3. Inspect existing payload indexes on 'original_id' and 'class_name'
-4. Create or replace indexes only when they do not match the expected text settings
+3. Inspect existing payload indexes on classifier lookup fields
+4. Create or replace indexes only when they do not match the expected schema
 """
 
 import os
@@ -25,21 +25,20 @@ from qdrant_client import QdrantClient, models
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.classifier_config import CLASSIFIER_CONFIG
+from app.qdrant_indexes import (
+    CLASS_NAME_FIELD,
+    ORIGINAL_ID_FIELD,
+    PAYLOAD_INDEX_FIELDS,
+    build_class_name_text_index_params,
+    get_expected_payload_index_schema,
+)
 
 load_dotenv()
 
-TEXT_SEARCH_FIELDS = ["original_id", "class_name"]
-
 
 def build_text_index_params() -> models.TextIndexParams:
-    """Return the Qdrant text index settings expected by MatchText lookups."""
-    return models.TextIndexParams(
-        type="text",
-        tokenizer=models.TokenizerType.WORD,
-        min_token_len=1,
-        max_token_len=30,
-        lowercase=True,
-    )
+    """Backward-compatible alias for the class_name text index settings."""
+    return build_class_name_text_index_params()
 
 
 def get_existing_payload_index(
@@ -90,22 +89,31 @@ def normalize_text_index_params(
     }
 
 
-def is_expected_text_index(index_info: models.PayloadIndexInfo) -> bool:
-    """Return whether the existing payload index already matches MatchText settings."""
-    if index_info.data_type != models.PayloadSchemaType.TEXT:
-        return False
+def is_expected_payload_index(
+    field_name: str,
+    index_info: models.PayloadIndexInfo,
+) -> bool:
+    """Return whether the existing payload index matches the field contract."""
+    if field_name == ORIGINAL_ID_FIELD:
+        return index_info.data_type == models.PayloadSchemaType.KEYWORD
 
-    params = index_info.params
-    if params is not None and not isinstance(params, models.TextIndexParams):
-        return False
+    if field_name == CLASS_NAME_FIELD:
+        if index_info.data_type != models.PayloadSchemaType.TEXT:
+            return False
 
-    return normalize_text_index_params(params) == normalize_text_index_params(
-        build_text_index_params()
-    )
+        params = index_info.params
+        if params is not None and not isinstance(params, models.TextIndexParams):
+            return False
+
+        return normalize_text_index_params(params) == normalize_text_index_params(
+            build_class_name_text_index_params()
+        )
+
+    raise KeyError(f"Unsupported payload index field: {field_name}")
 
 
 def create_qdrant_client() -> QdrantClient:
-    """Create a Qdrant client for the manual text-index remediation flow."""
+    """Create a Qdrant client for the manual payload-index remediation flow."""
     qdrant_remote_url = os.getenv("QDRANT_URL")
     qdrant_remote_api_key = os.getenv("QDRANT_API_KEY")
 
@@ -144,7 +152,7 @@ def delete_existing_index(
     collection_name: str,
     field_name: str,
 ) -> bool:
-    """Delete an existing payload index before recreating it as a text index."""
+    """Delete an existing payload index before recreating it with the right schema."""
     try:
         client.delete_payload_index(
             collection_name=collection_name,
@@ -158,23 +166,23 @@ def delete_existing_index(
         return False
 
 
-def create_text_index(
+def create_expected_index(
     client: QdrantClient,
     collection_name: str,
     field_name: str,
 ) -> bool:
-    """Create the expected text payload index on a field."""
+    """Create the expected payload index on a field."""
     try:
         client.create_payload_index(
             collection_name=collection_name,
             field_name=field_name,
-            field_schema=build_text_index_params(),
+            field_schema=get_expected_payload_index_schema(field_name),
             wait=True,
         )
-        print(f"  + Recreated text index on '{field_name}'")
+        print(f"  + Recreated expected payload index on '{field_name}'")
         return True
     except Exception as e:
-        print(f"  ! Failed to create text index on '{field_name}': {e}")
+        print(f"  ! Failed to create expected payload index on '{field_name}': {e}")
         return False
 
 
@@ -208,13 +216,13 @@ def restore_previous_index(
         return False
 
 
-def migrate_collection_text_indexes(
+def migrate_collection_payload_indexes(
     client: QdrantClient,
     collection_name: str,
     fields_to_index: list[str] | None = None,
 ) -> bool:
-    """Inspect and reconcile the expected text indexes for one collection."""
-    fields = fields_to_index or TEXT_SEARCH_FIELDS
+    """Inspect and reconcile the expected payload indexes for one collection."""
+    fields = fields_to_index or list(PAYLOAD_INDEX_FIELDS)
     collection_success = True
 
     try:
@@ -227,12 +235,14 @@ def migrate_collection_text_indexes(
         existing_index = get_existing_payload_index(collection_info, field_name)
 
         if existing_index is None:
-            if not create_text_index(client, collection_name, field_name):
+            if not create_expected_index(client, collection_name, field_name):
                 collection_success = False
             continue
 
-        if is_expected_text_index(existing_index):
-            print(f"  = Text index on '{field_name}' already matches expected settings")
+        if is_expected_payload_index(field_name, existing_index):
+            print(
+                f"  = Payload index on '{field_name}' already matches expected settings"
+            )
             continue
 
         print(
@@ -242,7 +252,7 @@ def migrate_collection_text_indexes(
             collection_success = False
             continue
 
-        if not create_text_index(client, collection_name, field_name):
+        if not create_expected_index(client, collection_name, field_name):
             collection_success = False
             if not restore_previous_index(
                 client,
@@ -259,7 +269,7 @@ def migrate_configured_collections(
     client: QdrantClient,
     classifier_config: dict | None = None,
 ) -> tuple[int, int]:
-    """Run the manual text-index remediation for every configured collection."""
+    """Run the manual payload-index remediation for every configured collection."""
     collection_names = get_all_collection_names(classifier_config)
     success_count = 0
     error_count = 0
@@ -269,7 +279,7 @@ def migrate_configured_collections(
     for collection_name in collection_names:
         print(f"\nProcessing remediation for: {collection_name}")
 
-        if migrate_collection_text_indexes(client, collection_name):
+        if migrate_collection_payload_indexes(client, collection_name):
             success_count += 1
         else:
             error_count += 1
@@ -279,10 +289,10 @@ def migrate_configured_collections(
 
 def main() -> int:
     print("=" * 60)
-    print("Qdrant Text Index Remediation")
+    print("Qdrant Payload Index Remediation")
     print("=" * 60)
     print(
-        "This is the required remediation for collections created before the text-index fix."
+        "This reconciles existing payload indexes with classifier exact and partial ID lookup behavior."
     )
 
     client = create_qdrant_client()

@@ -1,34 +1,42 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from qdrant_client import models
-
+import app.qdrant_indexes as qdrant_indexes
 from app import main
+from qdrant_client import models
 from utilities import create_text_indexes
 
 
 class QdrantStartupIndexTests(unittest.TestCase):
-    def test_startup_provisions_text_indexes(self):
+    def test_startup_provisions_expected_payload_indexes(self):
         client = MagicMock()
 
-        main.provision_text_search_indexes(client, "products")
+        main.provision_payload_indexes(client, "products")
 
         self.assertEqual(client.create_payload_index.call_count, 2)
 
-        for call in client.create_payload_index.call_args_list:
-            self.assertEqual(call.kwargs["collection_name"], "products")
-            self.assertIn(call.kwargs["field_name"], {"original_id", "class_name"})
-            self.assertTrue(call.kwargs["wait"])
+        created_fields = {
+            call.kwargs["field_name"]: call.kwargs["field_schema"]
+            for call in client.create_payload_index.call_args_list
+        }
+        self.assertEqual(
+            set(created_fields),
+            set(qdrant_indexes.PAYLOAD_INDEX_FIELDS),
+        )
 
-            field_schema = call.kwargs["field_schema"]
-            self.assertIsInstance(field_schema, models.TextIndexParams)
-            self.assertEqual(field_schema.type, "text")
-            self.assertEqual(field_schema.tokenizer, models.TokenizerType.WORD)
-            self.assertEqual(field_schema.min_token_len, 1)
-            self.assertEqual(field_schema.max_token_len, 30)
-            self.assertTrue(field_schema.lowercase)
+        original_id_schema = created_fields[qdrant_indexes.ORIGINAL_ID_FIELD]
+        self.assertIsInstance(original_id_schema, models.KeywordIndexParams)
+        self.assertEqual(original_id_schema.type, "keyword")
 
-    def test_existing_index_warning_mentions_manual_migration(self):
+        class_name_schema = created_fields[qdrant_indexes.CLASS_NAME_FIELD]
+        self.assertIsInstance(class_name_schema, models.TextIndexParams)
+        self.assertEqual(class_name_schema.type, "text")
+        self.assertEqual(class_name_schema.tokenizer, models.TokenizerType.WORD)
+        self.assertEqual(class_name_schema.min_token_len, 1)
+        self.assertEqual(class_name_schema.max_token_len, 30)
+        self.assertTrue(class_name_schema.lowercase)
+
+    def test_existing_index_warning_mentions_text_remediation(self):
         client = MagicMock()
         client.create_payload_index.side_effect = [
             Exception("payload index already exists"),
@@ -36,14 +44,24 @@ class QdrantStartupIndexTests(unittest.TestCase):
         ]
 
         with self.assertLogs(main.logger, level="WARNING") as logs:
-            main.provision_text_search_indexes(client, "products")
+            main.provision_payload_indexes(client, "products")
 
         self.assertTrue(
             any(
                 "utilities/create_text_indexes.py" in message for message in logs.output
             )
         )
-        self.assertTrue(any("KEYWORD" in message for message in logs.output))
+        self.assertTrue(any("indexed as TEXT" in message for message in logs.output))
+
+
+class QdrantIndexContractTests(unittest.TestCase):
+    def test_original_id_schema_is_keyword_for_exact_and_partial_contract(self):
+        schema = qdrant_indexes.get_expected_payload_index_schema(
+            qdrant_indexes.ORIGINAL_ID_FIELD
+        )
+
+        self.assertIsInstance(schema, models.KeywordIndexParams)
+        self.assertEqual(schema.type, "keyword")
 
 
 class QdrantMigrationUtilityTests(unittest.TestCase):
@@ -69,11 +87,11 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
             points=10,
         )
 
-    def test_missing_field_creates_without_delete(self):
+    def test_missing_field_creates_expected_schema_without_delete(self):
         client = MagicMock()
         client.get_collection.return_value = self.make_collection_info({})
 
-        success = create_text_indexes.migrate_collection_text_indexes(
+        success = create_text_indexes.migrate_collection_payload_indexes(
             client, "products"
         )
 
@@ -81,29 +99,29 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         self.assertEqual(client.create_payload_index.call_count, 2)
         client.delete_payload_index.assert_not_called()
 
-        create_fields = [
-            call.kwargs["field_name"]
+        created_fields = {
+            call.kwargs["field_name"]: call.kwargs["field_schema"]
             for call in client.create_payload_index.call_args_list
-        ]
-        self.assertEqual(create_fields, ["original_id", "class_name"])
+        }
+        self.assertIsInstance(
+            created_fields[qdrant_indexes.ORIGINAL_ID_FIELD],
+            models.KeywordIndexParams,
+        )
+        self.assertIsInstance(
+            created_fields[qdrant_indexes.CLASS_NAME_FIELD],
+            models.TextIndexParams,
+        )
 
-        for create_call in client.create_payload_index.call_args_list:
-            self.assertEqual(create_call.kwargs["collection_name"], "products")
-            self.assertTrue(create_call.kwargs["wait"])
-            self.assertIsInstance(
-                create_call.kwargs["field_schema"], models.TextIndexParams
-            )
-
-    def test_expected_text_index_is_skipped(self):
+    def test_expected_indexes_are_skipped(self):
         client = MagicMock()
         client.get_collection.return_value = self.make_collection_info(
             {
-                "original_id": self.make_text_index(),
-                "class_name": self.make_text_index(),
+                qdrant_indexes.ORIGINAL_ID_FIELD: self.make_keyword_index(),
+                qdrant_indexes.CLASS_NAME_FIELD: self.make_text_index(),
             }
         )
 
-        success = create_text_indexes.migrate_collection_text_indexes(
+        success = create_text_indexes.migrate_collection_payload_indexes(
             client, "products"
         )
 
@@ -111,16 +129,16 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         client.delete_payload_index.assert_not_called()
         client.create_payload_index.assert_not_called()
 
-    def test_keyword_index_is_replaced(self):
+    def test_original_id_text_index_is_replaced_with_keyword(self):
         client = MagicMock()
         client.get_collection.return_value = self.make_collection_info(
             {
-                "original_id": self.make_keyword_index(),
-                "class_name": self.make_text_index(),
+                qdrant_indexes.ORIGINAL_ID_FIELD: self.make_text_index(),
+                qdrant_indexes.CLASS_NAME_FIELD: self.make_text_index(),
             }
         )
 
-        success = create_text_indexes.migrate_collection_text_indexes(
+        success = create_text_indexes.migrate_collection_payload_indexes(
             client, "products"
         )
 
@@ -128,24 +146,48 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         self.assertEqual(client.delete_payload_index.call_count, 1)
         self.assertEqual(client.create_payload_index.call_count, 1)
         self.assertEqual(
-            client.delete_payload_index.call_args.kwargs["field_name"], "original_id"
+            client.delete_payload_index.call_args.kwargs["field_name"],
+            qdrant_indexes.ORIGINAL_ID_FIELD,
         )
-        self.assertEqual(
-            client.create_payload_index.call_args.kwargs["field_name"], "original_id"
-        )
+        created_schema = client.create_payload_index.call_args.kwargs["field_schema"]
+        self.assertIsInstance(created_schema, models.KeywordIndexParams)
 
-    def test_noncanonical_text_index_is_replaced(self):
+    def test_class_name_keyword_index_is_replaced_with_text(self):
         client = MagicMock()
         client.get_collection.return_value = self.make_collection_info(
             {
-                "original_id": self.make_text_index(
+                qdrant_indexes.ORIGINAL_ID_FIELD: self.make_keyword_index(),
+                qdrant_indexes.CLASS_NAME_FIELD: self.make_keyword_index(),
+            }
+        )
+
+        success = create_text_indexes.migrate_collection_payload_indexes(
+            client, "products"
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(client.delete_payload_index.call_count, 1)
+        self.assertEqual(client.create_payload_index.call_count, 1)
+        self.assertEqual(
+            client.delete_payload_index.call_args.kwargs["field_name"],
+            qdrant_indexes.CLASS_NAME_FIELD,
+        )
+        created_schema = client.create_payload_index.call_args.kwargs["field_schema"]
+        self.assertIsInstance(created_schema, models.TextIndexParams)
+        self.assertEqual(created_schema.tokenizer, models.TokenizerType.WORD)
+
+    def test_noncanonical_class_name_text_index_is_replaced(self):
+        client = MagicMock()
+        client.get_collection.return_value = self.make_collection_info(
+            {
+                qdrant_indexes.ORIGINAL_ID_FIELD: self.make_keyword_index(),
+                qdrant_indexes.CLASS_NAME_FIELD: self.make_text_index(
                     tokenizer=models.TokenizerType.PREFIX
                 ),
-                "class_name": self.make_text_index(),
             }
         )
 
-        success = create_text_indexes.migrate_collection_text_indexes(
+        success = create_text_indexes.migrate_collection_payload_indexes(
             client, "products"
         )
 
@@ -153,24 +195,25 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         self.assertEqual(client.delete_payload_index.call_count, 1)
         self.assertEqual(client.create_payload_index.call_count, 1)
         self.assertEqual(
-            client.delete_payload_index.call_args.kwargs["field_name"], "original_id"
+            client.delete_payload_index.call_args.kwargs["field_name"],
+            qdrant_indexes.CLASS_NAME_FIELD,
         )
 
     def test_create_failure_triggers_rollback(self):
         client = MagicMock()
-        previous_index = self.make_keyword_index()
+        previous_index = self.make_text_index()
         client.get_collection.return_value = self.make_collection_info(
-            {"original_id": previous_index, "class_name": self.make_text_index()}
+            {qdrant_indexes.ORIGINAL_ID_FIELD: previous_index}
         )
         client.create_payload_index.side_effect = [
             Exception("timeout"),
             None,
         ]
 
-        success = create_text_indexes.migrate_collection_text_indexes(
+        success = create_text_indexes.migrate_collection_payload_indexes(
             client,
             "products",
-            ["original_id"],
+            [qdrant_indexes.ORIGINAL_ID_FIELD],
         )
 
         self.assertFalse(success)
@@ -178,7 +221,7 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         self.assertEqual(client.create_payload_index.call_count, 2)
         self.assertIsInstance(
             client.create_payload_index.call_args_list[0].kwargs["field_schema"],
-            models.TextIndexParams,
+            models.KeywordIndexParams,
         )
         self.assertEqual(
             client.create_payload_index.call_args_list[1].kwargs["field_schema"],
@@ -187,19 +230,19 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
 
     def test_create_failure_with_failed_rollback_marks_failure(self):
         client = MagicMock()
-        previous_index = self.make_keyword_index()
+        previous_index = self.make_text_index()
         client.get_collection.return_value = self.make_collection_info(
-            {"original_id": previous_index}
+            {qdrant_indexes.ORIGINAL_ID_FIELD: previous_index}
         )
         client.create_payload_index.side_effect = [
             Exception("timeout"),
             Exception("rollback failed"),
         ]
 
-        success = create_text_indexes.migrate_collection_text_indexes(
+        success = create_text_indexes.migrate_collection_payload_indexes(
             client,
             "products",
-            ["original_id"],
+            [qdrant_indexes.ORIGINAL_ID_FIELD],
         )
 
         self.assertFalse(success)
@@ -227,7 +270,9 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         }
 
         with patch.object(
-            create_text_indexes, "migrate_collection_text_indexes", return_value=True
+            create_text_indexes,
+            "migrate_collection_payload_indexes",
+            return_value=True,
         ) as migrate_collection:
             success_count, error_count = (
                 create_text_indexes.migrate_configured_collections(client, config)
