@@ -1,9 +1,76 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+function createScoreBarsMarkup(count = 3): string {
+  return Array.from({ length: count }, (_, index) => {
+    const width = Math.max(10, 100 - index * 20);
+    return `<div class="score-bar" data-score-bar style="width: ${width}%;"></div>`;
+  }).join("");
+}
+
+function setResultsMarkup(markup: string): HTMLElement {
+  const resultsContainer = document.getElementById(
+    "results-container",
+  ) as HTMLElement;
+  resultsContainer.innerHTML = markup;
+  return resultsContainer;
+}
+
+function getScoreBars(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>("[data-score-bar]"));
+}
+
+function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
+  return {
+    matches,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => false),
+  };
+}
+
+function createAnimationFrameController(): {
+  flush: () => void;
+  requestAnimationFrameMock: ReturnType<typeof vi.fn>;
+} {
+  const callbacks: FrameRequestCallback[] = [];
+  const requestAnimationFrameMock = vi.fn((callback: FrameRequestCallback) => {
+    callbacks.push(callback);
+    return callbacks.length;
+  });
+
+  Object.defineProperty(window, "requestAnimationFrame", {
+    configurable: true,
+    writable: true,
+    value: requestAnimationFrameMock,
+  });
+  vi.stubGlobal("requestAnimationFrame", requestAnimationFrameMock);
+
+  return {
+    requestAnimationFrameMock,
+    flush: () => {
+      let iterations = 0;
+      while (callbacks.length > 0) {
+        const callback = callbacks.shift();
+        callback?.(0);
+        iterations += 1;
+        if (iterations > 10) {
+          throw new Error("Unexpected requestAnimationFrame loop");
+        }
+      }
+    },
+  };
+}
+
 describe("classifier.ts", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
+    const freshBody = document.body.cloneNode(false) as HTMLBodyElement;
+    document.body.replaceWith(freshBody);
     document.body.innerHTML = `
       <form hx-get="/NAICS/fragment">
         <textarea id="product_description_area"></textarea>
@@ -32,6 +99,29 @@ describe("classifier.ts", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("animates initial score bars with a shared base delay and stagger", async () => {
+    const animationFrameController = createAnimationFrameController();
+    setResultsMarkup(createScoreBarsMarkup());
+
+    await import("./classifier");
+    animationFrameController.flush();
+
+    const scoreBars = getScoreBars();
+    expect(scoreBars).toHaveLength(3);
+    expect(scoreBars[0]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[1]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(
+      scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("60ms");
+    expect(
+      scoreBars[1]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("130ms");
+    expect(
+      scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("200ms");
   });
 
   it("auto-submits on top-k change only when textarea has content", async () => {
@@ -74,6 +164,45 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
     expect(indicator.classList.contains("htmx-request")).toBe(false);
+  });
+
+  it("waits until HTMX afterSettle to animate swapped score bars", async () => {
+    const animationFrameController = createAnimationFrameController();
+    await import("./classifier");
+    const resultsContainer = setResultsMarkup(createScoreBarsMarkup());
+    const resultsSection = document.getElementById(
+      "results-section",
+    ) as HTMLElement;
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterSwap", {
+        detail: { target: resultsContainer },
+      } as CustomEventInit),
+    );
+
+    let scoreBars = getScoreBars();
+    expect(resultsSection.classList.contains("hidden")).toBe(false);
+    expect(scoreBars[0]?.classList.contains("is-score-bar-visible")).toBe(
+      false,
+    );
+    expect(
+      scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterSettle", {
+        detail: { target: resultsContainer },
+      } as CustomEventInit),
+    );
+    animationFrameController.flush();
+
+    scoreBars = getScoreBars();
+    expect(scoreBars[0]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[1]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(
+      scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("60ms");
   });
 
   it("injects rate limit responses into the results container", async () => {
@@ -124,6 +253,28 @@ describe("classifier.ts", () => {
     expect(content.style.display).toBe("none");
   });
 
+  it("replays score bar animation during history restore", async () => {
+    const animationFrameController = createAnimationFrameController();
+    await import("./classifier");
+    const resultsContainer = setResultsMarkup(createScoreBarsMarkup());
+    const resultsSection = document.getElementById(
+      "results-section",
+    ) as HTMLElement;
+
+    document.body.dispatchEvent(new CustomEvent("htmx:historyRestore"));
+    animationFrameController.flush();
+
+    const scoreBars = getScoreBars();
+    expect(resultsSection.classList.contains("hidden")).toBe(false);
+    expect(scoreBars[0]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[1]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(
+      scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("60ms");
+    expect(resultsContainer.innerHTML).toContain("score-bar");
+  });
+
   it("syncs form state before history save and re-runs results visibility on restore", async () => {
     await import("./classifier");
     const textarea = document.getElementById(
@@ -162,5 +313,50 @@ describe("classifier.ts", () => {
     document.body.dispatchEvent(new CustomEvent("htmx:historyRestore"));
 
     expect(resultsSection.classList.contains("hidden")).toBe(false);
+  });
+
+  it("shows reduced-motion score bars immediately without animation delay", async () => {
+    vi.mocked(window.matchMedia).mockImplementation((query: string) =>
+      createMediaQueryList(query, true),
+    );
+    setResultsMarkup(createScoreBarsMarkup());
+
+    await import("./classifier");
+
+    const scoreBars = getScoreBars();
+    expect(scoreBars).toHaveLength(3);
+    expect(scoreBars[0]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[1]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
+    expect(
+      scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("");
+  });
+
+  it("ignores empty results containers during HTMX swap and settle", async () => {
+    await import("./classifier");
+    const resultsContainer = document.getElementById(
+      "results-container",
+    ) as HTMLElement;
+    const resultsSection = document.getElementById(
+      "results-section",
+    ) as HTMLElement;
+
+    expect(resultsContainer.innerHTML).toBe("");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterSwap", {
+        detail: { target: resultsContainer },
+      } as CustomEventInit),
+    );
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterSettle", {
+        detail: { target: resultsContainer },
+      } as CustomEventInit),
+    );
+
+    expect(resultsContainer.innerHTML).toBe("");
+    expect(resultsSection.classList.contains("hidden")).toBe(true);
+    expect(getScoreBars()).toHaveLength(0);
   });
 });

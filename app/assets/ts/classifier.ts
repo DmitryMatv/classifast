@@ -1,5 +1,9 @@
 import { ShareLink } from "./common";
 
+const BASE_SCORE_BAR_DELAY_MS = 60;
+const SCORE_BAR_STAGGER_MS = 70;
+const MAX_SCORE_BAR_STAGGER_MS = 420;
+
 /**
  * Classifier page specific functionality
  * Handles form auto-submission, HTMX event handling, and UI interactions
@@ -116,8 +120,8 @@ class ClassifierPage {
     scoreBars.forEach((bar, index) => {
       bar.classList.remove("is-score-bar-visible");
       bar.style.setProperty(
-        "--score-stagger-delay",
-        `${Math.min(index * 70, 420)}ms`,
+        "--score-animation-delay",
+        `${BASE_SCORE_BAR_DELAY_MS + Math.min(index * SCORE_BAR_STAGGER_MS, MAX_SCORE_BAR_STAGGER_MS)}ms`,
       );
     });
 
@@ -133,11 +137,14 @@ class ClassifierPage {
   private handleResultsSwap(): void {
     this.ensureResultsSectionVisible();
     this.attachShareButtonListener();
+    this.cleanupInitialResultsLoader();
+  }
+
+  private handleResultsSettle(): void {
     const resultsContainer = document.getElementById("results-container");
     if (resultsContainer) {
       this.animateScoreBars(resultsContainer);
     }
-    this.cleanupInitialResultsLoader();
   }
 
   /**
@@ -220,6 +227,13 @@ class ClassifierPage {
       }
     });
 
+    document.body.addEventListener("htmx:afterSettle", (evt: Event) => {
+      const htmxEvent = evt as HtmxAfterSettleEvent;
+      if (this.isResultsTarget(htmxEvent.detail.target)) {
+        this.handleResultsSettle();
+      }
+    });
+
     // Handle rate limit responses (429)
     document.body.addEventListener("htmx:responseError", (evt: Event) => {
       const htmxEvent = evt as HtmxResponseErrorEvent;
@@ -251,6 +265,7 @@ class ClassifierPage {
     document.body.addEventListener("htmx:historyRestore", () => {
       this.hideLoadingIndicator();
       this.handleResultsSwap();
+      this.handleResultsSettle();
     });
 
     window.addEventListener("pageshow", () => {

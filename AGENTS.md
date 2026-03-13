@@ -46,3 +46,7 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 ## Test Harness Gotcha
 
 - Using the full `app.main.app` object in unit tests can leave the test process hanging, especially around static/file-response coverage. Prefer a minimal FastAPI test app or direct helper-level tests for cache-header assertions.
+
+## Frontend Tooling Gotcha
+
+- Frontend verification depends on the JS toolchain actually being installed locally. If `bun run test` fails with `vitest: command not found` or TypeScript cannot resolve `vitest`, check whether `node_modules` is only partially populated before treating it as a code regression.

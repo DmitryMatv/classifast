@@ -125,6 +125,12 @@ declare global {
     };
   }
 
+  interface HtmxAfterSettleEvent extends CustomEvent {
+    detail: {
+      target: HTMLElement;
+    };
+  }
+
   interface HtmxAfterRequestEvent extends CustomEvent {
     detail: {
       elt: Element;
@@ -143,6 +149,7 @@ declare global {
     "htmx:beforeRequest": HtmxBeforeRequestEvent;
     "htmx:configRequest": HtmxConfigRequestEvent;
     "htmx:afterSwap": HtmxAfterSwapEvent;
+    "htmx:afterSettle": HtmxAfterSettleEvent;
     "htmx:afterRequest": HtmxAfterRequestEvent;
     "htmx:responseError": HtmxResponseErrorEvent;
     "htmx:authReady": CustomEvent;

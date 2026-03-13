@@ -64,6 +64,8 @@ beforeEach(() => {
     }),
   });
 
+  vi.stubGlobal("requestAnimationFrame", window.requestAnimationFrame);
+
   Object.defineProperty(window, "scrollTo", {
     configurable: true,
     writable: true,
