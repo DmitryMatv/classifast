@@ -29,7 +29,6 @@ from .cache_profiles import (
     build_cache_headers,
 )
 from .classifier_config import CLASSIFIER_CONFIG
-from .qdrant_indexes import PAYLOAD_INDEX_FIELDS, get_expected_payload_index_schema
 from .usage_tracker import (
     QDRANT_API_KEY,
     QDRANT_HOST,
@@ -65,6 +64,33 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
+def build_original_id_index_params() -> models.KeywordIndexParams:
+    """Return the exact-match payload index settings for classification IDs."""
+    return models.KeywordIndexParams(type="keyword")
+
+
+def build_class_name_text_index_params() -> models.TextIndexParams:
+    """Return the text-search payload index settings for class names."""
+    return models.TextIndexParams(
+        type=models.TextIndexType.TEXT,
+        tokenizer=models.TokenizerType.WORD,
+        min_token_len=1,
+        max_token_len=30,
+        lowercase=True,
+    )
+
+
+def get_payload_index_schema(
+    field_name: str,
+) -> models.KeywordIndexParams | models.TextIndexParams:
+    """Return the expected payload index schema for a classifier field."""
+    if field_name == "original_id":
+        return build_original_id_index_params()
+    if field_name == "class_name":
+        return build_class_name_text_index_params()
+    raise KeyError(f"Unsupported payload index field: {field_name}")
+
+
 def provision_payload_indexes(
     qdrant_client: QdrantClient,
     collection_name: str,
@@ -76,12 +102,12 @@ def provision_payload_indexes(
         qdrant_client: The Qdrant client instance
         collection_name: The name of the collection to index
     """
-    for field_name in PAYLOAD_INDEX_FIELDS:
+    for field_name in ("original_id", "class_name"):
         try:
             qdrant_client.create_payload_index(
                 collection_name=collection_name,
                 field_name=field_name,
-                field_schema=get_expected_payload_index_schema(field_name),
+                field_schema=get_payload_index_schema(field_name),
                 wait=True,
             )
             logger.info(

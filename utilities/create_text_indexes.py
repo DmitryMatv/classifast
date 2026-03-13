@@ -25,20 +25,37 @@ from qdrant_client import QdrantClient, models
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.classifier_config import CLASSIFIER_CONFIG
-from app.qdrant_indexes import (
-    CLASS_NAME_FIELD,
-    ORIGINAL_ID_FIELD,
-    PAYLOAD_INDEX_FIELDS,
-    build_class_name_text_index_params,
-    get_expected_payload_index_schema,
-)
 
 load_dotenv()
 
+PAYLOAD_INDEX_FIELDS = ("original_id", "class_name")
+
+
+def build_original_id_index_params() -> models.KeywordIndexParams:
+    """Return the exact-match payload index settings for classification IDs."""
+    return models.KeywordIndexParams(type="keyword")
+
 
 def build_text_index_params() -> models.TextIndexParams:
-    """Backward-compatible alias for the class_name text index settings."""
-    return build_class_name_text_index_params()
+    """Return the text-search payload index settings for class names."""
+    return models.TextIndexParams(
+        type=models.TextIndexType.TEXT,
+        tokenizer=models.TokenizerType.WORD,
+        min_token_len=1,
+        max_token_len=30,
+        lowercase=True,
+    )
+
+
+def get_payload_index_schema(
+    field_name: str,
+) -> models.KeywordIndexParams | models.TextIndexParams:
+    """Return the expected payload index schema for a classifier field."""
+    if field_name == "original_id":
+        return build_original_id_index_params()
+    if field_name == "class_name":
+        return build_text_index_params()
+    raise KeyError(f"Unsupported payload index field: {field_name}")
 
 
 def get_existing_payload_index(
@@ -94,10 +111,10 @@ def is_expected_payload_index(
     index_info: models.PayloadIndexInfo,
 ) -> bool:
     """Return whether the existing payload index matches the field contract."""
-    if field_name == ORIGINAL_ID_FIELD:
+    if field_name == "original_id":
         return index_info.data_type == models.PayloadSchemaType.KEYWORD
 
-    if field_name == CLASS_NAME_FIELD:
+    if field_name == "class_name":
         if index_info.data_type != models.PayloadSchemaType.TEXT:
             return False
 
@@ -106,7 +123,7 @@ def is_expected_payload_index(
             return False
 
         return normalize_text_index_params(params) == normalize_text_index_params(
-            build_class_name_text_index_params()
+            build_text_index_params()
         )
 
     raise KeyError(f"Unsupported payload index field: {field_name}")
@@ -176,7 +193,7 @@ def create_expected_index(
         client.create_payload_index(
             collection_name=collection_name,
             field_name=field_name,
-            field_schema=get_expected_payload_index_schema(field_name),
+            field_schema=get_payload_index_schema(field_name),
             wait=True,
         )
         print(f"  + Recreated expected payload index on '{field_name}'")
