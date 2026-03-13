@@ -19,7 +19,7 @@ HTML_PAGE = CacheProfile(
 
 CLASSIFICATION_RESULT = CacheProfile(
     browser_cache_control="public, max-age=60, stale-while-revalidate=600",
-    cloudflare_cache_control="max-age=14400, stale-while-revalidate=86400",
+    cloudflare_cache_control="max-age=86400, stale-while-revalidate=86400",
     browser_max_age=60,
 )
 

@@ -164,7 +164,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=14400, stale-while-revalidate=86400",
+            "max-age=86400, stale-while-revalidate=86400",
         )
         perform_classification_mock.assert_not_called()
 
