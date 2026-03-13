@@ -42,11 +42,11 @@
 
     <meta name="msvalidate.01" content="047F82015E36CB871F2BCF50095278F1" />
 
-    <!-- Inter font from Google Fonts -->
+    <!-- Body and display fonts from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://clerk.classifast.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-JK3ESE6CJR"></script>
@@ -219,6 +219,265 @@
             transform: rotate(45deg) translate(-5px, -6px);
         }
 
+        body.home-surface {
+            background-color: #ffffff;
+            background-image:
+                linear-gradient(rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+                radial-gradient(circle at top left, rgba(125, 211, 252, 0.38), transparent 32%),
+                radial-gradient(circle at 85% 18%, rgba(255, 255, 255, 0.95), transparent 17%),
+                linear-gradient(135deg, #edf7fb 0%, #f7fbfc 22%, #fffaf0 34%, #ffffff 34%);
+            background-size: 100% 72px, 72px 72px, 100% 760px, 100% 760px, 100% 760px;
+            background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat;
+        }
+
+        .site-masthead {
+            position: relative;
+            z-index: 2;
+            background: transparent;
+        }
+
+        .site-masthead>.container {
+            position: relative;
+            z-index: 1;
+        }
+
+        .site-masthead::after {
+            content: "";
+            position: absolute;
+            inset: auto 0 0 0;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(148, 163, 184, 0), rgba(148, 163, 184, 0.18), rgba(148, 163, 184, 0));
+            pointer-events: none;
+        }
+
+        .hero-section {
+            position: relative;
+            overflow: clip;
+            padding-top: 1.5rem;
+            padding-bottom: 4.5rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .hero-section::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 18% 10%, rgba(125, 211, 252, 0.18), transparent 26%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.72), transparent 18%);
+        }
+
+        .hero-section::after {
+            content: "";
+            position: absolute;
+            inset: auto 0 0 0;
+            height: 140px;
+            pointer-events: none;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.65));
+        }
+
+        .hero-shell {
+            position: relative;
+            z-index: 1;
+            max-width: 58rem;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .hero-copy {
+            position: relative;
+            padding: 1rem 0 0;
+        }
+
+        .hero-copy::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 7rem;
+            height: 0.32rem;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.92));
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+
+        .hero-title {
+            margin: 0 auto 1.6rem;
+            color: #0f172a;
+            font-family: 'Inter', sans-serif;
+            font-size: clamp(3.15rem, 6.4vw, 5.45rem);
+            font-weight: 800;
+            line-height: 0.93;
+            letter-spacing: -0.075em;
+            max-width: none;
+        }
+
+        .hero-title-line {
+            display: block;
+            white-space: nowrap;
+        }
+
+        .hero-title-emphasis {
+            display: inline-block;
+            padding: 0 0.16em 0.08em;
+            color: #075985;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0) 56%, rgba(125, 211, 252, 0.56) 56%);
+        }
+
+        .hero-lede {
+            max-width: 35rem;
+            margin: 0 auto 2rem;
+            color: #475569;
+            font-size: clamp(1.06rem, 1.45vw, 1.28rem);
+            line-height: 1.7;
+        }
+
+        .hero-lede a {
+            color: #075985;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: inset 0 -0.26em 0 rgba(125, 211, 252, 0.45);
+            transition: color 180ms ease, box-shadow 180ms ease;
+        }
+
+        .hero-lede a:hover,
+        .hero-lede a:focus-visible {
+            color: #0f172a;
+            box-shadow: inset 0 -0.35em 0 rgba(125, 211, 252, 0.72);
+        }
+
+        .hero-codes-rail {
+            position: relative;
+            margin: 0 auto;
+            max-width: 40rem;
+            padding: 1rem;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 1.6rem;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.74));
+            box-shadow: 0 26px 54px -42px rgba(15, 23, 42, 0.3);
+        }
+
+        .hero-codes-rail::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 1.25rem;
+            right: 1.25rem;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(148, 163, 184, 0), rgba(148, 163, 184, 0.22), rgba(148, 163, 184, 0));
+            pointer-events: none;
+        }
+
+        .hero-codes-grid {
+            position: relative;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.85rem;
+        }
+
+        .hero-code-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 3.25rem;
+            padding: 0.8rem 1.18rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            color: #0f172a;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 10px 22px -18px rgba(15, 23, 42, 0.24);
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            text-align: center;
+            transition:
+                transform 180ms ease,
+                box-shadow 180ms ease,
+                border-color 180ms ease,
+                background-color 180ms ease;
+        }
+
+        .hero-code-pill:hover {
+            transform: translateY(-3px);
+            border-color: rgba(14, 165, 233, 0.36);
+            box-shadow: 0 16px 28px -22px rgba(15, 23, 42, 0.3);
+        }
+
+        .hero-code-pill:focus-visible {
+            outline: 2px solid #0ea5e9;
+            outline-offset: 3px;
+            transform: translateY(-2px);
+        }
+
+        .hero-code-pill--soft {
+            background: rgba(240, 249, 255, 0.96);
+        }
+
+        .hero-code-pill--quiet {
+            background: rgba(248, 250, 252, 0.94);
+        }
+
+        .hero-code-pill--solid {
+            background: linear-gradient(135deg, rgba(224, 242, 254, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+            border-color: rgba(14, 165, 233, 0.2);
+            color: #0f172a;
+        }
+
+        .hero-code-pill--solid:hover,
+        .hero-code-pill--solid:focus-visible {
+            border-color: rgba(14, 165, 233, 0.42);
+            box-shadow: 0 16px 28px -22px rgba(15, 23, 42, 0.28);
+        }
+
+        @media (max-width: 768px) {
+            .hero-section {
+                padding-top: 1.25rem;
+                padding-bottom: 4rem;
+            }
+
+            .hero-copy::after {
+                width: 5.5rem;
+            }
+
+            .hero-title {
+                font-size: clamp(2.2rem, 8.8vw, 4.6rem);
+            }
+
+            .hero-codes-rail {
+                padding: 1rem;
+                border-radius: 1.25rem;
+            }
+
+            .hero-codes-grid {
+                gap: 0.7rem;
+            }
+
+            .hero-code-pill {
+                min-height: 3rem;
+                padding: 0.72rem 1rem;
+                font-size: 0.82rem;
+                letter-spacing: 0.08em;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            .hero-code-pill,
+            .hero-lede a {
+                transition: none;
+            }
+
+            .hero-code-pill:hover,
+            .hero-code-pill:focus-visible {
+                transform: none;
+            }
+        }
+
         @media (max-width: 768px) {
             .desktop-nav {
                 display: none;
@@ -280,9 +539,9 @@
     </style>
 </head>
 
-<body class="bg-white text-gray-800 flex flex-col min-h-screen"
+<body class="home-surface bg-white text-gray-800 flex flex-col min-h-screen"
     style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
-    <header class="bg-sky-100 relative" role="banner">
+    <header class="site-masthead" role="banner">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <div class="flex items-center">
                 <a href="{{ url_for('read_root') }}" class="flex items-center">
@@ -366,62 +625,65 @@
 
     <main class="grow">
         <!-- Hero Section -->
-        <section class="bg-sky-100 pt-6 md:pt-20 pb-8 md:pb-20">
-            <div class="container mx-auto px-4 max-w-6xl">
-                <div class="text-center">
-                    <h1 class="text-5xl md:text-6xl font-bold text-gray-800 mb-10">
-                        From any description<br>
-                        to category code<br>
-                        <span class="text-sky-600">in 1 second.</span>
-                    </h1>
-                    <p class="text-xl text-gray-600 mb-10 max-w-3xl mx-auto">
-                        Classify anything, instantly, and with state-of-the-art accuracy<br>
-                        using <a
-                            href="https://developers.googleblog.com/en/gemini-embedding-text-model-now-available-gemini-api/"
-                            target="_blank" rel="noopener" class="text-sky-600 hover:underline">
-                            Google's text understanding technology.</a>
-                    </p>
-                    <div class="flex flex-wrap justify-center gap-4 max-w-xl mx-auto">
-                        <a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            UNSPSC
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            NAICS
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='ISIC') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            ISIC
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='NACE') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            NACE
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='ETIM') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            ETIM
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            HS
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            HTS
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            CN
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='CPV') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            CPV
-                        </a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='NSN') }}"
-                            class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white font-semibold px-6 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            NSN
-                        </a>
+        <section class="hero-section">
+            <div class="container mx-auto px-4 max-w-8xl">
+                <div class="hero-shell">
+                    <div class="hero-copy">
+                        <h1 class="hero-title">
+                            <span class="hero-title-line">From any description</span>
+                            <span class="hero-title-line">to category code</span>
+                            <span class="hero-title-line hero-title-emphasis">in 1 second.</span>
+                        </h1>
+                        <p class="hero-lede">
+                            Classify anything, instantly, and with state-of-the-art accuracy using
+                            <a href="https://developers.googleblog.com/en/gemini-embedding-text-model-now-available-gemini-api/"
+                                target="_blank" rel="noopener">
+                                Google's text understanding technology.</a>
+                        </p>
+                    </div>
+                    <div class="hero-codes-rail" role="navigation" aria-label="Classification standards">
+                        <div class="hero-codes-grid">
+                            <a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
+                                class="hero-code-pill hero-code-pill--solid">
+                                UNSPSC
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
+                                class="hero-code-pill hero-code-pill--soft">
+                                NAICS
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='ISIC') }}"
+                                class="hero-code-pill hero-code-pill--quiet">
+                                ISIC
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='NACE') }}"
+                                class="hero-code-pill hero-code-pill--soft">
+                                NACE
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='ETIM') }}"
+                                class="hero-code-pill hero-code-pill--quiet">
+                                ETIM
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
+                                class="hero-code-pill hero-code-pill--soft">
+                                HS
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
+                                class="hero-code-pill hero-code-pill--solid">
+                                HTS
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
+                                class="hero-code-pill hero-code-pill--quiet">
+                                CN
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='CPV') }}"
+                                class="hero-code-pill hero-code-pill--soft">
+                                CPV
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='NSN') }}"
+                                class="hero-code-pill hero-code-pill--quiet">
+                                NSN
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
