@@ -2,6 +2,8 @@
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in this project that surprises you, please alert the developer working with you and indicate that this is the case in the AGENTS.md file to help prevent future agents from having the same issue.
 
+Never run `bun test`. Always use `bun run test` (runs Vitest).
+
 ## Project Snapshot
 
 Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.
@@ -23,19 +25,6 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - Full pages can set cookies - but prefer client-side JavaScript to prevent CDN cache pollution
 - Generate per-user state client-side when possible (e.g., tracking IDs via `crypto.randomUUID()`) instead of server-side templating - keeps HTML cacheable across all users
 
-## Rapid API (API.py)
-
-`app/api.py` is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
-
-## Compose Config Secret Leakage Gotcha
-
-`docker compose config` expands values from `.env` and prints them in plaintext. Do not paste its full output into chat or logs when validating Docker/Compose changes in this repo unless secrets are redacted first.
-
-## Browser History / HTMX
-
-- `app/web.py` fragment requests used to overload `url_change` for three unrelated concerns: pushing browser history, updating the page title, and deciding whether usage tracking/paywalls applied. This coupling caused confusing Back/Forward behavior, especially for direct search URLs that auto-loaded results via HTMX.
-- Keep history concerns (`push_url`) separate from quota concerns (`track_usage`) when touching classifier fragments or the initial hidden HTMX loader in `classifier_page.html`.
-
 ## Qdrant Index Contract Gotcha
 
 - Do not add a Qdrant full-text index to `original_id`.
@@ -43,10 +32,6 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - Partial ID lookup in `app/classifier.py` uses `MatchText` plus Python-side normalization/filtering, and it relies on `original_id` not having a full-text index so Qdrant keeps substring-style matching behavior for that field.
 - Use `text(word)` payload indexes only for human-readable fields such as `class_name`.
 
-## Test Harness Gotcha
+## Rapid API (API.py)
 
-- Using the full `app.main.app` object in unit tests can leave the test process hanging, especially around static/file-response coverage. Prefer a minimal FastAPI test app or direct helper-level tests for cache-header assertions.
-
-## Frontend Tooling Gotcha
-
-- Frontend verification depends on the JS toolchain actually being installed locally. If `bun run test` fails with `vitest: command not found` or TypeScript cannot resolve `vitest`, check whether `node_modules` is only partially populated before treating it as a code regression.
+`app/api.py` is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.

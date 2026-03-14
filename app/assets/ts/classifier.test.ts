@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 function createScoreBarsMarkup(count = 3): string {
   return Array.from({ length: count }, (_, index) => {
     const width = Math.max(10, 100 - index * 20);
-    return `<div class="score-bar" data-score-bar style="width: ${width}%;"></div>`;
+    return `<div class="score-bar" data-score-bar data-score-width="${width}"></div>`;
   }).join("");
 }
 

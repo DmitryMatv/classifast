@@ -106,6 +106,14 @@ class ClassifierPage {
       return;
     }
 
+    scoreBars.forEach((bar) => {
+      const rawScoreWidth = Number(bar.dataset["scoreWidth"] ?? "0");
+      const scoreWidth = Number.isFinite(rawScoreWidth)
+        ? Math.min(Math.max(rawScoreWidth, 0), 100)
+        : 0;
+      bar.style.width = `${scoreWidth}%`;
+    });
+
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
