@@ -743,9 +743,10 @@
         </section>
 
         {% if trigger_search_on_load and versions %}
-        <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}" hx-trigger="load"
-            hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
-            data-initial-results-loader="true"
+        <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
+            hx-trigger="classifier:initial-load" hx-target="#results-container" hx-swap="innerHTML"
+            hx-indicator="#loading-indicator" data-initial-results-loader="true" data-await-auth-ready="{{ 'true' if
+            url_params.search else 'false' }}"
             hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}, "push_url": false, "track_usage": {{ "true" if url_params.search else "false" }}}'>
         </div>
         {% endif %}

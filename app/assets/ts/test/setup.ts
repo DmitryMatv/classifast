@@ -39,6 +39,7 @@ beforeEach(() => {
   document.head.innerHTML = "";
   document.documentElement.className = "";
 
+  delete window.__clerkAuthReady;
   delete window.__clerkAuthListenerRegistered;
   delete window.__clerkInteractionListenersRegistered;
   delete window.__initPaywall;

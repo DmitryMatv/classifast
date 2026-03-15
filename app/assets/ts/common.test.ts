@@ -138,4 +138,25 @@ describe("common.ts", () => {
     document.body.innerHTML = "";
     expect(ClerkHelpers.submitForm()).toBe(false);
   });
+
+  it("signals auth ready once after successful Clerk bootstrap", async () => {
+    const authReadySpy = vi.fn();
+    document.body.addEventListener("htmx:authReady", authReadySpy);
+
+    await import("./common");
+
+    await vi.waitFor(() => expect(window.__clerkAuthReady).toBe(true));
+    expect(authReadySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("signals auth ready once in the fallback no-Clerk path", async () => {
+    const authReadySpy = vi.fn();
+    document.body.addEventListener("htmx:authReady", authReadySpy);
+    delete window.Clerk;
+
+    await import("./common");
+
+    await vi.waitFor(() => expect(window.__clerkAuthReady).toBe(true));
+    expect(authReadySpy).toHaveBeenCalledTimes(1);
+  });
 });

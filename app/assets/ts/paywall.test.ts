@@ -101,6 +101,95 @@ describe("paywall.ts", () => {
     expect(requestSubmitSpy).toHaveBeenCalled();
   });
 
+  it("retries classification after auth becomes ready when paywall initialized before Clerk", async () => {
+    const form = document.querySelector("form") as HTMLFormElement;
+    const requestSubmitSpy = vi.mocked(form.requestSubmit);
+    delete window.Clerk;
+    const { initPaywall } = await import("./paywall");
+
+    vi.runAllTimers();
+    initPaywall();
+
+    window.Clerk = {
+      load: vi.fn(async () => {}),
+      addListener: vi.fn(() => vi.fn()),
+      mountUserButton: vi.fn(),
+      openSignIn: vi.fn(),
+      openSignUp: vi.fn(),
+      openGoogleOneTap: vi.fn(),
+      user: { id: "user_123" },
+    };
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+
+    expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry classification for anonymous auth-ready fallback", async () => {
+    const form = document.querySelector("form") as HTMLFormElement;
+    const requestSubmitSpy = vi.mocked(form.requestSubmit);
+    delete window.Clerk;
+    const { initPaywall } = await import("./paywall");
+
+    vi.runAllTimers();
+    initPaywall();
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+
+    expect(requestSubmitSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps auth transition retries after anonymous auth-ready fallback", async () => {
+    const form = document.querySelector("form") as HTMLFormElement;
+    const requestSubmitSpy = vi.mocked(form.requestSubmit);
+    let listener: ((payload: ClerkListenerPayload) => void) | undefined;
+    delete window.Clerk;
+    const { initPaywall } = await import("./paywall");
+
+    vi.runAllTimers();
+    initPaywall();
+
+    window.Clerk = {
+      load: vi.fn(async () => {}),
+      addListener: vi.fn((callback) => {
+        listener = callback;
+        return vi.fn();
+      }),
+      mountUserButton: vi.fn(),
+      openSignIn: vi.fn(),
+      openSignUp: vi.fn(),
+      openGoogleOneTap: vi.fn(),
+    };
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+    listener?.({ user: { id: "user_789" } });
+
+    expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries classification on signed-out to signed-in Clerk transitions", async () => {
+    const form = document.querySelector("form") as HTMLFormElement;
+    const requestSubmitSpy = vi.mocked(form.requestSubmit);
+    let listener: ((payload: ClerkListenerPayload) => void) | undefined;
+
+    if (window.Clerk) {
+      window.Clerk.addListener = vi.fn((callback) => {
+        listener = callback;
+        return vi.fn();
+      });
+    }
+
+    const { initPaywall } = await import("./paywall");
+
+    vi.runAllTimers();
+    initPaywall();
+    listener?.({ user: { id: "user_456" } });
+
+    expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("shows an error state when checkout starts without a Clerk session", async () => {
     document.body.innerHTML +=
       '<button id="upgrade-button">Upgrade to Pro</button>';

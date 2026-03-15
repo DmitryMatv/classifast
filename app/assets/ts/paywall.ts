@@ -32,6 +32,7 @@ if (!window.__paywallScriptParsed) {
 
   class PaywallManager {
     private wasSignedIn: boolean = false;
+    private authReadyRetryHandled: boolean = false;
 
     constructor() {
       this.init();
@@ -48,6 +49,35 @@ if (!window.__paywallScriptParsed) {
      */
     private submitClassificationForm(): void {
       ClerkHelpers.submitForm("form[hx-get]");
+    }
+
+    private submitClassificationFormOnce(): void {
+      if (this.authReadyRetryHandled) {
+        return;
+      }
+
+      this.authReadyRetryHandled = true;
+      this.submitClassificationForm();
+    }
+
+    private registerClerkAuthTransitionListener(): boolean {
+      if (!window.Clerk?.addListener) {
+        return false;
+      }
+
+      window.Clerk.addListener((resources) => {
+        // Only auto-retry when user transitions from signed-out to signed-in
+        if (resources.user && !this.wasSignedIn) {
+          this.wasSignedIn = true; // Prevent repeated submissions on token refresh
+          this.submitClassificationForm();
+        }
+        // If user signs out, reset the flag
+        if (!resources.user) {
+          this.wasSignedIn = false;
+        }
+      });
+
+      return true;
     }
 
     /**
@@ -79,22 +109,23 @@ if (!window.__paywallScriptParsed) {
       // Track the initial user state when paywall loads
       this.wasSignedIn = !!(window.Clerk && window.Clerk.user);
 
-      if (window.Clerk?.addListener) {
-        window.Clerk.addListener((resources) => {
-          // Only auto-retry when user transitions from signed-out to signed-in
-          if (resources.user && !this.wasSignedIn) {
-            this.wasSignedIn = true; // Prevent repeated submissions on token refresh
-            this.submitClassificationForm();
-          }
-          // If user signs out, reset the flag
-          if (!resources.user) {
-            this.wasSignedIn = false;
-          }
-        });
-
-        // Store unsubscribe for cleanup if needed (e.g., in SPA navigation)
-        // For now, this is fine as the paywall is replaced via HTMX
+      if (!this.registerClerkAuthTransitionListener()) {
+        document.body.addEventListener(
+          "htmx:authReady",
+          () => {
+            this.wasSignedIn = !!window.Clerk?.user;
+            this.registerClerkAuthTransitionListener();
+            if (window.Clerk?.user) {
+              this.submitClassificationFormOnce();
+            }
+          },
+          { once: true },
+        );
+        return;
       }
+
+      // Store unsubscribe for cleanup if needed (e.g., in SPA navigation)
+      // For now, this is fine as the paywall is replaced via HTMX
     }
 
     /**

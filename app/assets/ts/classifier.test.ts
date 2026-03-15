@@ -359,4 +359,90 @@ describe("classifier.ts", () => {
     expect(resultsSection.classList.contains("hidden")).toBe(true);
     expect(getScoreBars()).toHaveLength(0);
   });
+
+  it("waits for auth readiness before firing the deep-link initial loader", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="true"
+      ></div>
+    `;
+    delete window.Clerk;
+    document.head.innerHTML = `
+      <script src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+    `;
+
+    await import("./classifier");
+
+    expect(window.htmx?.process).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      "classifier:initial-load",
+    );
+  });
+
+  it("fires the deep-link initial loader immediately when auth is already ready", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="true"
+      ></div>
+    `;
+    window.__clerkAuthReady = true;
+
+    await import("./classifier");
+
+    expect(window.htmx?.process).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      "classifier:initial-load",
+    );
+  });
+
+  it("fires example-query initial loaders immediately without waiting for auth", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="false"
+      ></div>
+    `;
+
+    await import("./classifier");
+
+    expect(window.htmx?.process).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      "classifier:initial-load",
+    );
+  });
+
+  it("does not fire the initial loader twice when auth was already ready", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="true"
+      ></div>
+    `;
+    window.__clerkAuthReady = true;
+
+    await import("./classifier");
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+  });
 });

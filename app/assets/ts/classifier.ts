@@ -16,6 +16,7 @@ class ClassifierPage {
 
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
+    this.scheduleInitialResultsLoad();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
@@ -45,6 +46,46 @@ class ClassifierPage {
 
   private cleanupInitialResultsLoader(): void {
     this.getInitialResultsLoader()?.remove();
+  }
+
+  private triggerInitialResultsLoad(loader: HTMLElement): void {
+    if (loader.dataset["initialLoadFired"] === "true") {
+      return;
+    }
+
+    loader.dataset["initialLoadFired"] = "true";
+    window.htmx?.trigger(loader, "classifier:initial-load");
+  }
+
+  private scheduleInitialResultsLoad(): void {
+    const loader = this.getInitialResultsLoader();
+    if (!loader) {
+      return;
+    }
+
+    window.htmx?.process(loader);
+
+    if (loader.dataset["initialLoadFired"] === "true") {
+      return;
+    }
+
+    const awaitsAuthReady = loader.dataset["awaitAuthReady"] === "true";
+    if (!awaitsAuthReady) {
+      this.triggerInitialResultsLoad(loader);
+      return;
+    }
+
+    if (window.__clerkAuthReady) {
+      this.triggerInitialResultsLoad(loader);
+      return;
+    }
+
+    const handleAuthReady = () => {
+      document.body.removeEventListener("htmx:authReady", handleAuthReady);
+      this.triggerInitialResultsLoad(loader);
+    };
+
+    document.body.addEventListener("htmx:authReady", handleAuthReady);
   }
 
   private ensureResultsSectionVisible(): void {

@@ -198,6 +198,14 @@ function isTokenExpired(token: string): boolean {
 // Track if auth-ready event has been fired (fire only once on initial load)
 let authReadyFired = false;
 
+function signalAuthReady(): void {
+  if (authReadyFired) return;
+
+  authReadyFired = true;
+  window.__clerkAuthReady = true;
+  document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+}
+
 // Simple Clerk Authentication using official SDK patterns
 export class ClerkAuth {
   private static htmxAuthHeaderRegistered = false;
@@ -249,10 +257,7 @@ export class ClerkAuth {
       this.updateAuthUI();
 
       // Signal that auth is ready for auto-classification (fire only once)
-      if (!authReadyFired) {
-        authReadyFired = true;
-        document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
-      }
+      signalAuthReady();
 
       // Refresh token every 50s (Clerk tokens expire in ~60s)
       // getToken with expirationBufferSeconds handles caching automatically
@@ -711,10 +716,7 @@ export class ClerkAuth {
     }
 
     // Signal auth ready even without Clerk (user is anonymous, fire only once)
-    if (!authReadyFired) {
-      authReadyFired = true;
-      document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
-    }
+    signalAuthReady();
   }
 
   // Public method to get current auth token
