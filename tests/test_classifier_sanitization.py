@@ -122,7 +122,7 @@ class ClassificationContractTests(unittest.TestCase):
             patch(
                 "app.classifier.perform_semantic_search",
                 return_value=semantic_results,
-            ),
+            ) as semantic_mock,
             patch(
                 "app.classifier.rerank_with_zeroentropy",
                 return_value=reranked_results,
@@ -144,7 +144,9 @@ class ClassificationContractTests(unittest.TestCase):
             ["semantic-2", "semantic-1"],
         )
         self.assertEqual(result["results"][0]["score"], 0.91)
+        self.assertEqual(semantic_mock.call_args.kwargs["top_k"], 2)
         rerank_mock.assert_called_once()
+        self.assertEqual(rerank_mock.call_args.kwargs["rerank_top_n"], 2)
 
 
 class EmbeddingAndCacheHeaderTests(unittest.TestCase):

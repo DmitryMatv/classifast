@@ -2,7 +2,7 @@
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in this project that surprises you, please alert the developer working with you and indicate that this is the case in the AGENTS.md file to help prevent future agents from having the same issue.
 
-Never run `bun test`. Always use `bun run test` (runs Vitest).
+Never run `bun test` (runs Bun's built-in test runner). Always use `bun run test` (runs Vitest).
 
 ## Project Snapshot
 

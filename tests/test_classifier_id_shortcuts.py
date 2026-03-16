@@ -90,6 +90,7 @@ class PerformClassificationShortcutTests(unittest.TestCase):
                 "app.classifier.perform_semantic_search",
                 return_value=semantic_results,
             ) as semantic_mock,
+            patch("app.classifier.rerank_with_zeroentropy") as rerank_mock,
         ):
             result = perform_classification(
                 embed_client=object(),
@@ -99,7 +100,7 @@ class PerformClassificationShortcutTests(unittest.TestCase):
                 version=self.version,
                 top_k=10,
                 quantization_cache={},
-                zclient=None,
+                zclient=object(),
             )
 
         self.assertEqual(
@@ -109,6 +110,8 @@ class PerformClassificationShortcutTests(unittest.TestCase):
         partial_mock.assert_called_once()
         embedding_mock.assert_called_once()
         semantic_mock.assert_called_once()
+        self.assertEqual(semantic_mock.call_args.kwargs["top_k"], 10)
+        rerank_mock.assert_not_called()
 
 
 if __name__ == "__main__":

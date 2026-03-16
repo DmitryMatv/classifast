@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def get_default_top_k(classifier_type: str) -> int:
+    """Return the default number of results to show for a classifier page."""
+    return 30 if classifier_type.strip().upper() == "UNSPSC" else 10
+
+
 def slugify(text: str) -> str:
     """
     Slugify utility for SEO-friendly URLs.
@@ -98,7 +103,7 @@ async def show_classifier_page(
     request: Request,
     classifier_type: str,
     version: str | None = None,
-    top_k: int = 10,
+    top_k: int | None = None,
 ):
     """
     Serves the base classifier page.
@@ -113,7 +118,7 @@ async def get_classification_fragment(
     request: Request,
     classifier_type: str,
     product_description: str = Query(..., alias="product_description"),
-    top_k: int = Query(10, ge=1, le=100),
+    top_k: int | None = Query(None, ge=1, le=100),
     version: str = Query(...),
     push_url: bool | None = Query(None),
     track_usage: bool = Query(True),
@@ -126,6 +131,8 @@ async def get_classification_fragment(
     # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
     normalized_description = re.sub(r"\s+", " ", product_description).strip()
     upper_type = classifier_type.strip().upper()
+    if top_k is None:
+        top_k = get_default_top_k(upper_type)
 
     logger.info(
         "WEB received GET fragment request for '%s' with version '%s'. Push URL: %s. Track usage: %s",
@@ -291,7 +298,7 @@ async def show_classifier_page_with_query(
     classifier_type: str,
     search_query: str = "",
     version: str | None = None,
-    top_k: int = 10,
+    top_k: int | None = None,
 ):
     """
     Serves the specific classifier page with clean URL structure.
@@ -316,6 +323,7 @@ async def show_classifier_page_with_query(
 
     # Use the uppercase classifier_type from here
     effective_classifier_type = upper_type
+    default_top_k = get_default_top_k(effective_classifier_type)
 
     # Handle checkout return with token verification
     checkout_success = request.query_params.get("checkout")
@@ -358,8 +366,8 @@ async def show_classifier_page_with_query(
         return Response(headers=headers)
 
     # Validate top_k parameter
-    if top_k < 1 or top_k > 100:
-        top_k = 10
+    if top_k is None or top_k < 1 or top_k > 100:
+        top_k = default_top_k
 
     # Get first version for default handling
     versions_list = list(config["versions"].keys())

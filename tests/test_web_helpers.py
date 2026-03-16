@@ -1,17 +1,24 @@
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 from urllib.parse import urlencode
 
 import httpx
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from app.web import router, slugify
 
+BASE_DIR = Path(__file__).resolve().parents[1]
+
 
 def _build_test_app() -> FastAPI:
     app = FastAPI()
+    app.mount(
+        "/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static"
+    )
     app.include_router(router)
     app.state.embed_client = object()
     app.state.qdrant_client = object()
@@ -71,9 +78,10 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         params = {
             "product_description": "industrial pump",
             "version": self.default_version,
-            "top_k": 10,
         }
         params.update(extra_params)
+        if "top_k" in params and params["top_k"] is None:
+            params.pop("top_k")
         transport = httpx.ASGITransport(app=self.app)
         async with httpx.AsyncClient(
             transport=transport,
@@ -167,6 +175,100 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             "max-age=86400, stale-while-revalidate=86400",
         )
         perform_classification_mock.assert_not_called()
+
+    @patch("app.web.perform_classification")
+    async def test_fragment_uses_default_top_k_when_omitted_for_non_unspsc(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(top_k=None, track_usage="false")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
+
+
+class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_test_app()
+
+    async def _request(self, path: str) -> httpx.Response:
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(path)
+
+    async def test_unspsc_page_defaults_to_top_30(self) -> None:
+        response = await self._request("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('option value="30" selected', response.text)
+        self.assertIn('"top_k": 30', response.text)
+
+    async def test_naics_page_defaults_to_top_10(self) -> None:
+        response = await self._request("/NAICS/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('option value="10" selected', response.text)
+        self.assertIn('"top_k": 10', response.text)
+
+    async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
+        response = await self._request("/UNSPSC/?top_k=999")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('option value="30" selected', response.text)
+        self.assertIn('"top_k": 30', response.text)
+
+    async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
+        response = await self._request("/NAICS/?top_k=999")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('option value="10" selected', response.text)
+        self.assertIn('"top_k": 10', response.text)
+
+
+class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_test_app()
+        cls.version = next(iter(CLASSIFIER_CONFIG["UNSPSC"]["versions"]))
+
+    def _classification_result(self) -> dict:
+        return {
+            "results": [],
+            "version_config": {
+                "base_url": "",
+                "tooltip": "",
+            },
+        }
+
+    @patch("app.web.perform_classification")
+    async def test_unspsc_fragment_uses_default_top_k_when_omitted(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(
+                "/UNSPSC/fragment",
+                params={
+                    "product_description": "industrial pump",
+                    "version": self.version,
+                    "track_usage": "false",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
 
 
 if __name__ == "__main__":

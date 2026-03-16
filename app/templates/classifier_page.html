@@ -716,10 +716,10 @@
                         <select name="top_k" id="show_top_k_categories" role="combobox"
                             aria-label="Number of results to show" aria-expanded="false" aria-haspopup="listbox"
                             class="border border-gray-400 rounded text-left px-1 py-2">
-                            <option value="3">Top 3</option>
-                            <option value="10" selected>Top 10</option>
-                            <option value="30">Top 30</option>
-                            <option value="100">Top 100</option>
+                            <option value="3" {% if url_params.top_k==3 %}selected{% endif %}>Top 3</option>
+                            <option value="10" {% if url_params.top_k==10 %}selected{% endif %}>Top 10</option>
+                            <option value="30" {% if url_params.top_k==30 %}selected{% endif %}>Top 30</option>
+                            <option value="100" {% if url_params.top_k==100 %}selected{% endif %}>Top 100</option>
                         </select>
                         <div id="loading-indicator" class="htmx-indicator justify-center items-center" role="status"
                             aria-label="Processing request" aria-live="polite">

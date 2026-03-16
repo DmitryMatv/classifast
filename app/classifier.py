@@ -708,8 +708,7 @@ def perform_classification(
         # Step 4: Perform semantic search
         # Only use reranking if no ID matches found and ZeroEntropy is available
         use_reranking = zclient is not None and not id_match_results
-        # If reranking is enabled, fetch more candidates to give ZeroEntropy a better pool to rank from
-        semantic_top_k = top_k * 2 if use_reranking else top_k
+        semantic_top_k = top_k
 
         logger.info(
             "SEMANTIC_SEARCH: Fetching top %d candidates (reranking=%s, id_matches=%d)",
@@ -745,7 +744,7 @@ def perform_classification(
                 query=normalized_query,
                 candidates=filtered_semantic,
                 top_k=top_k,
-                rerank_top_n=semantic_top_k,  # Rerank all candidates from semantic search
+                rerank_top_n=semantic_top_k,
             )
             # Use ZeroEntropy scores directly (already 0-1 range)
             for result in reranked_semantic:
