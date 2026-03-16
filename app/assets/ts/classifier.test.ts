@@ -169,6 +169,7 @@ describe("classifier.ts", () => {
 
   it("pushes the canonical search URL after a manual fragment request", async () => {
     const pushStateSpy = vi.spyOn(window.history, "pushState");
+    window.history.replaceState({}, "", "/NAICS/");
     await import("./classifier");
 
     document.body.dispatchEvent(
@@ -190,8 +191,85 @@ describe("classifier.ts", () => {
     expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/NAICS/industrial_pump");
   });
 
+  it("removes a stale non-default version query when canonical URL is default", async () => {
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    window.history.replaceState({}, "", "/NAICS/industrial_pump?version=v2");
+    await import("./classifier");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: document.querySelector("form[hx-get]"),
+          xhr: {
+            getResponseHeader: vi.fn((name: string) =>
+              name === "X-Classifast-Canonical-Url"
+                ? "/NAICS/industrial_pump"
+                : null,
+            ),
+          },
+        },
+      } as CustomEventInit),
+    );
+
+    expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/NAICS/industrial_pump");
+  });
+
+  it("adds a non-default version query when canonical URL includes it", async () => {
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    window.history.replaceState({}, "", "/NAICS/industrial_pump");
+    await import("./classifier");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: document.querySelector("form[hx-get]"),
+          xhr: {
+            getResponseHeader: vi.fn((name: string) =>
+              name === "X-Classifast-Canonical-Url"
+                ? "/NAICS/industrial_pump?version=v2"
+                : null,
+            ),
+          },
+        },
+      } as CustomEventInit),
+    );
+
+    expect(pushStateSpy).toHaveBeenCalledWith(
+      {},
+      "",
+      "/NAICS/industrial_pump?version=v2",
+    );
+  });
+
+  it("does not push history when the full relative URL already matches", async () => {
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    window.history.replaceState({}, "", "/NAICS/industrial_pump?version=v2");
+    await import("./classifier");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: document.querySelector("form[hx-get]"),
+          xhr: {
+            getResponseHeader: vi.fn((name: string) =>
+              name === "X-Classifast-Canonical-Url"
+                ? "/NAICS/industrial_pump?version=v2"
+                : null,
+            ),
+          },
+        },
+      } as CustomEventInit),
+    );
+
+    expect(pushStateSpy).not.toHaveBeenCalled();
+  });
+
   it("does not push history for initial loader requests", async () => {
     const pushStateSpy = vi.spyOn(window.history, "pushState");
+    window.history.replaceState({}, "", "/NAICS/industrial_pump");
     await import("./classifier");
 
     const loader = document.createElement("div");

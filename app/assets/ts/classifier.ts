@@ -310,11 +310,21 @@ class ClassifierPage {
 
   private syncBrowserUrl(xhr: XMLHttpRequest): void {
     const canonicalUrl = xhr.getResponseHeader("X-Classifast-Canonical-Url");
-    if (!canonicalUrl || canonicalUrl === window.location.pathname) {
+    if (!canonicalUrl) {
       return;
     }
 
-    window.history.pushState({}, "", canonicalUrl);
+    const parsedCanonicalUrl = new URL(canonicalUrl, window.location.origin);
+    const currentRelativeUrl =
+      window.location.pathname + window.location.search;
+    const targetRelativeUrl =
+      parsedCanonicalUrl.pathname + parsedCanonicalUrl.search;
+
+    if (targetRelativeUrl === currentRelativeUrl) {
+      return;
+    }
+
+    window.history.pushState({}, "", targetRelativeUrl);
   }
 
   /**
