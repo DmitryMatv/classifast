@@ -90,7 +90,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             return await client.get(f"/{self.classifier_type}/fragment", params=params)
 
     @patch("app.web.perform_classification")
-    async def test_default_version_omits_version_query_from_hx_push_url(
+    async def test_default_version_omits_version_query_from_canonical_url_header(
         self,
         perform_classification_mock: Mock,
     ) -> None:
@@ -100,12 +100,13 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            response.headers.get("HX-Push-Url"),
+            response.headers.get("X-Classifast-Canonical-Url"),
             "/NAICS/industrial_pump",
         )
+        self.assertNotIn("HX-Push-Url", response.headers)
 
     @patch("app.web.perform_classification")
-    async def test_non_default_version_is_appended_to_hx_push_url(
+    async def test_non_default_version_is_appended_to_canonical_url_header(
         self,
         perform_classification_mock: Mock,
     ) -> None:
@@ -119,9 +120,10 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            response.headers.get("HX-Push-Url"),
+            response.headers.get("X-Classifast-Canonical-Url"),
             f"/NAICS/industrial_pump?{urlencode({'version': self.non_default_version})}",
         )
+        self.assertNotIn("HX-Push-Url", response.headers)
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
@@ -149,9 +151,10 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("stale-while-revalidate", response.headers["Cache-Control"])
         self.assertEqual(
-            response.headers.get("HX-Push-Url"),
+            response.headers.get("X-Classifast-Canonical-Url"),
             "/NAICS/industrial_pump",
         )
+        self.assertNotIn("HX-Push-Url", response.headers)
         increment_usage_mock.assert_not_awaited()
 
     @patch("app.web.perform_classification")
@@ -229,6 +232,30 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('"top_k": 10', response.text)
+
+    async def test_manual_search_form_explicitly_tracks_usage(self) -> None:
+        response = await self._request("/NAICS/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('type="hidden" name="track_usage" value="true"', response.text)
+
+    async def test_base_page_initial_loader_bypasses_tracking_and_history_push(
+        self,
+    ) -> None:
+        response = await self._request("/NAICS/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"push_url": false', response.text)
+        self.assertIn('"track_usage": false', response.text)
+
+    async def test_shared_query_initial_loader_tracks_usage_without_history_push(
+        self,
+    ) -> None:
+        response = await self._request("/NAICS/industrial_pump")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"push_url": false', response.text)
+        self.assertIn('"track_usage": true', response.text)
 
 
 class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):

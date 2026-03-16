@@ -135,6 +135,7 @@ declare global {
     detail: {
       elt: Element;
       target: HTMLElement;
+      xhr: XMLHttpRequest;
     };
   }
 

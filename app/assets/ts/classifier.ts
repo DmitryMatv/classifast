@@ -35,6 +35,13 @@ class ClassifierPage {
     this.getLoadingIndicator()?.classList.remove("htmx-request");
   }
 
+  private isInitialResultsLoader(element: Element | null): boolean {
+    return (
+      element instanceof HTMLElement &&
+      element.hasAttribute("data-initial-results-loader")
+    );
+  }
+
   private isResultsTarget(target: EventTarget | null): target is HTMLElement {
     return target instanceof HTMLElement && target.id === "results-container";
   }
@@ -219,11 +226,13 @@ class ClassifierPage {
         this.hideLoadingIndicator();
       }
 
-      if (
-        htmxEvent.detail.elt instanceof HTMLElement &&
-        htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
-      ) {
+      if (this.isInitialResultsLoader(htmxEvent.detail.elt)) {
         this.cleanupInitialResultsLoader();
+        return;
+      }
+
+      if (this.isResultsTarget(htmxEvent.detail.target)) {
+        this.syncBrowserUrl(htmxEvent.detail.xhr);
       }
     });
 
@@ -297,6 +306,15 @@ class ClassifierPage {
         this.copyShareableLink();
       });
     }
+  }
+
+  private syncBrowserUrl(xhr: XMLHttpRequest): void {
+    const canonicalUrl = xhr.getResponseHeader("X-Classifast-Canonical-Url");
+    if (!canonicalUrl || canonicalUrl === window.location.pathname) {
+      return;
+    }
+
+    window.history.pushState({}, "", canonicalUrl);
   }
 
   /**

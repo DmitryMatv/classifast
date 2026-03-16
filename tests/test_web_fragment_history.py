@@ -69,7 +69,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_push_url_true_returns_hx_push_url(
+    async def test_push_url_true_returns_stable_canonical_url_header(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
@@ -88,16 +88,17 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            response.headers.get("HX-Push-Url"),
+            response.headers.get("X-Classifast-Canonical-Url"),
             f"/{self.classifier_type}/trash_removal",
         )
+        self.assertNotIn("HX-Push-Url", response.headers)
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_push_url_false_omits_hx_push_url(
+    async def test_push_url_false_returns_same_canonical_url_header(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
@@ -115,9 +116,39 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(push_url="false", track_usage="true")
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("X-Classifast-Canonical-Url"),
+            f"/{self.classifier_type}/trash_removal",
+        )
         self.assertNotIn("HX-Push-Url", response.headers)
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
+
+    @patch("app.web.perform_classification")
+    async def test_push_url_no_longer_changes_cacheable_fragment_response(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        push_response = await self._request_fragment(
+            push_url="true",
+            track_usage="false",
+        )
+        no_push_response = await self._request_fragment(
+            push_url="false",
+            track_usage="false",
+        )
+
+        self.assertEqual(push_response.status_code, 200)
+        self.assertEqual(no_push_response.status_code, 200)
+        self.assertEqual(push_response.text, no_push_response.text)
+        self.assertEqual(
+            push_response.headers.get("X-Classifast-Canonical-Url"),
+            no_push_response.headers.get("X-Classifast-Canonical-Url"),
+        )
+        self.assertNotIn("HX-Push-Url", push_response.headers)
+        self.assertNotIn("HX-Push-Url", no_push_response.headers)
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
@@ -157,7 +188,10 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(push_url="false", track_usage="true")
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("HX-Push-Url", response.headers)
+        self.assertEqual(
+            response.headers.get("X-Classifast-Canonical-Url"),
+            f"/{self.classifier_type}/trash_removal",
+        )
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
 

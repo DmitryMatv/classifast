@@ -127,6 +127,12 @@ async def get_classification_fragment(
     """
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
+
+    `push_url` is accepted for backwards compatibility but must not change the
+    cacheable fragment body or headers. Client-side code is responsible for
+    applying history updates based on the stable canonical URL header below.
+    `track_usage` affects quota enforcement and paywall behavior, so it must
+    remain cache-key-relevant.
     """
     # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
     normalized_description = re.sub(r"\s+", " ", product_description).strip()
@@ -154,8 +160,8 @@ async def get_classification_fragment(
         redis_client = getattr(request.app.state, "redis_client", None)
         await verify_checkout_token(checkout_token, request, redis_client)
 
-    # Build the new URL early so we can set it before usage check
-    # This ensures the URL updates even if user hits the paywall
+    # Build the canonical share URL early so it can be attached to both results
+    # and paywall responses without introducing cache variants.
     slug = slugify(normalized_description.replace("/", " "))
     new_url = f"/{upper_type}"
     if slug:
@@ -190,8 +196,7 @@ async def get_classification_fragment(
                 },
             )
             response.headers.update(build_cache_headers(NO_STORE))
-            if push_url:
-                response.headers["HX-Push-Url"] = new_url
+            response.headers["X-Classifast-Canonical-Url"] = new_url
             add_quota_headers(response, usage_status)
             if usage_status.tracking_id:
                 set_tracking_cookie(response, usage_status.tracking_id)
@@ -257,7 +262,7 @@ async def get_classification_fragment(
 
     # Calculate dynamic page title for OOB swap
     page_title = None
-    if push_url:
+    if track_usage:
         page_title = f"{upper_type} codes for '{normalized_description.title()}'"
 
     # Render the results partial with normalized query
@@ -279,9 +284,7 @@ async def get_classification_fragment(
     cache_headers = get_classification_cache_headers()
     response.headers.update(cache_headers)
 
-    # Set HTMX header to update URL in browser address bar (new_url was built earlier)
-    if push_url:
-        response.headers["HX-Push-Url"] = new_url
+    response.headers["X-Classifast-Canonical-Url"] = new_url
 
     # Increment usage counter for real user-triggered searches.
     if track_usage:

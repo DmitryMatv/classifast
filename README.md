@@ -69,6 +69,30 @@ For Coolify, use:
 
 `docker-compose.yaml` can still be used for local or manual container runs, but the recommended Coolify production path is the Dockerfile build directly.
 
+### Cloudflare fragment cache key
+
+Classification fragments are designed so CDN cache identity is based on result
+content, not HTMX history behavior.
+
+For `/{classifier_type}/fragment`, configure the Cloudflare cache key to include:
+
+- `version`
+- `product_description`
+- `top_k`
+- `track_usage`
+
+And exclude:
+
+- `push_url`
+- `url_change`
+- unrelated query parameters
+
+`push_url` is retained only as a legacy request flag. Fragment responses expose
+the stable share URL via `X-Classifast-Canonical-Url`, and the frontend applies
+history updates client-side for manual searches only. `track_usage` affects
+quota enforcement and paywall behavior, so it must remain part of the cache
+key.
+
 ## API
 
 - `GET /` Homepage

@@ -160,10 +160,56 @@ describe("classifier.ts", () => {
         detail: {
           target: document.getElementById("results-container"),
           elt: document.createElement("div"),
+          xhr: { getResponseHeader: vi.fn(() => null) },
         },
       } as CustomEventInit),
     );
     expect(indicator.classList.contains("htmx-request")).toBe(false);
+  });
+
+  it("pushes the canonical search URL after a manual fragment request", async () => {
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    await import("./classifier");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: document.querySelector("form[hx-get]"),
+          xhr: {
+            getResponseHeader: vi.fn((name: string) =>
+              name === "X-Classifast-Canonical-Url"
+                ? "/NAICS/industrial_pump"
+                : null,
+            ),
+          },
+        },
+      } as CustomEventInit),
+    );
+
+    expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/NAICS/industrial_pump");
+  });
+
+  it("does not push history for initial loader requests", async () => {
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    await import("./classifier");
+
+    const loader = document.createElement("div");
+    loader.setAttribute("data-initial-results-loader", "true");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: loader,
+          xhr: {
+            getResponseHeader: vi.fn(() => "/NAICS/industrial_pump"),
+          },
+        },
+      } as CustomEventInit),
+    );
+
+    expect(pushStateSpy).not.toHaveBeenCalled();
   });
 
   it("waits until HTMX afterSettle to animate swapped score bars", async () => {

@@ -688,6 +688,7 @@
 
             <form hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
                 hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
+                <input type="hidden" name="track_usage" value="true">
 
                 {% if versions %}
                 <div class="flex items-center justify-start mb-1">
