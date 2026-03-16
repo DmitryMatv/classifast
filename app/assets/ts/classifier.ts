@@ -10,6 +10,8 @@ const MAX_SCORE_BAR_STAGGER_MS = 420;
  */
 
 class ClassifierPage {
+  private pendingInitialLoadAuthReadyHandler: (() => void) | null = null;
+
   constructor() {
     this.init();
   }
@@ -48,11 +50,29 @@ class ClassifierPage {
     this.getInitialResultsLoader()?.remove();
   }
 
+  private clearPendingInitialResultsLoad(removeLoader = true): void {
+    if (this.pendingInitialLoadAuthReadyHandler) {
+      document.body.removeEventListener(
+        "htmx:authReady",
+        this.pendingInitialLoadAuthReadyHandler,
+      );
+      this.pendingInitialLoadAuthReadyHandler = null;
+    }
+
+    if (removeLoader) {
+      const loader = this.getInitialResultsLoader();
+      if (loader && loader.dataset["initialLoadFired"] !== "true") {
+        loader.remove();
+      }
+    }
+  }
+
   private triggerInitialResultsLoad(loader: HTMLElement): void {
     if (loader.dataset["initialLoadFired"] === "true") {
       return;
     }
 
+    this.clearPendingInitialResultsLoad(false);
     loader.dataset["initialLoadFired"] = "true";
     window.htmx?.trigger(loader, "classifier:initial-load");
   }
@@ -80,12 +100,14 @@ class ClassifierPage {
       return;
     }
 
-    const handleAuthReady = () => {
-      document.body.removeEventListener("htmx:authReady", handleAuthReady);
+    this.pendingInitialLoadAuthReadyHandler = () => {
       this.triggerInitialResultsLoad(loader);
     };
 
-    document.body.addEventListener("htmx:authReady", handleAuthReady);
+    document.body.addEventListener(
+      "htmx:authReady",
+      this.pendingInitialLoadAuthReadyHandler,
+    );
   }
 
   private ensureResultsSectionVisible(): void {
@@ -249,6 +271,13 @@ class ClassifierPage {
     document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
       const htmxEvent = evt as HtmxBeforeRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
+        const loader = this.getInitialResultsLoader();
+        if (
+          htmxEvent.detail.elt instanceof HTMLElement &&
+          (!loader || htmxEvent.detail.elt !== loader)
+        ) {
+          this.clearPendingInitialResultsLoad();
+        }
         this.showLoadingIndicator();
       }
     });

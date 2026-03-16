@@ -388,6 +388,79 @@ describe("classifier.ts", () => {
     );
   });
 
+  it("cancels the deferred deep-link loader after a manual results request starts", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="true"
+      ></div>
+    `;
+    delete window.Clerk;
+    document.head.innerHTML = `
+      <script src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+    `;
+
+    await import("./classifier");
+
+    const form = document.querySelector("form") as HTMLFormElement;
+    const resultsContainer = document.getElementById(
+      "results-container",
+    ) as HTMLElement;
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeRequest", {
+        detail: { elt: form, target: resultsContainer },
+      } as CustomEventInit),
+    );
+
+    expect(
+      document.querySelector("[data-initial-results-loader='true']"),
+    ).toBeNull();
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+  });
+
+  it("does not cancel the deferred loader when the loader itself starts the request", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="true"
+      ></div>
+    `;
+    delete window.Clerk;
+    document.head.innerHTML = `
+      <script src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+    `;
+
+    await import("./classifier");
+
+    const loader = document.querySelector(
+      "[data-initial-results-loader='true']",
+    ) as HTMLElement;
+    const resultsContainer = document.getElementById(
+      "results-container",
+    ) as HTMLElement;
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeRequest", {
+        detail: { elt: loader, target: resultsContainer },
+      } as CustomEventInit),
+    );
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      loader,
+      "classifier:initial-load",
+    );
+  });
+
   it("fires the deep-link initial loader immediately when auth is already ready", async () => {
     document.body.innerHTML += `
       <div
