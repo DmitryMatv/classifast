@@ -3,6 +3,7 @@ import { ShareLink } from "./common";
 const BASE_SCORE_BAR_DELAY_MS = 60;
 const SCORE_BAR_STAGGER_MS = 70;
 const MAX_SCORE_BAR_STAGGER_MS = 420;
+const INITIAL_LOAD_AUTH_READY_TIMEOUT_MS = 4000;
 
 /**
  * Classifier page specific functionality
@@ -11,6 +12,7 @@ const MAX_SCORE_BAR_STAGGER_MS = 420;
 
 class ClassifierPage {
   private pendingInitialLoadAuthReadyHandler: (() => void) | null = null;
+  private pendingInitialLoadTimeoutId: number | null = null;
 
   constructor() {
     this.init();
@@ -57,6 +59,11 @@ class ClassifierPage {
         this.pendingInitialLoadAuthReadyHandler,
       );
       this.pendingInitialLoadAuthReadyHandler = null;
+    }
+
+    if (this.pendingInitialLoadTimeoutId !== null) {
+      window.clearTimeout(this.pendingInitialLoadTimeoutId);
+      this.pendingInitialLoadTimeoutId = null;
     }
 
     if (removeLoader) {
@@ -108,6 +115,11 @@ class ClassifierPage {
       "htmx:authReady",
       this.pendingInitialLoadAuthReadyHandler,
     );
+
+    this.pendingInitialLoadTimeoutId = window.setTimeout(() => {
+      this.pendingInitialLoadTimeoutId = null;
+      this.triggerInitialResultsLoad(loader);
+    }, INITIAL_LOAD_AUTH_READY_TIMEOUT_MS);
   }
 
   private ensureResultsSectionVisible(): void {

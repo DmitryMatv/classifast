@@ -388,6 +388,58 @@ describe("classifier.ts", () => {
     );
   });
 
+  it("falls back to firing the deferred deep-link loader after the auth timeout", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="true"
+      ></div>
+    `;
+    delete window.Clerk;
+    document.head.innerHTML = `
+      <script src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+    `;
+
+    await import("./classifier");
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(3999);
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      "classifier:initial-load",
+    );
+  });
+
+  it("cancels the auth timeout when auth becomes ready first", async () => {
+    document.body.innerHTML += `
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="classifier:initial-load"
+        data-initial-results-loader="true"
+        data-await-auth-ready="true"
+      ></div>
+    `;
+    delete window.Clerk;
+    document.head.innerHTML = `
+      <script src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+    `;
+
+    await import("./classifier");
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(4000);
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels the deferred deep-link loader after a manual results request starts", async () => {
     document.body.innerHTML += `
       <div
@@ -420,6 +472,7 @@ describe("classifier.ts", () => {
     ).toBeNull();
 
     document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(4000);
 
     expect(window.htmx?.trigger).not.toHaveBeenCalled();
   });
