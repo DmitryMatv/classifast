@@ -2,7 +2,7 @@ import "./types/globals";
 
 const restoreTimeouts = new WeakMap<
   HTMLButtonElement,
-  ReturnType<typeof window.setTimeout>
+  ReturnType<typeof setTimeout>
 >();
 
 function redirectToStorefrontUrl(url: string): void {
@@ -29,7 +29,7 @@ async function startCheckout(button: HTMLButtonElement): Promise<void> {
 
   const existingRestoreTimeout = restoreTimeouts.get(button);
   if (existingRestoreTimeout) {
-    window.clearTimeout(existingRestoreTimeout);
+    clearTimeout(existingRestoreTimeout);
     restoreTimeouts.delete(button);
   }
 
@@ -70,7 +70,7 @@ async function startCheckout(button: HTMLButtonElement): Promise<void> {
     button.innerHTML = "Error - Try again";
     button.disabled = false;
 
-    const restoreTimeout = window.setTimeout(() => {
+    const restoreTimeout = setTimeout(() => {
       restoreButton(button, originalHtml, originalDisabled);
       restoreTimeouts.delete(button);
     }, 3000);

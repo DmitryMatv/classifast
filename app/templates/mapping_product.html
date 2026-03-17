@@ -38,10 +38,10 @@
     {
         "@context": "https://schema.org",
         "@type": "Product",
-        "name": "{{ product.title }}",
-        "description": "{{ product.meta_description }}",
+        "name": {{ product.title | tojson }},
+        "description": {{ product.meta_description | tojson }},
         "url": "{{ canonical_url }}",
-        "category": "{{ product.source_standard }} to {{ product.target_standard }} mapping",
+        "category": {{ (product.source_standard ~ " to " ~ product.target_standard ~ " mapping") | tojson }},
         "offers": {
             "@type": "Offer",
             "price": "{{ product.price_usd }}",
@@ -87,10 +87,10 @@
             {% for faq in product.faq_items %}
             {
                 "@type": "Question",
-                "name": "{{ faq.question }}",
+                "name": {{ faq.question | tojson }},
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "{{ faq.answer }}"
+                    "text": {{ faq.answer | tojson }}
                 }
             }{% if not loop.last %},{% endif %}
             {% endfor %}

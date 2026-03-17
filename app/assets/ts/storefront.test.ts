@@ -44,7 +44,7 @@ describe("storefront.ts", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         slug: "unspsc-to-cpv-mapping",
-        return_url: "http://localhost:3000/mappings/unspsc-to-cpv-mapping/",
+        return_url: `${window.location.origin}/mappings/unspsc-to-cpv-mapping/`,
       }),
     });
     expect(window.__storefrontNavigate).toHaveBeenCalledWith(

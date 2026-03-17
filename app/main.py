@@ -473,7 +473,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Mount static files with cache-profile-based browser and Cloudflare TTLs.
 def get_static_cache_profile(path: str) -> CacheProfile:
     """Map a static asset path to the cache profile used for the response."""
-    if path.endswith((".woff", ".woff2", ".png", ".jpg", ".ico", ".pdf", ".zip", ".xlsx")):
+    if path.endswith((".png", ".jpg", ".ico", ".pdf", ".zip", ".xlsx")):
         return STATIC_MEDIA
     if path.endswith((".css", ".js", ".min.js")):
         return STATIC_CODE
