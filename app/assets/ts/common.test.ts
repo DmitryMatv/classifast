@@ -164,6 +164,7 @@ describe("common.ts", () => {
 
     expect(window.Clerk?.load).toHaveBeenCalled();
     expect(window.Clerk?.session?.getToken).toHaveBeenCalled();
+    expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
   });
 
@@ -179,6 +180,7 @@ describe("common.ts", () => {
     await import("./common");
     await flushAsyncWork();
 
+    expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).toContain("Sign In");
     expect(document.body.textContent).toContain("Sign Up");

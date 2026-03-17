@@ -171,10 +171,8 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn(
-            'hx-trigger="htmx:authReady from:body once, load delay:2s once"',
-            response.text,
-        )
+        self.assertIn('hx-trigger="initial-results-ready once"', response.text)
+        self.assertIn('data-auth-gated="true"', response.text)
         self.assertIn('"track_usage": true', response.text)
 
     async def test_base_page_keeps_immediate_unmetered_initial_loader(self):
@@ -189,6 +187,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
         self.assertIn('hx-trigger="load"', response.text)
+        self.assertIn('data-auth-gated="false"', response.text)
         self.assertIn('"track_usage": false', response.text)
 
     def _expected_generic_name(self) -> str:

@@ -359,4 +359,60 @@ describe("classifier.ts", () => {
     expect(resultsSection.classList.contains("hidden")).toBe(true);
     expect(getScoreBars()).toHaveLength(0);
   });
+
+  it("autoloads auth-gated initial results when auth is already ready", async () => {
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    document.body.innerHTML += `
+      <div
+        id="initial-results-loader"
+        data-initial-results-loader="true"
+        data-auth-gated="true"
+      ></div>
+    `;
+    window.__authReady = true;
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      document.getElementById("initial-results-loader"),
+      "initial-results-ready",
+    );
+  });
+
+  it("waits for authReady before autoloading auth-gated initial results", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    document.body.innerHTML += `
+      <div
+        id="initial-results-loader"
+        data-initial-results-loader="true"
+        data-auth-gated="true"
+      ></div>
+    `;
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(
+      document.getElementById("initial-results-loader"),
+      "initial-results-ready",
+    );
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      document.getElementById("initial-results-loader"),
+      "initial-results-ready",
+    );
+  });
 });

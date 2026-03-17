@@ -16,6 +16,7 @@ class ClassifierPage {
 
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
+    this.setupInitialResultsAutoload();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
@@ -45,6 +46,43 @@ class ClassifierPage {
 
   private cleanupInitialResultsLoader(): void {
     this.getInitialResultsLoader()?.remove();
+  }
+
+  private setupInitialResultsAutoload(): void {
+    const loader = this.getInitialResultsLoader();
+    if (!loader || loader.dataset["authGated"] !== "true") {
+      return;
+    }
+
+    const triggerInitialResultsLoad = () => {
+      if (
+        !loader.isConnected ||
+        loader.dataset["autoloadTriggered"] === "true" ||
+        !window.htmx
+      ) {
+        return;
+      }
+
+      loader.dataset["autoloadTriggered"] = "true";
+      window.htmx.trigger(loader, "initial-results-ready");
+    };
+
+    const scheduleInitialResultsLoad = () => {
+      window.setTimeout(triggerInitialResultsLoad, 0);
+    };
+
+    if (window.__authReady) {
+      scheduleInitialResultsLoad();
+      return;
+    }
+
+    document.body.addEventListener(
+      "htmx:authReady",
+      () => {
+        scheduleInitialResultsLoad();
+      },
+      { once: true },
+    );
   }
 
   private ensureResultsSectionVisible(): void {

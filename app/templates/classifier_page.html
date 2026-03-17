@@ -745,9 +745,10 @@
         {% if trigger_search_on_load and versions %}
         <div id="initial-results-loader"
             hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-            hx-trigger="{% if url_params.search %}htmx:authReady from:body once, load delay:2s once{% else %}load{% endif %}"
+            hx-trigger="{% if url_params.search %}initial-results-ready once{% else %}load{% endif %}"
             hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
             data-initial-results-loader="true"
+            data-auth-gated="{% if url_params.search %}true{% else %}false{% endif %}"
             hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}, "push_url": false, "track_usage": {{ "true" if url_params.search else "false" }}}'>
         </div>
         {% endif %}
