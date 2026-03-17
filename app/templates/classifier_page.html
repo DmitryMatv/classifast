@@ -572,6 +572,9 @@
                     <li><a href="{{ url_for('read_root') }}"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="Other Classification Standards">Home</a></li>
+                    <li><a href="{{ url_for('show_mappings_index') }}"
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="Mapping Files">Mappings</a></li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="UNSPSC Classification">UNSPSC</a></li>
@@ -604,6 +607,9 @@
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu">
             <ul class="flex flex-col">
+                <li><a href="{{ url_for('show_mappings_index') }}"
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Mappings</a>
+                </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                         class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">UNSPSC</a>
                 </li>

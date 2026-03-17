@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 from fastapi import FastAPI
@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from polar_sdk._webhooks import WebhookVerificationError
 
 from app import payments
+from app.mapping_store import MAPPING_PRODUCTS
 
 
 def _build_test_app() -> FastAPI:
@@ -62,6 +63,65 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertEqual(ctx.exception.detail, "Invalid return_url")
 
+    async def test_create_mapping_checkout_rejects_unknown_slug(self) -> None:
+        response = await self._post_json(
+            "/api/create-mapping-checkout",
+            {
+                "slug": "missing-product",
+                "return_url": "http://testserver/mappings/missing-product/",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "Mapping product not found")
+
+    async def test_create_mapping_checkout_rejects_invalid_return_url(self) -> None:
+        response = await self._post_json(
+            "/api/create-mapping-checkout",
+            {
+                "slug": next(iter(MAPPING_PRODUCTS)),
+                "return_url": "https://evil.example/mappings/redirect/",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Invalid return_url")
+
+    async def test_create_mapping_checkout_uses_configured_polar_product_id(
+        self,
+    ) -> None:
+        product = next(iter(MAPPING_PRODUCTS.values()))
+        polar_instance = MagicMock()
+        polar_instance.checkouts.create.return_value = SimpleNamespace(
+            url="https://polar.example/checkout"
+        )
+        polar_context = MagicMock()
+        polar_context.__enter__.return_value = polar_instance
+        polar_context.__exit__.return_value = None
+
+        with (
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.Polar", return_value=polar_context),
+        ):
+            response = await self._post_json(
+                "/api/create-mapping-checkout",
+                {
+                    "slug": product.slug,
+                    "return_url": f"http://testserver/mappings/{product.slug}/",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["url"], "https://polar.example/checkout")
+        polar_instance.checkouts.create.assert_called_once()
+        request_payload = polar_instance.checkouts.create.call_args.kwargs["request"]
+        self.assertEqual(request_payload["products"], [product.polar_product_id])
+        self.assertEqual(request_payload["metadata"]["mapping_slug"], product.slug)
+        self.assertEqual(
+            request_payload["success_url"],
+            f"http://testserver/mappings/{product.slug}/?checkout=success",
+        )
+
 
 class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
@@ -102,7 +162,9 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
-            patch("app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
             patch(
                 "app.payments.validate_event",
                 return_value=DummyUpdatedPayload("trialing"),
@@ -128,7 +190,9 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
-            patch("app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
             patch(
                 "app.payments.validate_event",
                 return_value=DummyUpdatedPayload("canceled"),

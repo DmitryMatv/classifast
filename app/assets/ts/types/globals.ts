@@ -13,6 +13,8 @@ declare global {
     __paywallInitialized?: boolean;
     __paywallNavigate?: (url: string) => void;
     __paywallScriptParsed?: boolean;
+    __storefrontInitialized?: boolean;
+    __storefrontNavigate?: (url: string) => void;
     copyOriginalId?: (text: string, buttonElement: HTMLButtonElement) => void;
     htmx?: HtmxInstance;
     ShareLink?: {

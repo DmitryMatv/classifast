@@ -552,6 +552,9 @@
             <!-- Desktop Navigation -->
             <nav class="desktop-nav" role="navigation" aria-label="Main navigation">
                 <ul class="flex space-x-6 items-center">
+                    <li><a href="{{ url_for('show_mappings_index') }}"
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="Mapping Files">Mappings</a></li>
                     <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="Blog">Blog</a></li>
@@ -576,6 +579,10 @@
         <!-- Mobile Navigation Menu -->
         <nav class="mobile-menu" id="mobile-menu" role="navigation" aria-label="Mobile navigation">
             <ul class="flex flex-col">
+                <li><a href="{{ url_for('show_mappings_index') }}"
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors font-bold"
+                        role="link" aria-label="Mapping Files">Mappings</a>
+                </li>
                 <li><a href="https://blog.classifast.com" target="_blank" rel="noopener"
                         class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors font-bold"
                         role="link" aria-label="Blog">Blog</a>
