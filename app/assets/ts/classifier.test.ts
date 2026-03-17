@@ -32,10 +32,7 @@ function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
   };
 }
 
-function createAnimationFrameController(): {
-  flush: () => void;
-  requestAnimationFrameMock: ReturnType<typeof vi.fn>;
-} {
+function createAnimationFrameController() {
   const callbacks: FrameRequestCallback[] = [];
   const requestAnimationFrameMock = vi.fn((callback: FrameRequestCallback) => {
     callbacks.push(callback);

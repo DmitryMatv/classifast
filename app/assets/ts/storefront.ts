@@ -2,7 +2,7 @@ import "./types/globals";
 
 const restoreTimeouts = new WeakMap<
   HTMLButtonElement,
-  ReturnType<typeof setTimeout>
+  Parameters<typeof clearTimeout>[0]
 >();
 
 function redirectToStorefrontUrl(url: string): void {
