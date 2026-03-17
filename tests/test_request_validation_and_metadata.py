@@ -160,6 +160,34 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-auth-slot="desktop"', response.text)
         self.assertIn('id="desktop-auth-container"', response.text)
 
+    async def test_search_page_gates_initial_loader_on_auth_ready(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(f"/{self.classifier_type}/industrial_pump")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="initial-results-loader"', response.text)
+        self.assertIn('hx-trigger="htmx:authReady from:body once"', response.text)
+        self.assertIn('"track_usage": true', response.text)
+
+    async def test_base_page_keeps_immediate_unmetered_initial_loader(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(f"/{self.classifier_type}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="initial-results-loader"', response.text)
+        self.assertIn('hx-trigger="load"', response.text)
+        self.assertIn('"track_usage": false', response.text)
+
     def _expected_generic_name(self) -> str:
         if self.classifier_type == "UNSPSC":
             return "UNSPSC Code Lookup & Classification | Classifast"

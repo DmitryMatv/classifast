@@ -248,7 +248,9 @@ export class ClerkAuth {
       await this.refreshAuthToken();
       this.updateAuthUI();
 
-      // Signal that auth is ready for auto-classification (fire only once)
+      // Signal that auth is ready for auto-classification (fire only once).
+      // Metered direct-link autoloads wait for this so the first HTMX request
+      // can include an authenticated Clerk token when available.
       if (!authReadyFired) {
         authReadyFired = true;
         document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
@@ -710,7 +712,9 @@ export class ClerkAuth {
       );
     }
 
-    // Signal auth ready even without Clerk (user is anonymous, fire only once)
+    // Signal auth ready even without Clerk (user is anonymous, fire only once).
+    // Direct-link autoloads rely on this fallback so they do not hang forever
+    // if Clerk cannot bootstrap on the page.
     if (!authReadyFired) {
       authReadyFired = true;
       document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
