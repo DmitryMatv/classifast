@@ -152,13 +152,12 @@ describe("common.ts", () => {
     `;
     const authReadyListener = vi.fn();
     document.body.addEventListener("htmx:authReady", authReadyListener);
-    window.Clerk = {
-      load: vi.fn(async () => {}),
-      user: { id: "user_123" } as ClerkUser,
-      session: {
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.session = {
         getToken: vi.fn(async () => "token-123"),
-      },
-    } as unknown as typeof window.Clerk;
+      };
+    }
 
     await import("./common");
     await flushAsyncWork();

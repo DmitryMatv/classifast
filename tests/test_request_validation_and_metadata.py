@@ -171,7 +171,10 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn('hx-trigger="htmx:authReady from:body once"', response.text)
+        self.assertIn(
+            'hx-trigger="htmx:authReady from:body once, load delay:2s once"',
+            response.text,
+        )
         self.assertIn('"track_usage": true', response.text)
 
     async def test_base_page_keeps_immediate_unmetered_initial_loader(self):
