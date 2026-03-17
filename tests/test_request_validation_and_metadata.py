@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 from fastapi import FastAPI, Request
@@ -30,6 +31,10 @@ def _build_web_test_app() -> FastAPI:
         "/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static"
     )
     app.include_router(router)
+    app.state.embed_client = object()
+    app.state.qdrant_client = object()
+    app.state.collection_quantization_cache = {}
+    app.state.zclient = None
     return app
 
 
@@ -93,6 +98,24 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
                 )
             )
 
+    def _classification_result(self) -> dict:
+        return {
+            "results": [
+                {
+                    "score": 0.92,
+                    "payload": {
+                        "original_id": "123456",
+                        "class_name": "Industrial pumps",
+                        "definition": "Industrial pump manufacturing.",
+                    },
+                }
+            ],
+            "version_config": {
+                "base_url": "",
+                "tooltip": "",
+            },
+        }
+
     async def test_search_page_renders_query_specific_json_ld(self):
         transport = httpx.ASGITransport(app=self.app)
 
@@ -113,7 +136,11 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response.text,
         )
 
-    async def test_base_page_keeps_generic_json_ld(self):
+    @patch("app.web.perform_classification")
+    async def test_base_page_keeps_generic_json_ld(
+        self, perform_classification_mock
+    ):
+        perform_classification_mock.return_value = self._classification_result()
         transport = httpx.ASGITransport(app=self.app)
 
         async with httpx.AsyncClient(
@@ -146,7 +173,11 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-auth-slot="desktop"', response.text)
         self.assertIn('id="desktop-auth-container"', response.text)
 
-    async def test_classifier_page_renders_stable_desktop_auth_slot(self):
+    @patch("app.web.perform_classification")
+    async def test_classifier_page_renders_stable_desktop_auth_slot(
+        self, perform_classification_mock
+    ):
+        perform_classification_mock.return_value = self._classification_result()
         transport = httpx.ASGITransport(app=self.app)
 
         async with httpx.AsyncClient(

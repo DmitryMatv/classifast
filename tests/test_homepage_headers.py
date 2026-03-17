@@ -75,6 +75,17 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
             response.headers["Link"],
             '<https://classifast.com/NAICS/industrial_pump/>; rel="canonical"',
         )
+        self.assertEqual(response.headers["X-Robots-Tag"], "noindex, follow")
+
+    async def test_classifier_base_head_is_indexable(self) -> None:
+        response = await self._request("HEAD", "/NAICS/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["Link"],
+            '<https://classifast.com/NAICS/>; rel="canonical"',
+        )
+        self.assertEqual(response.headers["X-Robots-Tag"], "index, follow")
 
 
 if __name__ == "__main__":

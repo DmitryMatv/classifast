@@ -25,6 +25,11 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - Full pages can set cookies - but prefer client-side JavaScript to prevent CDN cache pollution
 - Generate per-user state client-side when possible (e.g., tracking IDs via `crypto.randomUUID()`) instead of server-side templating - keeps HTML cacheable across all users
 
+## SEO Gotchas
+
+- Generated classifier search pages can look indexable because they have clean canonicals and titles, but if the unique results are only HTMX-loaded, bots may still see mostly boilerplate and defer indexing.
+- Time-sensitive SEO claims such as the "current version" of a classifier must come from `CLASSIFIER_CONFIG`, not hardcoded template prose or JSON-LD.
+
 ## Qdrant Index Contract Gotcha
 
 - Do not add a Qdrant full-text index to `original_id`.

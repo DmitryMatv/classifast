@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from app.cache_profiles import (
     STATIC_CODE,
@@ -7,6 +8,8 @@ from app.cache_profiles import (
     build_cache_headers,
 )
 from app.main import get_static_cache_profile, static_file_response
+
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 class StaticHeaderTests(unittest.TestCase):
@@ -69,6 +72,31 @@ class StaticHeaderTests(unittest.TestCase):
                 "max-age=7200, stale-while-revalidate=86400",
             )
             self.assertEqual(response.headers["Cache-Tag"], "static-files")
+
+    def test_robots_txt_disallows_fragment_and_noisy_query_variants(self) -> None:
+        robots_text = (BASE_DIR / "app" / "static" / "robots.txt").read_text()
+
+        self.assertIn("Disallow: /*/fragment", robots_text)
+        self.assertIn("Disallow: /*?*top_k=", robots_text)
+        self.assertIn("Disallow: /*?*version=", robots_text)
+
+    def test_sitemap_excludes_generated_search_urls(self) -> None:
+        sitemap_text = (BASE_DIR / "app" / "static" / "sitemap.xml").read_text()
+
+        self.assertIn("<loc>https://classifast.com/UNSPSC/</loc>", sitemap_text)
+        self.assertIn("<loc>https://blog.classifast.com/</loc>", sitemap_text)
+        self.assertNotIn(
+            "<loc>https://classifast.com/UNSPSC/laptop-computer/</loc>",
+            sitemap_text,
+        )
+        self.assertNotIn(
+            "<loc>https://classifast.com/NAICS/short-term-rentals/</loc>",
+            sitemap_text,
+        )
+        self.assertNotIn(
+            "<loc>https://classifast.com/NACE/pharmacy/</loc>",
+            sitemap_text,
+        )
 
 
 if __name__ == "__main__":

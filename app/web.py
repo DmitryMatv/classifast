@@ -48,6 +48,117 @@ def slugify(text: str) -> str:
     return text.strip("_")
 
 
+def _decode_search_query(search_query: str) -> str:
+    if not search_query or not search_query.strip():
+        return ""
+
+    decoded_search_query = (
+        unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
+    )
+    decoded_search_query = re.sub(r"\s+", " ", decoded_search_query).strip()
+    if len(decoded_search_query) > 4000:
+        decoded_search_query = decoded_search_query[:4000].strip()
+    return decoded_search_query
+
+
+def _build_classifier_canonical_url(
+    classifier_type: str, decoded_search_query: str
+) -> str:
+    canonical_url = f"https://classifast.com/{classifier_type}"
+    if decoded_search_query:
+        canonical_url += f"/{quote(slugify(decoded_search_query), safe='')}"
+    if not canonical_url.endswith("/"):
+        canonical_url += "/"
+    return canonical_url
+
+
+def _get_default_version(config: dict) -> str:
+    versions_list = list(config["versions"].keys())
+    return versions_list[0] if versions_list else ""
+
+
+def _get_example_query(config: dict) -> str:
+    return config["example"].replace("Example:", "").strip()
+
+
+def _build_classifier_page_state(
+    request: Request,
+    classifier_type: str,
+    search_query: str,
+    version: str | None,
+    top_k: int,
+) -> dict:
+    config = CLASSIFIER_CONFIG[classifier_type]
+    decoded_search_query = _decode_search_query(search_query)
+    default_version = _get_default_version(config)
+    has_version_param = "version" in request.query_params
+    has_top_k_param = "top_k" in request.query_params
+    is_generated_search_page = bool(decoded_search_query)
+    is_variant_url = has_version_param or has_top_k_param
+    should_ssr_initial_results = not is_generated_search_page and not is_variant_url
+    page_robots_directive = (
+        "index, follow" if should_ssr_initial_results else "noindex, follow"
+    )
+    initial_results_query = decoded_search_query or _get_example_query(config)
+
+    return {
+        "canonical_url": _build_classifier_canonical_url(
+            classifier_type, decoded_search_query
+        ),
+        "config": config,
+        "decoded_search_query": decoded_search_query,
+        "default_version": default_version,
+        "initial_results_query": initial_results_query,
+        "is_generated_search_page": is_generated_search_page,
+        "is_variant_url": is_variant_url,
+        "page_robots_directive": page_robots_directive,
+        "selected_version": version or default_version,
+        "should_ssr_initial_results": should_ssr_initial_results,
+        "top_k": top_k if 1 <= top_k <= 100 else 10,
+    }
+
+
+def _build_ssr_results_context(
+    request: Request,
+    classifier_type: str,
+    query: str,
+    version: str | None,
+    top_k: int,
+) -> dict:
+    normalized_query = re.sub(r"\s+", " ", query).strip()
+    if not normalized_query:
+        return {
+            "query": "",
+            "results_for_query": [],
+            "base_url": "",
+            "tooltip": "",
+            "total_request_time": 0,
+        }
+
+    start_total_time = time.perf_counter()
+    quantization_cache = getattr(request.app.state, "collection_quantization_cache", {})
+    zclient = getattr(request.app.state, "zclient", None)
+    result = perform_classification(
+        embed_client=getattr(request.app.state, "embed_client", None),
+        qdrant_client=getattr(request.app.state, "qdrant_client", None),
+        query=normalized_query,
+        classifier_type=classifier_type,
+        version=version,
+        top_k=top_k,
+        quantization_cache=quantization_cache,
+        zclient=zclient,
+    )
+    total_request_time = time.perf_counter() - start_total_time
+
+    return {
+        "query": normalized_query,
+        "results_for_query": result["results"],
+        "base_url": result["version_config"].get("base_url", ""),
+        "tooltip": result["version_config"].get("tooltip", ""),
+        "total_request_time": total_request_time,
+    }
+
+
 # Serve the main homepage
 @router.get("/", response_class=HTMLResponse)
 @router.head("/")  # Add HEAD support
@@ -316,6 +427,19 @@ async def show_classifier_page_with_query(
 
     # Use the uppercase classifier_type from here
     effective_classifier_type = upper_type
+    page_state = _build_classifier_page_state(
+        request, effective_classifier_type, search_query, version, top_k
+    )
+    canonical_url = page_state["canonical_url"]
+
+    # For HEAD requests, return just headers
+    if request.method == "HEAD":
+        headers = build_cache_headers(HTML_PAGE)
+        headers["Vary"] = "Accept-Encoding"
+        headers["Content-Type"] = "text/html; charset=utf-8"
+        headers["Link"] = f'<{canonical_url}>; rel="canonical"'
+        headers["X-Robots-Tag"] = page_state["page_robots_directive"]
+        return Response(headers=headers)
 
     # Handle checkout return with token verification
     checkout_success = request.query_params.get("checkout")
@@ -324,72 +448,41 @@ async def show_classifier_page_with_query(
         redis_client = getattr(request.app.state, "redis_client", None)
         await verify_checkout_token(checkout_token, request, redis_client)
 
-    # Handle empty search query for base URLs
-    decoded_search_query = ""
-    if search_query and search_query.strip():
-        decoded_search_query = (
-            unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
-        )
-        # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
-        decoded_search_query = re.sub(r"\s+", " ", decoded_search_query).strip()
-        # Sanitize the decoded query
-        # Relaxed sanitization: allow characters like apostrophes, but keep length limit
-        if len(decoded_search_query) > 4000:
-            decoded_search_query = decoded_search_query[:4000]
-            decoded_search_query = decoded_search_query.strip()
-
-    # Build canonical URL
-    # URL-encode slug to handle non-Latin characters in HTTP headers
-    canonical_url = f"https://classifast.com/{effective_classifier_type}"
-    if decoded_search_query:
-        slug = slugify(decoded_search_query)
-        canonical_url += f"/{quote(slug, safe='')}"
-
-    # Ensure trailing slash for consistency with redirects and sitemap
-    if not canonical_url.endswith("/"):
-        canonical_url += "/"
-
-    # For HEAD requests, return just headers
-    if request.method == "HEAD":
-        headers = build_cache_headers(HTML_PAGE)
-        headers["Vary"] = "Accept-Encoding"
-        headers["Content-Type"] = "text/html; charset=utf-8"
-        headers["Link"] = f'<{canonical_url}>; rel="canonical"'
-        return Response(headers=headers)
-
-    # Validate top_k parameter
-    if top_k < 1 or top_k > 100:
-        top_k = 10
-
-    # Get first version for default handling
-    versions_list = list(config["versions"].keys())
-    first_version = versions_list[0] if versions_list else ""
-
-    # Initialize results data structure
     results_data = {
         "results_for_query": [],
-        "query": decoded_search_query,
+        "query": page_state["initial_results_query"],
         "base_url": "",
         "tooltip": "",
         "total_request_time": 0,
     }
-
-    # Determine if we should trigger a search on load
-    # This is true if we have a URL search query OR if we're falling back to the example
-    trigger_search_on_load = False
-
-    if decoded_search_query:
-        trigger_search_on_load = True
-    else:
-        # If no search query (base URL), use example query
-        example_query = config["example"].replace("Example:", "").strip()
-        if example_query:
-            results_data["query"] = example_query
-            trigger_search_on_load = True
+    used_ssr_initial_results = False
+    if page_state["should_ssr_initial_results"]:
+        try:
+            results_data = _build_ssr_results_context(
+                request,
+                effective_classifier_type,
+                page_state["initial_results_query"],
+                page_state["selected_version"],
+                page_state["top_k"],
+            )
+            used_ssr_initial_results = True
+        except HTTPException as exc:
+            logger.warning(
+                "Falling back to HTMX initial load for '%s' landing page after SSR failure: %s",
+                effective_classifier_type,
+                exc.detail,
+            )
+        except Exception as e:
+            logger.warning(
+                "Falling back to HTMX initial load for '%s' landing page after SSR failure: %s",
+                effective_classifier_type,
+                e,
+            )
 
     today = datetime.now()
     current_year = today.year
     current_month_name = today.strftime("%B")
+    primary_version_label = page_state["default_version"]
 
     response = templates.TemplateResponse(
         request,
@@ -402,11 +495,21 @@ async def show_classifier_page_with_query(
             "versions": list(config["versions"].keys()),
             "example": config["example"],
             "url_params": {
-                "search": decoded_search_query,
-                "version": version if version and version != first_version else "",
-                "top_k": top_k,
+                "search": page_state["decoded_search_query"],
+                "version": (
+                    version
+                    if version and version != page_state["default_version"]
+                    else ""
+                ),
+                "top_k": page_state["top_k"],
             },
-            "trigger_search_on_load": trigger_search_on_load,
+            "meta_robots_content": page_state["page_robots_directive"],
+            "primary_version_label": primary_version_label,
+            "should_ssr_initial_results": used_ssr_initial_results,
+            "should_trigger_initial_results_load": (
+                not used_ssr_initial_results
+                and bool(page_state["initial_results_query"])
+            ),
             "canonical_url": canonical_url,
             "current_year": current_year,
             "current_month_name": current_month_name,
@@ -418,6 +521,6 @@ async def show_classifier_page_with_query(
     response.headers.update(build_cache_headers(HTML_PAGE))
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
-    response.headers["X-Robots-Tag"] = "index, follow"
+    response.headers["X-Robots-Tag"] = page_state["page_robots_directive"]
 
     return response

@@ -71,16 +71,4 @@
         <loc>https://blog.classifast.com/2025/09/naics-classification/</loc>
         <priority>0.8</priority>
     </url>
-    <url>
-        <loc>https://classifast.com/UNSPSC/laptop-computer/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/NAICS/short-term-rentals/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/NACE/pharmacy/</loc>
-        <priority>0.64</priority>
-    </url>
 </urlset>

@@ -38,6 +38,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="robots" content="{{ meta_robots_content }}">
 
     <link rel="canonical" href="{{ canonical_url }}">
     <link rel="home" href="{{ url_for('read_root') }}">
@@ -177,7 +178,7 @@
                 "name": "How often are UNSPSC codes updated and what's the latest version?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "UNSPSC codes are updated semi-annually by GS1 US. The current version (v26.0801 from August 2023) contains over 150,000 active codes covering both products and services across all sectors. Updates include new codes for emerging technologies and market changes."
+                    "text": "UNSPSC codes are updated semi-annually by GS1 US. The current dataset available on this page uses {{ primary_version_label }} and contains over 150,000 active codes covering both products and services across all sectors. Updates include new codes for emerging technologies and market changes."
                 }
             }
             {% elif classifier_type == 'ETIM' %}
@@ -742,7 +743,7 @@
             </div>
         </section>
 
-        {% if trigger_search_on_load and versions %}
+        {% if should_trigger_initial_results_load and versions %}
         <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}" hx-trigger="load"
             hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
             data-initial-results-loader="true"
