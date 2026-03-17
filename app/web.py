@@ -93,11 +93,16 @@ def _build_classifier_page_state(
     default_version = _get_default_version(config)
     has_version_param = "version" in request.query_params
     has_top_k_param = "top_k" in request.query_params
+    has_any_query_params = bool(request.query_params)
     is_generated_search_page = bool(decoded_search_query)
     is_variant_url = has_version_param or has_top_k_param
-    should_ssr_initial_results = not is_generated_search_page and not is_variant_url
+    should_ssr_initial_results = (
+        not is_generated_search_page and not has_any_query_params
+    )
     page_robots_directive = (
-        "index, follow" if should_ssr_initial_results else "noindex, follow"
+        "index, follow"
+        if not is_generated_search_page and not is_variant_url
+        else "noindex, follow"
     )
     initial_results_query = decoded_search_query or _get_example_query(config)
 
@@ -108,6 +113,7 @@ def _build_classifier_page_state(
         "config": config,
         "decoded_search_query": decoded_search_query,
         "default_version": default_version,
+        "has_any_query_params": has_any_query_params,
         "initial_results_query": initial_results_query,
         "is_generated_search_page": is_generated_search_page,
         "is_variant_url": is_variant_url,

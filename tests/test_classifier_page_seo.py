@@ -75,6 +75,27 @@ class ClassifierPageSeoTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Backend services not available", response.text)
         self.assertNotIn("boom", response.text)
 
+    def _assert_query_param_shell(self, response: httpx.Response, robots: str) -> None:
+        example_query = (
+            CLASSIFIER_CONFIG[self.classifier_type]["example"]
+            .replace("Example:", "")
+            .strip()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Robots-Tag"], robots)
+        self.assertIn(
+            f'<meta name="robots" content="{robots}">',
+            response.text,
+        )
+        self.assertIn(
+            '<link rel="canonical" href="https://classifast.com/UNSPSC/">',
+            response.text,
+        )
+        self.assertIn('data-initial-results-loader="true"', response.text)
+        self.assertIn(example_query, response.text)
+        self.assertNotIn("Laptop computers", response.text)
+
     @patch("app.web.perform_classification")
     async def test_base_landing_page_is_indexable_and_server_renders_results(
         self,
@@ -124,6 +145,65 @@ class ClassifierPageSeoTests(unittest.IsolatedAsyncioTestCase):
             '<link rel="canonical" href="https://classifast.com/UNSPSC/">',
             response.text,
         )
+
+    @patch("app.web.perform_classification")
+    async def test_tracking_param_landing_page_skips_ssr_but_stays_indexable(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request(
+            "GET",
+            f"/{self.classifier_type}/",
+            params={"utm_source": "google"},
+        )
+
+        self._assert_query_param_shell(response, "index, follow")
+        perform_classification_mock.assert_not_called()
+
+    @patch("app.web.verify_checkout_token", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_checkout_return_params_skip_ssr_but_still_verify_checkout_token(
+        self,
+        perform_classification_mock: Mock,
+        verify_checkout_token_mock: AsyncMock,
+    ) -> None:
+        response = await self._request(
+            "GET",
+            f"/{self.classifier_type}/",
+            params={"checkout": "success", "checkout_token": "test-token"},
+        )
+
+        self._assert_query_param_shell(response, "index, follow")
+        perform_classification_mock.assert_not_called()
+        verify_checkout_token_mock.assert_awaited_once()
+
+    @patch("app.web.perform_classification")
+    async def test_top_k_variant_page_is_noindexed_and_skips_ssr(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request(
+            "GET",
+            f"/{self.classifier_type}/",
+            params={"top_k": 30},
+        )
+
+        self._assert_query_param_shell(response, "noindex, follow")
+        perform_classification_mock.assert_not_called()
+
+    @patch("app.web.perform_classification")
+    async def test_version_variant_page_is_noindexed_and_skips_ssr(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request(
+            "GET",
+            f"/{self.classifier_type}/",
+            params={"version": self.primary_version_label},
+        )
+
+        self._assert_query_param_shell(response, "noindex, follow")
+        perform_classification_mock.assert_not_called()
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
@@ -197,6 +277,20 @@ class ClassifierPageSeoTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(self.primary_version_label, response.text)
         self.assertNotIn("August 2023", response.text)
+
+    async def test_head_tracking_param_keeps_existing_indexable_policy(self) -> None:
+        response = await self._request(
+            "HEAD",
+            f"/{self.classifier_type}/",
+            params={"utm_source": "google"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Robots-Tag"], "index, follow")
+        self.assertEqual(
+            response.headers["Link"],
+            '<https://classifast.com/UNSPSC/>; rel="canonical"',
+        )
 
 
 if __name__ == "__main__":
