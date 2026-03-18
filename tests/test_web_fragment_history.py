@@ -52,7 +52,9 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-    async def _request_fragment(self, **extra_params):
+    async def _request_fragment(
+        self, headers: dict[str, str] | None = None, **extra_params
+    ):
         params = {
             "product_description": "trash removal",
             "version": self.version,
@@ -64,7 +66,17 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             transport=transport,
             base_url="http://testserver",
         ) as client:
-            return await client.get(f"/{self.classifier_type}/fragment", params=params)
+            return await client.get(
+                f"/{self.classifier_type}/fragment",
+                params=params,
+                headers=headers,
+            )
+
+    def assert_title_oob_present(self, response: httpx.Response) -> None:
+        self.assertIn('hx-swap-oob="true"', response.text)
+
+    def assert_title_oob_absent(self, response: httpx.Response) -> None:
+        self.assertNotIn('hx-swap-oob="true"', response.text)
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
@@ -91,6 +103,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             response.headers.get("HX-Push-Url"),
             f"/{self.classifier_type}/trash_removal",
         )
+        self.assert_title_oob_present(response)
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
 
@@ -116,13 +129,76 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("HX-Push-Url", response.headers)
+        self.assert_title_oob_absent(response)
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_track_usage_false_bypasses_quota_logic(
+    async def test_omitted_push_url_ignores_current_url_and_omits_history_update(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = UsageStatus(
+            allowed=True,
+            remaining=9,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+        )
+
+        response = await self._request_fragment(
+            headers={
+                "HX-Current-URL": (
+                    f"https://classifast.com/{self.classifier_type}/trash_removal"
+                )
+            },
+            track_usage="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Push-Url", response.headers)
+        self.assert_title_oob_present(response)
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_omitted_push_url_still_omits_history_update_when_current_url_differs(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = UsageStatus(
+            allowed=True,
+            remaining=9,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+        )
+
+        response = await self._request_fragment(
+            headers={"HX-Current-URL": f"/{self.classifier_type}/"},
+            track_usage="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Push-Url", response.headers)
+        self.assert_title_oob_present(response)
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_omitted_push_url_omits_history_update_for_untracked_requests(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
@@ -130,11 +206,39 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         perform_classification_mock.return_value = self._classification_result()
 
-        response = await self._request_fragment(push_url="false", track_usage="false")
+        response = await self._request_fragment(track_usage="false")
 
         self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Push-Url", response.headers)
+        self.assert_title_oob_absent(response)
         check_usage_mock.assert_not_awaited()
         increment_usage_mock.assert_not_awaited()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_omitted_push_url_without_current_url_omits_history_update(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = UsageStatus(
+            allowed=True,
+            remaining=9,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+        )
+
+        response = await self._request_fragment(track_usage="true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Push-Url", response.headers)
+        self.assert_title_oob_present(response)
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
@@ -158,6 +262,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("HX-Push-Url", response.headers)
+        self.assert_title_oob_absent(response)
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
 
@@ -176,6 +281,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("HX-Push-Url", response.headers)
+        self.assert_title_oob_absent(response)
         check_usage_mock.assert_not_awaited()
         increment_usage_mock.assert_not_awaited()
 

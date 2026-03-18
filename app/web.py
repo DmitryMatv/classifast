@@ -53,6 +53,60 @@ def slugify(text: str) -> str:
     return text.strip("_")
 
 
+def build_clean_classifier_url(
+    classifier_type: str,
+    normalized_description: str,
+    version: str | None,
+) -> str:
+    """Build the canonical in-app URL for a classifier query."""
+    upper_type = classifier_type.strip().upper()
+    new_url = f"/{upper_type}"
+
+    slug = slugify(normalized_description.replace("/", " "))
+    if slug:
+        # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
+        # HTTP headers require Latin-1 encoding
+        new_url += f"/{quote(slug, safe='')}"
+
+    config = CLASSIFIER_CONFIG.get(upper_type)
+    if config:
+        versions_list = list(config["versions"].keys())
+        default_version = versions_list[0] if versions_list else None
+        if version and version != default_version:
+            new_url += f"?{urlencode({'version': version})}"
+
+    return new_url
+
+
+def resolve_push_url_enabled(
+    push_url: bool | None,
+    url_change: bool | None,
+) -> bool:
+    """Resolve server-side HX-Push-Url behavior from explicit query params only."""
+    if push_url is not None:
+        return push_url
+
+    if url_change is not None:
+        return url_change
+
+    return False
+
+
+def resolve_page_title_enabled(
+    push_url: bool | None,
+    url_change: bool | None,
+    track_usage: bool,
+) -> bool:
+    """Keep title swaps cache-safe while honoring explicit history flags."""
+    if push_url is not None:
+        return push_url
+
+    if url_change is not None:
+        return url_change
+
+    return track_usage
+
+
 # Serve the main homepage
 @router.get("/", response_class=HTMLResponse)
 @router.head("/")  # Add HEAD support
@@ -142,10 +196,18 @@ async def get_classification_fragment(
         track_usage,
     )
 
-    if push_url is None:
-        push_url = True if url_change is None else url_change
     if "track_usage" not in request.query_params and url_change is not None:
         track_usage = url_change
+    new_url = build_clean_classifier_url(upper_type, normalized_description, version)
+    push_url_enabled = resolve_push_url_enabled(
+        push_url=push_url,
+        url_change=url_change,
+    )
+    page_title_enabled = resolve_page_title_enabled(
+        push_url=push_url,
+        url_change=url_change,
+        track_usage=track_usage,
+    )
 
     # Handle checkout return with token verification (also on fragment requests)
     checkout_success = request.query_params.get("checkout")
@@ -153,25 +215,6 @@ async def get_classification_fragment(
     if checkout_success == "success" and checkout_token:
         redis_client = getattr(request.app.state, "redis_client", None)
         await verify_checkout_token(checkout_token, request, redis_client)
-
-    # Build the new URL early so we can set it before usage check
-    # This ensures the URL updates even if user hits the paywall
-    slug = slugify(normalized_description.replace("/", " "))
-    new_url = f"/{upper_type}"
-    if slug:
-        # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
-        # HTTP headers require Latin-1 encoding
-        new_url += f"/{quote(slug, safe='')}"
-
-    # Handle version query param
-    config = CLASSIFIER_CONFIG.get(upper_type)
-    if config:
-        versions_list = list(config["versions"].keys())
-        default_version = versions_list[0] if versions_list else None
-
-        # Only append version if it's not the default one
-        if version and version != default_version:
-            new_url += f"?{urlencode({'version': version})}"
 
     # Check usage limits before processing (only for user queries, not examples)
     redis_client = getattr(request.app.state, "redis_client", None)
@@ -190,7 +233,7 @@ async def get_classification_fragment(
                 },
             )
             response.headers.update(build_cache_headers(NO_STORE))
-            if push_url:
+            if push_url_enabled:
                 response.headers["HX-Push-Url"] = new_url
             add_quota_headers(response, usage_status)
             if usage_status.tracking_id:
@@ -257,7 +300,7 @@ async def get_classification_fragment(
 
     # Calculate dynamic page title for OOB swap
     page_title = None
-    if push_url:
+    if page_title_enabled:
         page_title = f"{upper_type} codes for '{normalized_description.title()}'"
 
     # Render the results partial with normalized query
@@ -280,7 +323,7 @@ async def get_classification_fragment(
     response.headers.update(cache_headers)
 
     # Set HTMX header to update URL in browser address bar (new_url was built earlier)
-    if push_url:
+    if push_url_enabled:
         response.headers["HX-Push-Url"] = new_url
 
     # Increment usage counter for real user-triggered searches.

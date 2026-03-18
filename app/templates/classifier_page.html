@@ -687,7 +687,10 @@
             </div>
 
             <form hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" hx-push-url="false"
+                data-classifier-type="{{ classifier_type }}"
+                data-default-version="{{ versions[0] if versions else '' }}">
+                <input type="hidden" name="track_usage" value="true">
 
                 {% if versions %}
                 <div class="flex items-center justify-start mb-1">
@@ -744,9 +747,9 @@
 
         {% if trigger_search_on_load and versions %}
         <div hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}" hx-trigger="load"
-            hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
+            hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" hx-push-url="false"
             data-initial-results-loader="true"
-            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}, "push_url": false, "track_usage": {{ "true" if url_params.search else "false" }}}'>
+            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}, "track_usage": {{ "true" if url_params.search else "false" }}}'>
         </div>
         {% endif %}
 

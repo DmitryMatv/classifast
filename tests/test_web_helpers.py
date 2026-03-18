@@ -1,3 +1,6 @@
+import html
+import json
+import re
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
@@ -12,6 +15,35 @@ from app.usage_tracker import UsageStatus
 from app.web import router, slugify
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+
+
+def extract_initial_loader_vals(markup: str) -> dict:
+    match = re.search(
+        r'data-initial-results-loader="true"[^>]*hx-vals=\'([^\']+)\'',
+        markup,
+        re.DOTALL,
+    )
+    if not match:
+        raise AssertionError("Initial results loader hx-vals not found")
+    return json.loads(html.unescape(match.group(1)))
+
+
+def extract_classifier_form_tag(markup: str) -> str:
+    match = re.search(r"<form[^>]*hx-get=[^>]*>", markup, re.DOTALL)
+    if not match:
+        raise AssertionError("Classifier form tag not found")
+    return match.group(0)
+
+
+def extract_initial_loader_tag(markup: str) -> str:
+    match = re.search(
+        r"<div[^>]*data-initial-results-loader=\"true\"[^>]*>",
+        markup,
+        re.DOTALL,
+    )
+    if not match:
+        raise AssertionError("Initial results loader tag not found")
+    return match.group(0)
 
 
 def _build_test_app() -> FastAPI:
@@ -229,6 +261,68 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('"top_k": 10', response.text)
+
+
+class ClassifierPageRenderingContractTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_test_app()
+        cls.default_unspsc_version = next(iter(CLASSIFIER_CONFIG["UNSPSC"]["versions"]))
+
+    async def _request(self, path: str) -> httpx.Response:
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(path)
+
+    async def test_unspsc_base_page_keeps_track_usage_explicit_without_push_url(
+        self,
+    ) -> None:
+        response = await self._request("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        form_tag = extract_classifier_form_tag(response.text)
+        loader_tag = extract_initial_loader_tag(response.text)
+
+        self.assertIn('name="track_usage" value="true"', response.text)
+        self.assertIn('hx-push-url="false"', form_tag)
+        self.assertIn('data-classifier-type="UNSPSC"', form_tag)
+        self.assertIn(
+            f'data-default-version="{self.default_unspsc_version}"',
+            form_tag,
+        )
+        self.assertNotIn('name="push_url"', response.text)
+        self.assertIn('hx-push-url="false"', loader_tag)
+
+        initial_loader_vals = extract_initial_loader_vals(response.text)
+        self.assertEqual(initial_loader_vals["track_usage"], False)
+        self.assertNotIn("push_url", initial_loader_vals)
+
+    async def test_unspsc_search_page_loader_uses_canonical_first_party_params(
+        self,
+    ) -> None:
+        response = await self._request("/UNSPSC/industrial_pump")
+
+        self.assertEqual(response.status_code, 200)
+        form_tag = extract_classifier_form_tag(response.text)
+        loader_tag = extract_initial_loader_tag(response.text)
+
+        self.assertIn('name="track_usage" value="true"', response.text)
+        self.assertIn('hx-push-url="false"', form_tag)
+        self.assertIn('data-classifier-type="UNSPSC"', form_tag)
+        self.assertIn(
+            f'data-default-version="{self.default_unspsc_version}"',
+            form_tag,
+        )
+        self.assertNotIn('name="push_url"', response.text)
+        self.assertIn('hx-push-url="false"', loader_tag)
+
+        initial_loader_vals = extract_initial_loader_vals(response.text)
+        self.assertEqual(initial_loader_vals["product_description"], "industrial pump")
+        self.assertEqual(initial_loader_vals["track_usage"], True)
+        self.assertNotIn("push_url", initial_loader_vals)
 
 
 class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):

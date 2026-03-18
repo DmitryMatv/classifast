@@ -16,6 +16,7 @@ class ClassifierPage {
 
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
+    this.setupFirstPartyHistory();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
@@ -41,6 +42,11 @@ class ClassifierPage {
 
   private getInitialResultsLoader(): HTMLElement | null {
     return document.querySelector("[data-initial-results-loader='true']");
+  }
+
+  private getClassifierForm(): HTMLFormElement | null {
+    const form = document.querySelector("form[hx-get]");
+    return form instanceof HTMLFormElement ? form : null;
   }
 
   private cleanupInitialResultsLoader(): void {
@@ -93,8 +99,157 @@ class ClassifierPage {
     this.syncTextareaState();
     this.syncSelectState("version_selector");
     this.syncSelectState("show_top_k_categories");
+    this.updateFirstPartyPushUrl();
     this.hideLoadingIndicator();
     this.cleanupInitialResultsLoader();
+  }
+
+  private normalizeDescription(text: string): string {
+    return text.replace(/\s+/g, " ").trim();
+  }
+
+  private slugifyClassifierQuery(text: string): string {
+    if (!text) {
+      return "";
+    }
+
+    const truncatedText = text.slice(0, 200);
+    const whitespaceNormalizedText = truncatedText.replace(/\s+/g, " ");
+    const sanitizedText = whitespaceNormalizedText.replace(
+      /[^\p{Letter}\p{Mark}\p{Number}_\s.,'()-]/gu,
+      "",
+    );
+    return sanitizedText.replace(/\s+/g, "_").replace(/^_+|_+$/g, "");
+  }
+
+  private encodePathSegment(value: string): string {
+    return encodeURIComponent(value).replace(
+      /[!'()*]/g,
+      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+  }
+
+  private buildCleanClassifierUrl({
+    classifierType,
+    productDescription,
+    version,
+    defaultVersion,
+  }: {
+    classifierType: string;
+    productDescription: string;
+    version: string;
+    defaultVersion: string;
+  }): string {
+    const upperClassifierType = classifierType.trim().toUpperCase();
+    let cleanUrl = `/${upperClassifierType}`;
+    const slug = this.slugifyClassifierQuery(
+      productDescription.replace(/\//g, " "),
+    );
+
+    if (slug) {
+      cleanUrl += `/${this.encodePathSegment(slug)}`;
+    }
+
+    if (version && version !== defaultVersion) {
+      cleanUrl += `?${new URLSearchParams({ version }).toString()}`;
+    }
+
+    return cleanUrl;
+  }
+
+  private normalizePathAndQuery(url: string): string {
+    const parsedUrl = new URL(url, window.location.origin);
+    let path = parsedUrl.pathname || "/";
+    if (path !== "/") {
+      path = path.replace(/\/+$/, "") || "/";
+    }
+
+    const sortedSearchParams = Array.from(
+      parsedUrl.searchParams.entries(),
+    ).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      if (leftKey === rightKey) {
+        return leftValue.localeCompare(rightValue);
+      }
+      return leftKey.localeCompare(rightKey);
+    });
+    const query = new URLSearchParams(sortedSearchParams).toString();
+    return query ? `${path}?${query}` : path;
+  }
+
+  private resolveFirstPartyPushTarget({
+    classifierType,
+    productDescription,
+    version,
+    defaultVersion,
+  }: {
+    classifierType: string;
+    productDescription: string;
+    version: string;
+    defaultVersion: string;
+  }): string | false {
+    const normalizedDescription = this.normalizeDescription(productDescription);
+    if (!normalizedDescription) {
+      return false;
+    }
+
+    const targetUrl = this.buildCleanClassifierUrl({
+      classifierType,
+      productDescription: normalizedDescription,
+      version,
+      defaultVersion,
+    });
+    const currentUrl = this.normalizePathAndQuery(
+      `${window.location.pathname}${window.location.search}`,
+    );
+
+    return this.normalizePathAndQuery(targetUrl) === currentUrl
+      ? false
+      : targetUrl;
+  }
+
+  private updateFirstPartyPushUrl(): void {
+    const form = this.getClassifierForm();
+    if (!form) {
+      return;
+    }
+
+    const productDescriptionArea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+    const versionSelector = document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement | null;
+    const classifierType = form.dataset["classifierType"] ?? "";
+    const defaultVersion = form.dataset["defaultVersion"] ?? "";
+    const pushTarget = this.resolveFirstPartyPushTarget({
+      classifierType,
+      productDescription: productDescriptionArea?.value ?? "",
+      version: versionSelector?.value ?? defaultVersion,
+      defaultVersion,
+    });
+
+    form.setAttribute("hx-push-url", pushTarget || "false");
+  }
+
+  private setupFirstPartyHistory(): void {
+    const form = this.getClassifierForm();
+    const productDescriptionArea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+    const versionSelector = document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement | null;
+
+    this.updateFirstPartyPushUrl();
+    productDescriptionArea?.addEventListener("input", () => {
+      this.updateFirstPartyPushUrl();
+    });
+    versionSelector?.addEventListener("change", () => {
+      this.updateFirstPartyPushUrl();
+    });
+    form?.addEventListener("submit", () => {
+      this.updateFirstPartyPushUrl();
+    });
   }
 
   private animateScoreBars(root: ParentNode = document): void {
@@ -170,6 +325,7 @@ class ClassifierPage {
     if (topKSelector && productDescriptionArea) {
       topKSelector.addEventListener("change", () => {
         if (productDescriptionArea.value.trim()) {
+          this.updateFirstPartyPushUrl();
           this.triggerFormSubmission();
         }
       });
@@ -217,6 +373,7 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxAfterRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
         this.hideLoadingIndicator();
+        this.updateFirstPartyPushUrl();
       }
 
       if (
@@ -239,6 +396,7 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxAfterSettleEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
         this.handleResultsSettle();
+        this.updateFirstPartyPushUrl();
       }
     });
 
@@ -252,6 +410,7 @@ class ClassifierPage {
           htmxEvent.detail.target.innerHTML = htmxEvent.detail.xhr.response;
 
           this.ensureResultsSectionVisible();
+          this.updateFirstPartyPushUrl();
           this.hideLoadingIndicator();
           this.cleanupInitialResultsLoader();
         }
@@ -271,12 +430,14 @@ class ClassifierPage {
     });
 
     document.body.addEventListener("htmx:historyRestore", () => {
+      this.updateFirstPartyPushUrl();
       this.hideLoadingIndicator();
       this.handleResultsSwap();
       this.handleResultsSettle();
     });
 
     window.addEventListener("pageshow", () => {
+      this.updateFirstPartyPushUrl();
       this.hideLoadingIndicator();
     });
   }

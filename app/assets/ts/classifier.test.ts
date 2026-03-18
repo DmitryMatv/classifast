@@ -19,6 +19,36 @@ function getScoreBars(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>("[data-score-bar]"));
 }
 
+function paramsFromForm(form: HTMLFormElement): URLSearchParams {
+  const formData = new FormData(form);
+  const params = new URLSearchParams();
+  for (const [key, value] of formData.entries()) {
+    params.append(key, String(value));
+  }
+  return params;
+}
+
+function getInitialLoaderVals(): Record<string, unknown> {
+  const loader = document.querySelector(
+    "[data-initial-results-loader='true']",
+  ) as HTMLElement;
+  return JSON.parse(loader.getAttribute("hx-vals") ?? "{}") as Record<
+    string,
+    unknown
+  >;
+}
+
+function sortParamEntries(params: URLSearchParams): [string, string][] {
+  return Array.from(params.entries()).sort(([leftKey], [rightKey]) =>
+    leftKey.localeCompare(rightKey),
+  );
+}
+
+function getFormPushUrl(): string | null {
+  const form = document.querySelector("form[hx-get]") as HTMLFormElement;
+  return form.getAttribute("hx-push-url");
+}
+
 function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
   return {
     matches,
@@ -69,21 +99,35 @@ describe("classifier.ts", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
+    window.history.replaceState({}, "", "/NAICS/");
     const freshBody = document.body.cloneNode(false) as HTMLBodyElement;
     document.body.replaceWith(freshBody);
     document.body.innerHTML = `
-      <form hx-get="/NAICS/fragment">
-        <textarea id="product_description_area"></textarea>
-        <select id="show_top_k_categories">
+      <form
+        hx-get="/NAICS/fragment"
+        hx-push-url="false"
+        data-classifier-type="NAICS"
+        data-default-version="v1"
+      >
+        <input type="hidden" name="track_usage" value="true" />
+        <textarea id="product_description_area" name="product_description"></textarea>
+        <select id="show_top_k_categories" name="top_k">
           <option value="5">5</option>
           <option value="10" selected>10</option>
         </select>
-        <select id="version_selector">
+        <select id="version_selector" name="version">
           <option value="v1" selected>v1</option>
           <option value="v2">v2</option>
         </select>
         <button type="submit">Submit</button>
       </form>
+      <div
+        hx-get="/NAICS/fragment"
+        hx-trigger="load"
+        hx-push-url="false"
+        data-initial-results-loader="true"
+        hx-vals='{"version":"v1","product_description":"industrial pump","top_k":10,"track_usage":true}'
+      ></div>
       <div id="loading-indicator"></div>
       <section id="results-section" class="hidden">
         <div id="results-container"></div>
@@ -115,10 +159,10 @@ describe("classifier.ts", () => {
     expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("60ms");
+    ).toBe("0ms");
     expect(
       scoreBars[1]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("130ms");
+    ).toBe("100ms");
     expect(
       scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
     ).toBe("200ms");
@@ -140,6 +184,79 @@ describe("classifier.ts", () => {
     textarea.value = "industrial pump";
     topK.dispatchEvent(new Event("change", { bubbles: true }));
     expect(trigger).toHaveBeenCalled();
+  });
+
+  it("uses canonical fragment params for interactive form submissions", () => {
+    const form = document.querySelector("form[hx-get]") as HTMLFormElement;
+
+    expect(sortParamEntries(paramsFromForm(form))).toEqual([
+      ["product_description", ""],
+      ["top_k", "10"],
+      ["track_usage", "true"],
+      ["version", "v1"],
+    ]);
+  });
+
+  it("keeps direct-search loader params canonical without push_url", () => {
+    const loaderVals = getInitialLoaderVals();
+
+    expect(loaderVals).toEqual({
+      product_description: "industrial pump",
+      top_k: 10,
+      track_usage: true,
+      version: "v1",
+    });
+    expect("push_url" in loaderVals).toBe(false);
+  });
+
+  it("sets a clean push target for real searches from a base page", async () => {
+    await import("./classifier");
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+
+    textarea.value = "industrial pump";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(getFormPushUrl()).toBe("/NAICS/industrial_pump");
+  });
+
+  it("keeps hx-push-url false when the current page already matches the clean target", async () => {
+    window.history.replaceState({}, "", "/NAICS/industrial_pump");
+    await import("./classifier");
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+
+    textarea.value = "industrial pump";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(getFormPushUrl()).toBe("false");
+  });
+
+  it("appends non-default versions to the push target", async () => {
+    await import("./classifier");
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const version = document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement;
+
+    textarea.value = "industrial pump";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    version.value = "v2";
+    version.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(getFormPushUrl()).toBe("/NAICS/industrial_pump?version=v2");
+  });
+
+  it("keeps the initial loader history-disabled", () => {
+    const loader = document.querySelector(
+      "[data-initial-results-loader='true']",
+    ) as HTMLElement;
+
+    expect(loader.getAttribute("hx-push-url")).toBe("false");
   });
 
   it("shows and hides the loading indicator across HTMX request events", async () => {
@@ -202,7 +319,7 @@ describe("classifier.ts", () => {
     expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("60ms");
+    ).toBe("0ms");
   });
 
   it("injects rate limit responses into the results container", async () => {
@@ -271,7 +388,7 @@ describe("classifier.ts", () => {
     expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("60ms");
+    ).toBe("0ms");
     expect(resultsContainer.innerHTML).toContain("score-bar");
   });
 
