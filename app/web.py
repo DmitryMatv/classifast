@@ -72,7 +72,7 @@ def build_page_headers(canonical_url: str) -> dict[str, str]:
 
 
 def build_mapping_canonical_url(slug: str | None = None) -> str:
-    canonical_url = "https://classifast.com/mappings"
+    canonical_url = "https://classifast.com/mapping"
     if slug:
         canonical_url += f"/{quote(slug, safe='')}"
     if not canonical_url.endswith("/"):
@@ -118,16 +118,25 @@ async def read_root(request: Request):
     return response
 
 
+@router.get("/mapping", include_in_schema=False)
+@router.head("/mapping", include_in_schema=False)
+async def redirect_mapping_index_no_slash(request: Request):
+    query_string = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"/mapping/{query_string}", status_code=301)
+
+
 @router.get("/mappings", include_in_schema=False)
 @router.head("/mappings", include_in_schema=False)
-async def redirect_mappings_index_no_slash(request: Request):
+@router.get("/mappings/", include_in_schema=False)
+@router.head("/mappings/", include_in_schema=False)
+async def redirect_legacy_mapping_index(request: Request):
     query_string = f"?{request.url.query}" if request.url.query else ""
-    return RedirectResponse(url=f"/mappings/{query_string}", status_code=301)
+    return RedirectResponse(url=f"/mapping/{query_string}", status_code=301)
 
 
-@router.get("/mappings/", response_class=HTMLResponse)
-@router.head("/mappings/")
-async def show_mappings_index(request: Request):
+@router.get("/mapping/", response_class=HTMLResponse)
+@router.head("/mapping/")
+async def show_mapping_index(request: Request):
     canonical_url = build_mapping_canonical_url()
     if request.method == "HEAD":
         return Response(headers=build_page_headers(canonical_url))
@@ -136,7 +145,7 @@ async def show_mappings_index(request: Request):
     products = list_mapping_products()
     response = templates.TemplateResponse(
         request,
-        "mappings_index.html",
+        "mapping_index.html",
         {
             "products": products,
             "featured_products": [product for product in products if product.featured],
@@ -148,19 +157,33 @@ async def show_mappings_index(request: Request):
     return response
 
 
-@router.get("/mappings/{slug}", include_in_schema=False)
-@router.head("/mappings/{slug}", include_in_schema=False)
+@router.get("/mapping/{slug}", include_in_schema=False)
+@router.head("/mapping/{slug}", include_in_schema=False)
 async def redirect_mapping_product_no_slash(slug: str, request: Request):
     product = get_mapping_product(slug)
     if not product:
         raise HTTPException(status_code=404, detail="Mapping product not found")
     query_string = f"?{request.url.query}" if request.url.query else ""
     return RedirectResponse(
-        url=f"/mappings/{product.slug}/{query_string}", status_code=301
+        url=f"/mapping/{product.slug}/{query_string}", status_code=301
     )
 
 
-@router.get("/mappings/{slug}/sample")
+@router.get("/mappings/{slug}", include_in_schema=False)
+@router.head("/mappings/{slug}", include_in_schema=False)
+@router.get("/mappings/{slug}/", include_in_schema=False)
+@router.head("/mappings/{slug}/", include_in_schema=False)
+async def redirect_legacy_mapping_product(slug: str, request: Request):
+    product = get_mapping_product(slug)
+    if not product:
+        raise HTTPException(status_code=404, detail="Mapping product not found")
+    query_string = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(
+        url=f"/mapping/{product.slug}/{query_string}", status_code=301
+    )
+
+
+@router.get("/mapping/{slug}/sample")
 async def download_mapping_sample(slug: str):
     product = get_mapping_product(slug)
     if not product:
@@ -182,8 +205,16 @@ async def download_mapping_sample(slug: str):
     return response
 
 
-@router.get("/mappings/{slug}/", response_class=HTMLResponse)
-@router.head("/mappings/{slug}/")
+@router.get("/mappings/{slug}/sample", include_in_schema=False)
+async def redirect_legacy_mapping_sample(slug: str):
+    product = get_mapping_product(slug)
+    if not product:
+        raise HTTPException(status_code=404, detail="Mapping product not found")
+    return RedirectResponse(url=f"/mapping/{product.slug}/sample", status_code=301)
+
+
+@router.get("/mapping/{slug}/", response_class=HTMLResponse)
+@router.head("/mapping/{slug}/")
 async def show_mapping_product_page(request: Request, slug: str):
     product = get_mapping_product(slug)
     if not product:

@@ -50,7 +50,7 @@
             {
                 "@type": "Product",
                 "name": "{{ product.title }}",
-                "url": "https://classifast.com/mappings/{{ product.slug }}/",
+                "url": "https://classifast.com/mapping/{{ product.slug }}/",
                 "description": "{{ product.meta_description }}",
                 "offers": {
                     "@type": "Offer",
@@ -166,7 +166,7 @@
                     <li><a href="{{ url_for('read_root') }}"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Home</a>
                     </li>
-                    <li><a href="{{ url_for('show_mappings_index') }}"
+                    <li><a href="{{ url_for('show_mapping_index') }}"
                             class="text-sky-700 font-semibold hover:underline underline-offset-2 transition-colors">Mappings</a>
                     </li>
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
@@ -190,7 +190,7 @@
                 <li><a href="{{ url_for('read_root') }}"
                         class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Home</a>
                 </li>
-                <li><a href="{{ url_for('show_mappings_index') }}"
+                <li><a href="{{ url_for('show_mapping_index') }}"
                         class="text-sky-700 font-semibold hover:underline underline-offset-2 transition-colors">Mappings</a>
                 </li>
                 <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
@@ -281,16 +281,7 @@
         </section>
     </main>
 
-    <footer class="bg-slate-900 text-white">
-        <div class="container mx-auto max-w-6xl px-4 py-10">
-            <p class="text-lg font-semibold mb-2">Classifast Mapping Store</p>
-            <p class="text-slate-300 max-w-2xl">
-                SEO-focused product pages for niche taxonomy conversion workflows, with public samples and Polar-based
-                fulfillment.
-            </p>
-            <p class="text-slate-500 mt-6 text-sm">© {{ current_year }} Classifast</p>
-        </div>
-    </footer>
+    {% include "site_footer.html" %}
 </body>
 
 </html>

@@ -68,7 +68,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
             "/api/create-mapping-checkout",
             {
                 "slug": "missing-product",
-                "return_url": "http://testserver/mappings/missing-product/",
+                "return_url": "http://testserver/mapping/missing-product/",
             },
         )
 
@@ -80,7 +80,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
             "/api/create-mapping-checkout",
             {
                 "slug": next(iter(MAPPING_PRODUCTS)),
-                "return_url": "https://evil.example/mappings/redirect/",
+                "return_url": "https://evil.example/mapping/redirect/",
             },
         )
 
@@ -107,7 +107,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
                 "/api/create-mapping-checkout",
                 {
                     "slug": product.slug,
-                    "return_url": f"http://testserver/mappings/{product.slug}/",
+                    "return_url": f"http://testserver/mapping/{product.slug}/",
                 },
             )
 
@@ -119,7 +119,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request_payload["metadata"]["mapping_slug"], product.slug)
         self.assertEqual(
             request_payload["success_url"],
-            f"http://testserver/mappings/{product.slug}/?checkout=success",
+            f"http://testserver/mapping/{product.slug}/?checkout=success",
         )
 
 

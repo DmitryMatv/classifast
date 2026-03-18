@@ -15,7 +15,7 @@ describe("storefront.ts", () => {
         type="button"
         data-mapping-buy-button
         data-mapping-slug="unspsc-to-cpv-mapping"
-        data-return-url="/mappings/unspsc-to-cpv-mapping/"
+        data-return-url="/mapping/unspsc-to-cpv-mapping/"
       >
         Buy full file
       </button>
@@ -44,7 +44,7 @@ describe("storefront.ts", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         slug: "unspsc-to-cpv-mapping",
-        return_url: `${window.location.origin}/mappings/unspsc-to-cpv-mapping/`,
+        return_url: `${window.location.origin}/mapping/unspsc-to-cpv-mapping/`,
       }),
     });
     expect(window.__storefrontNavigate).toHaveBeenCalledWith(
@@ -93,7 +93,7 @@ describe("storefront.ts", () => {
     window.history.replaceState(
       {},
       "",
-      "/mappings/unspsc-to-cpv-mapping/?checkout=success&foo=bar",
+      "/mapping/unspsc-to-cpv-mapping/?checkout=success&foo=bar",
     );
     document.body.innerHTML = `
       <div data-storefront-success class="hidden">Success banner</div>
@@ -110,7 +110,7 @@ describe("storefront.ts", () => {
     expect(replaceStateSpy).toHaveBeenLastCalledWith(
       {},
       "",
-      "/mappings/unspsc-to-cpv-mapping/?foo=bar",
+      "/mapping/unspsc-to-cpv-mapping/?foo=bar",
     );
   });
 });

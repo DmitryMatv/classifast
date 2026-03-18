@@ -36,41 +36,61 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
             return await client.request(method, path)
 
     async def test_mapping_index_sets_cache_and_canonical_headers(self) -> None:
-        response = await self._request("GET", "/mappings/")
+        response = await self._request("GET", "/mapping/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["Link"],
-            '<https://classifast.com/mappings/>; rel="canonical"',
+            '<https://classifast.com/mapping/>; rel="canonical"',
         )
         self.assertEqual(response.headers["X-Robots-Tag"], "index, follow")
         self.assertIn(self.product.title, response.text)
 
     async def test_mapping_product_head_uses_product_canonical_link(self) -> None:
-        response = await self._request("HEAD", f"/mappings/{self.product.slug}/")
+        response = await self._request("HEAD", f"/mapping/{self.product.slug}/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["Link"],
-            f'<https://classifast.com/mappings/{self.product.slug}/>; rel="canonical"',
+            f'<https://classifast.com/mapping/{self.product.slug}/>; rel="canonical"',
         )
 
     async def test_mapping_routes_redirect_to_trailing_slash(self) -> None:
-        index_response = await self._request("GET", "/mappings")
-        product_response = await self._request("GET", f"/mappings/{self.product.slug}")
+        index_response = await self._request("GET", "/mapping")
+        product_response = await self._request("GET", f"/mapping/{self.product.slug}")
 
         self.assertEqual(index_response.status_code, 301)
-        self.assertEqual(index_response.headers["location"], "/mappings/")
+        self.assertEqual(index_response.headers["location"], "/mapping/")
         self.assertEqual(product_response.status_code, 301)
         self.assertEqual(
             product_response.headers["location"],
-            f"/mappings/{self.product.slug}/",
+            f"/mapping/{self.product.slug}/",
         )
 
     async def test_unknown_mapping_product_returns_404(self) -> None:
-        response = await self._request("GET", "/mappings/not-a-product/")
+        response = await self._request("GET", "/mapping/not-a-product/")
 
         self.assertEqual(response.status_code, 404)
+
+    async def test_legacy_mapping_routes_redirect_to_singular_paths(self) -> None:
+        index_response = await self._request("GET", "/mappings/")
+        product_response = await self._request("GET", f"/mappings/{self.product.slug}/")
+        sample_response = await self._request(
+            "GET", f"/mappings/{self.product.slug}/sample"
+        )
+
+        self.assertEqual(index_response.status_code, 301)
+        self.assertEqual(index_response.headers["location"], "/mapping/")
+        self.assertEqual(product_response.status_code, 301)
+        self.assertEqual(
+            product_response.headers["location"],
+            f"/mapping/{self.product.slug}/",
+        )
+        self.assertEqual(sample_response.status_code, 301)
+        self.assertEqual(
+            sample_response.headers["location"],
+            f"/mapping/{self.product.slug}/sample",
+        )
 
     async def test_mapping_sample_download_is_public_and_cacheable(self) -> None:
         response = await download_mapping_sample(self.product.slug)
@@ -91,9 +111,9 @@ class MappingSitemapTests(unittest.TestCase):
     def test_sitemap_includes_mapping_storefront_urls(self) -> None:
         sitemap = (BASE_DIR / "app" / "static" / "sitemap.xml").read_text()
 
-        self.assertIn("https://classifast.com/mappings/", sitemap)
+        self.assertIn("https://classifast.com/mapping/", sitemap)
         for slug in MAPPING_PRODUCTS:
-            self.assertIn(f"https://classifast.com/mappings/{slug}/", sitemap)
+            self.assertIn(f"https://classifast.com/mapping/{slug}/", sitemap)
 
 
 if __name__ == "__main__":
