@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
-from app.web import router, slugify
+from app.web import normalize_query_text, router, slugify
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -77,6 +77,33 @@ class SlugifyTests(unittest.TestCase):
 
     def test_keeps_non_latin_characters(self) -> None:
         self.assertEqual(slugify("насос промышленный"), "насос_промышленный")
+
+    def test_keeps_arabic_characters(self) -> None:
+        self.assertEqual(slugify("مضخة صناعية"), "مضخة_صناعية")
+
+    def test_normalizes_decomposed_unicode_before_slugifying(self) -> None:
+        self.assertEqual(slugify("Cafe\u0301"), "Café")
+
+
+class NormalizeQueryTextTests(unittest.TestCase):
+    def test_trims_and_collapses_whitespace(self) -> None:
+        self.assertEqual(
+            normalize_query_text("  industrial \n pump\t "), "industrial pump"
+        )
+
+    def test_normalizes_to_nfc(self) -> None:
+        self.assertEqual(normalize_query_text("Cafe\u0301"), "Café")
+
+    def test_preserves_non_latin_text(self) -> None:
+        self.assertEqual(
+            normalize_query_text("насос промышленный"), "насос промышленный"
+        )
+
+    def test_preserves_user_visible_punctuation(self) -> None:
+        self.assertEqual(
+            normalize_query_text("Pump, valve (industrial)'s"),
+            "Pump, valve (industrial)'s",
+        )
 
 
 class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
@@ -155,6 +182,29 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             f"/NAICS/industrial_pump?{urlencode({'version': self.non_default_version})}",
         )
 
+    @patch("app.web.perform_classification")
+    async def test_fragment_normalizes_whitespace_and_nfc_before_classifying(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(
+            product_description="  Cafe\u0301   pump  ",
+            push_url="true",
+            track_usage="false",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            perform_classification_mock.call_args.kwargs["query"],
+            "Café pump",
+        )
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            "/NAICS/Caf%C3%A9_pump",
+        )
+
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     async def test_paywall_response_uses_no_store_cache_headers(
@@ -221,6 +271,137 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
 
 
+class SearchRedirectTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_test_app()
+        versions = list(CLASSIFIER_CONFIG["NAICS"]["versions"])
+        cls.default_version = versions[0]
+        cls.non_default_version = versions[1]
+
+    async def _request(self, path: str, params: dict | None = None) -> httpx.Response:
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(path, params=params)
+
+    async def test_search_redirects_to_canonical_slug_path(self) -> None:
+        response = await self._request(
+            "/NAICS/search",
+            params={"product_description": "industrial  pump"},
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/NAICS/industrial_pump")
+
+    async def test_search_redirect_keeps_non_default_version(self) -> None:
+        response = await self._request(
+            "/NAICS/search",
+            params={
+                "product_description": "industrial pump",
+                "version": self.non_default_version,
+            },
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["location"],
+            f"/NAICS/industrial_pump?{urlencode({'version': self.non_default_version})}",
+        )
+
+    async def test_search_redirect_keeps_non_default_top_k(self) -> None:
+        response = await self._request(
+            "/NAICS/search",
+            params={
+                "product_description": "industrial pump",
+                "top_k": 30,
+            },
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["location"], "/NAICS/industrial_pump?top_k=30"
+        )
+
+    async def test_search_redirect_normalizes_decomposed_unicode(self) -> None:
+        response = await self._request(
+            "/NAICS/search",
+            params={"product_description": "Cafe\u0301 pump"},
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/NAICS/Caf%C3%A9_pump")
+
+    async def test_empty_search_redirects_to_base_classifier_page(self) -> None:
+        response = await self._request(
+            "/NAICS/search",
+            params={"product_description": "   "},
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/NAICS/")
+
+
+class PageRouteCanonicalizationTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_test_app()
+        versions = list(CLASSIFIER_CONFIG["NAICS"]["versions"])
+        cls.default_version = versions[0]
+
+    async def _request(self, path: str) -> httpx.Response:
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(path)
+
+    async def test_lowercase_classifier_redirects_to_uppercase_canonical_path(
+        self,
+    ) -> None:
+        response = await self._request("/naics/industrial_pump")
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/industrial_pump")
+
+    async def test_non_canonical_slug_redirects_to_canonical_slug(self) -> None:
+        response = await self._request("/NAICS/industrial__pump")
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/industrial_pump")
+
+    async def test_default_version_query_is_stripped_from_page_url(self) -> None:
+        response = await self._request(
+            f"/NAICS/industrial_pump?version={self.default_version}"
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/industrial_pump")
+
+    async def test_default_top_k_query_is_stripped_from_page_url(self) -> None:
+        response = await self._request("/NAICS/industrial_pump?top_k=10")
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/industrial_pump")
+
+    async def test_invalid_top_k_query_is_normalized_away(self) -> None:
+        response = await self._request("/NAICS/industrial_pump?top_k=999")
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/industrial_pump")
+
+    async def test_decomposed_unicode_path_redirects_to_nfc_canonical_slug(
+        self,
+    ) -> None:
+        response = await self._request("/NAICS/Cafe%CC%81_pump")
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/Caf%C3%A9_pump")
+
+
 class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -248,26 +429,23 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('"top_k": 10', response.text)
 
-    async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
+    async def test_unspsc_invalid_top_k_redirects_to_canonical_page(self) -> None:
         response = await self._request("/UNSPSC/?top_k=999")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="30" selected', response.text)
-        self.assertIn('"top_k": 30', response.text)
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/UNSPSC/")
 
-    async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
+    async def test_naics_invalid_top_k_redirects_to_canonical_page(self) -> None:
         response = await self._request("/NAICS/?top_k=999")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="10" selected', response.text)
-        self.assertIn('"top_k": 10', response.text)
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/")
 
 
 class ClassifierPageRenderingContractTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = _build_test_app()
-        cls.default_unspsc_version = next(iter(CLASSIFIER_CONFIG["UNSPSC"]["versions"]))
 
     async def _request(self, path: str) -> httpx.Response:
         transport = httpx.ASGITransport(app=self.app)
@@ -287,12 +465,12 @@ class ClassifierPageRenderingContractTests(unittest.IsolatedAsyncioTestCase):
         loader_tag = extract_initial_loader_tag(response.text)
 
         self.assertIn('name="track_usage" value="true"', response.text)
+        self.assertIn('action="http://testserver/UNSPSC/search"', form_tag)
+        self.assertIn('method="get"', form_tag)
+        self.assertIn('hx-get="http://testserver/UNSPSC/fragment"', form_tag)
         self.assertIn('hx-push-url="false"', form_tag)
-        self.assertIn('data-classifier-type="UNSPSC"', form_tag)
-        self.assertIn(
-            f'data-default-version="{self.default_unspsc_version}"',
-            form_tag,
-        )
+        self.assertNotIn("data-classifier-type", form_tag)
+        self.assertNotIn("data-default-version", form_tag)
         self.assertNotIn('name="push_url"', response.text)
         self.assertIn('hx-push-url="false"', loader_tag)
 
@@ -310,12 +488,12 @@ class ClassifierPageRenderingContractTests(unittest.IsolatedAsyncioTestCase):
         loader_tag = extract_initial_loader_tag(response.text)
 
         self.assertIn('name="track_usage" value="true"', response.text)
+        self.assertIn('action="http://testserver/UNSPSC/search"', form_tag)
+        self.assertIn('method="get"', form_tag)
+        self.assertIn('hx-get="http://testserver/UNSPSC/fragment"', form_tag)
         self.assertIn('hx-push-url="false"', form_tag)
-        self.assertIn('data-classifier-type="UNSPSC"', form_tag)
-        self.assertIn(
-            f'data-default-version="{self.default_unspsc_version}"',
-            form_tag,
-        )
+        self.assertNotIn("data-classifier-type", form_tag)
+        self.assertNotIn("data-default-version", form_tag)
         self.assertNotIn('name="push_url"', response.text)
         self.assertIn('hx-push-url="false"', loader_tag)
 

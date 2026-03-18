@@ -73,7 +73,7 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["Link"],
-            '<https://classifast.com/NAICS/industrial_pump/>; rel="canonical"',
+            '<https://classifast.com/NAICS/industrial_pump>; rel="canonical"',
         )
 
 

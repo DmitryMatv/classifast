@@ -686,10 +686,10 @@
                 </div>
             </div>
 
-            <form hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" hx-push-url="false"
-                data-classifier-type="{{ classifier_type }}"
-                data-default-version="{{ versions[0] if versions else '' }}">
+            <form action="{{ url_for('redirect_classifier_search', classifier_type=classifier_type) }}" method="get"
+                hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
+                hx-push-url="false">
                 <input type="hidden" name="track_usage" value="true">
 
                 {% if versions %}

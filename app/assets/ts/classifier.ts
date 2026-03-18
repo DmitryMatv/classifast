@@ -10,13 +10,15 @@ const MAX_SCORE_BAR_STAGGER_MS = 600;
  */
 
 class ClassifierPage {
+  private allowFragmentSubmit = false;
+
   constructor() {
     this.init();
   }
 
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
-    this.setupFirstPartyHistory();
+    this.setupSearchNavigation();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
@@ -47,6 +49,19 @@ class ClassifierPage {
   private getClassifierForm(): HTMLFormElement | null {
     const form = document.querySelector("form[hx-get]");
     return form instanceof HTMLFormElement ? form : null;
+  }
+
+  private getProductDescriptionArea(): HTMLTextAreaElement | null {
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+    return textarea;
+  }
+
+  private getVersionSelector(): HTMLSelectElement | null {
+    return document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement | null;
   }
 
   private cleanupInitialResultsLoader(): void {
@@ -99,156 +114,93 @@ class ClassifierPage {
     this.syncTextareaState();
     this.syncSelectState("version_selector");
     this.syncSelectState("show_top_k_categories");
-    this.updateFirstPartyPushUrl();
     this.hideLoadingIndicator();
     this.cleanupInitialResultsLoader();
   }
 
-  private normalizeDescription(text: string): string {
-    return text.replace(/\s+/g, " ").trim();
+  private normalizeFragmentQueryInput(text: string): string {
+    return text.normalize("NFC").replace(/\s+/g, " ").trim();
   }
 
-  private slugifyClassifierQuery(text: string): string {
-    if (!text) {
-      return "";
-    }
-
-    const truncatedText = text.slice(0, 200);
-    const whitespaceNormalizedText = truncatedText.replace(/\s+/g, " ");
-    const sanitizedText = whitespaceNormalizedText.replace(
-      /[^\p{Letter}\p{Mark}\p{Number}_\s.,'()-]/gu,
-      "",
-    );
-    return sanitizedText.replace(/\s+/g, "_").replace(/^_+|_+$/g, "");
-  }
-
-  private encodePathSegment(value: string): string {
-    return encodeURIComponent(value).replace(
-      /[!'()*]/g,
-      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-    );
-  }
-
-  private buildCleanClassifierUrl({
-    classifierType,
-    productDescription,
-    version,
-    defaultVersion,
-  }: {
-    classifierType: string;
-    productDescription: string;
-    version: string;
-    defaultVersion: string;
-  }): string {
-    const upperClassifierType = classifierType.trim().toUpperCase();
-    let cleanUrl = `/${upperClassifierType}`;
-    const slug = this.slugifyClassifierQuery(
-      productDescription.replace(/\//g, " "),
+  private normalizeProductDescriptionInPlace(): string {
+    const productDescriptionArea = this.getProductDescriptionArea();
+    const normalizedDescription = this.normalizeFragmentQueryInput(
+      productDescriptionArea?.value ?? "",
     );
 
-    if (slug) {
-      cleanUrl += `/${this.encodePathSegment(slug)}`;
+    if (productDescriptionArea) {
+      productDescriptionArea.value = normalizedDescription;
     }
 
-    if (version && version !== defaultVersion) {
-      cleanUrl += `?${new URLSearchParams({ version }).toString()}`;
-    }
-
-    return cleanUrl;
+    return normalizedDescription;
   }
 
-  private normalizePathAndQuery(url: string): string {
-    const parsedUrl = new URL(url, window.location.origin);
-    let path = parsedUrl.pathname || "/";
-    if (path !== "/") {
-      path = path.replace(/\/+$/, "") || "/";
-    }
+  private buildSearchNavigationUrl(form: HTMLFormElement): string {
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
 
-    const sortedSearchParams = Array.from(
-      parsedUrl.searchParams.entries(),
-    ).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
-      if (leftKey === rightKey) {
-        return leftValue.localeCompare(rightValue);
+    for (const [key, value] of formData.entries()) {
+      if (key === "track_usage") {
+        continue;
       }
-      return leftKey.localeCompare(rightKey);
-    });
-    const query = new URLSearchParams(sortedSearchParams).toString();
-    return query ? `${path}?${query}` : path;
-  }
 
-  private resolveFirstPartyPushTarget({
-    classifierType,
-    productDescription,
-    version,
-    defaultVersion,
-  }: {
-    classifierType: string;
-    productDescription: string;
-    version: string;
-    defaultVersion: string;
-  }): string | false {
-    const normalizedDescription = this.normalizeDescription(productDescription);
-    if (!normalizedDescription) {
-      return false;
+      const stringValue = String(value);
+      if (key === "product_description" && !stringValue) {
+        continue;
+      }
+      params.append(key, stringValue);
     }
 
-    const targetUrl = this.buildCleanClassifierUrl({
-      classifierType,
-      productDescription: normalizedDescription,
-      version,
-      defaultVersion,
-    });
-    const currentUrl = this.normalizePathAndQuery(
-      `${window.location.pathname}${window.location.search}`,
-    );
-
-    return this.normalizePathAndQuery(targetUrl) === currentUrl
-      ? false
-      : targetUrl;
+    const queryString = params.toString();
+    return queryString ? `${form.action}?${queryString}` : form.action;
   }
 
-  private updateFirstPartyPushUrl(): void {
+  private navigate(url: string): void {
+    if (window.__classifierNavigate) {
+      window.__classifierNavigate(url);
+      return;
+    }
+
+    window.location.assign(url);
+  }
+
+  private navigateToSearchUrl(): void {
     const form = this.getClassifierForm();
     if (!form) {
       return;
     }
 
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
-    const versionSelector = document.getElementById(
-      "version_selector",
-    ) as HTMLSelectElement | null;
-    const classifierType = form.dataset["classifierType"] ?? "";
-    const defaultVersion = form.dataset["defaultVersion"] ?? "";
-    const pushTarget = this.resolveFirstPartyPushTarget({
-      classifierType,
-      productDescription: productDescriptionArea?.value ?? "",
-      version: versionSelector?.value ?? defaultVersion,
-      defaultVersion,
-    });
-
-    form.setAttribute("hx-push-url", pushTarget || "false");
+    this.normalizeProductDescriptionInPlace();
+    this.navigate(this.buildSearchNavigationUrl(form));
   }
 
-  private setupFirstPartyHistory(): void {
+  private setupSearchNavigation(): void {
     const form = this.getClassifierForm();
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
-    const versionSelector = document.getElementById(
-      "version_selector",
-    ) as HTMLSelectElement | null;
+    const versionSelector = this.getVersionSelector();
 
-    this.updateFirstPartyPushUrl();
-    productDescriptionArea?.addEventListener("input", () => {
-      this.updateFirstPartyPushUrl();
-    });
+    if (!form) {
+      return;
+    }
+
+    form.addEventListener(
+      "submit",
+      (event) => {
+        if (this.allowFragmentSubmit) {
+          this.allowFragmentSubmit = false;
+          return;
+        }
+
+        event.preventDefault();
+        this.navigateToSearchUrl();
+      },
+      true,
+    );
+
     versionSelector?.addEventListener("change", () => {
-      this.updateFirstPartyPushUrl();
-    });
-    form?.addEventListener("submit", () => {
-      this.updateFirstPartyPushUrl();
+      const normalizedDescription = this.normalizeProductDescriptionInPlace();
+      if (normalizedDescription) {
+        this.navigateToSearchUrl();
+      }
     });
   }
 
@@ -318,14 +270,12 @@ class ClassifierPage {
     const topKSelector = document.getElementById(
       "show_top_k_categories",
     ) as HTMLSelectElement | null;
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
+    const productDescriptionArea = this.getProductDescriptionArea();
 
     if (topKSelector && productDescriptionArea) {
       topKSelector.addEventListener("change", () => {
-        if (productDescriptionArea.value.trim()) {
-          this.updateFirstPartyPushUrl();
+        const normalizedDescription = this.normalizeProductDescriptionInPlace();
+        if (normalizedDescription) {
           this.triggerFormSubmission();
         }
       });
@@ -352,6 +302,7 @@ class ClassifierPage {
       }
       // Use HTMX to trigger the form submission
       if (window.htmx) {
+        this.allowFragmentSubmit = true;
         window.htmx.trigger(form, "submit");
       }
     }
@@ -373,7 +324,6 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxAfterRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
         this.hideLoadingIndicator();
-        this.updateFirstPartyPushUrl();
       }
 
       if (
@@ -396,7 +346,6 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxAfterSettleEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
         this.handleResultsSettle();
-        this.updateFirstPartyPushUrl();
       }
     });
 
@@ -410,7 +359,6 @@ class ClassifierPage {
           htmxEvent.detail.target.innerHTML = htmxEvent.detail.xhr.response;
 
           this.ensureResultsSectionVisible();
-          this.updateFirstPartyPushUrl();
           this.hideLoadingIndicator();
           this.cleanupInitialResultsLoader();
         }
@@ -430,14 +378,12 @@ class ClassifierPage {
     });
 
     document.body.addEventListener("htmx:historyRestore", () => {
-      this.updateFirstPartyPushUrl();
       this.hideLoadingIndicator();
       this.handleResultsSwap();
       this.handleResultsSettle();
     });
 
     window.addEventListener("pageshow", () => {
-      this.updateFirstPartyPushUrl();
       this.hideLoadingIndicator();
     });
   }

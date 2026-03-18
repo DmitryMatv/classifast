@@ -8,6 +8,7 @@ declare global {
     Clerk?: ClerkInstance;
     __clerkAuthListenerRegistered?: boolean;
     __clerkInteractionListenersRegistered?: boolean;
+    __classifierNavigate?: (url: string) => void;
     __initPaywall?: () => void;
     __paywallClerkListenerRegistered?: boolean;
     __paywallInitialized?: boolean;

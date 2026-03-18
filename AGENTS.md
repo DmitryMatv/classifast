@@ -25,7 +25,8 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - Full pages can set cookies - but prefer client-side JavaScript to prevent CDN cache pollution
 - Generate per-user state client-side when possible (e.g., tracking IDs via `crypto.randomUUID()`) instead of server-side templating - keeps HTML cacheable across all users
 - `app/templates/classifier_page.html` currently does not have a hidden first-party `push_url` form input. The cache-key split came from the initial loader's `hx-vals`, while the form itself needed an explicit hidden `track_usage=true` input to keep first-party behavior consistent.
-- Do not infer first-party `HX-Push-Url` server-side from `HX-Current-URL`. That makes a cacheable fragment vary on browser-local state. Keep first-party history decisions in client-side `hx-push-url` attributes instead.
+- Do not infer first-party `HX-Push-Url` server-side from `HX-Current-URL`. That makes a cacheable fragment vary on browser-local state.
+- Do not mirror `app.web.slugify()` in frontend TypeScript just to predict page URLs. Slug drift between Python and TypeScript creates unstable clean URLs and duplicate cache/canonical keys. Keep first-party fragment requests history-disabled, normalize only the raw query text on the client (`NFC` + collapsed whitespace + trim), and let the server own clean page URLs via redirects.
 
 ## Qdrant Index Contract Gotcha
 

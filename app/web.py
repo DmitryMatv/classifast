@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+import unicodedata
 from datetime import datetime
 from urllib.parse import quote, unquote_plus, urlencode
 
@@ -14,7 +15,7 @@ from .cache_profiles import (
     build_cache_headers,
 )
 from .classifier import get_classification_cache_headers, perform_classification
-from .classifier_config import CLASSIFIER_CONFIG
+from .classifier_config import CLASSIFIER_CONFIG, ClassifierConfig
 from .dependencies import templates
 from .usage_tracker import (
     FREE_USER_LIMIT,
@@ -39,18 +40,86 @@ def get_default_top_k(classifier_type: str) -> int:
 def slugify(text: str) -> str:
     """
     Slugify utility for SEO-friendly URLs.
-    Matches the logic used in show_classifier_page_with_query and frontend JS.
+    Used only on the server so canonical page URLs have a single source of truth.
     """
     if not text:
         return ""
-    # Sanitize input: limit length and remove harmful characters
-    text = str(text)[:200]  # Limit to 200 chars max
-    # Normalize internal whitespace first (collapse multiple spaces/newlines into single space)
-    text = re.sub(r"\s+", " ", text)
-    # Preserve periods, commas, apostrophes, and parentheses while removing other special characters
-    text = re.sub(r"[^\w\s.,'()-]", "", text)
-    text = re.sub(r"[\s]+", "_", text)
-    return text.strip("_")
+    text = unicodedata.normalize("NFC", str(text)[:200])
+    text = re.sub(r"\s+", " ", text).strip()
+
+    allowed_punctuation = ".,'()-"
+    sanitized_characters = [
+        character
+        for character in text
+        if (
+            unicodedata.category(character)[:1] in {"L", "M", "N"}
+            or character in allowed_punctuation
+            or character in {" ", "_"}
+        )
+    ]
+    sanitized_text = "".join(sanitized_characters)
+    sanitized_text = re.sub(r"\s+", "_", sanitized_text)
+    return sanitized_text.strip("_")
+
+
+def normalize_query_text(text: str, *, max_length: int | None = None) -> str:
+    """Normalize user-entered classifier queries without changing visible meaning."""
+    normalized_text = unicodedata.normalize("NFC", str(text or ""))
+    normalized_text = re.sub(r"\s+", " ", normalized_text).strip()
+
+    if max_length is not None and len(normalized_text) > max_length:
+        normalized_text = normalized_text[:max_length].strip()
+
+    return normalized_text
+
+
+def normalize_version(config: ClassifierConfig, version: str | None) -> str:
+    """Return a valid classifier version, falling back to the default version."""
+    versions_list = list(config["versions"].keys())
+    default_version = versions_list[0] if versions_list else ""
+    if version is not None and version in config["versions"]:
+        return version
+    return default_version
+
+
+def normalize_page_top_k(classifier_type: str, top_k: int | None) -> int:
+    """Return a valid page top_k, falling back to the classifier default."""
+    default_top_k = get_default_top_k(classifier_type)
+    if top_k is None or top_k < 1 or top_k > 100:
+        return default_top_k
+    return top_k
+
+
+def build_clean_page_url(
+    classifier_type: str,
+    normalized_description: str,
+    version: str | None,
+    top_k: int | None,
+    *,
+    include_top_k: bool = True,
+) -> str:
+    """Build the canonical in-app page URL for a classifier query."""
+    upper_type = classifier_type.strip().upper()
+    config = CLASSIFIER_CONFIG.get(upper_type)
+    new_url = f"/{upper_type}/"
+
+    slug = slugify(normalized_description.replace("/", " "))
+    if slug:
+        new_url = f"/{upper_type}/{quote(slug, safe='')}"
+
+    query_params: list[tuple[str, str]] = []
+    if config:
+        default_version = normalize_version(config, None)
+        if version and version != default_version:
+            query_params.append(("version", version))
+
+    default_top_k = get_default_top_k(upper_type)
+    if include_top_k and top_k is not None and top_k != default_top_k:
+        query_params.append(("top_k", str(top_k)))
+
+    if query_params:
+        return f"{new_url}?{urlencode(query_params)}"
+    return new_url
 
 
 def build_clean_classifier_url(
@@ -58,24 +127,14 @@ def build_clean_classifier_url(
     normalized_description: str,
     version: str | None,
 ) -> str:
-    """Build the canonical in-app URL for a classifier query."""
-    upper_type = classifier_type.strip().upper()
-    new_url = f"/{upper_type}"
-
-    slug = slugify(normalized_description.replace("/", " "))
-    if slug:
-        # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
-        # HTTP headers require Latin-1 encoding
-        new_url += f"/{quote(slug, safe='')}"
-
-    config = CLASSIFIER_CONFIG.get(upper_type)
-    if config:
-        versions_list = list(config["versions"].keys())
-        default_version = versions_list[0] if versions_list else None
-        if version and version != default_version:
-            new_url += f"?{urlencode({'version': version})}"
-
-    return new_url
+    """Build the canonical history URL for fragment responses."""
+    return build_clean_page_url(
+        classifier_type,
+        normalized_description,
+        version,
+        top_k=None,
+        include_top_k=False,
+    )
 
 
 def resolve_push_url_enabled(
@@ -183,7 +242,7 @@ async def get_classification_fragment(
     Optimized for HTMX lazy loading and caching.
     """
     # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
-    normalized_description = re.sub(r"\s+", " ", product_description).strip()
+    normalized_description = normalize_query_text(product_description, max_length=4000)
     upper_type = classifier_type.strip().upper()
     if top_k is None:
         top_k = get_default_top_k(upper_type)
@@ -334,6 +393,34 @@ async def get_classification_fragment(
     return response
 
 
+@router.get("/{classifier_type}/search", include_in_schema=False)
+async def redirect_classifier_search(
+    classifier_type: str,
+    product_description: str = Query(""),
+    version: str | None = None,
+    top_k: int | None = None,
+):
+    """Redirect first-party search requests to the canonical classifier page URL."""
+    upper_type = classifier_type.strip().upper()
+    config = CLASSIFIER_CONFIG.get(upper_type)
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
+    normalized_description = normalize_query_text(product_description, max_length=4000)
+    normalized_version = normalize_version(config, version)
+    normalized_top_k = normalize_page_top_k(upper_type, top_k)
+
+    canonical_page_url = build_clean_page_url(
+        upper_type,
+        normalized_description,
+        normalized_version,
+        normalized_top_k,
+    )
+    return RedirectResponse(url=canonical_page_url, status_code=303)
+
+
 @router.get("/{classifier_type}/{search_query:path}", response_class=HTMLResponse)
 @router.head("/{classifier_type}/{search_query:path}")
 async def show_classifier_page_with_query(
@@ -366,7 +453,6 @@ async def show_classifier_page_with_query(
 
     # Use the uppercase classifier_type from here
     effective_classifier_type = upper_type
-    default_top_k = get_default_top_k(effective_classifier_type)
 
     # Handle checkout return with token verification
     checkout_success = request.query_params.get("checkout")
@@ -381,24 +467,29 @@ async def show_classifier_page_with_query(
         decoded_search_query = (
             unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
         )
-        # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
-        decoded_search_query = re.sub(r"\s+", " ", decoded_search_query).strip()
-        # Sanitize the decoded query
-        # Relaxed sanitization: allow characters like apostrophes, but keep length limit
-        if len(decoded_search_query) > 4000:
-            decoded_search_query = decoded_search_query[:4000]
-            decoded_search_query = decoded_search_query.strip()
+    decoded_search_query = normalize_query_text(decoded_search_query, max_length=4000)
+    normalized_top_k = normalize_page_top_k(effective_classifier_type, top_k)
+    normalized_version = normalize_version(config, version)
 
-    # Build canonical URL
-    # URL-encode slug to handle non-Latin characters in HTTP headers
-    canonical_url = f"https://classifast.com/{effective_classifier_type}"
-    if decoded_search_query:
-        slug = slugify(decoded_search_query)
-        canonical_url += f"/{quote(slug, safe='')}"
+    canonical_page_url = build_clean_page_url(
+        effective_classifier_type,
+        decoded_search_query,
+        normalized_version,
+        normalized_top_k,
+    )
+    requested_path_and_query = request.url.path
+    if request.url.query:
+        requested_path_and_query += f"?{request.url.query}"
+    if requested_path_and_query != canonical_page_url:
+        return RedirectResponse(url=canonical_page_url, status_code=301)
 
-    # Ensure trailing slash for consistency with redirects and sitemap
-    if not canonical_url.endswith("/"):
-        canonical_url += "/"
+    canonical_url = "https://classifast.com" + build_clean_page_url(
+        effective_classifier_type,
+        decoded_search_query,
+        normalized_version,
+        normalized_top_k,
+        include_top_k=False,
+    )
 
     # For HEAD requests, return just headers
     if request.method == "HEAD":
@@ -408,13 +499,7 @@ async def show_classifier_page_with_query(
         headers["Link"] = f'<{canonical_url}>; rel="canonical"'
         return Response(headers=headers)
 
-    # Validate top_k parameter
-    if top_k is None or top_k < 1 or top_k > 100:
-        top_k = default_top_k
-
-    # Get first version for default handling
-    versions_list = list(config["versions"].keys())
-    first_version = versions_list[0] if versions_list else ""
+    first_version = normalize_version(config, None)
 
     # Initialize results data structure
     results_data = {
@@ -433,7 +518,10 @@ async def show_classifier_page_with_query(
         trigger_search_on_load = True
     else:
         # If no search query (base URL), use example query
-        example_query = config["example"].replace("Example:", "").strip()
+        example_query = normalize_query_text(
+            config["example"].replace("Example:", "").strip(),
+            max_length=4000,
+        )
         if example_query:
             results_data["query"] = example_query
             trigger_search_on_load = True
@@ -454,8 +542,10 @@ async def show_classifier_page_with_query(
             "example": config["example"],
             "url_params": {
                 "search": decoded_search_query,
-                "version": version if version and version != first_version else "",
-                "top_k": top_k,
+                "version": (
+                    normalized_version if normalized_version != first_version else ""
+                ),
+                "top_k": normalized_top_k,
             },
             "trigger_search_on_load": trigger_search_on_load,
             "canonical_url": canonical_url,

@@ -44,9 +44,8 @@ function sortParamEntries(params: URLSearchParams): [string, string][] {
   );
 }
 
-function getFormPushUrl(): string | null {
-  const form = document.querySelector("form[hx-get]") as HTMLFormElement;
-  return form.getAttribute("hx-push-url");
+function getNavigationUrl(value: string): URL {
+  return new URL(value, window.location.origin);
 }
 
 function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
@@ -104,10 +103,10 @@ describe("classifier.ts", () => {
     document.body.replaceWith(freshBody);
     document.body.innerHTML = `
       <form
+        action="/NAICS/search"
+        method="get"
         hx-get="/NAICS/fragment"
         hx-push-url="false"
-        data-classifier-type="NAICS"
-        data-default-version="v1"
       >
         <input type="hidden" name="track_usage" value="true" />
         <textarea id="product_description_area" name="product_description"></textarea>
@@ -171,6 +170,8 @@ describe("classifier.ts", () => {
   it("auto-submits on top-k change only when textarea has content", async () => {
     await import("./classifier");
     const trigger = vi.mocked(window.htmx?.trigger);
+    const navigateMock = vi.fn();
+    window.__classifierNavigate = navigateMock;
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -184,6 +185,7 @@ describe("classifier.ts", () => {
     textarea.value = "industrial pump";
     topK.dispatchEvent(new Event("change", { bubbles: true }));
     expect(trigger).toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it("uses canonical fragment params for interactive form submissions", () => {
@@ -209,33 +211,60 @@ describe("classifier.ts", () => {
     expect("push_url" in loaderVals).toBe(false);
   });
 
-  it("sets a clean push target for real searches from a base page", async () => {
+  it("navigates real form submits to the server-owned search route", async () => {
     await import("./classifier");
+    const navigateMock = vi.fn();
+    window.__classifierNavigate = navigateMock;
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
+    const form = document.querySelector("form[hx-get]") as HTMLFormElement;
 
-    textarea.value = "industrial pump";
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.value = "  industrial   pump  ";
+    form.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
 
-    expect(getFormPushUrl()).toBe("/NAICS/industrial_pump");
+    expect(navigateMock).toHaveBeenCalledTimes(1);
+    const navigationUrl = getNavigationUrl(
+      navigateMock.mock.calls[0]?.[0] ?? "",
+    );
+    expect(navigationUrl.pathname).toBe("/NAICS/search");
+    expect(navigationUrl.searchParams.get("product_description")).toBe(
+      "industrial pump",
+    );
+    expect(navigationUrl.searchParams.get("version")).toBe("v1");
+    expect(navigationUrl.searchParams.get("top_k")).toBe("10");
+    expect(navigationUrl.searchParams.get("track_usage")).toBeNull();
   });
 
-  it("keeps hx-push-url false when the current page already matches the clean target", async () => {
-    window.history.replaceState({}, "", "/NAICS/industrial_pump");
+  it("normalizes whitespace and NFC before search navigation", async () => {
     await import("./classifier");
+    const navigateMock = vi.fn();
+    window.__classifierNavigate = navigateMock;
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
+    const form = document.querySelector("form[hx-get]") as HTMLFormElement;
 
-    textarea.value = "industrial pump";
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.value = "  Cafe\u0301   pump  ";
+    form.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
 
-    expect(getFormPushUrl()).toBe("false");
+    expect(navigateMock).toHaveBeenCalledTimes(1);
+    expect(
+      getNavigationUrl(navigateMock.mock.calls[0]?.[0] ?? "").searchParams.get(
+        "product_description",
+      ),
+    ).toBe("Café pump");
+    expect(textarea.value).toBe("Café pump");
   });
 
-  it("appends non-default versions to the push target", async () => {
+  it("navigates on version change when there is an active query", async () => {
     await import("./classifier");
+    const navigateMock = vi.fn();
+    window.__classifierNavigate = navigateMock;
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -244,11 +273,18 @@ describe("classifier.ts", () => {
     ) as HTMLSelectElement;
 
     textarea.value = "industrial pump";
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
     version.value = "v2";
     version.dispatchEvent(new Event("change", { bubbles: true }));
 
-    expect(getFormPushUrl()).toBe("/NAICS/industrial_pump?version=v2");
+    expect(navigateMock).toHaveBeenCalledTimes(1);
+    const navigationUrl = getNavigationUrl(
+      navigateMock.mock.calls[0]?.[0] ?? "",
+    );
+    expect(navigationUrl.pathname).toBe("/NAICS/search");
+    expect(navigationUrl.searchParams.get("product_description")).toBe(
+      "industrial pump",
+    );
+    expect(navigationUrl.searchParams.get("version")).toBe("v2");
   });
 
   it("keeps the initial loader history-disabled", () => {
