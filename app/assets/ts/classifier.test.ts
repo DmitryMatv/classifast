@@ -499,6 +499,7 @@ describe("classifier.ts", () => {
     const form = document.querySelector("form") as HTMLFormElement;
 
     await import("./classifier");
+    indicator.classList.remove("htmx-request"); // Clear initial state
 
     document.body.dispatchEvent(
       new CustomEvent("htmx:beforeRequest", {

@@ -4,6 +4,8 @@ The role of this file is to describe common mistakes and confusion points that a
 
 Never run `bun test` (runs Bun's built-in test runner). Always use `bun run test` (runs Vitest).
 
+Never use `pytest` for backend testing. Always use Python's built-in `unittest` module instead.
+
 ## Project Snapshot
 
 Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.

@@ -89,9 +89,14 @@ class ClassifierPage {
 
     this.showLoadingIndicator();
 
+    const authTimeout = window.setTimeout(() => {
+      this.hideLoadingIndicator();
+    }, 10000); // 10 second fallback
+
     document.body.addEventListener(
       "htmx:authReady",
       () => {
+        window.clearTimeout(authTimeout);
         scheduleInitialResultsLoad();
       },
       { once: true },
