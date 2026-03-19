@@ -72,7 +72,7 @@
             {
                 "@type": "ListItem",
                 "position": 3,
-                "name": "{{ product.title }}",
+                "name": {{ product.title | tojson }},
                 "item": "{{ canonical_url }}"
             }
         ]
@@ -191,7 +191,7 @@
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <span class="text-sm md:text-base font-medium text-slate-600">{{ product.source_standard }} ➡️ {{
+                <span class="text-sm md:text-xl font-medium text-slate-600">{{ product.source_standard }} ➡️ {{
                     product.target_standard }}</span>
             </a>
 
