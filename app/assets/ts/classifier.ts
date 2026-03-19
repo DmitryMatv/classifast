@@ -48,6 +48,16 @@ class ClassifierPage {
     this.getInitialResultsLoader()?.remove();
   }
 
+  private cancelInitialResultsAutoload(): void {
+    const loader = this.getInitialResultsLoader();
+    if (!loader) {
+      return;
+    }
+
+    loader.dataset["autoloadCancelled"] = "true";
+    loader.remove();
+  }
+
   private setupInitialResultsAutoload(): void {
     const loader = this.getInitialResultsLoader();
     if (!loader || loader.dataset["authGated"] !== "true") {
@@ -58,6 +68,7 @@ class ClassifierPage {
       if (
         !loader.isConnected ||
         loader.dataset["autoloadTriggered"] === "true" ||
+        loader.dataset["autoloadCancelled"] === "true" ||
         !window.htmx
       ) {
         return;
@@ -75,6 +86,8 @@ class ClassifierPage {
       scheduleInitialResultsLoad();
       return;
     }
+
+    this.showLoadingIndicator();
 
     document.body.addEventListener(
       "htmx:authReady",
@@ -246,6 +259,12 @@ class ClassifierPage {
     document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
       const htmxEvent = evt as HtmxBeforeRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
+        if (
+          htmxEvent.detail.elt instanceof HTMLElement &&
+          !htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
+        ) {
+          this.cancelInitialResultsAutoload();
+        }
         this.showLoadingIndicator();
       }
     });
