@@ -1,4 +1,23 @@
-CLASSIFIER_CONFIG = {
+from typing import NotRequired, TypedDict
+
+
+class VersionConfig(TypedDict):
+    collection_name: str
+    base_url: NotRequired[str]
+    tooltip: NotRequired[str]
+
+
+class ClassifierConfig(TypedDict):
+    title: str
+    heading: str
+    description: str
+    example: str
+    embed_model_name: str
+    embed_dims: int
+    versions: dict[str, VersionConfig]
+
+
+CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
     "ETIM": {
         "title": "ETIM International Classifier",
         "heading": "Find relevant EC classes from the ETIM standard.",

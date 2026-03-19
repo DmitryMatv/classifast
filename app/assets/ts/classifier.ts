@@ -1,8 +1,8 @@
 import { ShareLink } from "./common";
 
-const BASE_SCORE_BAR_DELAY_MS = 60;
-const SCORE_BAR_STAGGER_MS = 70;
-const MAX_SCORE_BAR_STAGGER_MS = 420;
+const BASE_SCORE_BAR_DELAY_MS = 0;
+const SCORE_BAR_STAGGER_MS = 100;
+const MAX_SCORE_BAR_STAGGER_MS = 600;
 
 /**
  * Classifier page specific functionality
@@ -16,6 +16,7 @@ class ClassifierPage {
 
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
+    this.setupInitialResultsAutoload();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
@@ -45,6 +46,61 @@ class ClassifierPage {
 
   private cleanupInitialResultsLoader(): void {
     this.getInitialResultsLoader()?.remove();
+  }
+
+  private cancelInitialResultsAutoload(): void {
+    const loader = this.getInitialResultsLoader();
+    if (!loader) {
+      return;
+    }
+
+    loader.dataset["autoloadCancelled"] = "true";
+    loader.remove();
+  }
+
+  private setupInitialResultsAutoload(): void {
+    const loader = this.getInitialResultsLoader();
+    if (!loader || loader.dataset["authGated"] !== "true") {
+      return;
+    }
+
+    const triggerInitialResultsLoad = () => {
+      if (
+        !loader.isConnected ||
+        loader.dataset["autoloadTriggered"] === "true" ||
+        loader.dataset["autoloadCancelled"] === "true" ||
+        !window.htmx
+      ) {
+        return;
+      }
+
+      loader.dataset["autoloadTriggered"] = "true";
+      window.htmx.trigger(loader, "initial-results-ready");
+    };
+
+    const scheduleInitialResultsLoad = () => {
+      window.setTimeout(triggerInitialResultsLoad, 0);
+    };
+
+    if (window.__authReady) {
+      scheduleInitialResultsLoad();
+      return;
+    }
+
+    this.showLoadingIndicator();
+
+    const authTimeout = window.setTimeout(() => {
+      this.hideLoadingIndicator();
+    }, 10000); // 10 second fallback
+
+    document.body.addEventListener(
+      "htmx:authReady",
+      () => {
+        window.clearTimeout(authTimeout);
+        scheduleInitialResultsLoad();
+      },
+      { once: true },
+    );
   }
 
   private ensureResultsSectionVisible(): void {
@@ -208,6 +264,12 @@ class ClassifierPage {
     document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
       const htmxEvent = evt as HtmxBeforeRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
+        if (
+          htmxEvent.detail.elt instanceof HTMLElement &&
+          !htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
+        ) {
+          this.cancelInitialResultsAutoload();
+        }
         this.showLoadingIndicator();
       }
     });

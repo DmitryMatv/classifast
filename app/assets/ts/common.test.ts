@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ClerkHelpers } from "./clerk-helpers";
 
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("common.ts", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -137,5 +143,46 @@ describe("common.ts", () => {
 
     document.body.innerHTML = "";
     expect(ClerkHelpers.submitForm()).toBe(false);
+  });
+
+  it("dispatches htmx:authReady after successful Clerk bootstrap", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    const authReadyListener = vi.fn();
+    document.body.addEventListener("htmx:authReady", authReadyListener);
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.session = {
+        getToken: vi.fn(async () => "token-123"),
+      };
+    }
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.Clerk?.load).toHaveBeenCalled();
+    expect(window.Clerk?.session?.getToken).toHaveBeenCalled();
+    expect(window.__authReady).toBe(true);
+    expect(authReadyListener).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispatches htmx:authReady when Clerk falls back", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+    const authReadyListener = vi.fn();
+    document.body.addEventListener("htmx:authReady", authReadyListener);
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.__authReady).toBe(true);
+    expect(authReadyListener).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Sign In");
+    expect(document.body.textContent).toContain("Sign Up");
   });
 });

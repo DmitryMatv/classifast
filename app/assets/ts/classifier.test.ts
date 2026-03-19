@@ -19,6 +19,18 @@ function getScoreBars(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>("[data-score-bar]"));
 }
 
+function appendInitialResultsLoader(): HTMLElement {
+  document.body.innerHTML += `
+    <div
+      id="initial-results-loader"
+      data-initial-results-loader="true"
+      data-auth-gated="true"
+    ></div>
+  `;
+
+  return document.getElementById("initial-results-loader") as HTMLElement;
+}
+
 function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
   return {
     matches,
@@ -355,5 +367,155 @@ describe("classifier.ts", () => {
     expect(resultsContainer.innerHTML).toBe("");
     expect(resultsSection.classList.contains("hidden")).toBe(true);
     expect(getScoreBars()).toHaveLength(0);
+  });
+
+  it("autoloads auth-gated initial results when auth is already ready", async () => {
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    appendInitialResultsLoader();
+    window.__authReady = true;
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      document.getElementById("initial-results-loader"),
+      "initial-results-ready",
+    );
+  });
+
+  it("waits for authReady before autoloading auth-gated initial results", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    appendInitialResultsLoader();
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(
+      document.getElementById("initial-results-loader"),
+      "initial-results-ready",
+    );
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      document.getElementById("initial-results-loader"),
+      "initial-results-ready",
+    );
+  });
+
+  it("cancels auth-gated autoload when a manual results request starts before authReady", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const loader = appendInitialResultsLoader();
+    const form = document.querySelector("form") as HTMLFormElement;
+
+    await import("./classifier");
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: form,
+        },
+      } as CustomEventInit),
+    );
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(
+      loader,
+      "initial-results-ready",
+    );
+    expect(document.getElementById("initial-results-loader")).toBeNull();
+  });
+
+  it("keeps the hidden loader request when authReady triggers it directly", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const loader = appendInitialResultsLoader();
+
+    await import("./classifier");
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      loader,
+      "initial-results-ready",
+    );
+  });
+
+  it("shows the loading indicator while waiting for authReady", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    appendInitialResultsLoader();
+    const indicator = document.getElementById(
+      "loading-indicator",
+    ) as HTMLElement;
+
+    await import("./classifier");
+
+    expect(indicator.classList.contains("htmx-request")).toBe(true);
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+  });
+
+  it("manual request path keeps spinner behavior consistent", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    appendInitialResultsLoader();
+    const indicator = document.getElementById(
+      "loading-indicator",
+    ) as HTMLElement;
+    const form = document.querySelector("form") as HTMLFormElement;
+
+    await import("./classifier");
+    indicator.classList.remove("htmx-request"); // Clear initial state
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: form,
+        },
+      } as CustomEventInit),
+    );
+    expect(indicator.classList.contains("htmx-request")).toBe(true);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: form,
+        },
+      } as CustomEventInit),
+    );
+    expect(indicator.classList.contains("htmx-request")).toBe(false);
   });
 });
