@@ -235,6 +235,7 @@
             position: relative;
             z-index: 2;
             background: transparent;
+            border-bottom: none;
         }
 
         .site-masthead>.container {
@@ -243,12 +244,7 @@
         }
 
         .site-masthead::after {
-            content: "";
-            position: absolute;
-            inset: auto 0 0 0;
-            height: 1px;
-            background: linear-gradient(90deg, rgba(148, 163, 184, 0), rgba(148, 163, 184, 0.18), rgba(148, 163, 184, 0));
-            pointer-events: none;
+            content: none;
         }
 
         .hero-section {

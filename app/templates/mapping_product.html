@@ -191,8 +191,8 @@
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <span class="text-sm md:text-base font-medium text-slate-600">{{ product.source_standard }} →
-                    {{ product.target_standard }}</span>
+                <span class="text-sm md:text-base font-medium text-slate-600">{{ product.source_standard }} ➡️ {{
+                    product.target_standard }}</span>
             </a>
 
             <nav class="desktop-nav" role="navigation" aria-label="Main navigation">
@@ -265,6 +265,10 @@
                     {{ product.title }}
                 </h1>
                 <p class="text-lg text-slate-600 leading-8 mb-8">{{ product.hero_copy }}</p>
+                <div class="rounded-2xl border border-sky-100 bg-sky-50 px-5 py-4 mb-8">
+                    <p class="text-xs uppercase tracking-[0.22em] text-sky-700 mb-2">Coverage</p>
+                    <p class="font-medium text-slate-900 leading-7">{{ product.coverage_summary }}</p>
+                </div>
 
                 <div class="grid gap-4 md:grid-cols-2 mb-10">
                     <div class="rounded-2xl bg-sky-50 border border-sky-100 p-5">
@@ -288,7 +292,7 @@
                 </section>
 
                 <section class="mb-10">
-                    <h2 class="text-2xl font-bold text-slate-900 mb-4">Use cases</h2>
+                    <h2 class="text-2xl font-bold text-slate-900 mb-4">Typical use cases</h2>
                     <ul class="space-y-3 text-slate-600 leading-7">
                         {% for use_case in product.use_cases %}
                         <li>• {{ use_case }}</li>
@@ -316,10 +320,11 @@
 
             <aside class="space-y-6">
                 <section class="bg-slate-950 text-white rounded-3xl p-6 shadow-lg">
-                    <p class="text-xs uppercase tracking-[0.22em] text-sky-300 mb-2">Full file</p>
+                    <p class="text-xs uppercase tracking-[0.22em] text-sky-300 mb-2">Full mapping file</p>
                     <p class="text-4xl font-extrabold mb-4">${{ product.price_usd }}</p>
-                    <p class="text-slate-300 leading-7 mb-6">{{ product.paid_format_label }} with versioned crosswalk
+                    <p class="text-slate-300 leading-7 mb-4">{{ product.paid_format_label }} with versioned crosswalk
                         data for {{ product.source_standard }} and {{ product.target_standard }}.</p>
+                    <p class="text-sm leading-6 text-slate-400 mb-6">{{ product.coverage_summary }}</p>
                     <div class="space-y-3">
                         <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}"
                             class="w-full inline-flex items-center justify-center rounded-xl border border-sky-400 px-4 py-3 font-semibold text-sky-100 hover:bg-sky-500/10 transition-colors">
@@ -328,7 +333,7 @@
                         <button type="button" data-mapping-buy-button data-mapping-slug="{{ product.slug }}"
                             data-return-url="{{ canonical_url }}"
                             class="w-full inline-flex items-center justify-center rounded-xl bg-sky-500 px-4 py-3 font-semibold text-slate-950 hover:bg-sky-400 transition-colors">
-                            Buy with Polar
+                            Buy full mapping file
                         </button>
                     </div>
                 </section>

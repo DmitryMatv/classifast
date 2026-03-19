@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <title>Classification Mapping Files and Crosswalks | Classifast</title>
     <meta name="description"
-        content="Buy classification mapping files and crosswalks for procurement, compliance, and catalog normalization. Download free samples for each mapping.">
+        content="Direct taxonomy mapping files and crosswalks for procurement, finance, ERP, master data, and reporting systems. Download a sample CSV for each mapping.">
     <meta name="keywords"
-        content="classification mapping files, code crosswalk, procurement mapping, UNSPSC mapping, CPV mapping, taxonomy crosswalk">
+        content="classification mapping files, code crosswalk, procurement mapping, finance taxonomy mapping, UNSPSC mapping, CPV mapping, taxonomy crosswalk">
     <meta name="author" content="Dmitry Matv">
     <meta name="creator" content="Dmitry Matv">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,7 +22,7 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Classification Mapping Files and Crosswalks | Classifast">
     <meta property="og:description"
-        content="Repo-owned mapping products with free samples and Polar checkout for procurement and taxonomy conversion workflows.">
+        content="Direct mapping files for procurement, finance, ERP, and taxonomy conversion workflows, with sample CSV downloads and Polar checkout.">
     <meta property="og:url" content="{{ canonical_url }}">
     <meta property="og:site_name" content="classifast.com">
     <meta property="og:image" content="https://classifast.com/static/images/preview.png">
@@ -30,7 +30,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Classification Mapping Files and Crosswalks | Classifast">
     <meta name="twitter:description"
-        content="Browse mapping files, download free samples, and buy full crosswalks for UNSPSC, CPV, and related standards.">
+        content="Browse direct crosswalk files, download sample CSVs, and buy full mapping files for UNSPSC, CPV, and related standards.">
     <meta name="twitter:image" content="https://classifast.com/static/images/preview.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,15 +43,15 @@
         "@context": "https://schema.org",
         "@type": "CollectionPage",
         "name": "Classification Mapping Files",
-        "description": "Storefront for Classifast mapping files and code crosswalks.",
+        "description": "Storefront for Classifast direct mapping files and taxonomy crosswalks.",
         "url": "{{ canonical_url }}",
         "mainEntity": [
             {% for product in products %}
             {
                 "@type": "Product",
-                "name": "{{ product.title }}",
+                "name": {{ product.title | tojson }},
                 "url": "https://classifast.com/mapping/{{ product.slug }}/",
-                "description": "{{ product.meta_description }}",
+                "description": {{ product.meta_description | tojson }},
                 "offers": {
                     "@type": "Offer",
                     "price": "{{ product.price_usd }}",
@@ -207,13 +207,14 @@
         <section class="mapping-hero border-b border-slate-200">
             <div class="container mx-auto max-w-6xl px-4 py-16 md:py-20">
                 <div class="max-w-3xl">
-                    <p class="text-sm font-semibold uppercase tracking-[0.28em] text-sky-700 mb-4">Storefront</p>
+                    <p class="text-sm font-semibold uppercase tracking-[0.28em] text-sky-700 mb-4">Mapping files</p>
                     <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6">
-                        Mapping files for procurement and taxonomy cleanup
+                        Direct crosswalks for procurement, finance, and master data
                     </h1>
                     <p class="text-lg text-slate-600 leading-8 max-w-2xl">
-                        Each product page targets a specific crosswalk problem, includes a public sample download, and
-                        uses Polar checkout for the full file.
+                        Use versioned mapping files to align taxonomies across procurement systems, finance systems,
+                        ERP, supplier master, spend analysis, and reporting workflows. Each product includes a sample
+                        CSV and a full downloadable mapping file.
                     </p>
                 </div>
             </div>
@@ -242,6 +243,7 @@
                     </div>
 
                     <p class="text-slate-600 leading-7 mb-5">{{ product.hero_copy }}</p>
+                    <p class="text-sm font-medium text-slate-700 mb-5">{{ product.coverage_summary }}</p>
 
                     <div class="flex flex-wrap gap-2 mb-5">
                         <span
@@ -272,7 +274,7 @@
                         <button type="button" data-mapping-buy-button data-mapping-slug="{{ product.slug }}"
                             data-return-url="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
                             class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white hover:bg-sky-700 transition-colors">
-                            Buy full file
+                            Buy full mapping file
                         </button>
                     </div>
                 </article>

@@ -102,7 +102,8 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("attachment;", response.headers["content-disposition"])
         self.assertIn(
-            self.product.sample_download_name, response.headers["content-disposition"]
+            Path(self.product.sample_file_path).name,
+            response.headers["content-disposition"],
         )
         self.assertNotIn("set-cookie", response.headers)
 

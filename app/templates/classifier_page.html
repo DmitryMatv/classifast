@@ -435,6 +435,13 @@
             background: linear-gradient(to right, #f9fafb, #e5e7eb);
         }
 
+        .classifier-surface {
+            background:
+                radial-gradient(circle at top left, rgba(125, 211, 252, 0.3), transparent 24%),
+                radial-gradient(circle at top right, rgba(191, 219, 254, 0.2), transparent 20%),
+                linear-gradient(180deg, #f3f8ff 0%, #ffffff 38%, #f8fafc 100%);
+        }
+
         .js-score-animations [data-score-bar] {
             transform: scaleX(0);
             transform-origin: left center;
@@ -507,17 +514,14 @@
 
             .mobile-menu {
                 position: absolute;
-                top: 110%;
+                top: 100%;
                 right: 0;
-                left: auto;
-                transform: none;
                 width: 95vw;
                 max-width: 400px;
                 background-color: white;
                 border-top: 1px solid #e5e7eb;
-                box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
                 z-index: 60;
-                border-radius: 0;
             }
 
             .mobile-menu ul {
@@ -533,70 +537,44 @@
                 padding: 16px 20px;
                 margin: 0 8px;
                 border-radius: 8px;
-                transition: all 0.2s ease;
-                font-weight: 500;
+                transition: color 0.2s ease, background-color 0.2s ease;
             }
 
             .mobile-menu a:hover {
                 background-color: #f8fafc;
-                transform: translateX(4px);
-            }
-
-            .mobile-menu .sign-up-btn {
-                margin: 12px 16px 8px 16px;
-                text-align: center;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
-            }
-
-            .mobile-menu .sign-up-btn:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
             }
         }
     </style>
 </head>
 
-<body class="bg-sky-100 text-gray-800"
+<body class="classifier-surface text-gray-800 min-h-screen"
     style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
-    <header class="bg-sky-100 relative">
+    <header class="bg-white/90 backdrop-blur-sm border-b border-slate-200 relative">
         <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
-                <p class="text-xl font-bold text-gray-800 mr-2 md:mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <h1 class="text-sm md:text-xl font-medium text-gray-800 mobile-hidden">{{ title }}</h1>
+                <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
+                <span class="text-sm md:text-base font-medium text-slate-600 mobile-hidden">{{ classifier_type.upper()
+                    }} Classification</span>
             </a>
 
-            <!-- Desktop Navigation -->
-            <nav class="desktop-nav">
+            <nav class="desktop-nav" role="navigation" aria-label="Main navigation">
                 <ul class="flex space-x-6 items-center">
                     <li><a href="{{ url_for('read_root') }}"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
-                            role="link" aria-label="Other Classification Standards">Home</a></li>
+                            role="link" aria-label="Home">Home</a></li>
                     <li><a href="{{ url_for('show_mapping_index') }}"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="Mapping Files">Mappings</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
-                            role="link" aria-label="UNSPSC Classification">UNSPSC</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
-                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
-                            role="link" aria-label="NAICS Classification">NAICS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
-                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
-                            role="link" aria-label="HS Classification">HS</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
-                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
-                            role="link" aria-label="CN Classification">CN</a></li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
-                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
-                            role="link" aria-label="HTS Classification">HTS</a></li>
+                    <li><a href="{{ url_for('show_classifier_page', classifier_type=classifier_type) }}"
+                            class="text-sky-700 font-semibold hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="{{ classifier_type.upper() }} Classification">{{
+                            classifier_type.upper() }}</a></li>
                     <li class="auth-slot" data-auth-slot="desktop">
                         <div id="desktop-auth-container"><!-- Clerk authentication will be mounted here --></div>
                     </li>
                 </ul>
             </nav>
 
-            <!-- Mobile Hamburger Button -->
             <button class="hamburger" id="mobile-menu-button" aria-label="Toggle mobile menu" aria-expanded="false">
                 <span></span>
                 <span></span>
@@ -604,26 +582,17 @@
             </button>
         </div>
 
-        <!-- Mobile Navigation Menu -->
-        <nav class="mobile-menu" id="mobile-menu">
+        <nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation">
             <ul class="flex flex-col">
+                <li><a href="{{ url_for('read_root') }}"
+                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Home</a>
+                </li>
                 <li><a href="{{ url_for('show_mapping_index') }}"
                         class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Mappings</a>
                 </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">UNSPSC</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
-                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">NAICS</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='HS') }}"
-                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">HS</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='CN') }}"
-                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">CN</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}"
-                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">HTS</a>
+                <li><a href="{{ url_for('show_classifier_page', classifier_type=classifier_type) }}"
+                        class="text-sky-700 font-semibold hover:underline underline-offset-2 transition-colors">{{
+                        classifier_type.upper() }}</a>
                 </li>
                 <li class="auth-slot" data-auth-slot="mobile">
                     <div id="mobile-auth-container"><!-- Clerk authentication will be mounted here --></div>

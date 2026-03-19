@@ -197,7 +197,7 @@ async def download_mapping_sample(slug: str):
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Sample file not found")
 
-    response = FileResponse(file_path, filename=product.sample_download_name)
+    response = FileResponse(file_path, filename=file_path.name)
     response.headers.update(
         build_cache_headers(get_sample_cache_profile(product.sample_file_path))
     )
