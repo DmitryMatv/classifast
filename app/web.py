@@ -2,20 +2,28 @@ import logging
 import re
 import time
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from .cache_profiles import (
     CLASSIFICATION_RESULT,
     HTML_PAGE,
     NO_STORE,
+    STATIC_MEDIA,
+    STATIC_TEXT,
     build_cache_headers,
 )
 from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG
 from .dependencies import templates
+from .mapping_store import (
+    MappingProduct,
+    get_mapping_product,
+    list_mapping_products,
+)
 from .usage_tracker import (
     FREE_USER_LIMIT,
     UsageStatus,
@@ -29,6 +37,7 @@ from .usage_tracker import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def get_default_top_k(classifier_type: str) -> int:
@@ -53,6 +62,39 @@ def slugify(text: str) -> str:
     return text.strip("_")
 
 
+def build_page_headers(canonical_url: str) -> dict[str, str]:
+    headers = build_cache_headers(HTML_PAGE)
+    headers["Vary"] = "Accept-Encoding"
+    headers["Content-Type"] = "text/html; charset=utf-8"
+    headers["Link"] = f'<{canonical_url}>; rel="canonical"'
+    headers["X-Robots-Tag"] = "index, follow"
+    return headers
+
+
+def build_mapping_canonical_url(slug: str | None = None) -> str:
+    canonical_url = "https://classifast.com/mapping"
+    if slug:
+        canonical_url += f"/{quote(slug, safe='')}"
+    if not canonical_url.endswith("/"):
+        canonical_url += "/"
+    return canonical_url
+
+
+def get_sample_cache_profile(sample_path: str):
+    if sample_path.endswith(".csv"):
+        return STATIC_TEXT
+    return STATIC_MEDIA
+
+
+def get_related_mapping_products(product: MappingProduct) -> list[MappingProduct]:
+    related_products: list[MappingProduct] = []
+    for slug in product.related_slugs:
+        related_product = get_mapping_product(slug)
+        if related_product:
+            related_products.append(related_product)
+    return related_products
+
+
 # Serve the main homepage
 @router.get("/", response_class=HTMLResponse)
 @router.head("/")  # Add HEAD support
@@ -61,11 +103,7 @@ async def read_root(request: Request):
 
     # For HEAD requests, return just headers
     if request.method == "HEAD":
-        headers = build_cache_headers(HTML_PAGE)
-        headers["Vary"] = "Accept-Encoding"
-        headers["Content-Type"] = "text/html; charset=utf-8"
-        headers["Link"] = '<https://classifast.com/>; rel="canonical"'
-        return Response(headers=headers)
+        return Response(headers=build_page_headers("https://classifast.com/"))
 
     today = datetime.now()
     response = templates.TemplateResponse(
@@ -75,11 +113,130 @@ async def read_root(request: Request):
     )
 
     # Cloudflare-friendly cache headers (same as classifier pages)
-    response.headers.update(build_cache_headers(HTML_PAGE))
-    response.headers["Vary"] = "Accept-Encoding"
-    response.headers["Link"] = '<https://classifast.com/>; rel="canonical"'
-    response.headers["X-Robots-Tag"] = "index, follow"
+    response.headers.update(build_page_headers("https://classifast.com/"))
 
+    return response
+
+
+@router.get("/mapping", include_in_schema=False)
+@router.head("/mapping", include_in_schema=False)
+async def redirect_mapping_index_no_slash(request: Request):
+    query_string = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"/mapping/{query_string}", status_code=301)
+
+
+@router.get("/mappings", include_in_schema=False)
+@router.head("/mappings", include_in_schema=False)
+@router.get("/mappings/", include_in_schema=False)
+@router.head("/mappings/", include_in_schema=False)
+async def redirect_legacy_mapping_index(request: Request):
+    query_string = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"/mapping/{query_string}", status_code=301)
+
+
+@router.get("/mapping/", response_class=HTMLResponse)
+@router.head("/mapping/")
+async def show_mapping_index(request: Request):
+    canonical_url = build_mapping_canonical_url()
+    if request.method == "HEAD":
+        return Response(headers=build_page_headers(canonical_url))
+
+    today = datetime.now()
+    products = list_mapping_products()
+    response = templates.TemplateResponse(
+        request,
+        "mapping_index.html",
+        {
+            "products": products,
+            "featured_products": [product for product in products if product.featured],
+            "canonical_url": canonical_url,
+            "current_year": today.year,
+        },
+    )
+    response.headers.update(build_page_headers(canonical_url))
+    return response
+
+
+@router.get("/mapping/{slug}", include_in_schema=False)
+@router.head("/mapping/{slug}", include_in_schema=False)
+async def redirect_mapping_product_no_slash(slug: str, request: Request):
+    product = get_mapping_product(slug)
+    if not product:
+        raise HTTPException(status_code=404, detail="Mapping product not found")
+    query_string = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(
+        url=f"/mapping/{product.slug}/{query_string}", status_code=301
+    )
+
+
+@router.get("/mappings/{slug}", include_in_schema=False)
+@router.head("/mappings/{slug}", include_in_schema=False)
+@router.get("/mappings/{slug}/", include_in_schema=False)
+@router.head("/mappings/{slug}/", include_in_schema=False)
+async def redirect_legacy_mapping_product(slug: str, request: Request):
+    product = get_mapping_product(slug)
+    if not product:
+        raise HTTPException(status_code=404, detail="Mapping product not found")
+    query_string = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(
+        url=f"/mapping/{product.slug}/{query_string}", status_code=301
+    )
+
+
+@router.get("/mapping/{slug}/sample")
+async def download_mapping_sample(slug: str):
+    product = get_mapping_product(slug)
+    if not product:
+        raise HTTPException(status_code=404, detail="Mapping product not found")
+
+    file_path = BASE_DIR / product.sample_file_path
+    # Resolve to absolute path and verify it's within BASE_DIR
+    file_path = file_path.resolve()
+    if not file_path.is_relative_to(BASE_DIR):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Sample file not found")
+
+    response = FileResponse(file_path, filename=file_path.name)
+    response.headers.update(
+        build_cache_headers(get_sample_cache_profile(product.sample_file_path))
+    )
+    response.headers["Vary"] = "Accept-Encoding"
+    return response
+
+
+@router.get("/mappings/{slug}/sample", include_in_schema=False)
+async def redirect_legacy_mapping_sample(slug: str):
+    product = get_mapping_product(slug)
+    if not product:
+        raise HTTPException(status_code=404, detail="Mapping product not found")
+    return RedirectResponse(url=f"/mapping/{product.slug}/sample", status_code=301)
+
+
+@router.get("/mapping/{slug}/", response_class=HTMLResponse)
+@router.head("/mapping/{slug}/")
+async def show_mapping_product_page(request: Request, slug: str):
+    product = get_mapping_product(slug)
+    if not product:
+        raise HTTPException(status_code=404, detail="Mapping product not found")
+
+    canonical_url = build_mapping_canonical_url(product.slug)
+    if request.method == "HEAD":
+        return Response(headers=build_page_headers(canonical_url))
+
+    today = datetime.now()
+    response = templates.TemplateResponse(
+        request,
+        "mapping_product.html",
+        {
+            "product": product,
+            "canonical_url": canonical_url,
+            "related_products": get_related_mapping_products(product),
+            "all_products": list_mapping_products(),
+            "current_year": today.year,
+        },
+    )
+    response.headers.update(build_page_headers(canonical_url))
     return response
 
 
@@ -359,11 +516,7 @@ async def show_classifier_page_with_query(
 
     # For HEAD requests, return just headers
     if request.method == "HEAD":
-        headers = build_cache_headers(HTML_PAGE)
-        headers["Vary"] = "Accept-Encoding"
-        headers["Content-Type"] = "text/html; charset=utf-8"
-        headers["Link"] = f'<{canonical_url}>; rel="canonical"'
-        return Response(headers=headers)
+        return Response(headers=build_page_headers(canonical_url))
 
     # Validate top_k parameter
     if top_k is None or top_k < 1 or top_k > 100:
@@ -423,9 +576,6 @@ async def show_classifier_page_with_query(
     )
 
     # Cloudflare-friendly cache headers (aligned with homepage)
-    response.headers.update(build_cache_headers(HTML_PAGE))
-    response.headers["Vary"] = "Accept-Encoding"
-    response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
-    response.headers["X-Robots-Tag"] = "index, follow"
+    response.headers.update(build_page_headers(canonical_url))
 
     return response

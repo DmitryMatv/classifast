@@ -70,6 +70,19 @@ class StaticHeaderTests(unittest.TestCase):
             )
             self.assertEqual(response.headers["Cache-Tag"], "static-files")
 
+    def test_csv_downloads_use_static_text_profile(self) -> None:
+        self.assertEqual(
+            get_static_cache_profile("mapping_samples/example.csv"), STATIC_TEXT
+        )
+
+    def test_binary_downloads_use_static_media_profile(self) -> None:
+        for path in (
+            "exports/example.xlsx",
+            "exports/example.pdf",
+            "exports/example.zip",
+        ):
+            self.assertEqual(get_static_cache_profile(path), STATIC_MEDIA)
+
 
 if __name__ == "__main__":
     unittest.main()

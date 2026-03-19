@@ -44,10 +44,7 @@ function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
   };
 }
 
-function createAnimationFrameController(): {
-  flush: () => void;
-  requestAnimationFrameMock: ReturnType<typeof vi.fn>;
-} {
+function createAnimationFrameController() {
   const callbacks: FrameRequestCallback[] = [];
   const requestAnimationFrameMock = vi.fn((callback: FrameRequestCallback) => {
     callbacks.push(callback);
@@ -127,10 +124,10 @@ describe("classifier.ts", () => {
     expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("60ms");
+    ).toBe("0ms");
     expect(
       scoreBars[1]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("130ms");
+    ).toBe("100ms");
     expect(
       scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
     ).toBe("200ms");
@@ -214,7 +211,7 @@ describe("classifier.ts", () => {
     expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("60ms");
+    ).toBe("0ms");
   });
 
   it("injects rate limit responses into the results container", async () => {
@@ -283,7 +280,7 @@ describe("classifier.ts", () => {
     expect(scoreBars[2]?.classList.contains("is-score-bar-visible")).toBe(true);
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("60ms");
+    ).toBe("0ms");
     expect(resultsContainer.innerHTML).toContain("score-bar");
   });
 

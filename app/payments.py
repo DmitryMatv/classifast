@@ -23,6 +23,7 @@ from .dependencies import (
     CLERK_SECRET_KEY,
     get_jwks_client,
 )
+from .mapping_store import get_mapping_product
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -33,6 +34,24 @@ POLAR_ACCESS_TOKEN = os.getenv("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET")
 
 CHECKOUT_PENDING_TTL = 900  # 15 minutes - token validity
+
+
+def validate_return_url(request: Request, return_url: str | None) -> str | None:
+    """Validate return_url against the current host allowlist."""
+    if not return_url:
+        return None
+
+    parsed = urlparse(return_url)
+    allowed_hosts = [urlparse(str(request.base_url)).netloc]
+    extra_hosts = os.getenv("ALLOWED_REDIRECT_HOSTS", "")
+    if extra_hosts:
+        allowed_hosts.extend(h.strip() for h in extra_hosts.split(",") if h.strip())
+
+    if not parsed.netloc or parsed.netloc not in allowed_hosts:
+        logger.warning(f"Invalid return_url rejected: {return_url[:50]}")
+        raise HTTPException(status_code=400, detail="Invalid return_url")
+
+    return return_url
 
 
 # Dependency to get authenticated user ID from Clerk
@@ -136,7 +155,7 @@ async def create_checkout(
     try:
         body = await request.json()
         product_id = body.get("product_id")
-        return_url = body.get("return_url")
+        return_url = validate_return_url(request, body.get("return_url"))
 
         if not product_id:
             raise HTTPException(status_code=400, detail="Missing product_id")
@@ -145,19 +164,6 @@ async def create_checkout(
             raise HTTPException(
                 status_code=500, detail="Polar Access Token not configured"
             )
-
-        # Validate return_url to prevent open redirect attacks
-        if return_url:
-            parsed = urlparse(return_url)
-            allowed_hosts = [urlparse(str(request.base_url)).netloc]
-            extra_hosts = os.getenv("ALLOWED_REDIRECT_HOSTS", "")
-            if extra_hosts:
-                allowed_hosts.extend(
-                    h.strip() for h in extra_hosts.split(",") if h.strip()
-                )
-            if not parsed.netloc or parsed.netloc not in allowed_hosts:
-                logger.warning(f"Invalid return_url rejected: {return_url[:50]}")
-                raise HTTPException(status_code=400, detail="Invalid return_url")
 
         # Generate secure checkout token
         checkout_token = secrets.token_urlsafe(32)
@@ -207,6 +213,53 @@ async def create_checkout(
     except Exception as e:
         logger.error(f"Error creating checkout: {e}")
         raise HTTPException(status_code=500, detail="Failed to create checkout")
+
+
+@router.post("/create-mapping-checkout")
+async def create_mapping_checkout(request: Request):
+    try:
+        body = await request.json()
+        slug = body.get("slug")
+        return_url = validate_return_url(request, body.get("return_url"))
+
+        if not slug:
+            raise HTTPException(status_code=400, detail="Missing slug")
+
+        product = get_mapping_product(slug)
+        if not product:
+            raise HTTPException(status_code=404, detail="Mapping product not found")
+
+        if not POLAR_ACCESS_TOKEN:
+            raise HTTPException(
+                status_code=500, detail="Polar Access Token not configured"
+            )
+
+        success_url = return_url if return_url else str(request.base_url)
+        separator = "&" if "?" in success_url else "?"
+        success_url += f"{separator}checkout=success"
+
+        with Polar(access_token=POLAR_ACCESS_TOKEN) as polar:
+            checkout = polar.checkouts.create(
+                request={
+                    "products": [product.polar_product_id],
+                    "metadata": {
+                        "mapping_slug": product.slug,
+                        "source_standard": product.source_standard,
+                        "target_standard": product.target_standard,
+                    },
+                    "success_url": success_url,
+                }
+            )
+
+        return {"url": checkout.url}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating mapping checkout: {e}")
+        raise HTTPException(
+            status_code=500, detail="Failed to create mapping checkout"
+        )
 
 
 @router.post("/webhooks/polar")

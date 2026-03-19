@@ -47,6 +47,8 @@ beforeEach(() => {
   delete window.__paywallInitialized;
   delete window.__paywallNavigate;
   delete window.__paywallScriptParsed;
+  delete window.__storefrontInitialized;
+  delete window.__storefrontNavigate;
   delete window.ShareLink;
   delete window.copyOriginalId;
 
