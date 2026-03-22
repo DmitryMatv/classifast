@@ -12,6 +12,11 @@ describe("common.ts", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
+    document.body.innerHTML = "";
+    document.body.removeAttribute("data-common-initialized");
+    delete document.body.dataset["commonInitialized"];
+    window.__authReady = false;
+    delete window.copyOriginalId;
   });
 
   afterEach(() => {
@@ -49,9 +54,12 @@ describe("common.ts", () => {
 
   it("toggles mobile menu and closes on Escape and outside click", async () => {
     document.body.innerHTML = `
-      <button id="mobile-menu-button" aria-expanded="false"></button>
+      <button id="mobile-menu-button" class="hamburger" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
       <div id="mobile-menu"><a href="/x">Link</a></div>
-      <div class="hamburger"></div>
     `;
     await import("./common");
     const button = document.getElementById("mobile-menu-button") as HTMLElement;
@@ -60,6 +68,7 @@ describe("common.ts", () => {
     button.click();
     expect(menu.classList.contains("active")).toBe(true);
     expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(button.getAttribute("aria-controls")).toBe("mobile-menu");
 
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(menu.classList.contains("active")).toBe(false);
@@ -67,6 +76,26 @@ describe("common.ts", () => {
     button.click();
     document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(menu.classList.contains("active")).toBe(false);
+  });
+
+  it("does not bind the mobile menu twice when initCommon runs again", async () => {
+    document.body.innerHTML = `
+      <button id="mobile-menu-button" class="hamburger" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div id="mobile-menu"><a href="/x">Link</a></div>
+    `;
+    const { initCommon } = await import("./common");
+    const button = document.getElementById("mobile-menu-button") as HTMLElement;
+    const menu = document.getElementById("mobile-menu") as HTMLElement;
+
+    initCommon();
+    button.click();
+
+    expect(menu.classList.contains("active")).toBe(true);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
   });
 
   it("submits textarea form on Enter but not Shift+Enter", async () => {

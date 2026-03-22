@@ -6,6 +6,8 @@
 
 Classifast is a web application that provides easy classification of any text input according to international product and service standards like UNSPSC, NAICS, ISIC, ETIM, HS, CN. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated yet intelligent categorization.
 
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/DmitryMatv/classifast?utm_source=oss&utm_medium=github&utm_campaign=DmitryMatv%2Fclassifast&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
 ## Features
 
 - **Fast Classification**: Semantic search using advanced embedding models

@@ -45,6 +45,9 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(response.headers["X-Robots-Tag"], "index, follow")
         self.assertIn(self.product.title, response.text)
+        self.assertNotIn('data-auth-slot="desktop"', response.text)
+        self.assertNotIn('id="desktop-auth-container"', response.text)
+        self.assertIn('data-auth-ui="disabled"', response.text)
 
     async def test_mapping_product_head_uses_product_canonical_link(self) -> None:
         response = await self._request("HEAD", f"/mapping/{self.product.slug}/")
@@ -54,6 +57,14 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
             response.headers["Link"],
             f'<https://classifast.com/mapping/{self.product.slug}/>; rel="canonical"',
         )
+
+    async def test_mapping_product_page_does_not_render_auth_controls(self) -> None:
+        response = await self._request("GET", f"/mapping/{self.product.slug}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('data-auth-slot="desktop"', response.text)
+        self.assertNotIn('id="desktop-auth-container"', response.text)
+        self.assertIn('data-auth-ui="disabled"', response.text)
 
     async def test_mapping_routes_redirect_to_trailing_slash(self) -> None:
         index_response = await self._request("GET", "/mapping")

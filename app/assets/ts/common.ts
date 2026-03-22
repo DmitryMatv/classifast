@@ -4,11 +4,11 @@ import { ClerkHelpers } from "./clerk-helpers";
 // Shared TypeScript functionality for Classifast application
 
 const SIGN_IN_CLASS =
-  "bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
+  "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const SIGN_UP_CLASS =
-  "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
-const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "px-5 py-1.5";
-const MOBILE_AUTH_BUTTON_SIZE_CLASS = "px-4 py-1";
+  "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
+const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "h-9 px-4 leading-none";
+const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -21,7 +21,7 @@ window.addEventListener("unhandledrejection", (event) => {
 
 // Mobile menu functionality
 export class MobileMenu {
-  private button: HTMLElement | null = null;
+  private button: HTMLButtonElement | null = null;
   private menu: HTMLElement | null = null;
   private hamburger: HTMLElement | null = null;
 
@@ -30,13 +30,22 @@ export class MobileMenu {
   }
 
   private init() {
-    this.button = document.getElementById("mobile-menu-button");
+    this.button = document.getElementById(
+      "mobile-menu-button",
+    ) as HTMLButtonElement | null;
     this.menu = document.getElementById("mobile-menu");
-    this.hamburger = document.querySelector(".hamburger");
+    this.hamburger = this.button?.matches(".hamburger")
+      ? this.button
+      : (this.button?.querySelector(".hamburger") ??
+        document.querySelector(".hamburger"));
 
     if (!this.button || !this.menu || !this.hamburger) return;
 
-    this.button.addEventListener("click", () => this.toggle());
+    this.button.setAttribute("aria-controls", this.menu.id);
+    this.button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.toggle();
+    });
 
     // Close on link click
     const links = this.menu.querySelectorAll("a");
@@ -620,7 +629,7 @@ export class ClerkAuth {
     el.id = `clerk-user-button-${type}`;
     el.className =
       type === "desktop"
-        ? "auth-user-button-root flex h-8 w-8 shrink-0 items-center justify-center leading-none"
+        ? "auth-user-button-root flex h-9 w-9 shrink-0 items-center justify-center leading-none"
         : "auth-user-button-root";
     container.appendChild(el);
 
@@ -629,9 +638,9 @@ export class ClerkAuth {
         appearance: {
           elements: {
             userButtonTrigger:
-              "h-8 w-8 rounded-full p-0 leading-none hover:bg-transparent focus:bg-transparent active:bg-transparent focus-visible:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-100",
-            userButtonAvatarBox: "h-8 w-8 rounded-full overflow-hidden",
-            userButtonBox: "h-8 w-8 rounded-full overflow-hidden",
+              "h-9 w-9 rounded-full p-0 leading-none hover:bg-transparent focus:bg-transparent active:bg-transparent focus-visible:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-100",
+            userButtonAvatarBox: "h-9 w-9 rounded-full overflow-hidden",
+            userButtonBox: "h-9 w-9 rounded-full overflow-hidden",
           },
         },
       });
@@ -840,8 +849,15 @@ export class ResultCopier {
 
 // Initialize common functionality when DOM is ready
 export function initCommon(): void {
+  if (document.body.dataset["commonInitialized"] === "true") {
+    return;
+  }
+
+  document.body.dataset["commonInitialized"] = "true";
   new MobileMenu();
-  new ClerkAuth();
+  if (document.body.dataset["authUi"] !== "disabled") {
+    new ClerkAuth();
+  }
   new TextareaEnhancer("product_description_area");
   new ResultCopier();
 }

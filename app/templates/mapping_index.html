@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Classification Mapping Files and Crosswalks | Classifast</title>
+    <title>Mappings, Crosswalks, Correspondence | Classifast</title>
     <meta name="description"
         content="Direct taxonomy mapping files and crosswalks for procurement, finance, ERP, master data, and reporting systems. Download a sample CSV for each mapping.">
     <meta name="keywords"
@@ -35,7 +35,6 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://clerk.classifast.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <script type="application/ld+json">
@@ -75,24 +74,56 @@
             margin-right: auto;
         }
 
-        .auth-slot {
+        .auth-slot-placeholder {
             display: flex;
             align-items: center;
-            min-width: 2rem;
-            min-height: 2rem;
+            min-width: 10.5rem;
+            min-height: 2.25rem;
             flex-shrink: 0;
+            line-height: 1;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .auth-slot-placeholder-inner {
+            display: flex;
+            align-items: center;
+            min-width: 10.5rem;
+            min-height: 2.25rem;
             line-height: 1;
         }
 
-        .auth-slot [id$="-auth-container"] {
-            display: flex;
-            align-items: center;
-            min-width: 2rem;
-            min-height: 2rem;
+        .auth-slot-placeholder-chip {
+            display: block;
+            height: 2.25rem;
+            border-radius: 0.25rem;
+        }
+
+        .auth-slot-placeholder-chip+.auth-slot-placeholder-chip {
+            margin-left: 0.5rem;
+        }
+
+        .auth-slot-placeholder-chip.sign-in {
+            width: 4.5rem;
+        }
+
+        .auth-slot-placeholder-chip.sign-up {
+            width: 4.75rem;
         }
 
         .mobile-menu {
             display: none;
+            position: absolute;
+            top: calc(100% + 0.75rem);
+            right: 1rem;
+            width: min(44rem, calc(100vw - 2rem));
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid rgba(226, 232, 240, 0.95);
+            box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.35);
+            border-radius: 1.25rem;
+            z-index: 60;
+            backdrop-filter: blur(16px);
+            overflow: hidden;
         }
 
         .mobile-menu.active {
@@ -100,10 +131,109 @@
         }
 
         .hamburger {
-            display: none;
+            display: flex;
             flex-direction: column;
             cursor: pointer;
             padding: 4px;
+            background: transparent;
+            border: 0;
+            appearance: none;
+            -webkit-appearance: none;
+            position: relative;
+            z-index: 70;
+            touch-action: manipulation;
+        }
+
+        .menu-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.75fr);
+            gap: 1.25rem;
+            padding: 1.25rem;
+        }
+
+        .menu-section-title {
+            margin: 0 0 0.75rem 0;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .menu-feature-link {
+            display: block;
+            padding: 0.95rem 1rem;
+            border-radius: 1rem;
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+            border: 1px solid #dbeafe;
+            color: #0f172a;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .menu-feature-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px -20px rgba(14, 116, 144, 0.5);
+            border-color: #7dd3fc;
+        }
+
+        .menu-feature-link strong {
+            display: block;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .menu-feature-link span {
+            display: block;
+            font-size: 0.9rem;
+            color: #475569;
+            line-height: 1.45;
+        }
+
+        .menu-link-list {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .menu-link-list a {
+            display: block;
+            padding: 0.72rem 0.85rem;
+            border-radius: 0.85rem;
+            color: #334155;
+            transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+        }
+
+        .menu-link-list a:hover {
+            background-color: #f8fafc;
+            color: #0369a1;
+            transform: translateX(2px);
+        }
+
+        .menu-chip-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.6rem;
+        }
+
+        .menu-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 2.75rem;
+            padding: 0.65rem 0.8rem;
+            border-radius: 999px;
+            border: 1px solid #dbeafe;
+            background: #f8fbff;
+            color: #0f172a;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+        }
+
+        .menu-chip:hover {
+            transform: translateY(-1px);
+            border-color: #7dd3fc;
+            background: #eff6ff;
         }
 
         .hamburger span {
@@ -113,6 +243,18 @@
             margin: 3px 0;
             transition: 0.3s;
             border-radius: 1px;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(-45deg) translate(-5px, 6px);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(45deg) translate(-5px, -6px);
         }
 
         .mapping-hero {
@@ -126,57 +268,34 @@
                 display: none;
             }
 
-            .hamburger {
-                display: flex;
-            }
-
             .mobile-menu {
-                position: absolute;
-                top: 100%;
-                right: 0;
                 width: 95vw;
-                max-width: 400px;
-                background-color: white;
-                border-top: 1px solid #e5e7eb;
-                box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
-                z-index: 60;
+                right: 50%;
+                transform: translateX(50%);
+                border-radius: 1rem;
             }
 
-            .mobile-menu a {
-                display: block;
-                padding: 16px 20px;
-                margin: 0 8px;
-                border-radius: 8px;
+            .menu-panel {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                padding: 1rem;
+            }
+
+            .menu-chip-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
     </style>
 </head>
 
-<body class="bg-sky-50 text-gray-800 min-h-screen"
+<body class="bg-sky-50 text-gray-800 min-h-screen" data-auth-ui="disabled"
     style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
-    <header class="bg-white/90 backdrop-blur-sm border-b border-slate-200 relative">
-        <div class="container mx-auto flex justify-between items-center max-w-6xl px-4 py-4">
+    <header class="bg-white border-b border-slate-200 relative">
+        <div class="container mx-auto flex min-h-14 justify-between items-center max-w-6xl px-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
                 <span class="text-sm md:text-xl font-medium text-slate-600">Mapping Files</span>
             </a>
-
-            <nav class="desktop-nav" role="navigation" aria-label="Main navigation">
-                <ul class="flex space-x-6 items-center">
-                    <li><a href="{{ url_for('read_root') }}"
-                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Home</a>
-                    </li>
-                    <li><a href="{{ url_for('show_mapping_index') }}"
-                            class="text-sky-700 font-semibold hover:underline underline-offset-2 transition-colors">Mappings</a>
-                    </li>
-                    <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">UNSPSC</a>
-                    </li>
-                    <li class="auth-slot" data-auth-slot="desktop">
-                        <div id="desktop-auth-container"></div>
-                    </li>
-                </ul>
-            </nav>
 
             <button class="hamburger" id="mobile-menu-button" aria-label="Toggle mobile menu" aria-expanded="false">
                 <span></span>
@@ -186,20 +305,38 @@
         </div>
 
         <nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation">
-            <ul class="flex flex-col py-2">
-                <li><a href="{{ url_for('read_root') }}"
-                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">Home</a>
-                </li>
-                <li><a href="{{ url_for('show_mapping_index') }}"
-                        class="text-sky-700 font-semibold hover:underline underline-offset-2 transition-colors">Mappings</a>
-                </li>
-                <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                        class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors">UNSPSC</a>
-                </li>
-                <li class="auth-slot px-4 py-2" data-auth-slot="mobile">
-                    <div id="mobile-auth-container"></div>
-                </li>
-            </ul>
+            <div class="menu-panel">
+                <section>
+                    <p class="menu-section-title">Current page</p>
+                    <a href="{{ url_for('show_mapping_index') }}" class="menu-feature-link">
+                        <strong>Mapping</strong>
+                        <span>Browse downloadable crosswalks and move between standards quickly.</span>
+                    </a>
+                    <div class="menu-link-list mt-3">
+                        <a href="{{ url_for('read_root') }}">Home</a>
+                        <a href="https://blog.classifast.com" target="_blank" rel="noopener">Blog</a>
+                    </div>
+                </section>
+                <section>
+                    <p class="menu-section-title">Classifiers</p>
+                    <div class="menu-chip-grid">
+                        <a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
+                            class="menu-chip">UNSPSC</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
+                            class="menu-chip">NAICS</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='CN') }}" class="menu-chip">CN</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='ETIM') }}"
+                            class="menu-chip">ETIM</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='ISIC') }}"
+                            class="menu-chip">ISIC</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='HS') }}" class="menu-chip">HS</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='HTS') }}" class="menu-chip">HTS</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='NACE') }}"
+                            class="menu-chip">NACE</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='CPV') }}" class="menu-chip">CPV</a>
+                    </div>
+                </section>
+            </div>
         </nav>
     </header>
 
@@ -212,7 +349,7 @@
                         Direct crosswalks for procurement, finance, and master data
                     </h1>
                     <p class="text-lg text-slate-600 leading-8 max-w-2xl">
-                        Use versioned mapping files to align taxonomies across procurement systems, finance systems,
+                        Use mapping files to align taxonomies across procurement systems, finance systems,
                         ERP, supplier master, spend analysis, and reporting workflows. Each product includes a sample
                         CSV and a full downloadable mapping file.
                     </p>
@@ -243,7 +380,6 @@
                     </div>
 
                     <p class="text-slate-600 leading-7 mb-5">{{ product.hero_copy }}</p>
-                    <p class="text-sm font-medium text-slate-700 mb-5">{{ product.coverage_summary }}</p>
 
                     <div class="flex flex-wrap gap-2 mb-5">
                         <span
@@ -261,7 +397,7 @@
                     </div>
 
                     <ul class="space-y-2 text-slate-600 mb-6">
-                        {% for field in product.included_fields[:3] %}
+                        {% for field in product.included_fields[:0] %}
                         <li>• {{ field }}</li>
                         {% endfor %}
                     </ul>
