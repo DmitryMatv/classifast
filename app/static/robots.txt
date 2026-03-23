@@ -1,6 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /*/fragment
-Disallow: /*?*top_k=
-Disallow: /*?*version=
 Sitemap: https://classifast.com/sitemap.xml

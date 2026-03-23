@@ -66,6 +66,7 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
             response.headers["Link"],
             '<https://classifast.com/>; rel="canonical"',
         )
+        self.assertEqual(response.headers["X-Robots-Tag"], "index, follow")
 
     async def test_classifier_head_uses_query_specific_canonical_link(self) -> None:
         response = await self._request("HEAD", "/NAICS/industrial_pump")

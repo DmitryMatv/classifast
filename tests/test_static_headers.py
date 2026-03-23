@@ -73,12 +73,12 @@ class StaticHeaderTests(unittest.TestCase):
             )
             self.assertEqual(response.headers["Cache-Tag"], "static-files")
 
-    def test_robots_txt_disallows_fragment_and_noisy_query_variants(self) -> None:
+    def test_robots_txt_disallows_fragment_only(self) -> None:
         robots_text = (BASE_DIR / "app" / "static" / "robots.txt").read_text()
 
         self.assertIn("Disallow: /*/fragment", robots_text)
-        self.assertIn("Disallow: /*?*top_k=", robots_text)
-        self.assertIn("Disallow: /*?*version=", robots_text)
+        self.assertNotIn("Disallow: /*?*top_k=", robots_text)
+        self.assertNotIn("Disallow: /*?*version=", robots_text)
 
     def test_sitemap_excludes_generated_search_urls(self) -> None:
         sitemap_text = (BASE_DIR / "app" / "static" / "sitemap.xml").read_text()

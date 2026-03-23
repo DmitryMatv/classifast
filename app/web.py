@@ -72,6 +72,17 @@ def _build_classifier_canonical_url(
     return canonical_url
 
 
+def _build_classifier_relative_canonical_path(
+    classifier_type: str, decoded_search_query: str
+) -> str:
+    canonical_path = f"/{classifier_type}"
+    if decoded_search_query:
+        canonical_path += f"/{quote(slugify(decoded_search_query), safe='')}"
+    if not canonical_path.endswith("/"):
+        canonical_path += "/"
+    return canonical_path
+
+
 def _get_default_version(config: dict) -> str:
     versions_list = list(config["versions"].keys())
     return versions_list[0] if versions_list else ""
@@ -91,34 +102,64 @@ def _build_classifier_page_state(
     config = CLASSIFIER_CONFIG[classifier_type]
     decoded_search_query = _decode_search_query(search_query)
     default_version = _get_default_version(config)
-    has_version_param = "version" in request.query_params
-    has_top_k_param = "top_k" in request.query_params
+    recognized_query_params = {"version", "top_k", "checkout", "checkout_token"}
+    query_param_keys = set(request.query_params.keys())
+    has_version_param = "version" in query_param_keys
+    has_top_k_param = "top_k" in query_param_keys
+    has_checkout_param = "checkout" in query_param_keys
+    has_checkout_token_param = "checkout_token" in query_param_keys
+    has_checkout_params = has_checkout_param or has_checkout_token_param
     has_any_query_params = bool(request.query_params)
+    has_non_content_query_params = bool(query_param_keys - recognized_query_params)
     is_generated_search_page = bool(decoded_search_query)
-    is_variant_url = has_version_param or has_top_k_param
+    is_content_variant_url = has_version_param or has_top_k_param
+    should_redirect_to_canonical = (
+        has_non_content_query_params and not has_checkout_params
+    )
     should_ssr_initial_results = (
         not is_generated_search_page and not has_any_query_params
     )
     page_robots_directive = (
         "index, follow"
-        if not is_generated_search_page and not is_variant_url
+        if not is_generated_search_page and not is_content_variant_url
         else "noindex, follow"
     )
+    cache_profile = HTML_PAGE
+    is_indexable_canonical_page = (
+        not is_generated_search_page
+        and not is_content_variant_url
+        and not has_any_query_params
+    )
+    if has_checkout_params:
+        page_robots_directive = "noindex, follow"
+        cache_profile = NO_STORE
+        is_indexable_canonical_page = False
+    elif should_redirect_to_canonical:
+        page_robots_directive = "noindex, follow"
+        is_indexable_canonical_page = False
     initial_results_query = decoded_search_query or _get_example_query(config)
 
     return {
         "canonical_url": _build_classifier_canonical_url(
             classifier_type, decoded_search_query
         ),
+        "canonical_path": _build_classifier_relative_canonical_path(
+            classifier_type, decoded_search_query
+        ),
+        "cache_profile": cache_profile,
         "config": config,
         "decoded_search_query": decoded_search_query,
         "default_version": default_version,
         "has_any_query_params": has_any_query_params,
+        "has_checkout_params": has_checkout_params,
+        "has_non_content_query_params": has_non_content_query_params,
         "initial_results_query": initial_results_query,
+        "is_content_variant_url": is_content_variant_url,
         "is_generated_search_page": is_generated_search_page,
-        "is_variant_url": is_variant_url,
+        "is_indexable_canonical_page": is_indexable_canonical_page,
         "page_robots_directive": page_robots_directive,
         "selected_version": version or default_version,
+        "should_redirect_to_canonical": should_redirect_to_canonical,
         "should_ssr_initial_results": should_ssr_initial_results,
         "top_k": top_k if 1 <= top_k <= 100 else 10,
     }
@@ -177,6 +218,7 @@ async def read_root(request: Request):
         headers["Vary"] = "Accept-Encoding"
         headers["Content-Type"] = "text/html; charset=utf-8"
         headers["Link"] = '<https://classifast.com/>; rel="canonical"'
+        headers["X-Robots-Tag"] = "index, follow"
         return Response(headers=headers)
 
     today = datetime.now()
@@ -437,10 +479,14 @@ async def show_classifier_page_with_query(
         request, effective_classifier_type, search_query, version, top_k
     )
     canonical_url = page_state["canonical_url"]
+    canonical_path = page_state["canonical_path"]
+
+    if page_state["should_redirect_to_canonical"]:
+        return RedirectResponse(url=canonical_path, status_code=301)
 
     # For HEAD requests, return just headers
     if request.method == "HEAD":
-        headers = build_cache_headers(HTML_PAGE)
+        headers = build_cache_headers(page_state["cache_profile"])
         headers["Vary"] = "Accept-Encoding"
         headers["Content-Type"] = "text/html; charset=utf-8"
         headers["Link"] = f'<{canonical_url}>; rel="canonical"'
@@ -462,6 +508,8 @@ async def show_classifier_page_with_query(
         "total_request_time": 0,
     }
     used_ssr_initial_results = False
+    effective_robots_directive = page_state["page_robots_directive"]
+    effective_cache_profile = page_state["cache_profile"]
     if page_state["should_ssr_initial_results"]:
         try:
             results_data = _build_ssr_results_context(
@@ -478,12 +526,16 @@ async def show_classifier_page_with_query(
                 effective_classifier_type,
                 exc.detail,
             )
+            effective_robots_directive = "noindex, follow"
+            effective_cache_profile = NO_STORE
         except Exception as e:
             logger.warning(
                 "Falling back to HTMX initial load for '%s' landing page after SSR failure: %s",
                 effective_classifier_type,
                 e,
             )
+            effective_robots_directive = "noindex, follow"
+            effective_cache_profile = NO_STORE
 
     today = datetime.now()
     current_year = today.year
@@ -509,7 +561,7 @@ async def show_classifier_page_with_query(
                 ),
                 "top_k": page_state["top_k"],
             },
-            "meta_robots_content": page_state["page_robots_directive"],
+            "meta_robots_content": effective_robots_directive,
             "primary_version_label": primary_version_label,
             "should_ssr_initial_results": used_ssr_initial_results,
             "should_trigger_initial_results_load": (
@@ -524,9 +576,9 @@ async def show_classifier_page_with_query(
     )
 
     # Cloudflare-friendly cache headers (aligned with homepage)
-    response.headers.update(build_cache_headers(HTML_PAGE))
+    response.headers.update(build_cache_headers(effective_cache_profile))
     response.headers["Vary"] = "Accept-Encoding"
     response.headers["Link"] = f'<{canonical_url}>; rel="canonical"'
-    response.headers["X-Robots-Tag"] = page_state["page_robots_directive"]
+    response.headers["X-Robots-Tag"] = effective_robots_directive
 
     return response
