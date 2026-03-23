@@ -833,7 +833,7 @@
             </div>
         </section>
 
-        {% if trigger_search_on_load and versions %}
+        {% if trigger_search_on_load and needs_initial_results_loader and versions %}
         <div id="initial-results-loader"
             hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
             hx-trigger="{% if url_params.search %}initial-results-ready once{% else %}load{% endif %}"

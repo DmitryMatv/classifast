@@ -175,7 +175,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-auth-gated="true"', response.text)
         self.assertIn('"track_usage": true', response.text)
 
-    async def test_base_page_keeps_immediate_unmetered_initial_loader(self):
+    async def test_base_page_falls_back_to_initial_loader_when_ssr_cannot_run(self):
         transport = httpx.ASGITransport(app=self.app)
 
         async with httpx.AsyncClient(

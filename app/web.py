@@ -86,6 +86,50 @@ def get_sample_cache_profile(sample_path: str):
     return STATIC_MEDIA
 
 
+def build_classification_results_context(
+    request: Request,
+    classifier_type: str,
+    query: str,
+    version: str,
+    top_k: int,
+) -> dict[str, object]:
+    """Build the template context used to render classification results."""
+    normalized_query = re.sub(r"\s+", " ", query).strip()
+    upper_type = classifier_type.strip().upper()
+
+    if not normalized_query:
+        return {
+            "query": normalized_query,
+            "results_for_query": [],
+            "base_url": "",
+            "tooltip": "",
+            "total_request_time": 0,
+        }
+
+    start_total_time = time.perf_counter()
+    quantization_cache = getattr(request.app.state, "collection_quantization_cache", {})
+    zclient = getattr(request.app.state, "zclient", None)
+    result = perform_classification(
+        embed_client=request.app.state.embed_client,
+        qdrant_client=request.app.state.qdrant_client,
+        query=normalized_query,
+        classifier_type=upper_type,
+        version=version,
+        top_k=top_k,
+        quantization_cache=quantization_cache,
+        zclient=zclient,
+    )
+    total_request_time = time.perf_counter() - start_total_time
+
+    return {
+        "query": normalized_query,
+        "results_for_query": result["results"],
+        "base_url": result["version_config"].get("base_url", ""),
+        "tooltip": result["version_config"].get("tooltip", ""),
+        "total_request_time": total_request_time,
+    }
+
+
 def get_related_mapping_products(product: MappingProduct) -> list[MappingProduct]:
     related_products: list[MappingProduct] = []
     for slug in product.related_slugs:
@@ -379,27 +423,14 @@ async def get_classification_fragment(
         add_quota_headers(response, usage_status)
         return response
 
-    start_total_time = time.perf_counter()
-
     try:
-        quantization_cache = getattr(
-            request.app.state, "collection_quantization_cache", {}
-        )
-        # Use shared classification service with ZeroEntropy reranking
-        zclient = getattr(request.app.state, "zclient", None)
-        result = perform_classification(
-            embed_client=request.app.state.embed_client,
-            qdrant_client=request.app.state.qdrant_client,
-            query=normalized_description,
+        results_context = build_classification_results_context(
+            request=request,
             classifier_type=upper_type,
+            query=normalized_description,
             version=version,
             top_k=top_k,
-            quantization_cache=quantization_cache,
-            zclient=zclient,
         )
-
-        classification_results = result["results"]
-
     except HTTPException:
         # Let HTTP exceptions propagate
         raise
@@ -408,9 +439,6 @@ async def get_classification_fragment(
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
-
-    end_total_time = time.perf_counter()
-    total_request_time = end_total_time - start_total_time
 
     # Calculate dynamic page title for OOB swap
     page_title = None
@@ -422,11 +450,7 @@ async def get_classification_fragment(
         request,
         "results.html",
         {
-            "query": normalized_description,
-            "results_for_query": classification_results,
-            "base_url": result["version_config"].get("base_url", ""),
-            "tooltip": result["version_config"].get("tooltip", ""),
-            "total_request_time": total_request_time,
+            **results_context,
             "page_title": page_title,
         },
     )
@@ -538,15 +562,34 @@ async def show_classifier_page_with_query(
     # Determine if we should trigger a search on load
     # This is true if we have a URL search query OR if we're falling back to the example
     trigger_search_on_load = False
+    needs_initial_results_loader = False
+    has_server_rendered_results = False
 
     if decoded_search_query:
         trigger_search_on_load = True
+        needs_initial_results_loader = True
     else:
         # If no search query (base URL), use example query
         example_query = config["example"].replace("Example:", "").strip()
         if example_query:
             results_data["query"] = example_query
-            trigger_search_on_load = True
+            try:
+                results_data = build_classification_results_context(
+                    request=request,
+                    classifier_type=effective_classifier_type,
+                    query=example_query,
+                    version=version or first_version,
+                    top_k=top_k,
+                )
+                has_server_rendered_results = True
+            except Exception as e:
+                logger.error(
+                    "Error during '%s' page SSR classification: %s",
+                    effective_classifier_type,
+                    e,
+                )
+                trigger_search_on_load = True
+                needs_initial_results_loader = True
 
     today = datetime.now()
     current_year = today.year
@@ -568,6 +611,7 @@ async def show_classifier_page_with_query(
                 "top_k": top_k,
             },
             "trigger_search_on_load": trigger_search_on_load,
+            "needs_initial_results_loader": needs_initial_results_loader,
             "canonical_url": canonical_url,
             "current_year": current_year,
             "current_month_name": current_month_name,
