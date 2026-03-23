@@ -166,14 +166,14 @@
         }
 
         .auth-slot {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: flex-end;
-            width: 10.5rem;
-            min-width: 10.5rem;
+            width: auto;
+            min-width: 0;
             min-height: 2.25rem;
             margin-left: 0.75rem;
-            flex-shrink: 0;
+            flex: 0 0 auto;
             line-height: 1;
         }
 
@@ -181,7 +181,8 @@
             display: flex;
             align-items: center;
             justify-content: flex-end;
-            width: 100%;
+            width: auto;
+            min-width: 0;
             min-height: 2.25rem;
             line-height: 1;
         }

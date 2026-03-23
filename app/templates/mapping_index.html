@@ -74,43 +74,6 @@
             margin-right: auto;
         }
 
-        .auth-slot-placeholder {
-            display: flex;
-            align-items: center;
-            min-width: 10.5rem;
-            min-height: 2.25rem;
-            flex-shrink: 0;
-            line-height: 1;
-            visibility: hidden;
-            pointer-events: none;
-        }
-
-        .auth-slot-placeholder-inner {
-            display: flex;
-            align-items: center;
-            min-width: 10.5rem;
-            min-height: 2.25rem;
-            line-height: 1;
-        }
-
-        .auth-slot-placeholder-chip {
-            display: block;
-            height: 2.25rem;
-            border-radius: 0.25rem;
-        }
-
-        .auth-slot-placeholder-chip+.auth-slot-placeholder-chip {
-            margin-left: 0.5rem;
-        }
-
-        .auth-slot-placeholder-chip.sign-in {
-            width: 4.5rem;
-        }
-
-        .auth-slot-placeholder-chip.sign-up {
-            width: 4.75rem;
-        }
-
         .mobile-menu {
             display: none;
             position: absolute;
@@ -118,11 +81,10 @@
             right: 1rem;
             width: min(44rem, calc(100vw - 2rem));
             background: rgba(255, 255, 255, 0.98);
-            border: 1px solid rgba(226, 232, 240, 0.95);
-            box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.35);
-            border-radius: 1.25rem;
+            border: 1px solid #d6dee8;
+            box-shadow: 0 18px 40px -28px rgba(15, 23, 42, 0.34);
+            border-radius: 0.85rem;
             z-index: 60;
-            backdrop-filter: blur(16px);
             overflow: hidden;
         }
 
@@ -146,34 +108,33 @@
 
         .menu-panel {
             display: grid;
-            grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.75fr);
-            gap: 1.25rem;
-            padding: 1.25rem;
+            grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.85fr);
+            gap: 1rem;
+            padding: 1rem;
         }
 
         .menu-section-title {
-            margin: 0 0 0.75rem 0;
+            margin: 0 0 0.7rem 0;
             font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.22em;
+            font-weight: 700;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
             color: #64748b;
         }
 
         .menu-feature-link {
             display: block;
-            padding: 0.95rem 1rem;
-            border-radius: 1rem;
-            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
-            border: 1px solid #dbeafe;
+            padding: 0.9rem 1rem;
+            border-radius: 0.7rem;
+            background: #f8fbfd;
+            border: 1px solid #d8e3ee;
             color: #0f172a;
-            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+            transition: background-color 0.18s ease, border-color 0.18s ease;
         }
 
         .menu-feature-link:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 28px -20px rgba(14, 116, 144, 0.5);
-            border-color: #7dd3fc;
+            background: #f2f7fb;
+            border-color: #bcd0e2;
         }
 
         .menu-feature-link strong {
@@ -184,56 +145,54 @@
 
         .menu-feature-link span {
             display: block;
-            font-size: 0.9rem;
+            font-size: 1rem;
             color: #475569;
             line-height: 1.45;
         }
 
         .menu-link-list {
             display: grid;
-            gap: 0.5rem;
+            gap: 0.4rem;
         }
 
         .menu-link-list a {
             display: block;
-            padding: 0.72rem 0.85rem;
-            border-radius: 0.85rem;
+            padding: 0.65rem 0.8rem;
+            border-radius: 0.65rem;
             color: #334155;
-            transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+            transition: background-color 0.18s ease, color 0.18s ease;
         }
 
         .menu-link-list a:hover {
             background-color: #f8fafc;
-            color: #0369a1;
-            transform: translateX(2px);
+            color: #0f5f94;
         }
 
         .menu-chip-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.6rem;
+            gap: 0.55rem;
         }
 
         .menu-chip {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 2.75rem;
-            padding: 0.65rem 0.8rem;
-            border-radius: 999px;
-            border: 1px solid #dbeafe;
-            background: #f8fbff;
-            color: #0f172a;
-            font-size: 0.9rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+            min-height: 2.5rem;
+            padding: 0.55rem 0.7rem;
+            border-radius: 0.65rem;
+            border: 1px solid #d8e3ee;
+            background: #fbfdff;
+            color: #1e293b;
+            font-size: 0.88rem;
+            font-weight: 600;
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
         }
 
         .menu-chip:hover {
-            transform: translateY(-1px);
-            border-color: #7dd3fc;
-            background: #eff6ff;
+            border-color: #bcd0e2;
+            background: #f2f7fb;
+            color: #0f5f94;
         }
 
         .hamburger span {
@@ -257,10 +216,159 @@
             transform: rotate(45deg) translate(-5px, -6px);
         }
 
-        .mapping-hero {
+        .mapping-index-surface {
+            background-color: #f8fafc;
             background:
-                radial-gradient(circle at top left, rgba(125, 211, 252, 0.32), transparent 28%),
-                linear-gradient(135deg, #eff8ff 0%, #ffffff 52%, #fffaf0 100%);
+                radial-gradient(circle at top left, rgba(125, 211, 252, 0.3), transparent 24%),
+                radial-gradient(circle at top right, rgba(191, 219, 254, 0.2), transparent 20%),
+                linear-gradient(180deg, #f3f8ff 0%, #ffffff 38%, #f8fafc 100%);
+            background-attachment: scroll, scroll, scroll;
+            background-position: top left, top right, top left;
+            background-repeat: no-repeat, no-repeat, no-repeat;
+            background-size: 100% 100vh, 100% 100vh, 100% 100vh;
+        }
+
+        @media (min-width: 769px) {
+            .mapping-index-surface {
+                background-attachment: fixed, fixed, fixed;
+                background-size: 100vw 100vh, 100vw 100vh, 100vw 100vh;
+            }
+        }
+
+        .section-label {
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #46647d;
+        }
+
+        .catalog-panel {
+            border: 1px solid #d7e1ea;
+            border-radius: 0.85rem;
+            background: #ffffff;
+            box-shadow: 0 12px 28px -28px rgba(15, 23, 42, 0.38);
+        }
+
+        .catalog-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .catalog-meta-card {
+            border: 1px solid #dce5ed;
+            border-radius: 0.75rem;
+            background: #f8fbfd;
+            padding: 0.95rem 1rem;
+        }
+
+        .catalog-listing {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .listing-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(14rem, 0.9fr);
+            gap: 1.25rem;
+            border: 1px solid #d7e1ea;
+            border-radius: 0.85rem;
+            background: #ffffff;
+            padding: 1.25rem;
+        }
+
+        .listing-data {
+            display: grid;
+            gap: 0.95rem;
+        }
+
+        .listing-specs {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.85rem 1.25rem;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 0.95rem;
+        }
+
+        .listing-specs dt {
+            margin: 0 0 0.2rem 0;
+            font-size: 0.74rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .listing-specs dd {
+            margin: 0;
+            color: #1e293b;
+            line-height: 1.55;
+        }
+
+        .listing-actions {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 1rem;
+            border-left: 1px solid #e2e8f0;
+            padding-left: 1.25rem;
+        }
+
+        .action-link,
+        .action-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 2.85rem;
+            border-radius: 0.7rem;
+            font-weight: 600;
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+
+        .action-link {
+            border: 1px solid #c7d7e6;
+            color: #174b74;
+            background: #ffffff;
+        }
+
+        .action-link:hover {
+            background: #f4f9fd;
+            border-color: #a9c2d9;
+        }
+
+        .action-button {
+            border: 1px solid #1d5d8c;
+            background: #215f8e;
+            color: #ffffff;
+            cursor: pointer;
+        }
+
+        .action-button:hover {
+            background: #194e76;
+            border-color: #194e76;
+        }
+
+        .secondary-link {
+            color: #215f8e;
+            font-weight: 600;
+        }
+
+        .secondary-link:hover {
+            color: #163f61;
+        }
+
+        @media (max-width: 900px) {
+            .listing-row {
+                grid-template-columns: 1fr;
+            }
+
+            .listing-actions {
+                border-left: 0;
+                border-top: 1px solid #e2e8f0;
+                padding-left: 0;
+                padding-top: 1rem;
+            }
         }
 
         @media (max-width: 768px) {
@@ -272,7 +380,7 @@
                 width: 95vw;
                 right: 50%;
                 transform: translateX(50%);
-                border-radius: 1rem;
+                border-radius: 0.85rem;
             }
 
             .menu-panel {
@@ -284,11 +392,16 @@
             .menu-chip-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+
+            .catalog-meta-grid,
+            .listing-specs {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 
-<body class="bg-sky-50 text-gray-800 min-h-screen" data-auth-ui="disabled"
+<body class="mapping-index-surface text-gray-800 min-h-screen" data-auth-ui="disabled"
     style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
     <header class="bg-white border-b border-slate-200 relative">
         <div class="container mx-auto flex min-h-14 justify-between items-center max-w-6xl px-4">
@@ -341,77 +454,94 @@
     </header>
 
     <main>
-        <section class="mapping-hero border-b border-slate-200">
-            <div class="container mx-auto max-w-6xl px-4 py-16 md:py-20">
-                <div class="max-w-3xl">
-                    <p class="text-sm font-semibold uppercase tracking-[0.28em] text-sky-700 mb-4">Mapping files</p>
-                    <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-slate-900 mb-6">
-                        Direct crosswalks for procurement, finance, and master data
-                    </h1>
-                    <p class="text-lg text-slate-600 leading-8 max-w-2xl">
-                        Use mapping files to align taxonomies across procurement systems, finance systems,
-                        ERP, supplier master, spend analysis, and reporting workflows. Each product includes a sample
-                        CSV and a full downloadable mapping file.
-                    </p>
+        <section class="container mx-auto max-w-6xl px-4 pt-8 pb-6 md:pt-10">
+            <div class="catalog-panel px-5 py-6 md:px-7 md:py-7">
+                <p class="section-label mb-3">Mapping files</p>
+                <h1 class="text-[1.95rem] md:text-[2.3rem] font-bold tracking-tight text-slate-900 mb-4">
+                    Correspondence tables for procurement, finance, and data conversion workflows
+                </h1>
+                <p class="max-w-3xl text-[1rem] md:text-[1.04rem] leading-7 text-slate-600 mb-6">
+                    Browse direct classification crosswalks used to align coding standards across sourcing, ERP,
+                    supplier master, reporting, and spend-analysis processes. Each mapping includes a sample CSV and a
+                    full downloadable file.
+                </p>
+                <div class="catalog-meta-grid">
+                    <div class="catalog-meta-card">
+                        <p class="section-label mb-2">Format</p>
+                        <p class="text-slate-700 leading-6">Structured CSV samples and paid full mapping files for
+                            operational review before purchase.</p>
+                    </div>
+                    <div class="catalog-meta-card">
+                        <p class="section-label mb-2">Use</p>
+                        <p class="text-slate-700 leading-6">Suitable for taxonomy harmonization, supplier normalization,
+                            tender classification, and internal reporting.</p>
+                    </div>
+                    <div class="catalog-meta-card">
+                        <p class="section-label mb-2">Access</p>
+                        <p class="text-slate-700 leading-6">Review the product detail page, inspect the sample
+                            structure, then purchase the full crosswalk.</p>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <section class="container mx-auto max-w-6xl px-4 py-12">
-            <div class="grid gap-6 md:grid-cols-2">
+        <section class="container mx-auto max-w-6xl px-4 pb-12 md:pb-14">
+            <div class="catalog-listing">
                 {% for product in products %}
-                <article class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                    <div class="flex items-start justify-between gap-4 mb-5">
+                <article class="listing-row">
+                    <div class="listing-data">
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                            <div class="min-w-0">
+                                <p class="section-label mb-2">CSV TABLE</p>
+                                <h2 class="text-[1.45rem] md:text-[1.6rem] font-bold text-slate-900 leading-tight">
+                                    <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
+                                        class="hover:text-[#1b5f8e] transition-colors">
+                                        {{ product.title }}
+                                    </a>
+                                </h2>
+                            </div>
+                            <div class="shrink-0 text-left md:text-right">
+                                <p class="text-[0.72rem] font-bold uppercase tracking-[0.12em] text-slate-500 mb-1">
+                                    Price</p>
+                                <p class="text-[1.8rem] font-bold text-slate-900">${{ product.price_usd }}</p>
+                            </div>
+                        </div>
+
+                        <p class="text-slate-600 leading-7">{{ product.hero_copy }}</p>
+
+                        <dl class="listing-specs">
+                            <div>
+                                <dt>Coverage</dt>
+                                <dd>{{ product.coverage_summary }}</dd>
+                            </div>
+                            <div>
+                                <dt>Version</dt>
+                                <dd>{{ product.version_label }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <div class="listing-actions">
                         <div>
-                            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700 mb-2">
-                                {{ product.source_standard }} to {{ product.target_standard }}
-                            </p>
-                            <h2 class="text-2xl font-bold text-slate-900 mb-3">
-                                <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
-                                    class="hover:text-sky-700 transition-colors">
-                                    {{ product.title }}
-                                </a>
-                            </h2>
+                            <p class="text-[0.72rem] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2">
+                                Available actions</p>
+                            <p class="text-sm leading-6 text-slate-600">Review the specification page, verify the sample
+                                structure, or proceed directly to checkout.</p>
                         </div>
-                        <div class="text-right shrink-0">
-                            <p class="text-xs uppercase tracking-[0.22em] text-slate-400">Price</p>
-                            <p class="text-3xl font-extrabold text-slate-900">${{ product.price_usd }}</p>
+                        <div class="grid gap-3">
+                            <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}" class="action-link">
+                                Learn more
+                            </a>
+                            <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}"
+                                class="secondary-link text-center">
+                                Download sample CSV
+                            </a>
+                            <button type="button" data-mapping-buy-button data-mapping-slug="{{ product.slug }}"
+                                data-return-url="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
+                                class="action-button">
+                                Buy full mapping file
+                            </button>
                         </div>
-                    </div>
-
-                    <p class="text-slate-600 leading-7 mb-5">{{ product.hero_copy }}</p>
-
-                    <div class="flex flex-wrap gap-2 mb-5">
-                        <span
-                            class="inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-sm font-medium text-sky-800">
-                            {{ product.sample_format_label }}
-                        </span>
-                        <span
-                            class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800">
-                            {{ product.paid_format_label }}
-                        </span>
-                        <span
-                            class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                            {{ product.version_label }}
-                        </span>
-                    </div>
-
-                    <ul class="space-y-2 text-slate-600 mb-6">
-                        {% for field in product.included_fields[:0] %}
-                        <li>• {{ field }}</li>
-                        {% endfor %}
-                    </ul>
-
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}"
-                            class="inline-flex items-center justify-center rounded-lg border border-sky-600 px-4 py-3 font-semibold text-sky-700 hover:bg-sky-50 transition-colors">
-                            Download free sample
-                        </a>
-                        <button type="button" data-mapping-buy-button data-mapping-slug="{{ product.slug }}"
-                            data-return-url="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
-                            class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white hover:bg-sky-700 transition-colors">
-                            Buy full mapping file
-                        </button>
                     </div>
                 </article>
                 {% endfor %}

@@ -92,7 +92,7 @@ MAPPING_PRODUCTS: dict[str, MappingProduct] = {
             "unspsc segments families cpv mapping",
             "procurement finance taxonomy crosswalk",
         ),
-        updated_at="2026-03-16",
+        updated_at="March 16, 2026",
         featured=True,
     ),
     "cpv-to-unspsc-mapping": MappingProduct(
@@ -153,7 +153,7 @@ MAPPING_PRODUCTS: dict[str, MappingProduct] = {
             "cpv code conversion",
             "unspsc supplier mapping",
         ),
-        updated_at="2026-03-16",
+        updated_at="March 16, 2026",
         featured=True,
     ),
 }

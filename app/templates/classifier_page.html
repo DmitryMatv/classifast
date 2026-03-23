@@ -400,14 +400,14 @@
         }
 
         .auth-slot {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: flex-end;
-            width: 10.5rem;
-            min-width: 10.5rem;
+            width: auto;
+            min-width: 0;
             min-height: 2.25rem;
             margin-left: 0.75rem;
-            flex-shrink: 0;
+            flex: 0 0 auto;
             line-height: 1;
         }
 
@@ -415,7 +415,8 @@
             display: flex;
             align-items: center;
             justify-content: flex-end;
-            width: 100%;
+            width: auto;
+            min-width: 0;
             min-height: 2.25rem;
             line-height: 1;
         }
@@ -440,10 +441,15 @@
         }
 
         .classifier-surface {
+            background-color: #f8fafc;
             background:
                 radial-gradient(circle at top left, rgba(125, 211, 252, 0.3), transparent 24%),
                 radial-gradient(circle at top right, rgba(191, 219, 254, 0.2), transparent 20%),
                 linear-gradient(180deg, #f3f8ff 0%, #ffffff 38%, #f8fafc 100%);
+            background-attachment: fixed, fixed, fixed;
+            background-position: top left, top right, top left;
+            background-repeat: no-repeat, no-repeat, no-repeat;
+            background-size: 100vw 100vh, 100vw 100vh, 100vw 100vh;
         }
 
         .js-score-animations [data-score-bar] {
