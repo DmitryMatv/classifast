@@ -53,7 +53,7 @@ MAPPING_PRODUCTS: dict[str, MappingProduct] = {
             "Direct crosswalk from UNSPSC into CPV for organizations running different taxonomies across procurement systems, finance systems, ERP, and reporting workflows."
         ),
         coverage_summary=(
-            "UNSPSC level 1+2 only, meaning all Segments and Families in UNSPSC UNv260801.1. Total scope is 617 categories - not every Class or Commodity."
+            "UNSPSC level 1+2 only, meaning only all Segments and all Families from UNSPSC UNv260801.1. Total scope is 617 categories. Class or Commodity levels are not used and are not mapped in this file."
         ),
         included_fields=(
             "UNSPSC code",
@@ -114,7 +114,7 @@ MAPPING_PRODUCTS: dict[str, MappingProduct] = {
             "Crosswalk CPV-coded tender, contract, and supplier data into UNSPSC so procurement, finance, ERP, and master-data systems can report against one internal taxonomy."
         ),
         coverage_summary=(
-            "CPV 2008 mapped into the most relevant UNSPSC categories for downstream normalization workflows."
+            "Each CPV 2008 code is mapped into the most relevant UNSPSC category for downstream normalization workflows. CPV code coverage is 100%."
         ),
         included_fields=(
             "CPV code",

@@ -468,18 +468,19 @@
                 <div class="catalog-meta-grid">
                     <div class="catalog-meta-card">
                         <p class="section-label mb-2">Format</p>
-                        <p class="text-slate-700 leading-6">Structured CSV samples and paid full mapping files for
-                            operational review before purchase.</p>
+                        <p class="text-slate-700 leading-6">Fill mapping files and structured CSV samples
+                            for operational review before purchase.</p>
                     </div>
                     <div class="catalog-meta-card">
                         <p class="section-label mb-2">Use</p>
-                        <p class="text-slate-700 leading-6">Suitable for taxonomy harmonization, supplier normalization,
+                        <p class="text-slate-700 leading-6">Suitable for cross-referencing, taxonomy harmonization,
+                            supplier normalization,
                             tender classification, and internal reporting.</p>
                     </div>
                     <div class="catalog-meta-card">
                         <p class="section-label mb-2">Access</p>
                         <p class="text-slate-700 leading-6">Review the product detail page, inspect the sample
-                            structure, then purchase the full crosswalk.</p>
+                            structure, and purchase the full crosswalk.</p>
                     </div>
                 </div>
             </div>
@@ -492,7 +493,7 @@
                     <div class="listing-data">
                         <div class="flex flex-wrap items-start justify-between gap-4">
                             <div class="min-w-0">
-                                <p class="section-label mb-2">CSV TABLE</p>
+                                <p class="section-label mb-2">CSV MAPPING TABLE</p>
                                 <h2 class="text-[1.45rem] md:text-[1.6rem] font-bold text-slate-900 leading-tight">
                                     <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
                                         class="hover:text-[#1b5f8e] transition-colors">
@@ -522,25 +523,19 @@
                     </div>
 
                     <div class="listing-actions">
-                        <div>
-                            <p class="text-[0.72rem] font-bold uppercase tracking-[0.12em] text-slate-500 mb-2">
-                                Available actions</p>
-                            <p class="text-sm leading-6 text-slate-600">Review the specification page, verify the sample
-                                structure, or proceed directly to checkout.</p>
-                        </div>
                         <div class="grid gap-3">
-                            <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}" class="action-link">
-                                Learn more
-                            </a>
-                            <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}"
-                                class="secondary-link text-center">
-                                Download sample CSV
-                            </a>
                             <button type="button" data-mapping-buy-button data-mapping-slug="{{ product.slug }}"
                                 data-return-url="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
                                 class="action-button">
                                 Buy full mapping file
                             </button>
+                            <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}"
+                                class="secondary-link text-center">
+                                Download sample CSV
+                            </a>
+                            <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}" class="action-link">
+                                Learn more
+                            </a>
                         </div>
                     </div>
                 </article>

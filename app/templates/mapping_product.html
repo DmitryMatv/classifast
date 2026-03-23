@@ -510,7 +510,7 @@
                     <p class="text-[1rem] md:text-[1.04rem] text-slate-600 leading-7 mb-6">{{ product.hero_copy }}</p>
                     <div class="info-strip">
                         <div class="info-strip-item">
-                            <p class="section-label mb-2">Standards Versions</p>
+                            <p class="section-label mb-2">Standard Versions</p>
                             <p class="font-semibold text-slate-900">{{ product.version_label }}</p>
                         </div>
                         <div class="info-strip-item">
@@ -518,18 +518,15 @@
                             <p class="text-slate-700">{{ product.updated_at }}</p>
                         </div>
                         <div class="info-strip-item info-strip-item-wide">
-                            <p class="section-label mb-2">Mapping table columns</p>
-                            <p class="text-slate-700">
-                                {% for field in product.included_fields %}{{ field }}{% if not loop.last %}, {% endif
-                                %}{% endfor %}
-                            </p>
+                            <p class="section-label mb-2">Coverage</p>
+                            <p class="text-slate-700">{{ product.coverage_summary }}</p>
                         </div>
                     </div>
                 </header>
 
                 <section class="mb-9">
                     <h2 class="text-[1.35rem] md:text-[1.5rem] font-bold text-slate-900 mb-4">Typical use cases</h2>
-                    <ul class="space-y-2 text-slate-700 leading-7">
+                    <ul class="space-y-4 text-slate-700 leading-7">
                         {% for use_case in product.use_cases %}
                         <li class="border-l-2 border-slate-300 pl-4">{{ use_case }}</li>
                         {% endfor %}
@@ -561,9 +558,12 @@
                     <p class="text-slate-700 leading-7 mb-4">{{ product.paid_format_label }} for {{
                         product.source_standard }} and {{ product.target_standard }} reference and conversion workflows.
                     </p>
-                    <div class="rounded-[0.75rem] border border-slate-200 bg-white px-4 py-4 mb-4">
-                        <p class="section-label mb-2">Coverage</p>
-                        <p class="text-sm leading-6 text-slate-600">{{ product.coverage_summary }}</p>
+                    <div class="rounded-xl border border-slate-200 bg-white px-4 py-4 mb-4">
+                        <p class="section-label mb-2">Table columns</p>
+                        <p class="text-sm leading-6 text-slate-600">
+                            {% for field in product.included_fields %}{{ field }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </p>
                     </div>
                     <div class="space-y-2">
                         <button type="button" data-mapping-buy-button data-mapping-slug="{{ product.slug }}"
@@ -571,27 +571,27 @@
                             Buy full mapping file
                         </button>
                         <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}" class="secondary-action">
-                            Download free sample
+                            Download sample CSV
                         </a>
                     </div>
                     <div class="sample-callout mt-4">
                         <img src="https://cdn-icons-png.flaticon.com/512/8242/8242984.png" alt="CSV mapping file">
                         <div>
-                            <p class="font-semibold text-slate-900 mb-1">Check before you buy!</p>
-                            <p class="text-sm leading-6 text-slate-600">Review the free CSV structure and data quality
-                                before purchasing the full mapping.</p>
+                            <p class="font-semibold text-slate-900 mb-1">Check before you buy</p>
+                            <p class="text-sm leading-6 text-slate-600">Review the free CSV sample structure and data
+                                quality before purchasing.</p>
                         </div>
                     </div>
                 </section>
 
                 {% if related_products %}
                 <section class="aside-box">
-                    <h2 class="text-[1.15rem] font-bold text-slate-900 mb-4">Related mappings</h2>
+                    <h2 class="text-[1.15rem] font-bold text-slate-900 mb-4">Related</h2>
                     <div class="space-y-3">
                         {% for related_product in related_products %}
                         <a href="{{ url_for('show_mapping_product_page', slug=related_product.slug) }}"
                             class="related-link">
-                            <p class="section-label mb-2">CSV TABLE</p>
+                            <p class="section-label mb-2">CSV MAPPING TABLE</p>
                             <p class="font-semibold text-slate-900">{{ related_product.title }}</p>
                         </a>
                         {% endfor %}
