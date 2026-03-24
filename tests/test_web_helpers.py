@@ -333,11 +333,14 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         increment_usage_mock: AsyncMock,
     ) -> None:
         response = await self._request("/UNSPSC/")
+        expected_example = (
+            CLASSIFIER_CONFIG["UNSPSC"]["example"].replace("Example:", "").strip()
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
         self.assertIn('hx-trigger="load"', response.text)
-        self.assertIn("Apple MacBook Air (13-inch, M3, 2024)", response.text)
+        self.assertIn(expected_example, response.text)
         self.assertNotIn("Set-Cookie", response.headers)
         perform_classification_mock.assert_called_once()
         check_usage_mock.assert_not_awaited()

@@ -13,7 +13,7 @@ class CacheProfile:
 
 HTML_PAGE = CacheProfile(
     browser_cache_control="public, max-age=60, stale-while-revalidate=600",
-    cloudflare_cache_control="max-age=7200, stale-while-revalidate=86400",
+    cloudflare_cache_control="max-age=21600, stale-while-revalidate=86400",
     browser_max_age=60,
 )
 

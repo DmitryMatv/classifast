@@ -563,7 +563,6 @@ async def show_classifier_page_with_query(
     # This is true if we have a URL search query OR if we're falling back to the example
     trigger_search_on_load = False
     needs_initial_results_loader = False
-    has_server_rendered_results = False
 
     if decoded_search_query:
         trigger_search_on_load = True
@@ -581,11 +580,11 @@ async def show_classifier_page_with_query(
                     version=version or first_version,
                     top_k=top_k,
                 )
-                has_server_rendered_results = True
             except Exception as e:
-                logger.error(
-                    "Error during '%s' page SSR classification: %s",
+                logger.warning(
+                    "SSR fallback for '%s' page classification due to %s: %s",
                     effective_classifier_type,
+                    type(e).__name__,
                     e,
                 )
                 trigger_search_on_load = True
