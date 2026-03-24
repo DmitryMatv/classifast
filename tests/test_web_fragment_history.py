@@ -1,4 +1,5 @@
 import unittest
+from html.parser import HTMLParser
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -72,11 +73,28 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
                 headers=headers,
             )
 
+    def title_oob_present(self, markup: str) -> bool:
+        class TitleOobParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.found = False
+
+            def handle_starttag(
+                self, tag: str, attrs: list[tuple[str, str | None]]
+            ) -> None:
+                normalized_attrs = {key: value or "" for key, value in attrs}
+                if tag == "title" and normalized_attrs.get("hx-swap-oob") == "true":
+                    self.found = True
+
+        parser = TitleOobParser()
+        parser.feed(markup)
+        return parser.found
+
     def assert_title_oob_present(self, response: httpx.Response) -> None:
-        self.assertIn('hx-swap-oob="true"', response.text)
+        self.assertTrue(self.title_oob_present(response.text))
 
     def assert_title_oob_absent(self, response: httpx.Response) -> None:
-        self.assertNotIn('hx-swap-oob="true"', response.text)
+        self.assertFalse(self.title_oob_present(response.text))
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)

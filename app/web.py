@@ -3,6 +3,7 @@ import re
 import time
 import unicodedata
 from datetime import datetime
+from typing import Annotated
 from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+SLUG_MAX_LENGTH = 1000
 LOSSY_QUERY_PARAM = "q"
 
 
@@ -46,7 +48,7 @@ def slugify(text: str) -> str:
     """
     if not text:
         return ""
-    text = unicodedata.normalize("NFC", str(text)[:4000])
+    text = unicodedata.normalize("NFC", str(text)[:SLUG_MAX_LENGTH])
     text = re.sub(r"\s+", " ", text).strip()
 
     allowed_punctuation = ".,'()-"
@@ -231,6 +233,7 @@ async def show_classifier_page(
         request=request,
         classifier_type=classifier_type,
         search_query="",
+        q=None,
         version=version,
         top_k=top_k,
     )
@@ -437,7 +440,7 @@ async def show_classifier_page_with_query(
     request: Request,
     classifier_type: str,
     search_query: str = "",
-    q: str | None = Query(None, alias=LOSSY_QUERY_PARAM),
+    q: Annotated[str | None, Query(alias=LOSSY_QUERY_PARAM)] = None,
     version: str | None = None,
     top_k: int | None = None,
 ):
@@ -554,7 +557,7 @@ async def show_classifier_page_with_query(
             "versions": list(config["versions"].keys()),
             "example": config["example"],
             "url_params": {
-                "search": decoded_search_query,
+                "search": effective_query,
                 "version": (
                     normalized_version if normalized_version != first_version else ""
                 ),

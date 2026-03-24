@@ -1,7 +1,6 @@
-import html
 import json
-import re
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 from urllib.parse import urlencode
@@ -17,33 +16,64 @@ from app.web import normalize_query_text, router, slugify
 BASE_DIR = Path(__file__).resolve().parents[1]
 
 
+class StartTagFinder(HTMLParser):
+    def __init__(self, matcher):
+        super().__init__()
+        self.matcher = matcher
+        self.matched_attrs: dict[str, str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.matched_attrs is not None:
+            return
+
+        normalized_attrs = {key: value or "" for key, value in attrs}
+        if self.matcher(tag, normalized_attrs):
+            self.matched_attrs = normalized_attrs
+
+
+def find_tag_attrs(
+    markup: str,
+    matcher,
+    *,
+    error_message: str,
+) -> dict[str, str]:
+    parser = StartTagFinder(matcher)
+    parser.feed(markup)
+    if parser.matched_attrs is None:
+        raise AssertionError(error_message)
+    return parser.matched_attrs
+
+
 def extract_initial_loader_vals(markup: str) -> dict:
-    match = re.search(
-        r'data-initial-results-loader="true"[^>]*hx-vals=\'([^\']+)\'',
+    attrs = find_tag_attrs(
         markup,
-        re.DOTALL,
+        lambda tag, attrs: (
+            tag == "div" and attrs.get("data-initial-results-loader") == "true"
+        ),
+        error_message="Initial results loader hx-vals not found",
     )
-    if not match:
+    hx_vals = attrs.get("hx-vals")
+    if hx_vals is None:
         raise AssertionError("Initial results loader hx-vals not found")
-    return json.loads(html.unescape(match.group(1)))
+    return json.loads(hx_vals)
 
 
-def extract_classifier_form_tag(markup: str) -> str:
-    match = re.search(r"<form[^>]*hx-get=[^>]*>", markup, re.DOTALL)
-    if not match:
-        raise AssertionError("Classifier form tag not found")
-    return match.group(0)
-
-
-def extract_initial_loader_tag(markup: str) -> str:
-    match = re.search(
-        r"<div[^>]*data-initial-results-loader=\"true\"[^>]*>",
+def extract_classifier_form_attrs(markup: str) -> dict[str, str]:
+    return find_tag_attrs(
         markup,
-        re.DOTALL,
+        lambda tag, attrs: tag == "form" and "hx-get" in attrs,
+        error_message="Classifier form tag not found",
     )
-    if not match:
-        raise AssertionError("Initial results loader tag not found")
-    return match.group(0)
+
+
+def extract_initial_loader_attrs(markup: str) -> dict[str, str]:
+    return find_tag_attrs(
+        markup,
+        lambda tag, attrs: (
+            tag == "div" and attrs.get("data-initial-results-loader") == "true"
+        ),
+        error_message="Initial results loader tag not found",
+    )
 
 
 def _build_test_app() -> FastAPI:
@@ -459,6 +489,7 @@ class PageRouteCanonicalizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             initial_loader_vals["product_description"], "bolt & nut / washer"
         )
+        self.assertIn(">bolt &amp; nut / washer</textarea>", response.text)
 
     async def test_long_lossy_query_param_is_used_for_initial_loader(self) -> None:
         long_query = "x" * 1200
@@ -528,18 +559,18 @@ class ClassifierPageRenderingContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request("/UNSPSC/")
 
         self.assertEqual(response.status_code, 200)
-        form_tag = extract_classifier_form_tag(response.text)
-        loader_tag = extract_initial_loader_tag(response.text)
+        form_attrs = extract_classifier_form_attrs(response.text)
+        loader_attrs = extract_initial_loader_attrs(response.text)
 
         self.assertIn('name="track_usage" value="true"', response.text)
-        self.assertIn('action="http://testserver/UNSPSC/search"', form_tag)
-        self.assertIn('method="get"', form_tag)
-        self.assertIn('hx-get="http://testserver/UNSPSC/fragment"', form_tag)
-        self.assertIn('hx-push-url="false"', form_tag)
-        self.assertNotIn("data-classifier-type", form_tag)
-        self.assertNotIn("data-default-version", form_tag)
+        self.assertEqual(form_attrs.get("action"), "http://testserver/UNSPSC/search")
+        self.assertEqual(form_attrs.get("method"), "get")
+        self.assertEqual(form_attrs.get("hx-get"), "http://testserver/UNSPSC/fragment")
+        self.assertEqual(form_attrs.get("hx-push-url"), "false")
+        self.assertNotIn("data-classifier-type", form_attrs)
+        self.assertNotIn("data-default-version", form_attrs)
         self.assertNotIn('name="push_url"', response.text)
-        self.assertIn('hx-push-url="false"', loader_tag)
+        self.assertEqual(loader_attrs.get("hx-push-url"), "false")
 
         initial_loader_vals = extract_initial_loader_vals(response.text)
         self.assertEqual(initial_loader_vals["track_usage"], False)
@@ -551,18 +582,18 @@ class ClassifierPageRenderingContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request("/UNSPSC/industrial_pump")
 
         self.assertEqual(response.status_code, 200)
-        form_tag = extract_classifier_form_tag(response.text)
-        loader_tag = extract_initial_loader_tag(response.text)
+        form_attrs = extract_classifier_form_attrs(response.text)
+        loader_attrs = extract_initial_loader_attrs(response.text)
 
         self.assertIn('name="track_usage" value="true"', response.text)
-        self.assertIn('action="http://testserver/UNSPSC/search"', form_tag)
-        self.assertIn('method="get"', form_tag)
-        self.assertIn('hx-get="http://testserver/UNSPSC/fragment"', form_tag)
-        self.assertIn('hx-push-url="false"', form_tag)
-        self.assertNotIn("data-classifier-type", form_tag)
-        self.assertNotIn("data-default-version", form_tag)
+        self.assertEqual(form_attrs.get("action"), "http://testserver/UNSPSC/search")
+        self.assertEqual(form_attrs.get("method"), "get")
+        self.assertEqual(form_attrs.get("hx-get"), "http://testserver/UNSPSC/fragment")
+        self.assertEqual(form_attrs.get("hx-push-url"), "false")
+        self.assertNotIn("data-classifier-type", form_attrs)
+        self.assertNotIn("data-default-version", form_attrs)
         self.assertNotIn('name="push_url"', response.text)
-        self.assertIn('hx-push-url="false"', loader_tag)
+        self.assertEqual(loader_attrs.get("hx-push-url"), "false")
 
         initial_loader_vals = extract_initial_loader_vals(response.text)
         self.assertEqual(initial_loader_vals["product_description"], "industrial pump")
