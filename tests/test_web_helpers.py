@@ -84,6 +84,9 @@ class SlugifyTests(unittest.TestCase):
     def test_normalizes_decomposed_unicode_before_slugifying(self) -> None:
         self.assertEqual(slugify("Cafe\u0301"), "Café")
 
+    def test_keeps_up_to_1000_characters_in_slug(self) -> None:
+        self.assertEqual(len(slugify("x" * 1200)), 1000)
+
 
 class NormalizeQueryTextTests(unittest.TestCase):
     def test_trims_and_collapses_whitespace(self) -> None:
@@ -203,6 +206,25 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
             "/NAICS/Caf%C3%A9_pump",
+        )
+
+    @patch("app.web.perform_classification")
+    async def test_fragment_push_url_preserves_lossy_query_text_with_q_param(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(
+            product_description="bolt & nut / washer",
+            push_url="true",
+            track_usage="false",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            "/NAICS/bolt_nut_washer?q=bolt+%26+nut+%2F+washer",
         )
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
@@ -334,6 +356,32 @@ class SearchRedirectTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 303)
         self.assertEqual(response.headers["location"], "/NAICS/Caf%C3%A9_pump")
 
+    async def test_search_redirect_preserves_lossy_query_text_with_q_param(
+        self,
+    ) -> None:
+        response = await self._request(
+            "/NAICS/search",
+            params={"product_description": "bolt & nut / washer"},
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["location"],
+            "/NAICS/bolt_nut_washer?q=bolt+%26+nut+%2F+washer",
+        )
+
+    async def test_search_redirect_preserves_long_query_beyond_slug_limit(self) -> None:
+        long_query = "x" * 1200
+        response = await self._request(
+            "/NAICS/search",
+            params={"product_description": long_query},
+        )
+
+        self.assertEqual(response.status_code, 303)
+        location = response.headers["location"]
+        self.assertTrue(location.startswith("/NAICS/" + ("x" * 1000)))
+        self.assertIn(f"?q={long_query}", location)
+
     async def test_empty_search_redirects_to_base_classifier_page(self) -> None:
         response = await self._request(
             "/NAICS/search",
@@ -400,6 +448,25 @@ class PageRouteCanonicalizationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 301)
         self.assertEqual(response.headers["location"], "/NAICS/Caf%C3%A9_pump")
+
+    async def test_lossy_query_param_is_retained_in_canonical_page_url(self) -> None:
+        response = await self._request(
+            "/NAICS/bolt_nut_washer?q=bolt+%26+nut+%2F+washer"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        initial_loader_vals = extract_initial_loader_vals(response.text)
+        self.assertEqual(
+            initial_loader_vals["product_description"], "bolt & nut / washer"
+        )
+
+    async def test_long_lossy_query_param_is_used_for_initial_loader(self) -> None:
+        long_query = "x" * 1200
+        response = await self._request(f"/NAICS/{'x' * 1000}?q={long_query}")
+
+        self.assertEqual(response.status_code, 200)
+        initial_loader_vals = extract_initial_loader_vals(response.text)
+        self.assertEqual(initial_loader_vals["product_description"], long_query)
 
 
 class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):

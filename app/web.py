@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+LOSSY_QUERY_PARAM = "q"
+
 
 def get_default_top_k(classifier_type: str) -> int:
     """Return the default number of results to show for a classifier page."""
@@ -44,7 +46,7 @@ def slugify(text: str) -> str:
     """
     if not text:
         return ""
-    text = unicodedata.normalize("NFC", str(text)[:200])
+    text = unicodedata.normalize("NFC", str(text)[:4000])
     text = re.sub(r"\s+", " ", text).strip()
 
     allowed_punctuation = ".,'()-"
@@ -108,6 +110,10 @@ def build_clean_page_url(
         new_url = f"/{upper_type}/{quote(slug, safe='')}"
 
     query_params: list[tuple[str, str]] = []
+    slug_round_trip_query = normalize_query_text(slug.replace("_", " "))
+    if normalized_description and slug_round_trip_query != normalized_description:
+        query_params.append((LOSSY_QUERY_PARAM, normalized_description))
+
     if config:
         default_version = normalize_version(config, None)
         if version and version != default_version:
@@ -222,7 +228,11 @@ async def show_classifier_page(
     Serves the base classifier page.
     """
     return await show_classifier_page_with_query(
-        request, classifier_type, "", version, top_k
+        request=request,
+        classifier_type=classifier_type,
+        search_query="",
+        version=version,
+        top_k=top_k,
     )
 
 
@@ -427,6 +437,7 @@ async def show_classifier_page_with_query(
     request: Request,
     classifier_type: str,
     search_query: str = "",
+    q: str | None = Query(None, alias=LOSSY_QUERY_PARAM),
     version: str | None = None,
     top_k: int | None = None,
 ):
@@ -468,12 +479,14 @@ async def show_classifier_page_with_query(
             unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
         )
     decoded_search_query = normalize_query_text(decoded_search_query, max_length=4000)
+    normalized_lossy_query = normalize_query_text(q, max_length=4000) if q else ""
+    effective_query = normalized_lossy_query or decoded_search_query
     normalized_top_k = normalize_page_top_k(effective_classifier_type, top_k)
     normalized_version = normalize_version(config, version)
 
     canonical_page_url = build_clean_page_url(
         effective_classifier_type,
-        decoded_search_query,
+        effective_query,
         normalized_version,
         normalized_top_k,
     )
@@ -485,7 +498,7 @@ async def show_classifier_page_with_query(
 
     canonical_url = "https://classifast.com" + build_clean_page_url(
         effective_classifier_type,
-        decoded_search_query,
+        effective_query,
         normalized_version,
         normalized_top_k,
         include_top_k=False,
@@ -504,7 +517,7 @@ async def show_classifier_page_with_query(
     # Initialize results data structure
     results_data = {
         "results_for_query": [],
-        "query": decoded_search_query,
+        "query": effective_query,
         "base_url": "",
         "tooltip": "",
         "total_request_time": 0,
@@ -514,7 +527,7 @@ async def show_classifier_page_with_query(
     # This is true if we have a URL search query OR if we're falling back to the example
     trigger_search_on_load = False
 
-    if decoded_search_query:
+    if effective_query:
         trigger_search_on_load = True
     else:
         # If no search query (base URL), use example query
