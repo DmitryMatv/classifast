@@ -239,6 +239,37 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
             f"http://testserver/mapping/{product.slug}/?checkout=success",
         )
 
+    async def test_create_mapping_checkout_preserves_original_exception(self) -> None:
+        request = AsyncMock()
+        product = next(iter(MAPPING_PRODUCTS.values()))
+        request.json.return_value = {
+            "slug": product.slug,
+            "return_url": f"http://testserver/mapping/{product.slug}/",
+        }
+        request.base_url = "http://testserver/"
+        original_error = RuntimeError("polar create failed")
+        polar_instance = MagicMock()
+        polar_instance.checkouts.create.side_effect = original_error
+        polar_context = MagicMock()
+        polar_context.__enter__.return_value = polar_instance
+        polar_context.__exit__.return_value = None
+
+        with (
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.payments.logger.error") as logger_error_mock,
+            self.assertRaises(HTTPException) as ctx,
+        ):
+            await payments.create_mapping_checkout(request)
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(ctx.exception.detail, "Failed to create mapping checkout")
+        self.assertIs(ctx.exception.__cause__, original_error)
+        logger_error_mock.assert_called_once_with(
+            f"Error creating mapping checkout: {original_error}",
+            exc_info=True,
+        )
+
 
 class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
@@ -446,6 +477,40 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "app.payments.validate_event",
                 return_value=DummyUpdatedPayload("trialing", "allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Polar Pro product not configured")
+        handler_mock.assert_not_awaited()
+
+    async def test_missing_configured_product_id_returns_server_error_without_product_identity(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str):
+                self.data = SimpleNamespace(status=status, metadata={"user_id": "u1"})
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": ""},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing"),
             ),
             patch(
                 "app.payments.handle_subscription_update",

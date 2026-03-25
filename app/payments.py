@@ -90,16 +90,16 @@ def extract_subscription_product_ids(subscription) -> set[str]:
 
 
 def subscription_matches_pro_entitlement(subscription) -> bool:
-    product_ids = extract_subscription_product_ids(subscription)
-    if not product_ids:
-        logger.warning("Ignoring Polar subscription without product identity")
-        return False
-
     try:
         configured_product_id = get_pro_product_id()
     except HTTPException:
         logger.error("POLAR_PRO_PRODUCT_ID not configured; refusing entitlement update")
         raise
+
+    product_ids = extract_subscription_product_ids(subscription)
+    if not product_ids:
+        logger.warning("Ignoring Polar subscription without product identity")
+        return False
 
     if configured_product_id not in product_ids:
         logger.info(
@@ -254,8 +254,10 @@ async def create_mapping_checkout(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating mapping checkout: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create mapping checkout")
+        logger.error(f"Error creating mapping checkout: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to create mapping checkout"
+        ) from e
 
 
 @router.post("/webhooks/polar")
