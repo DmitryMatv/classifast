@@ -274,6 +274,45 @@ describe("common.ts", () => {
     expect(document.body.textContent).toContain("Sign Up");
   });
 
+  it("waits the full script readiness timeout after the load event", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    await import("./common");
+    await flushAsyncWork();
+
+    script.dispatchEvent(new Event("load"));
+    await flushAsyncWork();
+    await advanceTimersAndFlushAsync(5000);
+
+    const lateClerk = {
+      load: vi.fn(async () => {}),
+      addListener: vi.fn(() => vi.fn()),
+      mountUserButton: vi.fn(),
+      openSignIn: vi.fn(),
+      openSignUp: vi.fn(),
+      openGoogleOneTap: vi.fn(),
+    } as ClerkInstance;
+
+    window.Clerk = lateClerk;
+    await advanceTimersAndFlushAsync(100);
+
+    expect(lateClerk.load).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+      "Clerk script loaded but window.Clerk was unavailable",
+    );
+  });
+
   it("falls back when initial token refresh hangs and still signals auth ready once", async () => {
     document.body.innerHTML = `
       <div id="desktop-auth-container"></div>

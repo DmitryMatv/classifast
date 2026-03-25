@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from polar_sdk._webhooks import WebhookVerificationError
 
 from app import payments
+from app.clerk_auth import ClerkAuthenticationError
 from app.mapping_store import MAPPING_PRODUCTS
 
 
@@ -45,6 +46,68 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["detail"], "Missing Authorization header")
+
+    async def test_create_checkout_uses_strict_session_auth_helper(self) -> None:
+        self.app.dependency_overrides[payments.get_current_user_id] = lambda: "user_123"
+        request = AsyncMock()
+        request.json.return_value = {"return_url": "http://testserver/NAICS/"}
+        request.base_url = "http://testserver/"
+        request.app.state.redis_client = AsyncMock()
+        polar_instance = MagicMock()
+        polar_instance.checkouts.create.return_value = SimpleNamespace(
+            url="https://polar.example/checkout"
+        )
+        polar_context = MagicMock()
+        polar_context.__enter__.return_value = polar_instance
+        polar_context.__exit__.return_value = None
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "configured-pro-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.Polar", return_value=polar_context),
+            patch(
+                "app.payments.get_clerk_user_details",
+                new=AsyncMock(return_value={"email": None, "name": None}),
+            ),
+            patch(
+                "app.payments.authenticate_clerk_token_with_session",
+                new=AsyncMock(return_value=("user_123", "free")),
+            ) as auth_mock,
+        ):
+            user_id = await payments.get_current_user_id("Bearer token")
+            response = await payments.create_checkout(request, user_id=user_id)
+
+        self.assertEqual(user_id, "user_123")
+        self.assertEqual(response["url"], "https://polar.example/checkout")
+        auth_mock.assert_awaited_once_with("token", validate_azp=True)
+
+    async def test_create_checkout_rejects_invalid_session_from_strict_auth(
+        self,
+    ) -> None:
+        with patch(
+            "app.payments.authenticate_clerk_token_with_session",
+            new=AsyncMock(side_effect=ClerkAuthenticationError("Invalid session")),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail, "Invalid session")
+
+    async def test_create_checkout_rejects_missing_azp_from_strict_auth(self) -> None:
+        with patch(
+            "app.payments.authenticate_clerk_token_with_session",
+            new=AsyncMock(side_effect=ClerkAuthenticationError("Missing token origin")),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail, "Missing token origin")
 
     async def test_create_checkout_rejects_invalid_return_url(self) -> None:
         request = AsyncMock()

@@ -10,7 +10,7 @@ import httpx
 import redis.asyncio as redis
 from fastapi import Request, Response
 
-from .clerk_auth import ClerkAuthenticationError, authenticate_clerk_token
+from .clerk_auth import ClerkAuthenticationError, authenticate_clerk_token_local
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +189,7 @@ async def extract_from_auth_header(
     token = auth_header[7:]
 
     try:
-        return await authenticate_clerk_token(
+        return await authenticate_clerk_token_local(
             token,
             validate_azp=True,
         )
@@ -207,7 +207,7 @@ async def extract_from_session_cookie(
         return None, None
 
     try:
-        return await authenticate_clerk_token(
+        return await authenticate_clerk_token_local(
             session_cookie,
             validate_azp=False,
         )
@@ -255,7 +255,13 @@ async def fetch_clerk_user_tier(user_id: str) -> str | None:
 async def get_cached_user_tier(
     user_id: str, redis_client: redis.Redis | None
 ) -> str | None:
-    """Get user tier with Redis caching to avoid hitting Clerk API on every request."""
+    """
+    Get the current Clerk tier with Redis caching.
+
+    Returns "pro" or another concrete tier when Clerk confirms it, otherwise None.
+    None means tier confirmation is unavailable/unknown and should not be treated as an
+    explicit downgrade for a JWT-hinted Pro user.
+    """
     start_time = time.time()
 
     if not user_id:
@@ -352,13 +358,22 @@ async def check_usage(
                 tracking_id=user_id,
             )
 
+        jwt_tier_hint = tier
         actual_tier = await get_cached_user_tier(user_id, redis_client)
-        is_pro = actual_tier == "pro"
-        if is_pro:
+        if actual_tier == "pro":
+            is_pro = True
             logger.info(f"Pro tier confirmed via Clerk for user {user_id}")
-        elif tier == "pro":
+        elif actual_tier is None and jwt_tier_hint == "pro":
+            is_pro = True
             logger.info(
-                "Ignoring stale JWT Pro hint for user %s because Clerk tier is %s",
+                "Using JWT Pro hint for user %s because Clerk tier confirmation is unavailable",
+                user_id,
+            )
+        else:
+            is_pro = False
+        if actual_tier not in (None, "pro") and jwt_tier_hint == "pro" and not is_pro:
+            logger.info(
+                "Ignoring stale JWT Pro hint for user %s because Clerk tier is explicitly %s",
                 user_id,
                 actual_tier,
             )

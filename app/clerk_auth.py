@@ -138,7 +138,34 @@ async def verify_clerk_session_active(session_id: str) -> str:
     return user_id
 
 
-async def authenticate_clerk_token(
+def _extract_token_user_and_tier(payload: dict) -> tuple[str, str | None]:
+    token_user_id = payload.get("sub")
+    if not isinstance(token_user_id, str) or not token_user_id:
+        raise ClerkAuthenticationError("Invalid token payload")
+
+    public_metadata = payload.get("public_metadata")
+    tier_value = (
+        public_metadata.get("tier") if isinstance(public_metadata, dict) else None
+    )
+    tier = tier_value if isinstance(tier_value, str) else None
+    return token_user_id, tier
+
+
+async def authenticate_clerk_token_local(
+    token: str,
+    *,
+    validate_azp: bool,
+) -> tuple[str, str | None]:
+    """Authenticate a Clerk token locally without live session verification."""
+    payload = decode_and_verify_clerk_jwt(
+        token,
+        require_session_claims=False,
+        validate_azp=validate_azp,
+    )
+    return _extract_token_user_and_tier(payload)
+
+
+async def authenticate_clerk_token_with_session(
     token: str,
     *,
     validate_azp: bool,
@@ -158,12 +185,20 @@ async def authenticate_clerk_token(
         raise ClerkAuthenticationError("Invalid token payload")
 
     session_user_id = await verify_clerk_session_active(session_id)
-    token_user_id = payload.get("sub")
-    if not isinstance(token_user_id, str) or not token_user_id:
-        raise ClerkAuthenticationError("Invalid token payload")
+    token_user_id, tier = _extract_token_user_and_tier(payload)
     if token_user_id != session_user_id:
         raise ClerkAuthenticationError("Invalid session")
 
-    public_metadata = payload.get("public_metadata")
-    tier = public_metadata.get("tier") if isinstance(public_metadata, dict) else None
     return session_user_id, tier
+
+
+async def authenticate_clerk_token(
+    token: str,
+    *,
+    validate_azp: bool,
+) -> tuple[str, str | None]:
+    """Backward-compatible alias for strict auth with live Clerk session checks."""
+    return await authenticate_clerk_token_with_session(
+        token,
+        validate_azp=validate_azp,
+    )

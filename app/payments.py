@@ -16,7 +16,10 @@ from polar_sdk.models import (
     WebhookSubscriptionUpdatedPayload,
 )
 
-from .clerk_auth import ClerkAuthenticationError, authenticate_clerk_token
+from .clerk_auth import (
+    ClerkAuthenticationError,
+    authenticate_clerk_token_with_session,
+)
 from .dependencies import CLERK_SECRET_KEY
 from .mapping_store import get_mapping_product
 
@@ -130,7 +133,9 @@ async def get_current_user_id(authorization: str = Header(None)):
     token = authorization[7:]  # len("Bearer ") == 7
 
     try:
-        user_id, _ = await authenticate_clerk_token(token, validate_azp=True)
+        user_id, _ = await authenticate_clerk_token_with_session(
+            token, validate_azp=True
+        )
         return user_id
     except ClerkAuthenticationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc

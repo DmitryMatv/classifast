@@ -9,6 +9,8 @@ const SIGN_UP_CLASS =
   "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "h-9 px-4 leading-none";
 const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
+const CLERK_EXISTING_INSTANCE_PROBE_TIMEOUT_MS = 1000;
+const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
 const CLERK_LOAD_TIMEOUT_MS = 10000;
 const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
 
@@ -392,7 +394,7 @@ export class ClerkAuth {
 
     const onScriptLoaded = async () => {
       if (settled) return;
-      const clerk = await this.pollForClerk();
+      const clerk = await this.pollForClerk(CLERK_SCRIPT_READINESS_TIMEOUT_MS);
       if (clerk) {
         settled = true;
         cleanup();
@@ -411,7 +413,9 @@ export class ClerkAuth {
     script.addEventListener("load", onScriptLoaded, { once: true });
     script.addEventListener("error", onScriptError, { once: true });
 
-    const existingClerk = await this.pollForClerk(1000);
+    const existingClerk = await this.pollForClerk(
+      CLERK_EXISTING_INSTANCE_PROBE_TIMEOUT_MS,
+    );
     if (existingClerk) {
       settled = true;
       cleanup();
@@ -429,10 +433,10 @@ export class ClerkAuth {
       }
 
       settleWithFallback("Timed out waiting for Clerk script readiness");
-    }, 10000);
+    }, CLERK_SCRIPT_READINESS_TIMEOUT_MS);
   }
 
-  private async pollForClerk(timeoutMs = 4000) {
+  private async pollForClerk(timeoutMs = CLERK_SCRIPT_READINESS_TIMEOUT_MS) {
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {

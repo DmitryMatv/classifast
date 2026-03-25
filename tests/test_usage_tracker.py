@@ -113,7 +113,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "pro")),
             ),
             patch(
@@ -131,6 +131,59 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(usage_status.is_pro)
         self.assertEqual(usage_status.remaining, FREE_USER_LIMIT - 5)
 
+    async def test_jwt_pro_hint_stays_unlimited_when_clerk_tier_is_unknown(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+
+        with (
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", "pro")),
+            ),
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            usage_status = await check_usage(request, AsyncMock())
+
+        self.assertTrue(usage_status.allowed)
+        self.assertTrue(usage_status.is_authenticated)
+        self.assertTrue(usage_status.is_pro)
+        self.assertEqual(usage_status.remaining, -1)
+
+    async def test_missing_jwt_pro_hint_and_unknown_clerk_tier_uses_free_quota(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+        redis_client = AsyncMock()
+        redis_client.get.return_value = "4"
+
+        with (
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", None)),
+            ),
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            usage_status = await check_usage(request, redis_client)
+
+        self.assertTrue(usage_status.allowed)
+        self.assertFalse(usage_status.is_pro)
+        self.assertEqual(usage_status.remaining, FREE_USER_LIMIT - 4)
+
     async def test_invalid_session_falls_back_to_anonymous_quota(self) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})
         redis_client = AsyncMock()
@@ -138,7 +191,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(side_effect=ClerkAuthenticationError("Invalid session")),
             ),
             patch(
@@ -157,7 +210,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "pro")),
             ),
             patch(
@@ -183,7 +236,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "free")),
             ),
             patch(
@@ -209,7 +262,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(side_effect=ClerkAuthenticationError("Invalid session")),
             ),
             patch(
@@ -222,6 +275,69 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_authenticated)
         self.assertEqual(usage_status.tracking_id, "track-456")
+
+    async def test_quota_auth_does_not_verify_live_session_for_bearer_requests(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+
+        with (
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", "free")),
+            ) as auth_mock,
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(return_value="free"),
+            ),
+            patch(
+                "app.usage_tracker.verify_clerk_session_active",
+                new=AsyncMock(side_effect=AssertionError("should not verify session")),
+                create=True,
+            ) as verify_mock,
+        ):
+            usage_status = await check_usage(request, AsyncMock())
+
+        self.assertTrue(usage_status.allowed)
+        self.assertTrue(usage_status.is_authenticated)
+        auth_mock.assert_awaited_once_with("token", validate_azp=True)
+        verify_mock.assert_not_called()
+
+    async def test_quota_auth_does_not_verify_live_session_for_session_cookie(
+        self,
+    ) -> None:
+        request = _build_request(cookies={"__session": "session-token"})
+
+        with (
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", "free")),
+            ) as auth_mock,
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(return_value="free"),
+            ),
+            patch(
+                "app.usage_tracker.verify_clerk_session_active",
+                new=AsyncMock(side_effect=AssertionError("should not verify session")),
+                create=True,
+            ) as verify_mock,
+        ):
+            usage_status = await check_usage(request, AsyncMock())
+
+        self.assertTrue(usage_status.allowed)
+        self.assertTrue(usage_status.is_authenticated)
+        self.assertEqual(auth_mock.await_count, 1)
+        auth_mock.assert_awaited_once_with("session-token", validate_azp=False)
+        verify_mock.assert_not_called()
 
     async def test_redis_unavailable_fails_open_by_default(self) -> None:
         request = _build_request()
@@ -263,7 +379,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "free")),
             ),
             patch(
@@ -284,7 +400,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(side_effect=ClerkAuthenticationError("Invalid session")),
             ),
             patch(
@@ -332,7 +448,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.usage_tracker.authenticate_clerk_token",
+                "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "free")),
             ),
             patch(
