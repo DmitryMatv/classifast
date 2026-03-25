@@ -75,7 +75,14 @@ def extract_subscription_product_ids(subscription) -> set[str]:
         if isinstance(metadata, dict):
             candidate_ids.update(_normalize_candidate_ids(metadata.get(key)))
 
-    for attr in ("product", "products", "items", "subscriptions", "order_items"):
+    for attr in (
+        "product",
+        "products",
+        "prices",
+        "items",
+        "subscriptions",
+        "order_items",
+    ):
         if hasattr(subscription, attr):
             candidate_ids.update(_normalize_candidate_ids(getattr(subscription, attr)))
 
@@ -92,7 +99,7 @@ def subscription_matches_pro_entitlement(subscription) -> bool:
         configured_product_id = get_pro_product_id()
     except HTTPException:
         logger.error("POLAR_PRO_PRODUCT_ID not configured; refusing entitlement update")
-        return False
+        raise
 
     if configured_product_id not in product_ids:
         logger.info(

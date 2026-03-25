@@ -348,6 +348,45 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         _, kwargs = handler_mock.await_args
         self.assertEqual(kwargs["tier"], "pro")
 
+    async def test_subscription_update_matches_configured_product_in_prices(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str):
+                self.data = SimpleNamespace(
+                    status=status,
+                    prices=[{"product_id": "allowed-product"}],
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_awaited_once()
+        _, kwargs = handler_mock.await_args
+        self.assertEqual(kwargs["tier"], "pro")
+
     async def test_non_allowlisted_subscription_update_is_ignored(self) -> None:
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
@@ -381,6 +420,42 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
             response = await self._post_webhook()
 
         self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
+
+    async def test_missing_configured_product_id_returns_server_error(self) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str, product_id: str | None):
+                self.data = SimpleNamespace(
+                    status=status,
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": ""},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing", "allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Polar Pro product not configured")
         handler_mock.assert_not_awaited()
 
     async def test_allowlisted_subscription_canceled_event_skips_tier_update(
