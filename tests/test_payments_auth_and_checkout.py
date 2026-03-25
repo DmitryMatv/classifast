@@ -106,7 +106,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.dict(
                 os.environ,
-                {"POLAR_PRO_PRODUCT_ID": "", "POLAR_PRO_PRODUCT_IDS": ""},
+                {"POLAR_PRO_PRODUCT_ID": ""},
                 clear=False,
             ),
             patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
@@ -233,6 +233,45 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "app.payments.validate_event",
                 return_value=DummyUpdatedPayload("trialing", "allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_awaited_once()
+        _, kwargs = handler_mock.await_args
+        self.assertEqual(kwargs["tier"], "pro")
+
+    async def test_subscription_update_matches_configured_product_in_nested_items(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str):
+                self.data = SimpleNamespace(
+                    status=status,
+                    items=[{"product_id": "allowed-product"}],
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing"),
             ),
             patch(
                 "app.payments.handle_subscription_update",

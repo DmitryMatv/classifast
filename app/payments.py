@@ -31,28 +31,11 @@ POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET")
 CHECKOUT_PENDING_TTL = 900  # 15 minutes - token validity
 
 
-def get_allowed_pro_product_ids() -> set[str]:
-    configured_ids = os.getenv("POLAR_PRO_PRODUCT_IDS", "").strip()
-    if configured_ids:
-        return {
-            product_id.strip()
-            for product_id in configured_ids.split(",")
-            if product_id.strip()
-        }
-
+def get_pro_product_id() -> str:
     product_id = os.getenv("POLAR_PRO_PRODUCT_ID", "").strip()
-    return {product_id} if product_id else set()
-
-
-def get_default_pro_product_id() -> str:
-    allowed_product_ids = get_allowed_pro_product_ids()
-    if not allowed_product_ids:
+    if not product_id:
         raise HTTPException(status_code=500, detail="Polar Pro product not configured")
-    return sorted(allowed_product_ids)[0]
-
-
-def is_allowed_pro_product_id(product_id: str | None) -> bool:
-    return bool(product_id and product_id in get_allowed_pro_product_ids())
+    return product_id
 
 
 def _normalize_candidate_ids(raw_value) -> set[str]:
@@ -102,16 +85,15 @@ def subscription_matches_pro_entitlement(subscription) -> bool:
         logger.warning("Ignoring Polar subscription without product identity")
         return False
 
-    allowed_ids = get_allowed_pro_product_ids()
-    if not allowed_ids:
-        logger.error(
-            "POLAR_PRO_PRODUCT_ID(S) not configured; refusing entitlement update"
-        )
+    try:
+        configured_product_id = get_pro_product_id()
+    except HTTPException:
+        logger.error("POLAR_PRO_PRODUCT_ID not configured; refusing entitlement update")
         return False
 
-    if product_ids.isdisjoint(allowed_ids):
+    if configured_product_id not in product_ids:
         logger.info(
-            "Ignoring Polar subscription outside classifier Pro allowlist: %s",
+            "Ignoring Polar subscription outside configured Pro product: %s",
             sorted(product_ids),
         )
         return False
@@ -167,7 +149,7 @@ async def create_checkout(
                 status_code=500, detail="Polar Access Token not configured"
             )
 
-        product_id = get_default_pro_product_id()
+        product_id = get_pro_product_id()
 
         # Generate secure checkout token
         checkout_token = secrets.token_urlsafe(32)

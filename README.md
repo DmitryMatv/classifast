@@ -61,7 +61,6 @@ Relevant payment and quota environment variables:
 - `POLAR_ACCESS_TOKEN`
 - `POLAR_WEBHOOK_SECRET`
 - `POLAR_PRO_PRODUCT_ID`
-- `POLAR_PRO_PRODUCT_IDS`
 - `QUOTA_FAIL_OPEN` defaults to `true`
 - `CHECKOUT_GRACE_TTL` defaults to `300`
 

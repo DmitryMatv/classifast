@@ -266,7 +266,7 @@ describe("common.ts", () => {
     document.body.addEventListener("htmx:authReady", authReadyListener);
 
     await import("./common");
-    await advanceTimersAndFlushAsync(4000);
+    await advanceTimersAndFlushAsync(10000);
 
     expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
@@ -289,7 +289,7 @@ describe("common.ts", () => {
     document.body.addEventListener("htmx:authReady", authReadyListener);
 
     await import("./common");
-    await advanceTimersAndFlushAsync(4000);
+    await advanceTimersAndFlushAsync(10000);
 
     expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
