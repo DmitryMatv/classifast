@@ -24,7 +24,7 @@ REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
-QUOTA_FAIL_OPEN = os.getenv("QUOTA_FAIL_OPEN", "false").lower() in (
+QUOTA_FAIL_OPEN = os.getenv("QUOTA_FAIL_OPEN", "true").lower() in (
     "1",
     "true",
     "yes",
@@ -520,19 +520,26 @@ async def increment_usage(
     if not redis_client or usage_status.is_pro:
         return
 
-    user_id, _ = await extract_user_info_from_token(request)
     ttl = USAGE_TTL  # 30 days
 
     try:
-        if user_id:
-            # Authenticated user - use user ID
-            key = f"user:{user_id}:usage_count"
+        # tracking_id carries the post-check identity:
+        # authenticated user_id for signed-in users, cookie id for anonymous users.
+        tracking_id = usage_status.tracking_id
+        if not tracking_id:
+            logger.warning(
+                "Skipping usage increment because tracking_id is missing: authenticated=%s",
+                usage_status.is_authenticated,
+            )
+            return
+
+        if usage_status.is_authenticated:
+            key = f"user:{tracking_id}:usage_count"
             await redis_client.incr(key)
             await redis_client.expire(key, ttl)
             logger.info(f"Incremented authenticated user usage: {key}")
         else:
             # Anonymous user - always increment BOTH counters
-            tracking_id = usage_status.tracking_id
             ip_hash = hash_ip(get_client_ip(request))
 
             cookie_key = f"anon:{tracking_id}:usage_count"

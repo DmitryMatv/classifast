@@ -62,7 +62,7 @@ Relevant payment and quota environment variables:
 - `POLAR_WEBHOOK_SECRET`
 - `POLAR_PRO_PRODUCT_ID`
 - `POLAR_PRO_PRODUCT_IDS`
-- `QUOTA_FAIL_OPEN` defaults to `false`
+- `QUOTA_FAIL_OPEN` defaults to `true`
 - `CHECKOUT_GRACE_TTL` defaults to `300`
 
 Frontend JS/CSS files under `app/static/` are build artifacts. They are generated from `app/assets/` and are intentionally not committed to git.

@@ -10,10 +10,14 @@ from app.usage_tracker import (
     FREE_USER_LIMIT,
     NEGATIVE_TIER_CACHE_TTL,
     TIER_CACHE_TTL,
+    USAGE_TTL,
+    UsageStatus,
     check_usage,
     get_cached_user_tier,
     get_client_ip,
     get_or_create_tracking_id,
+    hash_ip,
+    increment_usage,
 )
 
 
@@ -219,7 +223,17 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(usage_status.is_authenticated)
         self.assertEqual(usage_status.tracking_id, "track-456")
 
-    async def test_redis_unavailable_is_denied_by_default(self) -> None:
+    async def test_redis_unavailable_fails_open_by_default(self) -> None:
+        request = _build_request()
+
+        with patch("app.usage_tracker.QUOTA_FAIL_OPEN", True):
+            usage_status = await check_usage(request, None)
+
+        self.assertTrue(usage_status.allowed)
+        self.assertEqual(usage_status.remaining, -1)
+        self.assertFalse(usage_status.is_authenticated)
+
+    async def test_redis_unavailable_is_denied_when_fail_open_disabled(self) -> None:
         request = _build_request()
 
         with (
@@ -233,7 +247,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(usage_status.allowed)
         self.assertEqual(usage_status.remaining, 0)
-        self.assertFalse(usage_status.is_authenticated)
+        self.assertEqual(usage_status.tracking_id, "track-123")
 
     async def test_redis_unavailable_can_fail_open_when_enabled(self) -> None:
         request = _build_request()
@@ -336,6 +350,116 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(usage_status.allowed)
         self.assertTrue(usage_status.is_authenticated)
         self.assertEqual(usage_status.tracking_id, "user-123")
+
+    async def test_increment_usage_uses_resolved_user_id_for_authenticated_user(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+        redis_client = AsyncMock()
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=10,
+            limit=FREE_USER_LIMIT,
+            is_authenticated=True,
+            is_pro=False,
+            tracking_id="user-123",
+        )
+
+        await increment_usage(request, redis_client, usage_status)
+
+        redis_client.incr.assert_awaited_once_with("user:user-123:usage_count")
+        redis_client.expire.assert_awaited_once_with(
+            "user:user-123:usage_count",
+            USAGE_TTL,
+        )
+
+    async def test_increment_usage_does_not_reauthenticate_authenticated_user(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+        redis_client = AsyncMock()
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=10,
+            limit=FREE_USER_LIMIT,
+            is_authenticated=True,
+            is_pro=False,
+            tracking_id="user-123",
+        )
+
+        with patch(
+            "app.usage_tracker.extract_user_info_from_token",
+            new=AsyncMock(side_effect=AssertionError("should not re-authenticate")),
+        ) as extract_mock:
+            await increment_usage(request, redis_client, usage_status)
+
+        extract_mock.assert_not_called()
+        redis_client.incr.assert_awaited_once_with("user:user-123:usage_count")
+
+    async def test_increment_usage_updates_both_anonymous_counters(self) -> None:
+        request = _build_request(
+            headers={"cf-connecting-ip": "203.0.113.10"},
+            client_host="198.51.100.8",
+        )
+        redis_client = AsyncMock()
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=5,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id="track-123",
+        )
+
+        await increment_usage(request, redis_client, usage_status)
+
+        ip_key = f"anon:ip:{hash_ip('203.0.113.10')}:usage_count"
+        self.assertEqual(redis_client.incr.await_count, 2)
+        redis_client.incr.assert_any_await("anon:track-123:usage_count")
+        redis_client.incr.assert_any_await(ip_key)
+        self.assertEqual(redis_client.expire.await_count, 2)
+        redis_client.expire.assert_any_await("anon:track-123:usage_count", USAGE_TTL)
+        redis_client.expire.assert_any_await(ip_key, USAGE_TTL)
+
+    async def test_increment_usage_skips_pro_user(self) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+        redis_client = AsyncMock()
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=-1,
+            limit=-1,
+            is_authenticated=True,
+            is_pro=True,
+            tracking_id="user-123",
+        )
+
+        await increment_usage(request, redis_client, usage_status)
+
+        redis_client.incr.assert_not_called()
+        redis_client.expire.assert_not_called()
+
+    async def test_increment_usage_skips_missing_tracking_id_for_authenticated_user(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+        redis_client = AsyncMock()
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=10,
+            limit=FREE_USER_LIMIT,
+            is_authenticated=True,
+            is_pro=False,
+            tracking_id=None,
+        )
+
+        with self.assertLogs("app.usage_tracker", level="WARNING") as logs:
+            await increment_usage(request, redis_client, usage_status)
+
+        redis_client.incr.assert_not_called()
+        redis_client.expire.assert_not_called()
+        self.assertTrue(
+            any("tracking_id is missing" in message for message in logs.output)
+        )
 
 
 if __name__ == "__main__":

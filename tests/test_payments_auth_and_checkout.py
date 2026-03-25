@@ -281,6 +281,80 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         handler_mock.assert_not_awaited()
 
+    async def test_allowlisted_subscription_canceled_event_skips_tier_update(
+        self,
+    ) -> None:
+        class DummyCanceledPayload:
+            TYPE = "subscription.canceled"
+
+            def __init__(self, product_id: str | None):
+                self.data = SimpleNamespace(
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionCanceledPayload",
+                DummyCanceledPayload,
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyCanceledPayload("allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
+
+    async def test_allowlisted_subscription_revoked_event_skips_tier_update(
+        self,
+    ) -> None:
+        class DummyRevokedPayload:
+            TYPE = "subscription.revoked"
+
+            def __init__(self, product_id: str | None):
+                self.data = SimpleNamespace(
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionRevokedPayload",
+                DummyRevokedPayload,
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyRevokedPayload("allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
+
     async def test_subscription_update_without_product_identity_is_ignored(
         self,
     ) -> None:
