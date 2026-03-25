@@ -9,6 +9,8 @@ const SIGN_UP_CLASS =
   "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "h-9 px-4 leading-none";
 const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
+const CLERK_LOAD_TIMEOUT_MS = 4000;
+const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 4000;
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -241,7 +243,11 @@ export class ClerkAuth {
     this.clerkStarted = true;
 
     try {
-      await window.Clerk?.load();
+      await this.withTimeout(
+        window.Clerk?.load() ?? Promise.reject(new Error("Clerk unavailable")),
+        CLERK_LOAD_TIMEOUT_MS,
+        "Timed out waiting for Clerk.load()",
+      );
 
       // Register HTMX header injection (must be after Clerk loads)
       this.registerHtmxAuthHeader();
@@ -255,15 +261,17 @@ export class ClerkAuth {
         urlParams.delete("checkout");
         urlParams.delete("checkout_token");
         urlParams.delete("customer_session_token");
-        const cleanUrl = urlParams.toString()
-          ? `${window.location.pathname}?${urlParams.toString()}`
-          : window.location.pathname;
+        const cleanUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ""}${window.location.hash}`;
         window.history.replaceState({}, "", cleanUrl);
         // Backend verifies tier via Redis-cached Clerk API - no frontend retries needed
       }
 
       // Initial token cache and UI render
-      await this.refreshAuthToken();
+      await this.withTimeout(
+        this.refreshAuthToken(),
+        INITIAL_TOKEN_REFRESH_TIMEOUT_MS,
+        "Timed out waiting for initial Clerk token refresh",
+      );
       this.updateAuthUI();
 
       // Signal that auth is ready for auto-classification (fire only once).
@@ -320,6 +328,29 @@ export class ClerkAuth {
       this.clerkStarted = false;
       console.error("Error initializing Clerk:", err);
       this.renderFallbackAuth();
+    }
+  }
+
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMessage: string,
+  ): Promise<T> {
+    let timeoutId: number | null = null;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = window.setTimeout(() => {
+            reject(new Error(errorMessage));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
     }
   }
 
@@ -655,7 +686,8 @@ export class ClerkAuth {
   ) {
     if (!container) return;
 
-    const signInBtn = document.createElement("div");
+    const signInBtn = document.createElement("button");
+    signInBtn.type = "button";
     if (type === "desktop") {
       signInBtn.id = "clerk-sign-in-button-desktop";
       signInBtn.className = `${SIGN_IN_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS}`;
@@ -670,7 +702,8 @@ export class ClerkAuth {
     });
     container.appendChild(signInBtn);
 
-    const signUpBtn = document.createElement("div");
+    const signUpBtn = document.createElement("button");
+    signUpBtn.type = "button";
     if (type === "desktop") {
       signUpBtn.id = "clerk-sign-up-button-desktop";
       signUpBtn.className = `${SIGN_UP_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS} ml-2`;
@@ -772,7 +805,7 @@ export class ResultCopier {
       })
       .catch((err: unknown) => {
         console.error("Async: Could not copy text: ", err);
-        this.showTooltip(buttonElement, "Copy failed");
+        this.fallbackCopy(text, buttonElement);
       });
   }
 
@@ -786,8 +819,8 @@ export class ResultCopier {
     textArea.focus();
     textArea.select();
     try {
-      document.execCommand("copy");
-      this.showTooltip(buttonElement, "Copied!");
+      const didCopy = document.execCommand("copy");
+      this.showTooltip(buttonElement, didCopy ? "Copied!" : "Copy failed");
     } catch (err: unknown) {
       console.error("Fallback: Oops, unable to copy", err);
       this.showTooltip(buttonElement, "Copy failed");

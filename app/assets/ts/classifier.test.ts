@@ -7,6 +7,12 @@ function createScoreBarsMarkup(count = 3): string {
   }).join("");
 }
 
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 function setResultsMarkup(markup: string): HTMLElement {
   const resultsContainer = document.getElementById(
     "results-container",
@@ -480,6 +486,34 @@ describe("classifier.ts", () => {
 
     expect(indicator.classList.contains("htmx-request")).toBe(true);
     expect(window.htmx?.trigger).not.toHaveBeenCalled();
+  });
+
+  it("autoloads auth-gated initial results after a delayed authReady fallback signal", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const loader = appendInitialResultsLoader();
+    window.setTimeout(() => {
+      window.__authReady = true;
+      document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    }, 4000);
+
+    await import("./classifier");
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(4000);
+    vi.runOnlyPendingTimers();
+    await flushAsyncWork();
+
+    expect(window.__authReady).toBe(true);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(
+      loader,
+      "initial-results-ready",
+    );
   });
 
   it("manual request path keeps spinner behavior consistent", async () => {

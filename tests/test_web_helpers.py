@@ -34,6 +34,12 @@ class SlugifyTests(unittest.TestCase):
             slugify("Pump, valve (industrial)'s"), "Pump,_valve_(industrial)'s"
         )
 
+    def test_preserves_colons_and_semicolons(self) -> None:
+        self.assertEqual(
+            slugify("pump: 10 bar; stainless steel"),
+            "pump:_10_bar;_stainless_steel",
+        )
+
     def test_normalizes_internal_whitespace(self) -> None:
         self.assertEqual(slugify("  multi \n spaced\tquery  "), "multi_spaced_query")
 

@@ -56,8 +56,9 @@ def slugify(text: str) -> str:
     text = str(text)[:200]  # Limit to 200 chars max
     # Normalize internal whitespace first (collapse multiple spaces/newlines into single space)
     text = re.sub(r"\s+", " ", text)
-    # Preserve periods, commas, apostrophes, and parentheses while removing other special characters
-    text = re.sub(r"[^\w\s.,'()-]", "", text)
+    # Preserve punctuation that sanitize_query_text accepts so URL slugs round-trip
+    # cleanly back into the classifier textbox.
+    text = re.sub(r"[^\w\s.,:;'()-]", "", text)
     text = re.sub(r"[\s]+", "_", text)
     return text.strip("_")
 
