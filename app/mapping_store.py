@@ -13,6 +13,7 @@ class MappingProduct:
     title: str
     seo_title: str
     meta_description: str
+    image_url: str
     source_standard: str
     target_standard: str
     version_label: str
@@ -41,6 +42,7 @@ MAPPING_PRODUCTS: dict[str, MappingProduct] = {
         meta_description=(
             "Direct UNSPSC to CPV mapping file covering UNSPSC Segments and Families (level 1+2, 617 categories) for procurement, finance, and reporting systems."
         ),
+        image_url="https://classifast.com/static/images/preview.png",
         source_standard="UNSPSC",
         target_standard="CPV",
         version_label="UNSPSC UNv260801.1 -> CPV 2008",
@@ -102,6 +104,7 @@ MAPPING_PRODUCTS: dict[str, MappingProduct] = {
         meta_description=(
             "Convert CPV codes into UNSPSC-aligned categories for supplier master data, spend analysis, ERP harmonization, and catalog normalization."
         ),
+        image_url="https://classifast.com/static/images/preview.png",
         source_standard="CPV",
         target_standard="UNSPSC",
         version_label="CPV 2008 -> UNSPSC UNv260801.1",

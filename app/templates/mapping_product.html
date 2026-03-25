@@ -39,6 +39,7 @@
         "@type": "Product",
         "name": {{ product.title | tojson }},
         "description": {{ product.meta_description | tojson }},
+        "image": {{ product.image_url | tojson }},
         "url": "{{ canonical_url }}",
         "category": {{ (product.source_standard ~ " to " ~ product.target_standard ~ " mapping") | tojson }},
         "offers": {

@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 import httpx
-import jwt
 import redis.asyncio as redis
 from fastapi import Request, Response
+
+from .clerk_auth import ClerkAuthenticationError, authenticate_clerk_token
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,12 @@ REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+QUOTA_FAIL_OPEN = os.getenv("QUOTA_FAIL_OPEN", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 
 # Constants
 TRACKING_COOKIE_NAME = "cf_track"
@@ -30,7 +37,9 @@ TRACKING_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days (matches Redis usage data
 USAGE_TTL = 30 * 24 * 60 * 60  # 30 days
 TIER_CACHE_TTL = 3600  # Cache user tier for 1 hour
 NEGATIVE_TIER_CACHE_TTL = 60  # Cache failed lookups for 1 minute
-GRACE_PERIOD_TTL = 300  # 5 minutes - grace period for checkout completion
+GRACE_PERIOD_TTL = int(
+    os.getenv("CHECKOUT_GRACE_TTL", "300")
+)  # 5 minutes - grace period for checkout completion
 
 
 @dataclass
@@ -144,7 +153,11 @@ def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
     return new_id, True
 
 
-def extract_user_info_from_token(
+def quota_fail_open_enabled() -> bool:
+    return QUOTA_FAIL_OPEN
+
+
+async def extract_user_info_from_token(
     request: Request,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
@@ -152,12 +165,12 @@ def extract_user_info_from_token(
     Returns (None, None) if token is invalid or unverifiable.
     """
     # First try: Authorization header (from Clerk JS)
-    user_id, tier = extract_from_auth_header(request)
+    user_id, tier = await extract_from_auth_header(request)
     if user_id:
         return user_id, tier
 
     # Second try: __session cookie (available on page load, before Clerk JS)
-    user_id, tier = extract_from_session_cookie(request)
+    user_id, tier = await extract_from_session_cookie(request)
     if user_id:
         logger.debug("User authenticated via __session cookie: %s", user_id)
         return user_id, tier
@@ -165,87 +178,41 @@ def extract_user_info_from_token(
     return None, None
 
 
-def extract_from_auth_header(
+async def extract_from_auth_header(
     request: Request,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Extract user info from Authorization header."""
-    from .dependencies import CLERK_FRONTEND_API, get_jwks_client
-
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
         return None, None
 
     token = auth_header[7:]
 
-    jwks_client = get_jwks_client()
-    if not jwks_client:
-        return None, None
-
     try:
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
-        expected_issuer = f"https://{CLERK_FRONTEND_API}"
-
-        payload = jwt.decode(
+        return await authenticate_clerk_token(
             token,
-            signing_key.key,
-            algorithms=["RS256"],
-            issuer=expected_issuer,
-            options={
-                "verify_signature": True,
-                "verify_exp": True,
-            },
+            validate_azp=True,
         )
-
-        user_id = payload.get("sub")
-        if not user_id:
-            return None, None
-
-        public_metadata = payload.get("public_metadata", {})
-        tier = public_metadata.get("tier", "free") if public_metadata else "free"
-
-        return user_id, tier
-    except (jwt.PyJWTError, ValueError, KeyError):
+    except ClerkAuthenticationError as exc:
+        logger.debug("Bearer token authentication failed: %s", exc.detail)
         return None, None
 
 
-def extract_from_session_cookie(
+async def extract_from_session_cookie(
     request: Request,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Extract user info from Clerk's __session cookie."""
-    from .dependencies import CLERK_FRONTEND_API, get_jwks_client
-
     session_cookie = request.cookies.get("__session")
     if not session_cookie:
         return None, None
 
-    jwks_client = get_jwks_client()
-    if not jwks_client:
-        return None, None
-
     try:
-        signing_key = jwks_client.get_signing_key_from_jwt(session_cookie)
-        expected_issuer = f"https://{CLERK_FRONTEND_API}"
-
-        payload = jwt.decode(
+        return await authenticate_clerk_token(
             session_cookie,
-            signing_key.key,
-            algorithms=["RS256"],
-            issuer=expected_issuer,
-            options={
-                "verify_signature": True,
-                "verify_exp": True,
-            },
+            validate_azp=False,
         )
-
-        user_id = payload.get("sub")
-        if not user_id:
-            return None, None
-
-        public_metadata = payload.get("public_metadata", {})
-        tier = public_metadata.get("tier", "free") if public_metadata else "free"
-
-        return user_id, tier
-    except (jwt.PyJWTError, ValueError, KeyError):
+    except ClerkAuthenticationError as exc:
+        logger.debug("Session cookie authentication failed: %s", exc.detail)
         return None, None
 
 
@@ -350,7 +317,7 @@ async def check_usage(
     Returns UsageStatus with allowed flag and remaining quota.
     """
     # Check if user is authenticated
-    user_id, tier = extract_user_info_from_token(request)
+    user_id, tier = await extract_user_info_from_token(request)
 
     # Log diagnostic info for debugging mismatches between frontend and backend
     if not user_id:
@@ -385,15 +352,16 @@ async def check_usage(
                 tracking_id=user_id,
             )
 
-        # Check JWT tier first, then verify with cache if not pro
-        is_pro = tier == "pro"
-        if not is_pro:
-            actual_tier = await get_cached_user_tier(user_id, redis_client)
-            is_pro = actual_tier == "pro"
-            if is_pro:
-                logger.info(f"Pro tier confirmed via cache/API for user {user_id}")
-        else:
-            logger.info(f"Pro user access allowed: {user_id}")
+        actual_tier = await get_cached_user_tier(user_id, redis_client)
+        is_pro = actual_tier == "pro"
+        if is_pro:
+            logger.info(f"Pro tier confirmed via Clerk for user {user_id}")
+        elif tier == "pro":
+            logger.info(
+                "Ignoring stale JWT Pro hint for user %s because Clerk tier is %s",
+                user_id,
+                actual_tier,
+            )
 
         if is_pro:
             return UsageStatus(
@@ -407,13 +375,38 @@ async def check_usage(
 
     # If Redis is not available, allow the request (fail open)
     if not redis_client:
-        logger.warning("Redis not available, allowing request")
+        if quota_fail_open_enabled():
+            logger.warning(
+                "Redis not available, allowing request because QUOTA_FAIL_OPEN is enabled"
+            )
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,
+                limit=-1,
+                is_authenticated=bool(user_id),
+                is_pro=False,
+                tracking_id=user_id,
+            )
+
+        logger.warning("Redis not available, denying metered request")
+        if user_id:
+            return UsageStatus(
+                allowed=False,
+                remaining=0,
+                limit=FREE_USER_LIMIT,
+                is_authenticated=True,
+                is_pro=False,
+                tracking_id=user_id,
+            )
+
+        tracking_id, _ = get_or_create_tracking_id(request)
         return UsageStatus(
-            allowed=True,
-            remaining=-1,
-            limit=-1,
-            is_authenticated=bool(user_id),
+            allowed=False,
+            remaining=0,
+            limit=ANON_LIMIT,
+            is_authenticated=False,
             is_pro=False,
+            tracking_id=tracking_id,
         )
 
     # Determine tracking key and limit
@@ -461,10 +454,19 @@ async def check_usage(
             )
         except redis.RedisError as e:
             logger.error(f"Redis error checking anonymous usage: {e}")
+            if quota_fail_open_enabled():
+                return UsageStatus(
+                    allowed=True,
+                    remaining=-1,
+                    limit=-1,
+                    is_authenticated=False,
+                    is_pro=False,
+                    tracking_id=tracking_id,
+                )
             return UsageStatus(
-                allowed=True,
-                remaining=-1,
-                limit=-1,
+                allowed=False,
+                remaining=0,
+                limit=limit,
                 is_authenticated=False,
                 is_pro=False,
                 tracking_id=tracking_id,
@@ -490,10 +492,19 @@ async def check_usage(
         )
     except redis.RedisError as e:
         logger.error(f"Redis error checking user usage: {e}")
+        if quota_fail_open_enabled():
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,
+                limit=-1,
+                is_authenticated=True,
+                is_pro=False,
+                tracking_id=tracking_id,
+            )
         return UsageStatus(
-            allowed=True,
-            remaining=-1,
-            limit=-1,
+            allowed=False,
+            remaining=0,
+            limit=limit,
             is_authenticated=True,
             is_pro=False,
             tracking_id=tracking_id,
@@ -509,7 +520,7 @@ async def increment_usage(
     if not redis_client or usage_status.is_pro:
         return
 
-    user_id, _ = extract_user_info_from_token(request)
+    user_id, _ = await extract_user_info_from_token(request)
     ttl = USAGE_TTL  # 30 days
 
     try:

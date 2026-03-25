@@ -53,8 +53,17 @@ Visit the working instance at [classifast.com](https://classifast.com) to try.
 2. Install Python dependencies: `pip install -r requirements.txt`
 3. Install development-only Python tooling: `pip install -r requirements-dev.txt`
 4. Install frontend dependencies: `bun install`
-5. Set environment variables for API keys
+5. Set environment variables for API keys and payments/quota behavior
 6. Run frontend watchers and the app: `bun run dev`
+
+Relevant payment and quota environment variables:
+
+- `POLAR_ACCESS_TOKEN`
+- `POLAR_WEBHOOK_SECRET`
+- `POLAR_PRO_PRODUCT_ID`
+- `POLAR_PRO_PRODUCT_IDS`
+- `QUOTA_FAIL_OPEN` defaults to `false`
+- `CHECKOUT_GRACE_TTL` defaults to `300`
 
 Frontend JS/CSS files under `app/static/` are build artifacts. They are generated from `app/assets/` and are intentionally not committed to git.
 

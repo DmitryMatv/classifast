@@ -51,6 +51,7 @@
                 "name": {{ product.title | tojson }},
                 "url": "https://classifast.com/mapping/{{ product.slug }}/",
                 "description": {{ product.meta_description | tojson }},
+                "image": {{ product.image_url | tojson }},
                 "offers": {
                     "@type": "Offer",
                     "price": "{{ product.price_usd }}",

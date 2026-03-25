@@ -28,8 +28,6 @@ function redirectToPaywallUrl(url: string): void {
 if (!window.__paywallScriptParsed) {
   window.__paywallScriptParsed = true;
 
-  const PAYWALL_PRODUCT_ID: string = "e157e32f-e91c-4d51-af66-0c2eb3b23d71";
-
   class PaywallManager {
     private wasSignedIn: boolean = false;
 
@@ -200,7 +198,6 @@ if (!window.__paywallScriptParsed) {
             },
             signal: controller.signal,
             body: JSON.stringify({
-              product_id: PAYWALL_PRODUCT_ID,
               return_url: window.location.href,
             }),
           });
