@@ -9,8 +9,9 @@ const SIGN_UP_CLASS =
   "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "h-9 px-4 leading-none";
 const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
-const CLERK_LOAD_TIMEOUT_MS = 4000;
-const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 4000;
+const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
+const CLERK_LOAD_TIMEOUT_MS = 10000;
+const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -249,20 +250,13 @@ export class ClerkAuth {
         "Timed out waiting for Clerk.load()",
       );
 
-      // Register HTMX header injection (must be after Clerk loads)
-      this.registerHtmxAuthHeader();
-
       // Check if returning from successful checkout - clean up URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      const isCheckoutSuccess = urlParams.get("checkout") === "success";
+      const isCheckoutSuccess =
+        new URLSearchParams(window.location.search).get("checkout") ===
+        "success";
 
       if (isCheckoutSuccess) {
-        // Clean up checkout params from URL
-        urlParams.delete("checkout");
-        urlParams.delete("checkout_token");
-        urlParams.delete("customer_session_token");
-        const cleanUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ""}${window.location.hash}`;
-        window.history.replaceState({}, "", cleanUrl);
+        this.cleanupCheckoutTokens();
         // Backend verifies tier via Redis-cached Clerk API - no frontend retries needed
       }
 
@@ -272,6 +266,11 @@ export class ClerkAuth {
         INITIAL_TOKEN_REFRESH_TIMEOUT_MS,
         "Timed out waiting for initial Clerk token refresh",
       );
+
+      // Only register the HTMX auth hook after the initial auth refresh settles.
+      // If bootstrap falls back to anonymous mode, requests should not be cancelled.
+      this.registerHtmxAuthHeader();
+
       this.updateAuthUI();
 
       // Signal that auth is ready for auto-classification (fire only once).
@@ -370,16 +369,19 @@ export class ClerkAuth {
       return;
     }
 
+    if (window.__clerkScriptFailed) {
+      console.error("Clerk script failed to load");
+      this.renderFallbackAuth();
+      return;
+    }
+
     let settled = false;
-    let timeoutId: number | null = null;
+    let rejectOnScriptError: ((reason?: unknown) => void) | null = null;
 
     const cleanup = () => {
       script.removeEventListener("load", onScriptLoaded);
       script.removeEventListener("error", onScriptError);
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-        timeoutId = null;
-      }
+      rejectOnScriptError = null;
     };
 
     const settleWithFallback = (message: string) => {
@@ -390,49 +392,51 @@ export class ClerkAuth {
       this.renderFallbackAuth();
     };
 
-    const onScriptLoaded = async () => {
+    const onScriptLoaded = () => {
+      // Readiness is detected by waitForClerkInstance polling; this handler
+      // exists only to be cleaned up and to guard against duplicate handling.
       if (settled) return;
-      const clerk = await this.pollForClerk();
-      if (clerk) {
-        settled = true;
-        cleanup();
-        await this.startClerk();
-      } else {
-        settleWithFallback(
-          "Clerk script loaded but window.Clerk was unavailable",
-        );
-      }
     };
 
     const onScriptError = () => {
+      const reject = rejectOnScriptError;
+      window.__clerkScriptFailed = true;
       settleWithFallback("Clerk script failed to load");
+      reject?.(new Error("Clerk script failed to load"));
     };
 
     script.addEventListener("load", onScriptLoaded, { once: true });
     script.addEventListener("error", onScriptError, { once: true });
 
-    const existingClerk = await this.pollForClerk(1000);
-    if (existingClerk) {
+    let clerk: ClerkInstance | null = null;
+    try {
+      clerk = await Promise.race([
+        this.waitForClerkInstance(CLERK_SCRIPT_READINESS_TIMEOUT_MS),
+        new Promise<ClerkInstance | null>((_, reject) => {
+          rejectOnScriptError = reject;
+        }),
+      ]);
+    } catch {
+      return;
+    }
+
+    if (settled) {
+      return;
+    }
+
+    if (clerk) {
       settled = true;
       cleanup();
       await this.startClerk();
       return;
     }
 
-    timeoutId = window.setTimeout(async () => {
-      if (settled) return;
-      if (window.Clerk) {
-        settled = true;
-        cleanup();
-        await this.startClerk();
-        return;
-      }
-
-      settleWithFallback("Timed out waiting for Clerk script readiness");
-    }, 4000);
+    settleWithFallback("Timed out waiting for Clerk script readiness");
   }
 
-  private async pollForClerk(timeoutMs = 4000) {
+  private async waitForClerkInstance(
+    timeoutMs = CLERK_SCRIPT_READINESS_TIMEOUT_MS,
+  ): Promise<ClerkInstance | null> {
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
@@ -440,7 +444,7 @@ export class ClerkAuth {
       await new Promise((resolve) => window.setTimeout(resolve, 50));
     }
 
-    return window.Clerk;
+    return window.Clerk ?? null;
   }
 
   private async refreshAuthToken() {
@@ -720,6 +724,8 @@ export class ClerkAuth {
   }
 
   private renderFallbackAuth() {
+    this.cleanupCheckoutTokens();
+
     const desktopContainer = document.getElementById("desktop-auth-container");
     const mobileContainer = document.getElementById("mobile-auth-container");
 
@@ -764,6 +770,23 @@ export class ClerkAuth {
     // Direct-link autoloads rely on this fallback so they do not hang forever
     // if Clerk cannot bootstrap on the page.
     signalAuthReady();
+  }
+
+  private cleanupCheckoutTokens() {
+    const url = new URL(window.location.href);
+    const hadCheckoutParams =
+      url.searchParams.has("checkout_token") ||
+      url.searchParams.has("customer_session_token");
+
+    if (!hadCheckoutParams) {
+      return;
+    }
+
+    url.searchParams.delete("checkout_token");
+    url.searchParams.delete("customer_session_token");
+
+    const cleanUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, "", cleanUrl);
   }
 
   // Public method to get current auth token

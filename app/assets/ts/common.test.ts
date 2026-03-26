@@ -21,6 +21,7 @@ describe("common.ts", () => {
     document.body.removeAttribute("data-common-initialized");
     delete document.body.dataset["commonInitialized"];
     window.__authReady = false;
+    delete window.__clerkScriptFailed;
     delete window.copyOriginalId;
   });
 
@@ -266,12 +267,156 @@ describe("common.ts", () => {
     document.body.addEventListener("htmx:authReady", authReadyListener);
 
     await import("./common");
-    await advanceTimersAndFlushAsync(4000);
+    await advanceTimersAndFlushAsync(10000);
 
     expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).toContain("Sign In");
     expect(document.body.textContent).toContain("Sign Up");
+  });
+
+  it("starts Clerk when window.Clerk appears after a missed script load event", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    const commonModule = import("./common");
+    await flushAsyncWork();
+    await advanceTimersAndFlushAsync(5000);
+
+    window.Clerk = {
+      load: vi.fn(async () => {}),
+      addListener: vi.fn(() => vi.fn()),
+      mountUserButton: vi.fn(),
+      openSignIn: vi.fn(),
+      openSignUp: vi.fn(),
+      openGoogleOneTap: vi.fn(),
+    } as ClerkInstance;
+    if (window.Clerk) {
+      window.Clerk.session = {
+        getToken: vi.fn(async () => "token-123"),
+      };
+    }
+    await advanceTimersAndFlushAsync(100);
+    await commonModule;
+
+    expect(window.Clerk?.load).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+      "Timed out waiting for Clerk script readiness",
+    );
+  });
+
+  it("falls back immediately when Clerk script emits error before timeout", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+
+    const authReadyListener = vi.fn();
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    document.body.addEventListener("htmx:authReady", authReadyListener);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    const commonModule = await import("./common");
+    commonModule.initCommon();
+    await advanceTimersAndFlushAsync(50);
+
+    script.dispatchEvent(new Event("error"));
+    vi.runAllTimers();
+    await flushAsyncWork();
+
+    expect(window.__authReady).toBe(true);
+    expect(authReadyListener).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Sign In");
+    expect(document.body.textContent).toContain("Sign Up");
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Clerk script failed to load");
+    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+      "Timed out waiting for Clerk script readiness",
+    );
+    expect(window.__clerkScriptFailed).toBe(true);
+  });
+
+  it("falls back immediately when Clerk script failure is already known before init", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+    window.__clerkScriptFailed = true;
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    const authReadyListener = vi.fn();
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    document.body.addEventListener("htmx:authReady", authReadyListener);
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.__authReady).toBe(true);
+    expect(authReadyListener).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Sign In");
+    expect(document.body.textContent).toContain("Sign Up");
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Clerk script failed to load");
+  });
+
+  it("starts Clerk as soon as window.Clerk appears without waiting for the full timeout", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    const commonModule = import("./common");
+    await flushAsyncWork();
+    await advanceTimersAndFlushAsync(500);
+
+    window.Clerk = {
+      load: vi.fn(async () => {}),
+      addListener: vi.fn(() => vi.fn()),
+      mountUserButton: vi.fn(),
+      openSignIn: vi.fn(),
+      openSignUp: vi.fn(),
+      openGoogleOneTap: vi.fn(),
+    } as ClerkInstance;
+    if (window.Clerk) {
+      window.Clerk.session = {
+        getToken: vi.fn(async () => "token-123"),
+      };
+    }
+
+    expect(window.Clerk?.load).not.toHaveBeenCalled();
+    await advanceTimersAndFlushAsync(100);
+    await commonModule;
+
+    expect(window.Clerk?.load).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+      "Timed out waiting for Clerk script readiness",
+    );
   });
 
   it("falls back when initial token refresh hangs and still signals auth ready once", async () => {
@@ -289,7 +434,7 @@ describe("common.ts", () => {
     document.body.addEventListener("htmx:authReady", authReadyListener);
 
     await import("./common");
-    await advanceTimersAndFlushAsync(4000);
+    await advanceTimersAndFlushAsync(10000);
 
     expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
@@ -329,7 +474,7 @@ describe("common.ts", () => {
     expect(openSignUpSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves the hash when cleaning checkout params after successful auth bootstrap", async () => {
+  it("preserves checkout=success, strips sensitive checkout tokens, and keeps the hash after successful auth bootstrap", async () => {
     document.body.innerHTML = `
       <div id="desktop-auth-container"></div>
       <div id="mobile-auth-container"></div>
@@ -343,14 +488,14 @@ describe("common.ts", () => {
     window.history.replaceState(
       {},
       "",
-      "/NAICS/?checkout=success&foo=bar#results",
+      "/NAICS/?checkout=success&checkout_token=checkout-secret&customer_session_token=customer-secret&foo=bar#results",
     );
 
     await import("./common");
     await flushAsyncWork();
 
     expect(window.location.pathname).toBe("/NAICS/");
-    expect(window.location.search).toBe("?foo=bar");
+    expect(window.location.search).toBe("?checkout=success&foo=bar");
     expect(window.location.hash).toBe("#results");
   });
 });

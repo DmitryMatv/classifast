@@ -4,12 +4,18 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import httpx
-import jwt
 import redis.asyncio as redis
 from fastapi import Request, Response
+
+from .clerk_auth import (
+    ClerkAuthenticationError,
+    ClerkInfrastructureError,
+    authenticate_clerk_token_local,
+    should_validate_clerk_azp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +29,12 @@ REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+QUOTA_FAIL_OPEN = os.getenv("QUOTA_FAIL_OPEN", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 
 # Constants
 TRACKING_COOKIE_NAME = "cf_track"
@@ -30,7 +42,9 @@ TRACKING_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days (matches Redis usage data
 USAGE_TTL = 30 * 24 * 60 * 60  # 30 days
 TIER_CACHE_TTL = 3600  # Cache user tier for 1 hour
 NEGATIVE_TIER_CACHE_TTL = 60  # Cache failed lookups for 1 minute
-GRACE_PERIOD_TTL = 300  # 5 minutes - grace period for checkout completion
+GRACE_PERIOD_TTL = int(
+    os.getenv("CHECKOUT_GRACE_TTL", "300")
+)  # 5 minutes - grace period for checkout completion
 
 
 @dataclass
@@ -41,6 +55,25 @@ class UsageStatus:
     is_authenticated: bool
     is_pro: bool
     tracking_id: str | None = None
+
+
+TierResolutionStatus = Literal[
+    "confirmed_pro",
+    "confirmed_non_pro",
+    "transient_unavailable",
+    "explicit_negative",
+]
+
+
+@dataclass(frozen=True)
+class TierResolution:
+    status: TierResolutionStatus
+    tier: str | None = None
+
+
+TIER_CACHE_SENTINEL_NON_PRO = "__sentinel:non_pro"
+TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE = "__sentinel:explicit_negative"
+TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE = "__sentinel:transient_unavailable"
 
 
 def get_client_ip(request: Request) -> str:
@@ -144,7 +177,11 @@ def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
     return new_id, True
 
 
-def extract_user_info_from_token(
+def quota_fail_open_enabled() -> bool:
+    return QUOTA_FAIL_OPEN
+
+
+async def extract_user_info_from_token(
     request: Request,
 ) -> Tuple[Optional[str], Optional[str]]:
     """
@@ -152,12 +189,12 @@ def extract_user_info_from_token(
     Returns (None, None) if token is invalid or unverifiable.
     """
     # First try: Authorization header (from Clerk JS)
-    user_id, tier = extract_from_auth_header(request)
+    user_id, tier = await extract_from_auth_header(request)
     if user_id:
         return user_id, tier
 
     # Second try: __session cookie (available on page load, before Clerk JS)
-    user_id, tier = extract_from_session_cookie(request)
+    user_id, tier = await extract_from_session_cookie(request)
     if user_id:
         logger.debug("User authenticated via __session cookie: %s", user_id)
         return user_id, tier
@@ -165,97 +202,65 @@ def extract_user_info_from_token(
     return None, None
 
 
-def extract_from_auth_header(
+async def extract_from_auth_header(
     request: Request,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Extract user info from Authorization header."""
-    from .dependencies import CLERK_FRONTEND_API, get_jwks_client
-
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
         return None, None
 
     token = auth_header[7:]
 
-    jwks_client = get_jwks_client()
-    if not jwks_client:
-        return None, None
-
     try:
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
-        expected_issuer = f"https://{CLERK_FRONTEND_API}"
-
-        payload = jwt.decode(
+        return await authenticate_clerk_token_local(
             token,
-            signing_key.key,
-            algorithms=["RS256"],
-            issuer=expected_issuer,
-            options={
-                "verify_signature": True,
-                "verify_exp": True,
-            },
+            validate_azp=should_validate_clerk_azp(),
         )
-
-        user_id = payload.get("sub")
-        if not user_id:
-            return None, None
-
-        public_metadata = payload.get("public_metadata", {})
-        tier = public_metadata.get("tier", "free") if public_metadata else "free"
-
-        return user_id, tier
-    except (jwt.PyJWTError, ValueError, KeyError):
+    except ClerkAuthenticationError as exc:
+        logger.debug("Bearer token authentication failed: %s", exc.detail)
+        return None, None
+    except ClerkInfrastructureError as exc:
+        logger.warning(
+            "Bearer token verification temporarily unavailable; falling back to anonymous quota: %s",
+            exc.detail,
+        )
         return None, None
 
 
-def extract_from_session_cookie(
+async def extract_from_session_cookie(
     request: Request,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Extract user info from Clerk's __session cookie."""
-    from .dependencies import CLERK_FRONTEND_API, get_jwks_client
-
     session_cookie = request.cookies.get("__session")
     if not session_cookie:
         return None, None
 
-    jwks_client = get_jwks_client()
-    if not jwks_client:
-        return None, None
-
     try:
-        signing_key = jwks_client.get_signing_key_from_jwt(session_cookie)
-        expected_issuer = f"https://{CLERK_FRONTEND_API}"
-
-        payload = jwt.decode(
+        return await authenticate_clerk_token_local(
             session_cookie,
-            signing_key.key,
-            algorithms=["RS256"],
-            issuer=expected_issuer,
-            options={
-                "verify_signature": True,
-                "verify_exp": True,
-            },
+            validate_azp=False,
         )
-
-        user_id = payload.get("sub")
-        if not user_id:
-            return None, None
-
-        public_metadata = payload.get("public_metadata", {})
-        tier = public_metadata.get("tier", "free") if public_metadata else "free"
-
-        return user_id, tier
-    except (jwt.PyJWTError, ValueError, KeyError):
+    except ClerkAuthenticationError as exc:
+        logger.debug("Session cookie authentication failed: %s", exc.detail)
+        return None, None
+    except ClerkInfrastructureError as exc:
+        logger.warning(
+            "Session cookie verification temporarily unavailable; falling back to anonymous quota: %s",
+            exc.detail,
+        )
         return None, None
 
 
-async def fetch_clerk_user_tier(user_id: str) -> str | None:
-    """Fetch current tier directly from Clerk API (bypasses JWT cache)."""
+async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
+    """Fetch current tier directly from Clerk API and classify the result."""
     start_time = time.time()
 
     clerk_secret = os.getenv("CLERK_SECRET_KEY")
     if not clerk_secret or not user_id:
-        return None
+        logger.error("CLERK_SECRET_KEY missing or user_id empty during tier lookup")
+        return TierResolution(status="explicit_negative")
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             api_start = time.time()
@@ -273,26 +278,53 @@ async def fetch_clerk_user_tier(user_id: str) -> str | None:
                 user_id,
                 response.status_code,
             )
+
             if response.status_code == 200:
                 data = response.json()
-                return data.get("public_metadata", {}).get("tier")
-    except (httpx.HTTPError, ValueError, KeyError) as e:
+                tier = data.get("public_metadata", {}).get("tier")
+                if tier == "pro":
+                    return TierResolution(status="confirmed_pro", tier="pro")
+                if isinstance(tier, str) and tier:
+                    return TierResolution(status="confirmed_non_pro", tier=tier)
+                return TierResolution(status="confirmed_non_pro")
+
+            if response.status_code in {401, 403, 404}:
+                return TierResolution(status="explicit_negative")
+
+            if response.status_code in {429, 500, 502, 503, 504}:
+                return TierResolution(status="transient_unavailable")
+
+            logger.warning(
+                "Unexpected Clerk tier response status: user_id=%s, status=%d",
+                user_id,
+                response.status_code,
+            )
+            return TierResolution(status="explicit_negative")
+    except (httpx.TimeoutException, httpx.RequestError) as e:
         elapsed = time.time() - start_time
         logger.warning(f"Failed to fetch tier from Clerk API: {e} ({elapsed:.3f}s)")
+        return TierResolution(status="transient_unavailable")
+    except (ValueError, KeyError, TypeError) as e:
+        elapsed = time.time() - start_time
+        logger.warning(f"Failed to parse tier from Clerk API: {e} ({elapsed:.3f}s)")
+        return TierResolution(status="explicit_negative")
     except Exception as e:  # Fallback for unexpected errors
         elapsed = time.time() - start_time
         logger.error(f"Unexpected error fetching tier from Clerk: {e} ({elapsed:.3f}s)")
-    return None
+        return TierResolution(status="explicit_negative")
 
 
 async def get_cached_user_tier(
     user_id: str, redis_client: redis.Redis | None
-) -> str | None:
-    """Get user tier with Redis caching to avoid hitting Clerk API on every request."""
+) -> TierResolution:
+    """
+    Preserve the distinction between confirmed non-Pro, explicit negatives,
+    and transient outages so JWT Pro hints only fail open for infrastructure issues.
+    """
     start_time = time.time()
 
     if not user_id:
-        return None
+        return TierResolution(status="explicit_negative")
 
     cache_key = f"user_tier:{user_id}"
 
@@ -305,30 +337,66 @@ async def get_cached_user_tier(
                 logger.debug(
                     "Tier cache hit: user_id=%s, tier=%s", user_id, cached_value
                 )
-                # Check for negative result sentinel
-                return None if cached_value == "none" else cached_value
+                if cached_value == "pro":
+                    return TierResolution(status="confirmed_pro", tier="pro")
+                if cached_value == TIER_CACHE_SENTINEL_NON_PRO:
+                    return TierResolution(status="confirmed_non_pro")
+                if cached_value == TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE:
+                    return TierResolution(status="explicit_negative")
+                if cached_value == TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE:
+                    return TierResolution(status="transient_unavailable")
+                return TierResolution(status="confirmed_non_pro", tier=cached_value)
         except (redis.RedisError, ValueError):
             pass
 
     # Cache miss - fetch from Clerk API
-    tier = await fetch_clerk_user_tier(user_id)
+    resolution = await fetch_clerk_user_tier(user_id)
 
-    # Store in cache (including None to prevent hammering API)
     if redis_client:
         try:
-            if tier:
-                await redis_client.setex(cache_key, TIER_CACHE_TTL, tier)
+            if resolution.status == "confirmed_pro":
+                await redis_client.setex(cache_key, TIER_CACHE_TTL, "pro")
                 logger.debug(
-                    "Tier cache set: user_id=%s, tier=%s, ttl=%d",
+                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
                     user_id,
-                    tier,
+                    resolution.status,
                     TIER_CACHE_TTL,
                 )
-            else:
-                await redis_client.setex(cache_key, NEGATIVE_TIER_CACHE_TTL, "none")
+            elif resolution.status == "confirmed_non_pro":
+                await redis_client.setex(
+                    cache_key,
+                    TIER_CACHE_TTL,
+                    resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
+                )
                 logger.debug(
-                    "Tier cache set (negative): user_id=%s, ttl=%d",
+                    "Tier cache set: user_id=%s, status=%s, tier=%s, ttl=%d",
                     user_id,
+                    resolution.status,
+                    resolution.tier,
+                    TIER_CACHE_TTL,
+                )
+            elif resolution.status == "explicit_negative":
+                await redis_client.setex(
+                    cache_key,
+                    NEGATIVE_TIER_CACHE_TTL,
+                    TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE,
+                )
+                logger.debug(
+                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
+                    user_id,
+                    resolution.status,
+                    NEGATIVE_TIER_CACHE_TTL,
+                )
+            else:
+                await redis_client.setex(
+                    cache_key,
+                    NEGATIVE_TIER_CACHE_TTL,
+                    TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
+                )
+                logger.debug(
+                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
+                    user_id,
+                    resolution.status,
                     NEGATIVE_TIER_CACHE_TTL,
                 )
         except redis.RedisError:
@@ -336,9 +404,13 @@ async def get_cached_user_tier(
 
     total_elapsed = time.time() - start_time
     logger.info(
-        "Tier check completed: %.3fs, user_id=%s, tier=%s", total_elapsed, user_id, tier
+        "Tier check completed: %.3fs, user_id=%s, status=%s, tier=%s",
+        total_elapsed,
+        user_id,
+        resolution.status,
+        resolution.tier,
     )
-    return tier
+    return resolution
 
 
 async def check_usage(
@@ -350,7 +422,7 @@ async def check_usage(
     Returns UsageStatus with allowed flag and remaining quota.
     """
     # Check if user is authenticated
-    user_id, tier = extract_user_info_from_token(request)
+    user_id, tier = await extract_user_info_from_token(request)
 
     # Log diagnostic info for debugging mismatches between frontend and backend
     if not user_id:
@@ -369,6 +441,41 @@ async def check_usage(
                 "Auth header present but token extract failed - treating as anon"
             )
 
+    if not redis_client:
+        if quota_fail_open_enabled():
+            logger.warning(
+                "Redis not available, allowing request because QUOTA_FAIL_OPEN is enabled"
+            )
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,
+                limit=-1,
+                is_authenticated=bool(user_id),
+                is_pro=False,
+                tracking_id=user_id,
+            )
+
+        logger.warning("Redis not available, denying metered request")
+        if user_id:
+            return UsageStatus(
+                allowed=False,
+                remaining=0,
+                limit=FREE_USER_LIMIT,
+                is_authenticated=True,
+                is_pro=False,
+                tracking_id=user_id,
+            )
+
+        tracking_id, _ = get_or_create_tracking_id(request)
+        return UsageStatus(
+            allowed=False,
+            remaining=0,
+            limit=ANON_LIMIT,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id=tracking_id,
+        )
+
     # Check for pro user status (combines JWT, cache, and grace period)
     if user_id:
         # Check checkout grace period first (takes priority)
@@ -385,15 +492,41 @@ async def check_usage(
                 tracking_id=user_id,
             )
 
-        # Check JWT tier first, then verify with cache if not pro
-        is_pro = tier == "pro"
-        if not is_pro:
-            actual_tier = await get_cached_user_tier(user_id, redis_client)
-            is_pro = actual_tier == "pro"
-            if is_pro:
-                logger.info(f"Pro tier confirmed via cache/API for user {user_id}")
+        jwt_tier_hint = tier
+        tier_resolution = await get_cached_user_tier(user_id, redis_client)
+        if tier_resolution.status == "confirmed_pro":
+            is_pro = True
+            logger.info(f"Pro tier confirmed via Clerk for user {user_id}")
+        elif (
+            tier_resolution.status == "transient_unavailable" and jwt_tier_hint == "pro"
+        ):
+            is_pro = True
+            logger.info(
+                "Using JWT Pro hint for user %s because Clerk tier confirmation is temporarily unavailable",
+                user_id,
+            )
         else:
-            logger.info(f"Pro user access allowed: {user_id}")
+            is_pro = False
+
+        if (
+            tier_resolution.status == "confirmed_non_pro"
+            and jwt_tier_hint == "pro"
+            and not is_pro
+        ):
+            logger.info(
+                "Ignoring stale JWT Pro hint for user %s because Clerk tier is explicitly %s",
+                user_id,
+                tier_resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
+            )
+        if (
+            tier_resolution.status == "explicit_negative"
+            and jwt_tier_hint == "pro"
+            and not is_pro
+        ):
+            logger.info(
+                "Ignoring JWT Pro hint for user %s because Clerk returned an explicit negative tier result",
+                user_id,
+            )
 
         if is_pro:
             return UsageStatus(
@@ -404,17 +537,6 @@ async def check_usage(
                 is_pro=True,
                 tracking_id=user_id,
             )
-
-    # If Redis is not available, allow the request (fail open)
-    if not redis_client:
-        logger.warning("Redis not available, allowing request")
-        return UsageStatus(
-            allowed=True,
-            remaining=-1,
-            limit=-1,
-            is_authenticated=bool(user_id),
-            is_pro=False,
-        )
 
     # Determine tracking key and limit
     if user_id:
@@ -461,10 +583,19 @@ async def check_usage(
             )
         except redis.RedisError as e:
             logger.error(f"Redis error checking anonymous usage: {e}")
+            if quota_fail_open_enabled():
+                return UsageStatus(
+                    allowed=True,
+                    remaining=-1,
+                    limit=-1,
+                    is_authenticated=False,
+                    is_pro=False,
+                    tracking_id=tracking_id,
+                )
             return UsageStatus(
-                allowed=True,
-                remaining=-1,
-                limit=-1,
+                allowed=False,
+                remaining=0,
+                limit=limit,
                 is_authenticated=False,
                 is_pro=False,
                 tracking_id=tracking_id,
@@ -490,10 +621,19 @@ async def check_usage(
         )
     except redis.RedisError as e:
         logger.error(f"Redis error checking user usage: {e}")
+        if quota_fail_open_enabled():
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,
+                limit=-1,
+                is_authenticated=True,
+                is_pro=False,
+                tracking_id=tracking_id,
+            )
         return UsageStatus(
-            allowed=True,
-            remaining=-1,
-            limit=-1,
+            allowed=False,
+            remaining=0,
+            limit=limit,
             is_authenticated=True,
             is_pro=False,
             tracking_id=tracking_id,
@@ -509,19 +649,26 @@ async def increment_usage(
     if not redis_client or usage_status.is_pro:
         return
 
-    user_id, _ = extract_user_info_from_token(request)
     ttl = USAGE_TTL  # 30 days
 
     try:
-        if user_id:
-            # Authenticated user - use user ID
-            key = f"user:{user_id}:usage_count"
+        # tracking_id carries the post-check identity:
+        # authenticated user_id for signed-in users, cookie id for anonymous users.
+        tracking_id = usage_status.tracking_id
+        if not tracking_id:
+            logger.warning(
+                "Skipping usage increment because tracking_id is missing: authenticated=%s",
+                usage_status.is_authenticated,
+            )
+            return
+
+        if usage_status.is_authenticated:
+            key = f"user:{tracking_id}:usage_count"
             await redis_client.incr(key)
             await redis_client.expire(key, ttl)
             logger.info(f"Incremented authenticated user usage: {key}")
         else:
             # Anonymous user - always increment BOTH counters
-            tracking_id = usage_status.tracking_id
             ip_hash = hash_ip(get_client_ip(request))
 
             cookie_key = f"anon:{tracking_id}:usage_count"

@@ -131,8 +131,10 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
     async def test_paywall_response_uses_no_store_cache_headers(
         self,
+        perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
         increment_usage_mock: AsyncMock,
     ) -> None:
@@ -158,6 +160,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             response.headers.get("HX-Push-Url"),
             "/NAICS/industrial_pump",
         )
+        perform_classification_mock.assert_not_called()
         increment_usage_mock.assert_not_awaited()
 
     @patch("app.web.perform_classification")

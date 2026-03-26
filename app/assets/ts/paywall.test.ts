@@ -140,6 +140,12 @@ describe("paywall.ts", () => {
     (document.getElementById("upgrade-button") as HTMLButtonElement).click();
 
     await vi.waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    const [requestUrl, requestInit] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+    expect(requestUrl).toBe("/api/create-checkout");
+    expect(requestInit?.body).toBeDefined();
+    expect(JSON.parse(String(requestInit?.body))).toEqual({
+      return_url: "http://localhost:3000/",
+    });
     await vi.waitFor(() =>
       expect(window.__paywallNavigate).toHaveBeenCalledWith(
         "https://billing.example/checkout",

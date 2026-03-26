@@ -42,6 +42,7 @@ beforeEach(() => {
   delete window.__authReady;
   delete window.__clerkAuthListenerRegistered;
   delete window.__clerkInteractionListenersRegistered;
+  delete window.__clerkScriptFailed;
   delete window.__initPaywall;
   delete window.__paywallClerkListenerRegistered;
   delete window.__paywallInitialized;
