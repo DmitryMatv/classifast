@@ -381,8 +381,6 @@ export class ClerkAuth {
     const cleanup = () => {
       script.removeEventListener("load", onScriptLoaded);
       script.removeEventListener("error", onScriptError);
-      script.onload = null;
-      script.onerror = null;
       rejectOnScriptError = null;
     };
 
@@ -409,14 +407,6 @@ export class ClerkAuth {
 
     script.addEventListener("load", onScriptLoaded, { once: true });
     script.addEventListener("error", onScriptError, { once: true });
-    script.onload = () => {
-      onScriptLoaded();
-      return null;
-    };
-    script.onerror = () => {
-      onScriptError();
-      return null;
-    };
 
     let clerk: ClerkInstance | null = null;
     try {
@@ -785,7 +775,6 @@ export class ClerkAuth {
   private cleanupCheckoutTokens() {
     const url = new URL(window.location.href);
     const hadCheckoutParams =
-      url.searchParams.has("checkout") ||
       url.searchParams.has("checkout_token") ||
       url.searchParams.has("customer_session_token");
 
@@ -793,7 +782,6 @@ export class ClerkAuth {
       return;
     }
 
-    url.searchParams.delete("checkout");
     url.searchParams.delete("checkout_token");
     url.searchParams.delete("customer_session_token");
 

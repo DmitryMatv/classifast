@@ -474,7 +474,7 @@ describe("common.ts", () => {
     expect(openSignUpSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves the hash when cleaning checkout params after successful auth bootstrap", async () => {
+  it("preserves checkout=success, strips sensitive checkout tokens, and keeps the hash after successful auth bootstrap", async () => {
     document.body.innerHTML = `
       <div id="desktop-auth-container"></div>
       <div id="mobile-auth-container"></div>
@@ -488,14 +488,14 @@ describe("common.ts", () => {
     window.history.replaceState(
       {},
       "",
-      "/NAICS/?checkout=success&foo=bar#results",
+      "/NAICS/?checkout=success&checkout_token=checkout-secret&customer_session_token=customer-secret&foo=bar#results",
     );
 
     await import("./common");
     await flushAsyncWork();
 
     expect(window.location.pathname).toBe("/NAICS/");
-    expect(window.location.search).toBe("?foo=bar");
+    expect(window.location.search).toBe("?checkout=success&foo=bar");
     expect(window.location.hash).toBe("#results");
   });
 });
