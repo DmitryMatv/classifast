@@ -274,7 +274,7 @@ describe("common.ts", () => {
     expect(document.body.textContent).toContain("Sign Up");
   });
 
-  it("waits the full script readiness timeout after the load event", async () => {
+  it("starts Clerk when window.Clerk appears after a missed script load event", async () => {
     document.body.innerHTML = `
       <div id="desktop-auth-container"></div>
       <div id="mobile-auth-container"></div>
@@ -288,14 +288,11 @@ describe("common.ts", () => {
     script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
     document.head.appendChild(script);
 
-    await import("./common");
-    await flushAsyncWork();
-
-    script.dispatchEvent(new Event("load"));
+    const commonModule = import("./common");
     await flushAsyncWork();
     await advanceTimersAndFlushAsync(5000);
 
-    const lateClerk = {
+    window.Clerk = {
       load: vi.fn(async () => {}),
       addListener: vi.fn(() => vi.fn()),
       mountUserButton: vi.fn(),
@@ -303,13 +300,93 @@ describe("common.ts", () => {
       openSignUp: vi.fn(),
       openGoogleOneTap: vi.fn(),
     } as ClerkInstance;
-
-    window.Clerk = lateClerk;
+    if (window.Clerk) {
+      window.Clerk.session = {
+        getToken: vi.fn(async () => "token-123"),
+      };
+    }
     await advanceTimersAndFlushAsync(100);
+    await commonModule;
 
-    expect(lateClerk.load).toHaveBeenCalledTimes(1);
+    expect(window.Clerk?.load).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy).not.toHaveBeenCalledWith(
-      "Clerk script loaded but window.Clerk was unavailable",
+      "Timed out waiting for Clerk script readiness",
+    );
+  });
+
+  it("falls back immediately when Clerk script emits error before timeout", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+
+    const authReadyListener = vi.fn();
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    document.body.addEventListener("htmx:authReady", authReadyListener);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    const commonModule = await import("./common");
+    commonModule.initCommon();
+    await advanceTimersAndFlushAsync(50);
+
+    script.dispatchEvent(new Event("error"));
+    vi.runAllTimers();
+    await flushAsyncWork();
+
+    expect(window.__authReady).toBe(true);
+    expect(authReadyListener).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Sign In");
+    expect(document.body.textContent).toContain("Sign Up");
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Clerk script failed to load");
+    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+      "Timed out waiting for Clerk script readiness",
+    );
+  });
+
+  it("starts Clerk as soon as window.Clerk appears without waiting for the full timeout", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    const commonModule = import("./common");
+    await flushAsyncWork();
+    await advanceTimersAndFlushAsync(500);
+
+    window.Clerk = {
+      load: vi.fn(async () => {}),
+      addListener: vi.fn(() => vi.fn()),
+      mountUserButton: vi.fn(),
+      openSignIn: vi.fn(),
+      openSignUp: vi.fn(),
+      openGoogleOneTap: vi.fn(),
+    } as ClerkInstance;
+    if (window.Clerk) {
+      window.Clerk.session = {
+        getToken: vi.fn(async () => "token-123"),
+      };
+    }
+
+    expect(window.Clerk?.load).not.toHaveBeenCalled();
+    await advanceTimersAndFlushAsync(100);
+    await commonModule;
+
+    expect(window.Clerk?.load).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+      "Timed out waiting for Clerk script readiness",
     );
   });
 
