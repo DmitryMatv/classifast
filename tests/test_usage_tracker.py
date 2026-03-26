@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import redis.asyncio as redis
 
-from app.clerk_auth import ClerkAuthenticationError
+from app.clerk_auth import ClerkAuthenticationError, ClerkInfrastructureError
 from app.usage_tracker import (
     FREE_USER_LIMIT,
     NEGATIVE_TIER_CACHE_TTL,
@@ -204,6 +204,54 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_authenticated)
         self.assertEqual(usage_status.tracking_id, "track-123")
+
+    async def test_bearer_infrastructure_failure_falls_back_to_anonymous_quota(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+        redis_client = AsyncMock()
+        redis_client.get.side_effect = ["0", "0"]
+
+        with (
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(side_effect=ClerkInfrastructureError()),
+            ),
+            patch(
+                "app.usage_tracker.get_or_create_tracking_id",
+                return_value=("track-infra", False),
+            ),
+        ):
+            usage_status = await check_usage(request, redis_client)
+
+        self.assertTrue(usage_status.allowed)
+        self.assertFalse(usage_status.is_authenticated)
+        self.assertFalse(usage_status.is_pro)
+        self.assertEqual(usage_status.tracking_id, "track-infra")
+
+    async def test_session_cookie_infrastructure_failure_falls_back_to_anonymous_quota(
+        self,
+    ) -> None:
+        request = _build_request(cookies={"__session": "session-token"})
+        redis_client = AsyncMock()
+        redis_client.get.side_effect = ["0", "0"]
+
+        with (
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(side_effect=ClerkInfrastructureError()),
+            ),
+            patch(
+                "app.usage_tracker.get_or_create_tracking_id",
+                return_value=("track-cookie", False),
+            ),
+        ):
+            usage_status = await check_usage(request, redis_client)
+
+        self.assertTrue(usage_status.allowed)
+        self.assertFalse(usage_status.is_authenticated)
+        self.assertFalse(usage_status.is_pro)
+        self.assertEqual(usage_status.tracking_id, "track-cookie")
 
     async def test_valid_active_session_with_pro_tier_is_unlimited(self) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})

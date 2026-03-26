@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from polar_sdk._webhooks import WebhookVerificationError
 
 from app import payments
-from app.clerk_auth import ClerkAuthenticationError
+from app.clerk_auth import ClerkAuthenticationError, ClerkInfrastructureError
 from app.mapping_store import MAPPING_PRODUCTS
 
 
@@ -124,6 +124,20 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(ctx.exception.status_code, 401)
         self.assertEqual(ctx.exception.detail, "Missing token origin")
+
+    async def test_create_checkout_maps_clerk_backend_failure_to_503(self) -> None:
+        with patch(
+            "app.payments.authenticate_clerk_token_with_session",
+            new=AsyncMock(side_effect=ClerkInfrastructureError()),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(ctx.exception.status_code, 503)
+        self.assertEqual(
+            ctx.exception.detail,
+            "Authentication service temporarily unavailable",
+        )
 
     async def test_create_checkout_rejects_invalid_return_url(self) -> None:
         request = AsyncMock()

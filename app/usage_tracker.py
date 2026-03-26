@@ -12,6 +12,7 @@ from fastapi import Request, Response
 
 from .clerk_auth import (
     ClerkAuthenticationError,
+    ClerkInfrastructureError,
     authenticate_clerk_token_local,
     should_validate_clerk_azp,
 )
@@ -200,6 +201,12 @@ async def extract_from_auth_header(
     except ClerkAuthenticationError as exc:
         logger.debug("Bearer token authentication failed: %s", exc.detail)
         return None, None
+    except ClerkInfrastructureError as exc:
+        logger.warning(
+            "Bearer token verification temporarily unavailable; falling back to anonymous quota: %s",
+            exc.detail,
+        )
+        return None, None
 
 
 async def extract_from_session_cookie(
@@ -217,6 +224,12 @@ async def extract_from_session_cookie(
         )
     except ClerkAuthenticationError as exc:
         logger.debug("Session cookie authentication failed: %s", exc.detail)
+        return None, None
+    except ClerkInfrastructureError as exc:
+        logger.warning(
+            "Session cookie verification temporarily unavailable; falling back to anonymous quota: %s",
+            exc.detail,
+        )
         return None, None
 
 

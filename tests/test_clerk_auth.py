@@ -1,12 +1,15 @@
+import httpx
 import unittest
 from unittest.mock import AsyncMock, patch
 
 from app.clerk_auth import (
     ClerkAuthenticationError,
+    ClerkInfrastructureError,
     authenticate_clerk_token,
     authenticate_clerk_token_local,
     authenticate_clerk_token_with_session,
     decode_and_verify_clerk_jwt,
+    verify_clerk_session_active,
     should_validate_clerk_azp,
 )
 
@@ -130,6 +133,153 @@ class ClerkAuthTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", " , , "):
             self.assertFalse(should_validate_clerk_azp())
+
+    async def test_session_auth_propagates_infrastructure_failures(self) -> None:
+        with (
+            patch(
+                "app.clerk_auth.decode_and_verify_clerk_jwt",
+                return_value={"sid": "sess_123", "sub": "user_123"},
+            ),
+            patch(
+                "app.clerk_auth.verify_clerk_session_active",
+                new=AsyncMock(side_effect=ClerkInfrastructureError()),
+            ),
+        ):
+            with self.assertRaises(ClerkInfrastructureError):
+                await authenticate_clerk_token_with_session(
+                    "token",
+                    validate_azp=False,
+                )
+
+    async def test_verify_clerk_session_active_maps_503_to_infrastructure_error(
+        self,
+    ) -> None:
+        response = httpx.Response(
+            503,
+            request=httpx.Request("GET", "https://api.clerk.com/v1/sessions/sess_123"),
+        )
+
+        class DummyClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, *args, **kwargs):
+                return response
+
+        with (
+            patch("app.clerk_auth.CLERK_SECRET_KEY", "sk_test"),
+            patch("app.clerk_auth.httpx.AsyncClient", return_value=DummyClient()),
+        ):
+            with self.assertRaises(ClerkInfrastructureError) as ctx:
+                await verify_clerk_session_active("sess_123")
+
+        self.assertEqual(
+            ctx.exception.detail,
+            "Authentication service temporarily unavailable",
+        )
+
+    async def test_verify_clerk_session_active_maps_429_to_infrastructure_error(
+        self,
+    ) -> None:
+        response = httpx.Response(
+            429,
+            request=httpx.Request("GET", "https://api.clerk.com/v1/sessions/sess_123"),
+        )
+
+        class DummyClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, *args, **kwargs):
+                return response
+
+        with (
+            patch("app.clerk_auth.CLERK_SECRET_KEY", "sk_test"),
+            patch("app.clerk_auth.httpx.AsyncClient", return_value=DummyClient()),
+        ):
+            with self.assertRaises(ClerkInfrastructureError):
+                await verify_clerk_session_active("sess_123")
+
+    async def test_verify_clerk_session_active_maps_request_error_to_infrastructure_error(
+        self,
+    ) -> None:
+        request = httpx.Request("GET", "https://api.clerk.com/v1/sessions/sess_123")
+
+        class DummyClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, *args, **kwargs):
+                raise httpx.ConnectError("boom", request=request)
+
+        with (
+            patch("app.clerk_auth.CLERK_SECRET_KEY", "sk_test"),
+            patch("app.clerk_auth.httpx.AsyncClient", return_value=DummyClient()),
+        ):
+            with self.assertRaises(ClerkInfrastructureError):
+                await verify_clerk_session_active("sess_123")
+
+    async def test_verify_clerk_session_active_keeps_404_as_invalid_session(
+        self,
+    ) -> None:
+        response = httpx.Response(
+            404,
+            request=httpx.Request("GET", "https://api.clerk.com/v1/sessions/sess_123"),
+        )
+
+        class DummyClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, *args, **kwargs):
+                return response
+
+        with (
+            patch("app.clerk_auth.CLERK_SECRET_KEY", "sk_test"),
+            patch("app.clerk_auth.httpx.AsyncClient", return_value=DummyClient()),
+        ):
+            with self.assertRaises(ClerkAuthenticationError) as ctx:
+                await verify_clerk_session_active("sess_123")
+
+        self.assertEqual(ctx.exception.detail, "Invalid session")
+
+    async def test_verify_clerk_session_active_rejects_inactive_session(self) -> None:
+        response = httpx.Response(
+            200,
+            json={"status": "ended", "user_id": "user_123"},
+            request=httpx.Request("GET", "https://api.clerk.com/v1/sessions/sess_123"),
+        )
+
+        class DummyClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, *args, **kwargs):
+                return response
+
+        with (
+            patch("app.clerk_auth.CLERK_SECRET_KEY", "sk_test"),
+            patch("app.clerk_auth.httpx.AsyncClient", return_value=DummyClient()),
+        ):
+            with self.assertRaises(ClerkAuthenticationError) as ctx:
+                await verify_clerk_session_active("sess_123")
+
+        self.assertEqual(ctx.exception.detail, "Session is not active")
 
 
 if __name__ == "__main__":

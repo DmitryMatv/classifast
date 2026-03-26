@@ -20,10 +20,32 @@ class ClerkAuthenticationError(Exception):
         self.status_code = status_code
 
 
+class ClerkInfrastructureError(Exception):
+    def __init__(self, detail: str = "Authentication service temporarily unavailable"):
+        super().__init__(detail)
+        self.detail = detail
+        self.status_code = 503
+
+
 def should_validate_clerk_azp() -> bool:
     if not CLERK_PERMITTED_ORIGINS:
         return False
     return any(origin.strip() for origin in CLERK_PERMITTED_ORIGINS.split(","))
+
+
+def _is_transient_clerk_verification_error(exc: Exception) -> bool:
+    if isinstance(exc, (httpx.TimeoutException, httpx.RequestError)):
+        return True
+    if isinstance(exc, jwt.PyJWKClientConnectionError):
+        return True
+
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code in {429, 500, 502, 503, 504}:
+        return True
+
+    exc_text = str(exc).lower()
+    return "jwks" in exc_text and "fetch" in exc_text
 
 
 def decode_and_verify_clerk_jwt(
@@ -98,6 +120,8 @@ def decode_and_verify_clerk_jwt(
         raise ClerkAuthenticationError("Invalid token") from exc
     except Exception as exc:
         logger.error("Unexpected Clerk JWT verification error: %s", type(exc).__name__)
+        if _is_transient_clerk_verification_error(exc):
+            raise ClerkInfrastructureError() from exc
         raise ClerkAuthenticationError("Authentication failed") from exc
 
 
@@ -118,11 +142,18 @@ async def verify_clerk_session_active(session_id: str) -> str:
                     "Clerk-API-Version": "2025-11-10",
                 },
             )
-    except httpx.HTTPError as exc:
+    except (httpx.TimeoutException, httpx.RequestError) as exc:
         logger.error(
             "Clerk session verification request failed: %s", type(exc).__name__
         )
-        raise ClerkAuthenticationError("Authentication failed") from exc
+        raise ClerkInfrastructureError() from exc
+
+    if response.status_code in {429, 500, 502, 503, 504}:
+        logger.error(
+            "Clerk session verification temporarily unavailable: %s",
+            response.status_code,
+        )
+        raise ClerkInfrastructureError()
 
     if response.status_code != 200:
         logger.error("Clerk session verification failed: %s", response.status_code)

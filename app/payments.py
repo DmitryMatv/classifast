@@ -18,6 +18,7 @@ from polar_sdk.models import (
 
 from .clerk_auth import (
     ClerkAuthenticationError,
+    ClerkInfrastructureError,
     authenticate_clerk_token_with_session,
     should_validate_clerk_azp,
 )
@@ -145,6 +146,8 @@ async def get_current_user_id(authorization: str = Header(None)):
             token, validate_azp=should_validate_clerk_azp()
         )
         return user_id
+    except ClerkInfrastructureError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     except ClerkAuthenticationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
