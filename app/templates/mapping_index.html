@@ -449,9 +449,8 @@
     <main>
         <section class="container mx-auto max-w-6xl px-4 pt-8 pb-6 md:pt-10">
             <div class="catalog-panel px-5 py-6 md:px-7 md:py-7">
-                <p class="section-label mb-3">Mapping files</p>
                 <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 mb-4">
-                    Correspondence tables for cross-referencing, procurement, finance
+                    Mapping tables for cross-referencing, procurement, finance, and more
                 </h1>
                 <p class="max-w-3xl text-[1rem] md:text-[1.04rem] leading-7 text-slate-600 mb-6">
                     Browse direct classification crosswalks used to align coding standards across sourcing, ERP,
@@ -465,15 +464,15 @@
                             for operational review before purchase.</p>
                     </div>
                     <div class="catalog-meta-card">
+                        <p class="section-label mb-2">Access</p>
+                        <p class="text-slate-700 leading-6">Review the product detail page, inspect the sample
+                            structure, and purchase the full crosswalk.</p>
+                    </div>
+                    <div class="catalog-meta-card">
                         <p class="section-label mb-2">Use</p>
                         <p class="text-slate-700 leading-6">Suitable for cross-referencing, taxonomy harmonization,
                             supplier normalization,
                             tender classification, and internal reporting.</p>
-                    </div>
-                    <div class="catalog-meta-card">
-                        <p class="section-label mb-2">Access</p>
-                        <p class="text-slate-700 leading-6">Review the product detail page, inspect the sample
-                            structure, and purchase the full crosswalk.</p>
                     </div>
                 </div>
             </div>
@@ -522,10 +521,10 @@
                                 class="action-button">Buy full mapping file
                             </button>
 
-                            <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}" class="action-link">
+                            <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}" class="action-link">
                                 Download sample CSV
                             </a>
-                            <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}"
+                            <a href="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
                                 class="secondary-link text-center">Learn more
                             </a>
                         </div>
