@@ -250,20 +250,13 @@ export class ClerkAuth {
         "Timed out waiting for Clerk.load()",
       );
 
-      // Register HTMX header injection (must be after Clerk loads)
-      this.registerHtmxAuthHeader();
-
       // Check if returning from successful checkout - clean up URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      const isCheckoutSuccess = urlParams.get("checkout") === "success";
+      const isCheckoutSuccess =
+        new URLSearchParams(window.location.search).get("checkout") ===
+        "success";
 
       if (isCheckoutSuccess) {
-        // Clean up checkout params from URL
-        urlParams.delete("checkout");
-        urlParams.delete("checkout_token");
-        urlParams.delete("customer_session_token");
-        const cleanUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ""}${window.location.hash}`;
-        window.history.replaceState({}, "", cleanUrl);
+        this.cleanupCheckoutTokens();
         // Backend verifies tier via Redis-cached Clerk API - no frontend retries needed
       }
 
@@ -273,6 +266,11 @@ export class ClerkAuth {
         INITIAL_TOKEN_REFRESH_TIMEOUT_MS,
         "Timed out waiting for initial Clerk token refresh",
       );
+
+      // Only register the HTMX auth hook after the initial auth refresh settles.
+      // If bootstrap falls back to anonymous mode, requests should not be cancelled.
+      this.registerHtmxAuthHeader();
+
       this.updateAuthUI();
 
       // Signal that auth is ready for auto-classification (fire only once).
@@ -736,6 +734,8 @@ export class ClerkAuth {
   }
 
   private renderFallbackAuth() {
+    this.cleanupCheckoutTokens();
+
     const desktopContainer = document.getElementById("desktop-auth-container");
     const mobileContainer = document.getElementById("mobile-auth-container");
 
@@ -780,6 +780,25 @@ export class ClerkAuth {
     // Direct-link autoloads rely on this fallback so they do not hang forever
     // if Clerk cannot bootstrap on the page.
     signalAuthReady();
+  }
+
+  private cleanupCheckoutTokens() {
+    const url = new URL(window.location.href);
+    const hadCheckoutParams =
+      url.searchParams.has("checkout") ||
+      url.searchParams.has("checkout_token") ||
+      url.searchParams.has("customer_session_token");
+
+    if (!hadCheckoutParams) {
+      return;
+    }
+
+    url.searchParams.delete("checkout");
+    url.searchParams.delete("checkout_token");
+    url.searchParams.delete("customer_session_token");
+
+    const cleanUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, "", cleanUrl);
   }
 
   // Public method to get current auth token

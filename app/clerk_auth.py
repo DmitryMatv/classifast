@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import httpx
@@ -148,7 +149,7 @@ async def verify_clerk_session_active(session_id: str) -> str:
         )
         raise ClerkInfrastructureError() from exc
 
-    if response.status_code in {429, 500, 502, 503, 504}:
+    if response.status_code in {401, 403, 429, 500, 502, 503, 504}:
         logger.error(
             "Clerk session verification temporarily unavailable: %s",
             response.status_code,
@@ -194,7 +195,8 @@ async def authenticate_clerk_token_local(
     validate_azp: bool,
 ) -> tuple[str, str | None]:
     """Authenticate a Clerk token locally without live session verification."""
-    payload = decode_and_verify_clerk_jwt(
+    payload = await asyncio.to_thread(
+        decode_and_verify_clerk_jwt,
         token,
         require_session_claims=False,
         validate_azp=validate_azp,
@@ -212,7 +214,8 @@ async def authenticate_clerk_token_with_session(
 
     The returned tier comes from JWT public metadata and should be treated as a hint.
     """
-    payload = decode_and_verify_clerk_jwt(
+    payload = await asyncio.to_thread(
+        decode_and_verify_clerk_jwt,
         token,
         require_session_claims=True,
         validate_azp=validate_azp,
