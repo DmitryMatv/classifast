@@ -4,7 +4,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import httpx
 import redis.asyncio as redis
@@ -55,6 +55,25 @@ class UsageStatus:
     is_authenticated: bool
     is_pro: bool
     tracking_id: str | None = None
+
+
+TierResolutionStatus = Literal[
+    "confirmed_pro",
+    "confirmed_non_pro",
+    "transient_unavailable",
+    "explicit_negative",
+]
+
+
+@dataclass(frozen=True)
+class TierResolution:
+    status: TierResolutionStatus
+    tier: str | None = None
+
+
+TIER_CACHE_SENTINEL_NON_PRO = "__sentinel:non_pro"
+TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE = "__sentinel:explicit_negative"
+TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE = "__sentinel:transient_unavailable"
 
 
 def get_client_ip(request: Request) -> str:
@@ -233,13 +252,15 @@ async def extract_from_session_cookie(
         return None, None
 
 
-async def fetch_clerk_user_tier(user_id: str) -> str | None:
-    """Fetch current tier directly from Clerk API (bypasses JWT cache)."""
+async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
+    """Fetch current tier directly from Clerk API and classify the result."""
     start_time = time.time()
 
     clerk_secret = os.getenv("CLERK_SECRET_KEY")
     if not clerk_secret or not user_id:
-        return None
+        logger.error("CLERK_SECRET_KEY missing or user_id empty during tier lookup")
+        return TierResolution(status="explicit_negative")
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             api_start = time.time()
@@ -257,32 +278,53 @@ async def fetch_clerk_user_tier(user_id: str) -> str | None:
                 user_id,
                 response.status_code,
             )
+
             if response.status_code == 200:
                 data = response.json()
-                return data.get("public_metadata", {}).get("tier")
-    except (httpx.HTTPError, ValueError, KeyError) as e:
+                tier = data.get("public_metadata", {}).get("tier")
+                if tier == "pro":
+                    return TierResolution(status="confirmed_pro", tier="pro")
+                if isinstance(tier, str) and tier:
+                    return TierResolution(status="confirmed_non_pro", tier=tier)
+                return TierResolution(status="confirmed_non_pro")
+
+            if response.status_code in {401, 403, 404}:
+                return TierResolution(status="explicit_negative")
+
+            if response.status_code in {429, 500, 502, 503, 504}:
+                return TierResolution(status="transient_unavailable")
+
+            logger.warning(
+                "Unexpected Clerk tier response status: user_id=%s, status=%d",
+                user_id,
+                response.status_code,
+            )
+            return TierResolution(status="explicit_negative")
+    except (httpx.TimeoutException, httpx.RequestError) as e:
         elapsed = time.time() - start_time
         logger.warning(f"Failed to fetch tier from Clerk API: {e} ({elapsed:.3f}s)")
+        return TierResolution(status="transient_unavailable")
+    except (ValueError, KeyError, TypeError) as e:
+        elapsed = time.time() - start_time
+        logger.warning(f"Failed to parse tier from Clerk API: {e} ({elapsed:.3f}s)")
+        return TierResolution(status="explicit_negative")
     except Exception as e:  # Fallback for unexpected errors
         elapsed = time.time() - start_time
         logger.error(f"Unexpected error fetching tier from Clerk: {e} ({elapsed:.3f}s)")
-    return None
+        return TierResolution(status="explicit_negative")
 
 
 async def get_cached_user_tier(
     user_id: str, redis_client: redis.Redis | None
-) -> str | None:
+) -> TierResolution:
     """
-    Get the current Clerk tier with Redis caching.
-
-    Returns "pro" or another concrete tier when Clerk confirms it, otherwise None.
-    None means tier confirmation is unavailable/unknown and should not be treated as an
-    explicit downgrade for a JWT-hinted Pro user.
+    Preserve the distinction between confirmed non-Pro, explicit negatives,
+    and transient outages so JWT Pro hints only fail open for infrastructure issues.
     """
     start_time = time.time()
 
     if not user_id:
-        return None
+        return TierResolution(status="explicit_negative")
 
     cache_key = f"user_tier:{user_id}"
 
@@ -295,30 +337,66 @@ async def get_cached_user_tier(
                 logger.debug(
                     "Tier cache hit: user_id=%s, tier=%s", user_id, cached_value
                 )
-                # Check for negative result sentinel
-                return None if cached_value == "none" else cached_value
+                if cached_value == "pro":
+                    return TierResolution(status="confirmed_pro", tier="pro")
+                if cached_value == TIER_CACHE_SENTINEL_NON_PRO:
+                    return TierResolution(status="confirmed_non_pro")
+                if cached_value == TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE:
+                    return TierResolution(status="explicit_negative")
+                if cached_value == TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE:
+                    return TierResolution(status="transient_unavailable")
+                return TierResolution(status="confirmed_non_pro", tier=cached_value)
         except (redis.RedisError, ValueError):
             pass
 
     # Cache miss - fetch from Clerk API
-    tier = await fetch_clerk_user_tier(user_id)
+    resolution = await fetch_clerk_user_tier(user_id)
 
-    # Store in cache (including None to prevent hammering API)
     if redis_client:
         try:
-            if tier:
-                await redis_client.setex(cache_key, TIER_CACHE_TTL, tier)
+            if resolution.status == "confirmed_pro":
+                await redis_client.setex(cache_key, TIER_CACHE_TTL, "pro")
                 logger.debug(
-                    "Tier cache set: user_id=%s, tier=%s, ttl=%d",
+                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
                     user_id,
-                    tier,
+                    resolution.status,
                     TIER_CACHE_TTL,
                 )
-            else:
-                await redis_client.setex(cache_key, NEGATIVE_TIER_CACHE_TTL, "none")
+            elif resolution.status == "confirmed_non_pro":
+                await redis_client.setex(
+                    cache_key,
+                    TIER_CACHE_TTL,
+                    resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
+                )
                 logger.debug(
-                    "Tier cache set (negative): user_id=%s, ttl=%d",
+                    "Tier cache set: user_id=%s, status=%s, tier=%s, ttl=%d",
                     user_id,
+                    resolution.status,
+                    resolution.tier,
+                    TIER_CACHE_TTL,
+                )
+            elif resolution.status == "explicit_negative":
+                await redis_client.setex(
+                    cache_key,
+                    NEGATIVE_TIER_CACHE_TTL,
+                    TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE,
+                )
+                logger.debug(
+                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
+                    user_id,
+                    resolution.status,
+                    NEGATIVE_TIER_CACHE_TTL,
+                )
+            else:
+                await redis_client.setex(
+                    cache_key,
+                    NEGATIVE_TIER_CACHE_TTL,
+                    TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
+                )
+                logger.debug(
+                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
+                    user_id,
+                    resolution.status,
                     NEGATIVE_TIER_CACHE_TTL,
                 )
         except redis.RedisError:
@@ -326,9 +404,13 @@ async def get_cached_user_tier(
 
     total_elapsed = time.time() - start_time
     logger.info(
-        "Tier check completed: %.3fs, user_id=%s, tier=%s", total_elapsed, user_id, tier
+        "Tier check completed: %.3fs, user_id=%s, status=%s, tier=%s",
+        total_elapsed,
+        user_id,
+        resolution.status,
+        resolution.tier,
     )
-    return tier
+    return resolution
 
 
 async def check_usage(
@@ -359,53 +441,6 @@ async def check_usage(
                 "Auth header present but token extract failed - treating as anon"
             )
 
-    # Check for pro user status (combines JWT, cache, and grace period)
-    if user_id:
-        # Check checkout grace period first (takes priority)
-        if await has_active_grace(user_id, redis_client):
-            logger.info(
-                f"Checkout grace period active for user {user_id} - allowing unlimited access"
-            )
-            return UsageStatus(
-                allowed=True,
-                remaining=-1,
-                limit=-1,
-                is_authenticated=True,
-                is_pro=True,
-                tracking_id=user_id,
-            )
-
-        jwt_tier_hint = tier
-        actual_tier = await get_cached_user_tier(user_id, redis_client)
-        if actual_tier == "pro":
-            is_pro = True
-            logger.info(f"Pro tier confirmed via Clerk for user {user_id}")
-        elif actual_tier is None and jwt_tier_hint == "pro":
-            is_pro = True
-            logger.info(
-                "Using JWT Pro hint for user %s because Clerk tier confirmation is unavailable",
-                user_id,
-            )
-        else:
-            is_pro = False
-        if actual_tier not in (None, "pro") and jwt_tier_hint == "pro" and not is_pro:
-            logger.info(
-                "Ignoring stale JWT Pro hint for user %s because Clerk tier is explicitly %s",
-                user_id,
-                actual_tier,
-            )
-
-        if is_pro:
-            return UsageStatus(
-                allowed=True,
-                remaining=-1,  # Unlimited
-                limit=-1,
-                is_authenticated=True,
-                is_pro=True,
-                tracking_id=user_id,
-            )
-
-    # If Redis is not available, allow the request (fail open)
     if not redis_client:
         if quota_fail_open_enabled():
             logger.warning(
@@ -440,6 +475,68 @@ async def check_usage(
             is_pro=False,
             tracking_id=tracking_id,
         )
+
+    # Check for pro user status (combines JWT, cache, and grace period)
+    if user_id:
+        # Check checkout grace period first (takes priority)
+        if await has_active_grace(user_id, redis_client):
+            logger.info(
+                f"Checkout grace period active for user {user_id} - allowing unlimited access"
+            )
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,
+                limit=-1,
+                is_authenticated=True,
+                is_pro=True,
+                tracking_id=user_id,
+            )
+
+        jwt_tier_hint = tier
+        tier_resolution = await get_cached_user_tier(user_id, redis_client)
+        if tier_resolution.status == "confirmed_pro":
+            is_pro = True
+            logger.info(f"Pro tier confirmed via Clerk for user {user_id}")
+        elif (
+            tier_resolution.status == "transient_unavailable" and jwt_tier_hint == "pro"
+        ):
+            is_pro = True
+            logger.info(
+                "Using JWT Pro hint for user %s because Clerk tier confirmation is temporarily unavailable",
+                user_id,
+            )
+        else:
+            is_pro = False
+
+        if (
+            tier_resolution.status == "confirmed_non_pro"
+            and jwt_tier_hint == "pro"
+            and not is_pro
+        ):
+            logger.info(
+                "Ignoring stale JWT Pro hint for user %s because Clerk tier is explicitly %s",
+                user_id,
+                tier_resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
+            )
+        if (
+            tier_resolution.status == "explicit_negative"
+            and jwt_tier_hint == "pro"
+            and not is_pro
+        ):
+            logger.info(
+                "Ignoring JWT Pro hint for user %s because Clerk returned an explicit negative tier result",
+                user_id,
+            )
+
+        if is_pro:
+            return UsageStatus(
+                allowed=True,
+                remaining=-1,  # Unlimited
+                limit=-1,
+                is_authenticated=True,
+                is_pro=True,
+                tracking_id=user_id,
+            )
 
     # Determine tracking key and limit
     if user_id:

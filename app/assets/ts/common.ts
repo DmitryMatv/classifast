@@ -371,6 +371,12 @@ export class ClerkAuth {
       return;
     }
 
+    if (window.__clerkScriptFailed) {
+      console.error("Clerk script failed to load");
+      this.renderFallbackAuth();
+      return;
+    }
+
     let settled = false;
     let rejectOnScriptError: ((reason?: unknown) => void) | null = null;
 
@@ -398,6 +404,7 @@ export class ClerkAuth {
 
     const onScriptError = () => {
       const reject = rejectOnScriptError;
+      window.__clerkScriptFailed = true;
       settleWithFallback("Clerk script failed to load");
       reject?.(new Error("Clerk script failed to load"));
     };

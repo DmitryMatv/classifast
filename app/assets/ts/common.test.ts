@@ -21,6 +21,7 @@ describe("common.ts", () => {
     document.body.removeAttribute("data-common-initialized");
     delete document.body.dataset["commonInitialized"];
     window.__authReady = false;
+    delete window.__clerkScriptFailed;
     delete window.copyOriginalId;
   });
 
@@ -346,6 +347,34 @@ describe("common.ts", () => {
     expect(consoleErrorSpy).not.toHaveBeenCalledWith(
       "Timed out waiting for Clerk script readiness",
     );
+    expect(window.__clerkScriptFailed).toBe(true);
+  });
+
+  it("falls back immediately when Clerk script failure is already known before init", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.Clerk;
+    window.__clerkScriptFailed = true;
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js";
+    document.head.appendChild(script);
+
+    const authReadyListener = vi.fn();
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    document.body.addEventListener("htmx:authReady", authReadyListener);
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.__authReady).toBe(true);
+    expect(authReadyListener).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Sign In");
+    expect(document.body.textContent).toContain("Sign Up");
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Clerk script failed to load");
   });
 
   it("starts Clerk as soon as window.Clerk appears without waiting for the full timeout", async () => {

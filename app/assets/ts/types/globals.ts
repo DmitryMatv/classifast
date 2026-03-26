@@ -9,6 +9,7 @@ declare global {
     __authReady?: boolean;
     __clerkAuthListenerRegistered?: boolean;
     __clerkInteractionListenersRegistered?: boolean;
+    __clerkScriptFailed?: boolean;
     __initPaywall?: () => void;
     __paywallClerkListenerRegistered?: boolean;
     __paywallInitialized?: boolean;

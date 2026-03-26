@@ -10,7 +10,10 @@ from app.usage_tracker import (
     FREE_USER_LIMIT,
     NEGATIVE_TIER_CACHE_TTL,
     TIER_CACHE_TTL,
+    TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE,
+    TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
     USAGE_TTL,
+    TierResolution,
     UsageStatus,
     check_usage,
     get_cached_user_tier,
@@ -72,20 +75,24 @@ class UsageTrackerHelperTests(unittest.TestCase):
 class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
     async def test_get_cached_user_tier_uses_negative_cache_sentinel(self) -> None:
         redis_client = AsyncMock()
-        redis_client.get.return_value = b"none"
+        redis_client.get.return_value = TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE
 
-        tier = await get_cached_user_tier("user-123", redis_client)
+        resolution = await get_cached_user_tier("user-123", redis_client)
 
-        self.assertIsNone(tier)
+        self.assertEqual(resolution.status, "explicit_negative")
 
     async def test_get_cached_user_tier_fetches_and_caches_on_miss(self) -> None:
         redis_client = AsyncMock()
         redis_client.get.return_value = None
 
-        with patch("app.usage_tracker.fetch_clerk_user_tier", return_value="pro"):
-            tier = await get_cached_user_tier("user-123", redis_client)
+        with patch(
+            "app.usage_tracker.fetch_clerk_user_tier",
+            return_value=TierResolution(status="confirmed_pro", tier="pro"),
+        ):
+            resolution = await get_cached_user_tier("user-123", redis_client)
 
-        self.assertEqual(tier, "pro")
+        self.assertEqual(resolution.status, "confirmed_pro")
+        self.assertEqual(resolution.tier, "pro")
         redis_client.setex.assert_awaited_once_with(
             "user_tier:user-123",
             TIER_CACHE_TTL,
@@ -96,14 +103,34 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         redis_client = AsyncMock()
         redis_client.get.return_value = None
 
-        with patch("app.usage_tracker.fetch_clerk_user_tier", return_value=None):
-            tier = await get_cached_user_tier("user-123", redis_client)
+        with patch(
+            "app.usage_tracker.fetch_clerk_user_tier",
+            return_value=TierResolution(status="explicit_negative"),
+        ):
+            resolution = await get_cached_user_tier("user-123", redis_client)
 
-        self.assertIsNone(tier)
+        self.assertEqual(resolution.status, "explicit_negative")
         redis_client.setex.assert_awaited_once_with(
             "user_tier:user-123",
             NEGATIVE_TIER_CACHE_TTL,
-            "none",
+            TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE,
+        )
+
+    async def test_get_cached_user_tier_transient_result_is_cached(self) -> None:
+        redis_client = AsyncMock()
+        redis_client.get.return_value = None
+
+        with patch(
+            "app.usage_tracker.fetch_clerk_user_tier",
+            return_value=TierResolution(status="transient_unavailable"),
+        ):
+            resolution = await get_cached_user_tier("user-123", redis_client)
+
+        self.assertEqual(resolution.status, "transient_unavailable")
+        redis_client.setex.assert_awaited_once_with(
+            "user_tier:user-123",
+            NEGATIVE_TIER_CACHE_TTL,
+            TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
         )
 
     async def test_stale_jwt_pro_hint_is_not_treated_as_unlimited(self) -> None:
@@ -122,7 +149,12 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value="free"),
+                new=AsyncMock(
+                    return_value=TierResolution(
+                        status="confirmed_non_pro",
+                        tier="free",
+                    )
+                ),
             ),
         ):
             usage_status = await check_usage(request, redis_client)
@@ -147,7 +179,9 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value=None),
+                new=AsyncMock(
+                    return_value=TierResolution(status="transient_unavailable")
+                ),
             ),
         ):
             usage_status = await check_usage(request, AsyncMock())
@@ -156,6 +190,34 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(usage_status.is_authenticated)
         self.assertTrue(usage_status.is_pro)
         self.assertEqual(usage_status.remaining, -1)
+
+    async def test_jwt_pro_hint_is_not_unlimited_when_clerk_tier_is_explicit_negative(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+        redis_client = AsyncMock()
+        redis_client.get.return_value = "4"
+
+        with (
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", "pro")),
+            ),
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(return_value=TierResolution(status="explicit_negative")),
+            ),
+        ):
+            usage_status = await check_usage(request, redis_client)
+
+        self.assertTrue(usage_status.allowed)
+        self.assertTrue(usage_status.is_authenticated)
+        self.assertFalse(usage_status.is_pro)
+        self.assertEqual(usage_status.remaining, FREE_USER_LIMIT - 4)
 
     async def test_missing_jwt_pro_hint_and_unknown_clerk_tier_uses_free_quota(
         self,
@@ -175,7 +237,9 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value=None),
+                new=AsyncMock(
+                    return_value=TierResolution(status="transient_unavailable")
+                ),
             ),
         ):
             usage_status = await check_usage(request, redis_client)
@@ -267,7 +331,9 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value="pro"),
+                new=AsyncMock(
+                    return_value=TierResolution(status="confirmed_pro", tier="pro")
+                ),
             ),
         ):
             usage_status = await check_usage(request, AsyncMock())
@@ -294,7 +360,12 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value="free"),
+                new=AsyncMock(
+                    return_value=TierResolution(
+                        status="confirmed_non_pro",
+                        tier="free",
+                    )
+                ),
             ),
         ):
             usage_status = await check_usage(request, redis_client)
@@ -342,7 +413,12 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value="free"),
+                new=AsyncMock(
+                    return_value=TierResolution(
+                        status="confirmed_non_pro",
+                        tier="free",
+                    )
+                ),
             ),
             patch(
                 "app.usage_tracker.verify_clerk_session_active",
@@ -374,7 +450,12 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value="free"),
+                new=AsyncMock(
+                    return_value=TierResolution(
+                        status="confirmed_non_pro",
+                        tier="free",
+                    )
+                ),
             ),
         ):
             usage_status = await check_usage(request, AsyncMock())
@@ -398,7 +479,12 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value="free"),
+                new=AsyncMock(
+                    return_value=TierResolution(
+                        status="confirmed_non_pro",
+                        tier="free",
+                    )
+                ),
             ),
             patch(
                 "app.usage_tracker.verify_clerk_session_active",
@@ -448,6 +534,64 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(usage_status.allowed)
         self.assertEqual(usage_status.remaining, -1)
+
+    async def test_redis_unavailable_short_circuits_before_tier_or_grace_checks(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+
+        with (
+            patch("app.usage_tracker.QUOTA_FAIL_OPEN", True),
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", "pro")),
+            ),
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(side_effect=AssertionError("should not check grace")),
+            ) as grace_mock,
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(side_effect=AssertionError("should not resolve tier")),
+            ) as tier_mock,
+        ):
+            usage_status = await check_usage(request, None)
+
+        self.assertTrue(usage_status.allowed)
+        self.assertTrue(usage_status.is_authenticated)
+        self.assertFalse(usage_status.is_pro)
+        self.assertEqual(usage_status.tracking_id, "user-123")
+        grace_mock.assert_not_called()
+        tier_mock.assert_not_called()
+
+    async def test_redis_unavailable_denied_short_circuits_before_tier_or_grace_checks(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+
+        with (
+            patch("app.usage_tracker.QUOTA_FAIL_OPEN", False),
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", "pro")),
+            ),
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(side_effect=AssertionError("should not check grace")),
+            ) as grace_mock,
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(side_effect=AssertionError("should not resolve tier")),
+            ) as tier_mock,
+        ):
+            usage_status = await check_usage(request, None)
+
+        self.assertFalse(usage_status.allowed)
+        self.assertTrue(usage_status.is_authenticated)
+        self.assertFalse(usage_status.is_pro)
+        self.assertEqual(usage_status.tracking_id, "user-123")
+        grace_mock.assert_not_called()
+        tier_mock.assert_not_called()
 
     async def test_checkout_grace_allows_verified_user(self) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})
@@ -532,7 +676,12 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch(
                 "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(return_value="free"),
+                new=AsyncMock(
+                    return_value=TierResolution(
+                        status="confirmed_non_pro",
+                        tier="free",
+                    )
+                ),
             ),
             patch("app.usage_tracker.QUOTA_FAIL_OPEN", False),
         ):
