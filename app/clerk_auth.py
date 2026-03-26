@@ -20,6 +20,12 @@ class ClerkAuthenticationError(Exception):
         self.status_code = status_code
 
 
+def should_validate_clerk_azp() -> bool:
+    if not CLERK_PERMITTED_ORIGINS:
+        return False
+    return any(origin.strip() for origin in CLERK_PERMITTED_ORIGINS.split(","))
+
+
 def decode_and_verify_clerk_jwt(
     token: str,
     *,

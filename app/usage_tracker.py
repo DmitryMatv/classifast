@@ -10,7 +10,11 @@ import httpx
 import redis.asyncio as redis
 from fastapi import Request, Response
 
-from .clerk_auth import ClerkAuthenticationError, authenticate_clerk_token_local
+from .clerk_auth import (
+    ClerkAuthenticationError,
+    authenticate_clerk_token_local,
+    should_validate_clerk_azp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +195,7 @@ async def extract_from_auth_header(
     try:
         return await authenticate_clerk_token_local(
             token,
-            validate_azp=True,
+            validate_azp=should_validate_clerk_azp(),
         )
     except ClerkAuthenticationError as exc:
         logger.debug("Bearer token authentication failed: %s", exc.detail)

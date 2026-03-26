@@ -62,6 +62,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         polar_context.__exit__.return_value = None
 
         with (
+            patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", "https://classifast.com"),
             patch.dict(
                 os.environ,
                 {"POLAR_PRO_PRODUCT_ID": "configured-pro-product"},
@@ -84,6 +85,21 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(user_id, "user_123")
         self.assertEqual(response["url"], "https://polar.example/checkout")
         auth_mock.assert_awaited_once_with("token", validate_azp=True)
+
+    async def test_create_checkout_skips_azp_when_permitted_origins_not_configured(
+        self,
+    ) -> None:
+        with (
+            patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", ""),
+            patch(
+                "app.payments.authenticate_clerk_token_with_session",
+                new=AsyncMock(return_value=("user_123", "free")),
+            ) as auth_mock,
+        ):
+            user_id = await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(user_id, "user_123")
+        auth_mock.assert_awaited_once_with("token", validate_azp=False)
 
     async def test_create_checkout_rejects_invalid_session_from_strict_auth(
         self,

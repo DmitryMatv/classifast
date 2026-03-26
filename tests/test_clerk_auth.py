@@ -7,6 +7,7 @@ from app.clerk_auth import (
     authenticate_clerk_token_local,
     authenticate_clerk_token_with_session,
     decode_and_verify_clerk_jwt,
+    should_validate_clerk_azp,
 )
 
 
@@ -122,6 +123,13 @@ class ClerkAuthTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(ctx.exception.detail, "Server configuration error")
         self.assertEqual(ctx.exception.status_code, 500)
+
+    def test_should_validate_clerk_azp_reflects_configured_origins(self) -> None:
+        with patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", " , https://a.example , "):
+            self.assertTrue(should_validate_clerk_azp())
+
+        with patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", " , , "):
+            self.assertFalse(should_validate_clerk_azp())
 
 
 if __name__ == "__main__":

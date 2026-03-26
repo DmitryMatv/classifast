@@ -235,6 +235,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         redis_client.get.return_value = "2"
 
         with (
+            patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", "https://classifast.com"),
             patch(
                 "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "free")),
@@ -282,6 +283,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         request = _build_request(headers={"authorization": "Bearer token"})
 
         with (
+            patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", "https://classifast.com"),
             patch(
                 "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "free")),
@@ -306,6 +308,31 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(usage_status.is_authenticated)
         auth_mock.assert_awaited_once_with("token", validate_azp=True)
         verify_mock.assert_not_called()
+
+    async def test_quota_auth_skips_azp_when_permitted_origins_not_configured(
+        self,
+    ) -> None:
+        request = _build_request(headers={"authorization": "Bearer token"})
+
+        with (
+            patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", ""),
+            patch(
+                "app.usage_tracker.authenticate_clerk_token_local",
+                new=AsyncMock(return_value=("user-123", "free")),
+            ) as auth_mock,
+            patch(
+                "app.usage_tracker.has_active_grace",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.usage_tracker.get_cached_user_tier",
+                new=AsyncMock(return_value="free"),
+            ),
+        ):
+            usage_status = await check_usage(request, AsyncMock())
+
+        self.assertTrue(usage_status.allowed)
+        auth_mock.assert_awaited_once_with("token", validate_azp=False)
 
     async def test_quota_auth_does_not_verify_live_session_for_session_cookie(
         self,
