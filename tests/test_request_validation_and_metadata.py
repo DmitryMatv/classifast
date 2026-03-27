@@ -1,4 +1,5 @@
 import unittest
+from html import escape
 from pathlib import Path
 
 import httpx
@@ -170,10 +171,14 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response = await client.get(f"/{self.classifier_type}/industrial_pump")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn('hx-trigger="initial-results-ready once"', response.text)
-        self.assertIn('data-auth-gated="true"', response.text)
-        self.assertIn('"track_usage": true', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('data-initial-query-present="true"', response.text)
+        self.assertIn('data-initial-track-usage="true"', response.text)
+        self.assertIn(">industrial pump</textarea>", response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertNotIn('name="push_url"', response.text)
+        self.assertNotIn('name="track_usage"', response.text)
 
     async def test_base_page_keeps_immediate_unmetered_initial_loader(self):
         transport = httpx.ASGITransport(app=self.app)
@@ -185,10 +190,32 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response = await client.get(f"/{self.classifier_type}/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn('hx-trigger="load"', response.text)
-        self.assertIn('data-auth-gated="false"', response.text)
-        self.assertIn('"track_usage": false', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('data-initial-query-present="false"', response.text)
+        self.assertIn('data-initial-track-usage="false"', response.text)
+        example_query = self.config["example"].replace("Example:", "").strip()
+        self.assertIn(f">{escape(example_query)}</textarea>", response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertNotIn('name="push_url"', response.text)
+        self.assertNotIn('name="track_usage"', response.text)
+
+    async def test_base_page_uses_textarea_value_as_initial_autoload_source(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(f"/{self.classifier_type}/")
+
+        self.assertEqual(response.status_code, 200)
+        example_query = self.config["example"].replace("Example:", "").strip()
+        self.assertIn(
+            f'id="product_description_area" placeholder="{escape(self.config["example"])}"',
+            response.text,
+        )
+        self.assertIn(f">{escape(example_query)}</textarea>", response.text)
 
     def _expected_generic_name(self) -> str:
         if self.classifier_type == "UNSPSC":

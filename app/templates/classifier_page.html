@@ -654,10 +654,10 @@
         <div class="container mx-auto flex min-h-14 justify-between items-center max-w-6xl px-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <h1 class="text-sm md:text-xl font-medium text-slate-600 mobile-hidden">
-                    {{ classifier_type.upper() }} Classification
-                </h1>
             </a>
+            <h1 class="text-sm md:text-xl font-medium text-slate-600 mobile-hidden">
+                {{ classifier_type.upper() }} Classification
+            </h1>
 
             <nav class="desktop-nav ml-auto mr-8" role="navigation" aria-label="Main navigation">
                 <ul class="flex space-x-6 items-center">
@@ -777,8 +777,12 @@
                 </div>
             </div>
 
-            <form hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
+            <form id="classifier-form"
+                hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
+                data-initial-query-present="{% if url_params.search %}true{% else %}false{% endif %}"
+                data-initial-track-usage="{% if url_params.search %}true{% else %}false{% endif %}"
+                data-autoload-enabled="{% if trigger_search_on_load and versions %}true{% else %}false{% endif %}">
 
                 {% if versions %}
                 <div class="flex items-center justify-start mb-1">
@@ -795,7 +799,7 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
                     autofocus
-                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-20 max-h-200 resize-y mb-1">{%- if url_params.search -%}{{ url_params.search | escape }}{%- endif -%}</textarea>
+                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-20 max-h-200 resize-y mb-1">{%- if query -%}{{ query | escape }}{%- endif -%}</textarea>
                 <!-- Textarea enhancer is initialized inline at the bottom -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
@@ -832,17 +836,6 @@
                 {% include 'results.html' %}
             </div>
         </section>
-
-        {% if trigger_search_on_load and versions %}
-        <div id="initial-results-loader"
-            hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-            hx-trigger="{% if url_params.search %}initial-results-ready once{% else %}load{% endif %}"
-            hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
-            data-initial-results-loader="true"
-            data-auth-gated="{% if url_params.search %}true{% else %}false{% endif %}"
-            hx-vals='{"version": "{{ url_params.version if url_params.version else versions[0] }}", "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k }}, "push_url": false, "track_usage": {{ "true" if url_params.search else "false" }}}'>
-        </div>
-        {% endif %}
 
         <!-- Standard-specific content sections to address Google indexing issues -->
         {% if classifier_type == 'UNSPSC' %}

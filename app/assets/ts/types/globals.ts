@@ -113,6 +113,7 @@ declare global {
       headers: Record<string, string>;
       xhr: XMLHttpRequest;
       elt: Element;
+      parameters: Record<string, unknown>;
     };
   }
 
@@ -145,6 +146,7 @@ declare global {
   interface HtmxResponseErrorEvent extends CustomEvent {
     detail: {
       xhr: XMLHttpRequest;
+      elt: Element;
       target: HTMLElement;
     };
   }
