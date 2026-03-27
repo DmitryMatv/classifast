@@ -216,28 +216,32 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
-        self.assertIn('"top_k": 30', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_naics_page_defaults_to_top_10(self) -> None:
         response = await self._request("/NAICS/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
-        self.assertIn('"top_k": 10', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
         response = await self._request("/UNSPSC/?top_k=999")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
-        self.assertIn('"top_k": 30', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
         response = await self._request("/NAICS/?top_k=999")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
-        self.assertIn('"top_k": 10', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
 
 class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):

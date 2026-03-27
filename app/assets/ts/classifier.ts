@@ -10,6 +10,15 @@ const MAX_SCORE_BAR_STAGGER_MS = 600;
  */
 
 class ClassifierPage {
+  private autoloadStatus:
+    | "idle"
+    | "pending"
+    | "triggered"
+    | "cancelled"
+    | "completed" = "idle";
+  private pendingAutoloadRequestConfig: { trackUsage: boolean } | null = null;
+  private autoloadRequestInFlight = false;
+
   constructor() {
     this.init();
   }
@@ -20,6 +29,7 @@ class ClassifierPage {
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
+    this.setupAutoloadCancellationListeners();
     this.attachShareButtonListener();
     this.animateScoreBars(document);
   }
@@ -40,47 +50,103 @@ class ClassifierPage {
     return target instanceof HTMLElement && target.id === "results-container";
   }
 
-  private getInitialResultsLoader(): HTMLElement | null {
-    return document.querySelector("[data-initial-results-loader='true']");
+  private getClassifierForm(): HTMLFormElement | null {
+    return document.getElementById("classifier-form") as HTMLFormElement | null;
   }
 
-  private cleanupInitialResultsLoader(): void {
-    this.getInitialResultsLoader()?.remove();
+  private getAutoloadConfig(): {
+    enabled: boolean;
+    requiresAuthReady: boolean;
+    trackUsage: boolean;
+  } | null {
+    const form = this.getClassifierForm();
+    if (!form) {
+      return null;
+    }
+
+    return {
+      enabled: form.dataset["autoloadEnabled"] === "true",
+      requiresAuthReady: form.dataset["initialQueryPresent"] === "true",
+      trackUsage: form.dataset["initialTrackUsage"] === "true",
+    };
+  }
+
+  private isAutoloadRequest(element: Element | null): boolean {
+    const form = this.getClassifierForm();
+    return !!(form && element === form && this.autoloadRequestInFlight);
   }
 
   private cancelInitialResultsAutoload(): void {
-    const loader = this.getInitialResultsLoader();
-    if (!loader) {
+    if (
+      this.autoloadStatus === "completed" ||
+      this.autoloadStatus === "triggered"
+    ) {
       return;
     }
 
-    loader.dataset["autoloadCancelled"] = "true";
-    loader.remove();
+    this.autoloadStatus = "cancelled";
+    this.hideLoadingIndicator();
+    this.pendingAutoloadRequestConfig = null;
+    this.autoloadRequestInFlight = false;
+  }
+
+  private completeInitialResultsAutoload(): void {
+    this.autoloadStatus = "completed";
+    this.pendingAutoloadRequestConfig = null;
+    this.autoloadRequestInFlight = false;
+  }
+
+  private submitInitialResultsAutoload(trackUsage: boolean): void {
+    const form = this.getClassifierForm();
+
+    if (
+      !form ||
+      this.autoloadStatus === "triggered" ||
+      this.autoloadStatus === "completed" ||
+      this.autoloadStatus === "cancelled" ||
+      !window.htmx
+    ) {
+      return;
+    }
+
+    this.autoloadStatus = "triggered";
+    this.pendingAutoloadRequestConfig = { trackUsage };
+    this.autoloadRequestInFlight = true;
+    window.htmx.trigger(form, "submit");
   }
 
   private setupInitialResultsAutoload(): void {
-    const loader = this.getInitialResultsLoader();
-    if (!loader || loader.dataset["authGated"] !== "true") {
+    const config = this.getAutoloadConfig();
+    if (!config?.enabled) {
       return;
     }
 
     const triggerInitialResultsLoad = () => {
       if (
-        !loader.isConnected ||
-        loader.dataset["autoloadTriggered"] === "true" ||
-        loader.dataset["autoloadCancelled"] === "true" ||
-        !window.htmx
+        this.autoloadStatus === "cancelled" ||
+        this.autoloadStatus === "triggered" ||
+        this.autoloadStatus === "completed"
       ) {
         return;
       }
 
-      loader.dataset["autoloadTriggered"] = "true";
-      window.htmx.trigger(loader, "initial-results-ready");
+      this.submitInitialResultsAutoload(config.trackUsage);
     };
 
     const scheduleInitialResultsLoad = () => {
+      if (this.autoloadStatus === "cancelled") {
+        return;
+      }
+
       window.setTimeout(triggerInitialResultsLoad, 0);
     };
+
+    this.autoloadStatus = "pending";
+
+    if (!config.requiresAuthReady) {
+      scheduleInitialResultsLoad();
+      return;
+    }
 
     if (window.__authReady) {
       scheduleInitialResultsLoad();
@@ -150,7 +216,6 @@ class ClassifierPage {
     this.syncSelectState("version_selector");
     this.syncSelectState("show_top_k_categories");
     this.hideLoadingIndicator();
-    this.cleanupInitialResultsLoader();
   }
 
   private animateScoreBars(root: ParentNode = document): void {
@@ -201,7 +266,6 @@ class ClassifierPage {
   private handleResultsSwap(): void {
     this.ensureResultsSectionVisible();
     this.attachShareButtonListener();
-    this.cleanupInitialResultsLoader();
   }
 
   private handleResultsSettle(): void {
@@ -257,17 +321,50 @@ class ClassifierPage {
     }
   }
 
+  private setupAutoloadCancellationListeners(): void {
+    const productDescriptionArea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+
+    if (!productDescriptionArea) {
+      return;
+    }
+
+    productDescriptionArea.addEventListener("input", () => {
+      if (this.autoloadStatus === "pending") {
+        this.cancelInitialResultsAutoload();
+      }
+    });
+  }
+
   /**
    * Setup HTMX event listeners for response handling
    */
   private setupHTMXListeners(): void {
+    document.body.addEventListener("htmx:configRequest", (evt: Event) => {
+      const htmxEvent = evt as HtmxConfigRequestEvent;
+      const form = this.getClassifierForm();
+
+      if (
+        !form ||
+        htmxEvent.detail.elt !== form ||
+        !this.pendingAutoloadRequestConfig
+      ) {
+        return;
+      }
+
+      htmxEvent.detail.parameters["push_url"] = "false";
+      htmxEvent.detail.parameters["track_usage"] = this
+        .pendingAutoloadRequestConfig.trackUsage
+        ? "true"
+        : "false";
+      this.pendingAutoloadRequestConfig = null;
+    });
+
     document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
       const htmxEvent = evt as HtmxBeforeRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
-        if (
-          htmxEvent.detail.elt instanceof HTMLElement &&
-          !htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
-        ) {
+        if (!this.isAutoloadRequest(htmxEvent.detail.elt)) {
           this.cancelInitialResultsAutoload();
         }
         this.showLoadingIndicator();
@@ -279,13 +376,9 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxAfterRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
         this.hideLoadingIndicator();
-      }
-
-      if (
-        htmxEvent.detail.elt instanceof HTMLElement &&
-        htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
-      ) {
-        this.cleanupInitialResultsLoader();
+        if (this.isAutoloadRequest(htmxEvent.detail.elt)) {
+          this.completeInitialResultsAutoload();
+        }
       }
     });
 
@@ -315,7 +408,9 @@ class ClassifierPage {
 
           this.ensureResultsSectionVisible();
           this.hideLoadingIndicator();
-          this.cleanupInitialResultsLoader();
+          if (this.isAutoloadRequest(htmxEvent.detail.elt)) {
+            this.completeInitialResultsAutoload();
+          }
         }
       }
     });
