@@ -36,7 +36,19 @@ function createConfigRequestDetail(
     headers: {},
     xhr: {} as XMLHttpRequest,
     elt: form,
-    parameters: {} as Record<string, unknown>,
+    parameters: {
+      product_description: (
+        document.getElementById(
+          "product_description_area",
+        ) as HTMLTextAreaElement
+      ).value,
+      top_k: (
+        document.getElementById("show_top_k_categories") as HTMLSelectElement
+      ).value,
+      version: (
+        document.getElementById("version_selector") as HTMLSelectElement
+      ).value,
+    } as Record<string, unknown>,
   };
 }
 
@@ -97,13 +109,16 @@ describe("classifier.ts", () => {
         data-initial-query-present="false"
         data-initial-track-usage="false"
         data-autoload-enabled="false"
+        data-default-top-k="10"
+        data-default-version="v1"
       >
-        <textarea id="product_description_area"></textarea>
-        <select id="show_top_k_categories">
+        <textarea id="product_description_area" name="product_description"></textarea>
+        <select id="show_top_k_categories" name="top_k">
           <option value="5">5</option>
           <option value="10" selected>10</option>
+          <option value="30">30</option>
         </select>
-        <select id="version_selector">
+        <select id="version_selector" name="version">
           <option value="v1" selected>v1</option>
           <option value="v2">v2</option>
         </select>
@@ -165,6 +180,74 @@ describe("classifier.ts", () => {
     textarea.value = "industrial pump";
     topK.dispatchEvent(new Event("change", { bubbles: true }));
     expect(trigger).toHaveBeenCalled();
+  });
+
+  it("omits default top-k and version on manual requests", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "industrial pump";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("industrial pump");
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
+  });
+
+  it("keeps non-default top-k on manual requests", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const topK = document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement;
+    textarea.value = "industrial pump";
+    topK.value = "30";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["top_k"]).toBe("30");
+    expect(detail.parameters["version"]).toBeUndefined();
+  });
+
+  it("keeps non-default version on manual requests", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const versionSelector = document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement;
+    textarea.value = "industrial pump";
+    versionSelector.value = "v2";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBe("v2");
   });
 
   it("shows and hides the loading indicator across HTMX request events", async () => {
@@ -409,8 +492,10 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["push_url"]).toBe("false");
-    expect(detail.parameters["track_usage"]).toBe("true");
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
   });
 
   it("waits for authReady before autoloading auth-gated initial results", async () => {
@@ -434,6 +519,76 @@ describe("classifier.ts", () => {
     vi.advanceTimersByTime(0);
 
     expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+  });
+
+  it("suppresses deep-link autoload history pushes without changing the request URL", async () => {
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    window.__authReady = true;
+
+    window.history.replaceState({}, "", "/NAICS/industrial_pump?version=v2");
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    const historyDetail = {
+      history: {
+        type: "push",
+        path: "/NAICS/industrial_pump?version=v2",
+      },
+    };
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeHistoryUpdate", {
+        detail: historyDetail,
+      } as CustomEventInit),
+    );
+
+    expect(historyDetail.history.type).toBe("replace");
+    expect(historyDetail.history.path).toBe(
+      "/NAICS/industrial_pump?version=v2",
+    );
+  });
+
+  it("does not use history suppression fallback for base example autoload", async () => {
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    const historyDetail = {
+      history: {
+        type: "push",
+        path: "/NAICS/industrial_pump",
+      },
+    };
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeHistoryUpdate", {
+        detail: historyDetail,
+      } as CustomEventInit),
+    );
+
+    expect(historyDetail.history.type).toBe("push");
+    expect(historyDetail.history.path).toBe("/NAICS/industrial_pump");
   });
 
   it("cancels auth-gated autoload when a manual results request starts before authReady", async () => {
@@ -529,6 +684,8 @@ describe("classifier.ts", () => {
     expect(detail.parameters["push_url"]).toBe("false");
     expect(detail.parameters["track_usage"]).toBe("false");
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
   });
 
   it("keeps the default example query active for top-k changes after timer clear", async () => {
@@ -593,6 +750,8 @@ describe("classifier.ts", () => {
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
     expect(detail.parameters["push_url"]).toBe("false");
     expect(detail.parameters["track_usage"]).toBe("false");
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
   });
 
   it("replaces the stored default example query after real user input", async () => {
@@ -664,7 +823,7 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBeUndefined();
+    expect(detail.parameters["product_description"]).toBe("");
   });
 
   it("does not create a hidden fallback query for deep-link prefills", async () => {
@@ -695,7 +854,7 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBeUndefined();
+    expect(detail.parameters["product_description"]).toBe("");
   });
 
   it("preserves history metadata for the hidden active query without repopulating the textarea", async () => {
@@ -769,8 +928,8 @@ describe("classifier.ts", () => {
         detail: firstDetail,
       } as CustomEventInit),
     );
-    expect(firstDetail.parameters["push_url"]).toBe("false");
-    expect(firstDetail.parameters["track_usage"]).toBe("true");
+    expect(firstDetail.parameters["push_url"]).toBeUndefined();
+    expect(firstDetail.parameters["track_usage"]).toBeUndefined();
 
     const secondDetail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
