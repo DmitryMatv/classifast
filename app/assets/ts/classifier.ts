@@ -18,6 +18,8 @@ class ClassifierPage {
     | "completed" = "idle";
   private pendingAutoloadRequestConfig: { trackUsage: boolean } | null = null;
   private autoloadRequestInFlight = false;
+  private activeQuery: string | null = null;
+  private defaultExampleQuery: string | null = null;
 
   constructor() {
     this.init();
@@ -25,11 +27,13 @@ class ClassifierPage {
 
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
+    this.initializeQueryState();
     this.setupInitialResultsAutoload();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
     this.setupAutoloadCancellationListeners();
+    this.setupQueryStateTracking();
     this.attachShareButtonListener();
     this.animateScoreBars(document);
   }
@@ -69,6 +73,58 @@ class ClassifierPage {
       requiresAuthReady: form.dataset["initialQueryPresent"] === "true",
       trackUsage: form.dataset["initialTrackUsage"] === "true",
     };
+  }
+
+  private getProductDescriptionArea(): HTMLTextAreaElement | null {
+    return document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+  }
+
+  private initializeQueryState(): void {
+    const form = this.getClassifierForm();
+    const productDescriptionArea = this.getProductDescriptionArea();
+
+    if (!form || !productDescriptionArea) {
+      return;
+    }
+
+    if (
+      form.dataset["defaultExamplePrefill"] === "true" &&
+      form.dataset["initialQueryPresent"] !== "true" &&
+      productDescriptionArea.value.trim()
+    ) {
+      this.defaultExampleQuery = productDescriptionArea.value;
+      this.activeQuery = productDescriptionArea.value;
+    }
+  }
+
+  private getEffectiveQuery(): string {
+    const productDescriptionArea = this.getProductDescriptionArea();
+    const textareaValue = productDescriptionArea?.value.trim() ?? "";
+    if (textareaValue) {
+      return productDescriptionArea?.value ?? "";
+    }
+
+    return this.activeQuery ?? this.defaultExampleQuery ?? "";
+  }
+
+  private setupQueryStateTracking(): void {
+    const productDescriptionArea = this.getProductDescriptionArea();
+
+    if (!productDescriptionArea) {
+      return;
+    }
+
+    productDescriptionArea.addEventListener("input", () => {
+      if (productDescriptionArea.value.trim()) {
+        this.activeQuery = productDescriptionArea.value;
+      } else {
+        this.activeQuery = null;
+      }
+
+      this.defaultExampleQuery = null;
+    });
   }
 
   private isAutoloadRequest(element: Element | null): boolean {
@@ -183,16 +239,19 @@ class ClassifierPage {
   }
 
   private syncTextareaState(): void {
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
+    const productDescriptionArea = this.getProductDescriptionArea();
 
     if (!productDescriptionArea) {
       return;
     }
 
-    productDescriptionArea.defaultValue = productDescriptionArea.value;
-    productDescriptionArea.textContent = productDescriptionArea.value;
+    const syncedValue =
+      productDescriptionArea.value ||
+      this.activeQuery ||
+      this.defaultExampleQuery ||
+      "";
+    productDescriptionArea.defaultValue = syncedValue;
+    productDescriptionArea.textContent = syncedValue;
   }
 
   private syncSelectState(selectId: string): void {
@@ -283,13 +342,11 @@ class ClassifierPage {
     const topKSelector = document.getElementById(
       "show_top_k_categories",
     ) as HTMLSelectElement | null;
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
+    const productDescriptionArea = this.getProductDescriptionArea();
 
     if (topKSelector && productDescriptionArea) {
       topKSelector.addEventListener("change", () => {
-        if (productDescriptionArea.value.trim()) {
+        if (this.getEffectiveQuery()) {
           this.triggerFormSubmission();
         }
       });
@@ -322,9 +379,7 @@ class ClassifierPage {
   }
 
   private setupAutoloadCancellationListeners(): void {
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
+    const productDescriptionArea = this.getProductDescriptionArea();
 
     if (!productDescriptionArea) {
       return;
@@ -345,11 +400,16 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxConfigRequestEvent;
       const form = this.getClassifierForm();
 
-      if (
-        !form ||
-        htmxEvent.detail.elt !== form ||
-        !this.pendingAutoloadRequestConfig
-      ) {
+      if (!form || htmxEvent.detail.elt !== form) {
+        return;
+      }
+
+      const effectiveQuery = this.getEffectiveQuery();
+      if (effectiveQuery) {
+        htmxEvent.detail.parameters["product_description"] = effectiveQuery;
+      }
+
+      if (!this.pendingAutoloadRequestConfig) {
         return;
       }
 

@@ -536,18 +536,23 @@ async def show_classifier_page_with_query(
         "total_request_time": 0,
     }
 
+    raw_example = config["example"].strip()
+    display_example = raw_example if raw_example else ""
+
     # Determine if we should trigger a search on load
     # This is true if we have a URL search query OR if we're falling back to the example
     trigger_search_on_load = False
+    default_example_prefill = False
 
     if decoded_search_query:
         trigger_search_on_load = True
     else:
         # If no search query (base URL), use example query
-        example_query = config["example"].replace("Example:", "").strip()
+        example_query = raw_example
         if example_query:
             results_data["query"] = example_query
             trigger_search_on_load = True
+            default_example_prefill = True
 
     today = datetime.now()
     current_year = today.year
@@ -562,12 +567,13 @@ async def show_classifier_page_with_query(
             "heading": config["heading"],
             "description": config["description"],
             "versions": list(config["versions"].keys()),
-            "example": config["example"],
+            "example": display_example,
             "url_params": {
                 "search": decoded_search_query,
                 "version": version if version and version != first_version else "",
                 "top_k": top_k,
             },
+            "default_example_prefill": default_example_prefill,
             "trigger_search_on_load": trigger_search_on_load,
             "canonical_url": canonical_url,
             "current_year": current_year,

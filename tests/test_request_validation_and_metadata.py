@@ -175,6 +175,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-autoload-enabled="true"', response.text)
         self.assertIn('data-initial-query-present="true"', response.text)
         self.assertIn('data-initial-track-usage="true"', response.text)
+        self.assertIn('data-default-example-prefill="false"', response.text)
         self.assertIn(">industrial pump</textarea>", response.text)
         self.assertNotIn('id="initial-results-loader"', response.text)
         self.assertNotIn('name="push_url"', response.text)
@@ -194,8 +195,13 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-autoload-enabled="true"', response.text)
         self.assertIn('data-initial-query-present="false"', response.text)
         self.assertIn('data-initial-track-usage="false"', response.text)
-        example_query = self.config["example"].replace("Example:", "").strip()
+        self.assertIn('data-default-example-prefill="true"', response.text)
+        example_query = self.config["example"]
         self.assertIn(f">{escape(example_query)}</textarea>", response.text)
+        self.assertIn(
+            f'placeholder="{escape(example_query)}"',
+            response.text,
+        )
         self.assertNotIn('id="initial-results-loader"', response.text)
         self.assertNotIn('name="push_url"', response.text)
         self.assertNotIn('name="track_usage"', response.text)
@@ -210,9 +216,9 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response = await client.get(f"/{self.classifier_type}/")
 
         self.assertEqual(response.status_code, 200)
-        example_query = self.config["example"].replace("Example:", "").strip()
+        example_query = self.config["example"]
         self.assertIn(
-            f'id="product_description_area" placeholder="{escape(self.config["example"])}"',
+            f'id="product_description_area" placeholder="{escape(example_query)}"',
             response.text,
         )
         self.assertIn(f">{escape(example_query)}</textarea>", response.text)

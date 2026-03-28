@@ -12,6 +12,7 @@ const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
 const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
 const CLERK_LOAD_TIMEOUT_MS = 10000;
 const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
+const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 1000;
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -137,6 +138,8 @@ export class ShareLink {
 // Textarea enhanced functionality
 export class TextareaEnhancer {
   private textarea: HTMLTextAreaElement | null;
+  private defaultExampleCleared = false;
+  private defaultExampleClearTimeoutId: number | null = null;
 
   constructor(textareaId: string) {
     this.textarea = document.getElementById(
@@ -148,12 +151,90 @@ export class TextareaEnhancer {
   }
 
   private init() {
+    this.setupInitialCaretPlacement();
+    this.setupDefaultExampleClear();
+
     this.textarea?.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         this.submitForm();
       }
     });
+  }
+
+  private moveCaretToEnd() {
+    if (
+      !this.textarea ||
+      !this.textarea.value ||
+      document.activeElement !== this.textarea
+    ) {
+      return;
+    }
+
+    const length = this.textarea.value.length;
+    this.textarea.setSelectionRange(length, length);
+  }
+
+  private isDefaultExamplePrefill(): boolean {
+    const form = this.textarea?.closest("form");
+    return form?.dataset["defaultExamplePrefill"] === "true";
+  }
+
+  private setupInitialCaretPlacement() {
+    if (!this.textarea || !this.textarea.value) {
+      return;
+    }
+
+    this.moveCaretToEnd();
+
+    this.textarea.addEventListener(
+      "focus",
+      () => {
+        this.moveCaretToEnd();
+      },
+      { once: true },
+    );
+  }
+
+  private setupDefaultExampleClear() {
+    if (!this.textarea || !this.isDefaultExamplePrefill()) {
+      return;
+    }
+
+    const initialValue = this.textarea.value;
+    if (!initialValue) {
+      return;
+    }
+
+    const clearDefaultExampleTimeout = () => {
+      if (this.defaultExampleClearTimeoutId === null) {
+        return;
+      }
+
+      window.clearTimeout(this.defaultExampleClearTimeoutId);
+      this.defaultExampleClearTimeoutId = null;
+    };
+
+    this.textarea.addEventListener("input", clearDefaultExampleTimeout, {
+      once: true,
+    });
+
+    this.defaultExampleClearTimeoutId = window.setTimeout(() => {
+      this.defaultExampleClearTimeoutId = null;
+
+      if (
+        !this.textarea ||
+        this.defaultExampleCleared ||
+        this.textarea.value !== initialValue
+      ) {
+        return;
+      }
+
+      this.defaultExampleCleared = true;
+      this.textarea.value = "";
+      this.textarea.defaultValue = "";
+      this.textarea.textContent = "";
+    }, DEFAULT_EXAMPLE_CLEAR_DELAY_MS);
   }
 
   private submitForm() {
@@ -673,9 +754,11 @@ export class ClerkAuth {
         appearance: {
           elements: {
             userButtonTrigger:
-              "h-9 w-9 rounded-full p-0 leading-none hover:bg-transparent focus:bg-transparent active:bg-transparent focus-visible:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-100",
-            userButtonAvatarBox: "h-9 w-9 rounded-full overflow-hidden",
-            userButtonBox: "h-9 w-9 rounded-full overflow-hidden",
+              "inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-0 bg-transparent p-0 leading-none shadow-none outline-none hover:bg-transparent focus:bg-transparent focus:shadow-none focus:outline-none active:bg-transparent active:shadow-none focus-visible:bg-transparent focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0",
+            userButtonAvatarBox:
+              "h-9 w-9 rounded-full overflow-hidden border-0 bg-transparent p-0 shadow-none",
+            userButtonBox:
+              "h-9 w-9 rounded-full overflow-hidden border-0 bg-transparent p-0 shadow-none",
           },
         },
       });

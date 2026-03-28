@@ -93,6 +93,7 @@ describe("classifier.ts", () => {
       <form
         id="classifier-form"
         hx-get="/NAICS/fragment"
+        data-default-example-prefill="false"
         data-initial-query-present="false"
         data-initial-track-usage="false"
         data-autoload-enabled="false"
@@ -509,13 +510,14 @@ describe("classifier.ts", () => {
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
-    textarea.value = "Example industrial pump";
+    form.dataset["defaultExamplePrefill"] = "true";
+    textarea.value = "Industrial pump";
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
 
     expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
-    expect(textarea.value).toBe("Example industrial pump");
+    expect(textarea.value).toBe("Industrial pump");
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
@@ -526,6 +528,201 @@ describe("classifier.ts", () => {
 
     expect(detail.parameters["push_url"]).toBe("false");
     expect(detail.parameters["track_usage"]).toBe("false");
+    expect(detail.parameters["product_description"]).toBe("Industrial pump");
+  });
+
+  it("keeps the default example query active for top-k changes after timer clear", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const topK = document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+    vi.mocked(window.htmx!.trigger).mockClear();
+
+    textarea.value = "";
+    topK.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+  });
+
+  it("uses the stored default example query when configRequest runs after timer clear", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    textarea.value = "";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("Industrial pump");
+    expect(detail.parameters["push_url"]).toBe("false");
+    expect(detail.parameters["track_usage"]).toBe("false");
+  });
+
+  it("replaces the stored default example query after real user input", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+
+    textarea.value = "custom typed query";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("custom typed query");
+  });
+
+  it("drops the hidden fallback query after the user clears the textarea", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const topK = document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+    vi.mocked(window.htmx!.trigger).mockClear();
+
+    textarea.value = "";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    topK.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBeUndefined();
+  });
+
+  it("does not create a hidden fallback query for deep-link prefills", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "false";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "helicopter taxi";
+
+    await import("./classifier");
+
+    textarea.value = "";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBeUndefined();
+  });
+
+  it("preserves history metadata for the hidden active query without repopulating the textarea", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+
+    textarea.value = "";
+    document.body.dispatchEvent(new CustomEvent("htmx:beforeHistorySave"));
+
+    expect(textarea.value).toBe("");
+    expect(textarea.defaultValue).toBe("Industrial pump");
+    expect(textarea.textContent).toBe("Industrial pump");
   });
 
   it("keeps the deep-link query in the textarea during auth-gated autoload", async () => {

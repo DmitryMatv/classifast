@@ -19,7 +19,9 @@ describe("common.ts", () => {
     vi.useFakeTimers();
     document.body.innerHTML = "";
     document.body.removeAttribute("data-common-initialized");
+    document.body.removeAttribute("data-auth-ui");
     delete document.body.dataset["commonInitialized"];
+    delete document.body.dataset["authUi"];
     window.__authReady = false;
     delete window.__clerkScriptFailed;
     delete window.copyOriginalId;
@@ -105,6 +107,7 @@ describe("common.ts", () => {
   });
 
   it("submits textarea form on Enter but not Shift+Enter", async () => {
+    document.body.dataset["authUi"] = "disabled";
     document.body.innerHTML = `
       <form>
         <textarea id="product_description_area"></textarea>
@@ -135,6 +138,170 @@ describe("common.ts", () => {
       }),
     );
     expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves the caret to the end of initial prefilled text when already focused on init", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="true">
+        <textarea id="product_description_area" autofocus>Industrial pump</textarea>
+      </form>
+    `;
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.focus();
+
+    await import("./common");
+
+    const expectedPosition = textarea.value.length;
+
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.selectionStart).toBe(expectedPosition);
+    expect(textarea.selectionEnd).toBe(expectedPosition);
+  });
+
+  it("moves the caret to the end of initial prefilled text when focus arrives after init", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="false">
+        <textarea id="product_description_area" autofocus>helicopter taxi</textarea>
+      </form>
+    `;
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
+
+    await import("./common");
+
+    expect(setSelectionRangeSpy).not.toHaveBeenCalled();
+
+    textarea.focus();
+
+    const expectedPosition = textarea.value.length;
+
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.selectionStart).toBe(expectedPosition);
+    expect(textarea.selectionEnd).toBe(expectedPosition);
+    expect(setSelectionRangeSpy).toHaveBeenCalledWith(
+      expectedPosition,
+      expectedPosition,
+    );
+  });
+
+  it("moves the caret to the end for non-default prefilled text", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="false">
+        <textarea id="product_description_area" autofocus>industrial pump</textarea>
+      </form>
+    `;
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
+
+    await import("./common");
+    textarea.focus();
+
+    const expectedPosition = textarea.value.length;
+
+    expect(setSelectionRangeSpy).toHaveBeenCalledWith(
+      expectedPosition,
+      expectedPosition,
+    );
+    expect(textarea.selectionStart).toBe(expectedPosition);
+    expect(textarea.selectionEnd).toBe(expectedPosition);
+  });
+
+  it("does not move the caret for an empty default example textarea", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="true">
+        <textarea id="product_description_area" autofocus></textarea>
+      </form>
+    `;
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
+
+    await import("./common");
+    textarea.focus();
+
+    expect(setSelectionRangeSpy).not.toHaveBeenCalled();
+  });
+
+  it("clears the default example text after the configured delay", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="true">
+        <textarea id="product_description_area">Industrial pump</textarea>
+      </form>
+    `;
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+
+    expect(textarea.value).toBe("Industrial pump");
+
+    await advanceTimersAndFlushAsync(999);
+
+    expect(textarea.value).toBe("Industrial pump");
+
+    await advanceTimersAndFlushAsync(1);
+
+    expect(textarea.value).toBe("");
+    expect(textarea.defaultValue).toBe("");
+    expect(textarea.textContent).toBe("");
+  });
+
+  it("does not clear the default example text if the user edits it before the timeout", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="true">
+        <textarea id="product_description_area">Industrial pump</textarea>
+      </form>
+    `;
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump updated";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    await advanceTimersAndFlushAsync(1000);
+
+    expect(textarea.value).toBe("Industrial pump updated");
+  });
+
+  it("does not schedule auto-clear for non-default prefilled text", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="false">
+        <textarea id="product_description_area">helicopter taxi</textarea>
+      </form>
+    `;
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+
+    await advanceTimersAndFlushAsync(1000);
+
+    expect(textarea.value).toBe("helicopter taxi");
   });
 
   it("registers copyOriginalId and shows a tooltip when copying", async () => {
@@ -233,6 +400,34 @@ describe("common.ts", () => {
     expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).not.toContain("Sign In");
+  });
+
+  it("mounts Clerk user buttons without the extra trigger ring or background chrome", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.session = {
+        getToken: vi.fn(async () => "token-123"),
+      };
+    }
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.Clerk?.mountUserButton).toHaveBeenCalledTimes(2);
+
+    const desktopCall = vi.mocked(window.Clerk!.mountUserButton).mock.calls[0];
+    const desktopOptions = desktopCall?.[1];
+    const desktopTriggerClasses =
+      desktopOptions?.appearance?.elements?.userButtonTrigger ?? "";
+
+    expect(desktopTriggerClasses).toContain("focus:outline-none");
+    expect(desktopTriggerClasses).toContain("focus-visible:ring-0");
+    expect(desktopTriggerClasses).not.toContain("focus-visible:ring-2");
+    expect(desktopTriggerClasses).not.toContain("ring-offset");
   });
 
   it("dispatches htmx:authReady when Clerk falls back", async () => {
