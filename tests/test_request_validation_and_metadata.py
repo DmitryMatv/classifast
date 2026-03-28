@@ -8,8 +8,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
-from app.main import URLEncodingValidationMiddleware
-from app.web import router
+from app.main import QueryNormalizationMiddleware, URLEncodingValidationMiddleware
+from app.web import get_default_top_k, router
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -21,6 +21,26 @@ def _build_middleware_test_app() -> FastAPI:
     @app.get("/echo")
     async def echo(request: Request):
         return JSONResponse({"q": request.query_params.get("q", "")})
+
+    return app
+
+
+def _build_query_normalization_test_app() -> FastAPI:
+    app = FastAPI()
+    app.add_middleware(QueryNormalizationMiddleware)
+
+    @app.get("/echo")
+    async def echo(request: Request):
+        return JSONResponse({"q": request.query_params.get("q", "")})
+
+    @app.get("/{classifier_type}/fragment")
+    async def fragment_echo(request: Request, classifier_type: str):
+        return JSONResponse(
+            {
+                "classifier_type": classifier_type,
+                "query": request.url.query,
+            }
+        )
 
     return app
 
@@ -76,6 +96,51 @@ class RequestValidationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"], "INVALID_ENCODING")
+
+
+class QueryNormalizationMiddlewareTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_query_normalization_test_app()
+        cls.classifier_type = "NAICS"
+
+    async def test_redirects_only_for_whitespace_normalization(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get("/echo?q=%20industrial%20%20pump%20")
+
+        self.assertEqual(response.status_code, 308)
+        self.assertEqual(
+            response.headers["Location"],
+            "http://testserver/echo?q=industrial%20pump",
+        )
+
+    async def test_fragment_keeps_existing_semantic_params_without_redirect(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(
+                f"/{self.classifier_type}/fragment",
+                params={
+                    "product_description": "pump",
+                    "push_url": "false",
+                    "track_usage": "false",
+                    "top_k": "30",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["query"],
+            "product_description=pump&push_url=false&track_usage=false&top_k=30",
+        )
 
 
 class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
@@ -176,6 +241,14 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-initial-query-present="true"', response.text)
         self.assertIn('data-initial-track-usage="true"', response.text)
         self.assertIn('data-default-example-prefill="false"', response.text)
+        self.assertIn(
+            f'data-default-top-k="{get_default_top_k(self.classifier_type)}"',
+            response.text,
+        )
+        self.assertIn(
+            f'data-default-version="{next(iter(self.config["versions"]))}"',
+            response.text,
+        )
         self.assertIn(">industrial pump</textarea>", response.text)
         self.assertNotIn('id="initial-results-loader"', response.text)
         self.assertNotIn('name="push_url"', response.text)
@@ -196,6 +269,14 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-initial-query-present="false"', response.text)
         self.assertIn('data-initial-track-usage="false"', response.text)
         self.assertIn('data-default-example-prefill="true"', response.text)
+        self.assertIn(
+            f'data-default-top-k="{get_default_top_k(self.classifier_type)}"',
+            response.text,
+        )
+        self.assertIn(
+            f'data-default-version="{next(iter(self.config["versions"]))}"',
+            response.text,
+        )
         example_query = self.config["example"]
         self.assertIn(f">{escape(example_query)}</textarea>", response.text)
         self.assertIn(

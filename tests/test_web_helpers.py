@@ -88,6 +88,8 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         params.update(extra_params)
         if "top_k" in params and params["top_k"] is None:
             params.pop("top_k")
+        if "version" in params and params["version"] is None:
+            params.pop("version")
         transport = httpx.ASGITransport(app=self.app)
         async with httpx.AsyncClient(
             transport=transport,
@@ -196,6 +198,21 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
+
+    @patch("app.web.perform_classification")
+    async def test_fragment_uses_default_version_when_omitted(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(version=None, track_usage="false")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            perform_classification_mock.call_args.kwargs["version"],
+            self.default_version,
+        )
 
 
 class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):

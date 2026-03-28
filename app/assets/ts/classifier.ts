@@ -16,8 +16,12 @@ class ClassifierPage {
     | "triggered"
     | "cancelled"
     | "completed" = "idle";
-  private pendingAutoloadRequestConfig: { trackUsage: boolean } | null = null;
+  private pendingAutoloadRequestConfig: {
+    trackUsage: boolean;
+    suppressUrlChange: boolean;
+  } | null = null;
   private autoloadRequestInFlight = false;
+  private suppressNextHistoryUpdate = false;
   private activeQuery: string | null = null;
   private defaultExampleQuery: string | null = null;
 
@@ -62,6 +66,7 @@ class ClassifierPage {
     enabled: boolean;
     requiresAuthReady: boolean;
     trackUsage: boolean;
+    suppressUrlChange: boolean;
   } | null {
     const form = this.getClassifierForm();
     if (!form) {
@@ -72,7 +77,52 @@ class ClassifierPage {
       enabled: form.dataset["autoloadEnabled"] === "true",
       requiresAuthReady: form.dataset["initialQueryPresent"] === "true",
       trackUsage: form.dataset["initialTrackUsage"] === "true",
+      suppressUrlChange: true,
     };
+  }
+
+  private getDefaultTopK(): string | null {
+    return this.getClassifierForm()?.dataset["defaultTopK"] ?? null;
+  }
+
+  private getDefaultVersion(): string | null {
+    return this.getClassifierForm()?.dataset["defaultVersion"] ?? null;
+  }
+
+  private getTopKSelector(): HTMLSelectElement | null {
+    return document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement | null;
+  }
+
+  private getVersionSelector(): HTMLSelectElement | null {
+    return document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement | null;
+  }
+
+  private canonicalizeDefaultParameters(
+    parameters: Record<string, unknown>,
+  ): void {
+    const topKSelector = this.getTopKSelector();
+    const defaultTopK = this.getDefaultTopK();
+    if (topKSelector) {
+      if (defaultTopK && topKSelector.value === defaultTopK) {
+        delete parameters["top_k"];
+      } else {
+        parameters["top_k"] = topKSelector.value;
+      }
+    }
+
+    const versionSelector = this.getVersionSelector();
+    const defaultVersion = this.getDefaultVersion();
+    if (versionSelector) {
+      if (defaultVersion && versionSelector.value === defaultVersion) {
+        delete parameters["version"];
+      } else {
+        parameters["version"] = versionSelector.value;
+      }
+    }
   }
 
   private getProductDescriptionArea(): HTMLTextAreaElement | null {
@@ -144,15 +194,26 @@ class ClassifierPage {
     this.hideLoadingIndicator();
     this.pendingAutoloadRequestConfig = null;
     this.autoloadRequestInFlight = false;
+    this.suppressNextHistoryUpdate = false;
   }
 
   private completeInitialResultsAutoload(): void {
     this.autoloadStatus = "completed";
     this.pendingAutoloadRequestConfig = null;
     this.autoloadRequestInFlight = false;
+    this.suppressNextHistoryUpdate = false;
   }
 
-  private submitInitialResultsAutoload(trackUsage: boolean): void {
+  private clearAutoloadRequestState(): void {
+    this.pendingAutoloadRequestConfig = null;
+    this.autoloadRequestInFlight = false;
+    this.suppressNextHistoryUpdate = false;
+  }
+
+  private submitInitialResultsAutoload(
+    trackUsage: boolean,
+    suppressUrlChange: boolean,
+  ): void {
     const form = this.getClassifierForm();
 
     if (
@@ -166,8 +227,9 @@ class ClassifierPage {
     }
 
     this.autoloadStatus = "triggered";
-    this.pendingAutoloadRequestConfig = { trackUsage };
+    this.pendingAutoloadRequestConfig = { trackUsage, suppressUrlChange };
     this.autoloadRequestInFlight = true;
+    this.suppressNextHistoryUpdate = trackUsage && suppressUrlChange;
     window.htmx.trigger(form, "submit");
   }
 
@@ -186,7 +248,10 @@ class ClassifierPage {
         return;
       }
 
-      this.submitInitialResultsAutoload(config.trackUsage);
+      this.submitInitialResultsAutoload(
+        config.trackUsage,
+        config.suppressUrlChange,
+      );
     };
 
     const scheduleInitialResultsLoad = () => {
@@ -408,16 +473,26 @@ class ClassifierPage {
       if (effectiveQuery) {
         htmxEvent.detail.parameters["product_description"] = effectiveQuery;
       }
+      this.canonicalizeDefaultParameters(htmxEvent.detail.parameters);
 
       if (!this.pendingAutoloadRequestConfig) {
         return;
       }
 
-      htmxEvent.detail.parameters["push_url"] = "false";
-      htmxEvent.detail.parameters["track_usage"] = this
-        .pendingAutoloadRequestConfig.trackUsage
-        ? "true"
-        : "false";
+      if (!this.pendingAutoloadRequestConfig.trackUsage) {
+        htmxEvent.detail.parameters["track_usage"] = "false";
+      } else {
+        delete htmxEvent.detail.parameters["track_usage"];
+      }
+
+      if (
+        this.pendingAutoloadRequestConfig.suppressUrlChange &&
+        !this.pendingAutoloadRequestConfig.trackUsage
+      ) {
+        htmxEvent.detail.parameters["push_url"] = "false";
+      } else {
+        delete htmxEvent.detail.parameters["push_url"];
+      }
       this.pendingAutoloadRequestConfig = null;
     });
 
@@ -476,15 +551,37 @@ class ClassifierPage {
     });
 
     document.body.addEventListener("htmx:sendAbort", () => {
+      this.clearAutoloadRequestState();
       this.hideLoadingIndicator();
     });
 
     document.body.addEventListener("htmx:timeout", () => {
+      this.clearAutoloadRequestState();
       this.hideLoadingIndicator();
     });
 
     document.body.addEventListener("htmx:beforeHistorySave", () => {
       this.syncHistoryState();
+    });
+
+    document.body.addEventListener("htmx:beforeHistoryUpdate", (evt: Event) => {
+      if (!this.suppressNextHistoryUpdate) {
+        return;
+      }
+
+      const htmxEvent = evt as CustomEvent<{
+        history?: { type?: string; path?: string };
+      }>;
+      if (!htmxEvent.detail.history) {
+        return;
+      }
+
+      htmxEvent.detail.history.type = "replace";
+      htmxEvent.detail.history.path =
+        window.location.pathname +
+        window.location.search +
+        window.location.hash;
+      this.suppressNextHistoryUpdate = false;
     });
 
     document.body.addEventListener("htmx:historyRestore", () => {

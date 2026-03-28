@@ -790,7 +790,8 @@
                 data-initial-query-present="{% if url_params.search %}true{% else %}false{% endif %}"
                 data-initial-track-usage="{% if url_params.search %}true{% else %}false{% endif %}"
                 data-default-example-prefill="{% if default_example_prefill %}true{% else %}false{% endif %}"
-                data-autoload-enabled="{% if trigger_search_on_load and versions %}true{% else %}false{% endif %}">
+                data-autoload-enabled="{% if trigger_search_on_load and versions %}true{% else %}false{% endif %}"
+                data-default-top-k="{{ default_top_k }}" data-default-version="{{ first_version }}">
 
                 {% if versions %}
                 <div class="flex items-center justify-start mb-1">
