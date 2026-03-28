@@ -131,6 +131,46 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             f"/NAICS/industrial_pump?{urlencode({'version': self.non_default_version})}",
         )
 
+    @patch("app.web.perform_classification")
+    async def test_non_default_top_k_is_appended_to_hx_push_url(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(
+            push_url="true",
+            track_usage="false",
+            top_k="30",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            f"/NAICS/industrial_pump?{urlencode({'top_k': 30})}",
+        )
+
+    @patch("app.web.perform_classification")
+    async def test_non_default_version_and_top_k_are_appended_to_hx_push_url(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(
+            push_url="true",
+            track_usage="false",
+            version=self.non_default_version,
+            top_k="30",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            "/NAICS/industrial_pump?"
+            + urlencode({"version": self.non_default_version, "top_k": 30}),
+        )
+
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")

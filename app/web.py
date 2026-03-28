@@ -295,8 +295,9 @@ async def get_classification_fragment(
             status_code=404, detail=f"Classifier '{classifier_type}' not found"
         )
 
+    default_top_k = get_default_top_k(upper_type)
     if top_k is None:
-        top_k = get_default_top_k(upper_type)
+        top_k = default_top_k
 
     versions_list = list(config["versions"].keys())
     default_version = versions_list[0] if versions_list else ""
@@ -332,10 +333,13 @@ async def get_classification_fragment(
         # HTTP headers require Latin-1 encoding
         new_url += f"/{quote(slug, safe='')}"
 
-    # Handle version query param
-    # Only append version if it's not the default one
+    params: dict[str, str | int] = {}
     if version and version != default_version:
-        new_url += f"?{urlencode({'version': version})}"
+        params["version"] = version
+    if top_k != default_top_k:
+        params["top_k"] = top_k
+    if params:
+        new_url += f"?{urlencode(params)}"
 
     # Check usage limits before processing (only for user queries, not examples)
     redis_client = getattr(request.app.state, "redis_client", None)
