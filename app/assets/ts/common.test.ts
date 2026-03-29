@@ -25,6 +25,7 @@ describe("common.ts", () => {
     window.__authReady = false;
     delete window.__clerkScriptFailed;
     delete window.copyOriginalId;
+    window.__internal_ClerkUICtor = {};
   });
 
   afterEach(() => {
@@ -395,7 +396,11 @@ describe("common.ts", () => {
     await import("./common");
     await flushAsyncWork();
 
-    expect(window.Clerk?.load).toHaveBeenCalled();
+    expect(window.Clerk?.load).toHaveBeenCalledWith({
+      ui: {
+        ClerkUI: window.__internal_ClerkUICtor,
+      },
+    });
     expect(window.Clerk?.session?.getToken).toHaveBeenCalled();
     expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
@@ -458,6 +463,25 @@ describe("common.ts", () => {
         () => new Promise<void>(() => undefined),
       ) as ClerkInstance["load"];
     }
+    const authReadyListener = vi.fn();
+    document.body.addEventListener("htmx:authReady", authReadyListener);
+
+    await import("./common");
+    await advanceTimersAndFlushAsync(10000);
+
+    expect(window.__authReady).toBe(true);
+    expect(authReadyListener).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain("Sign In");
+    expect(document.body.textContent).toContain("Sign Up");
+  });
+
+  it("falls back when the Clerk UI bundle never becomes available", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    delete window.__internal_ClerkUICtor;
+
     const authReadyListener = vi.fn();
     document.body.addEventListener("htmx:authReady", authReadyListener);
 

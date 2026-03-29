@@ -344,7 +344,7 @@ export class ClerkAuth {
 
     try {
       await this.withTimeout(
-        window.Clerk?.load() ?? Promise.reject(new Error("Clerk unavailable")),
+        ClerkAuth.loadClerk(),
         CLERK_LOAD_TIMEOUT_MS,
         "Timed out waiting for Clerk.load()",
       );
@@ -427,6 +427,20 @@ export class ClerkAuth {
       console.error("Error initializing Clerk:", err);
       this.renderFallbackAuth();
     }
+  }
+
+  private static async loadClerk(): Promise<void> {
+    const clerk = window.Clerk;
+    if (!clerk?.load) {
+      throw new Error("Clerk unavailable");
+    }
+
+    const ClerkUI = await ClerkAuth.waitForClerkUiConstructor();
+    await clerk.load({
+      ui: {
+        ClerkUI,
+      },
+    });
   }
 
   private async withTimeout<T>(
@@ -546,6 +560,20 @@ export class ClerkAuth {
     return window.Clerk ?? null;
   }
 
+  private static async waitForClerkUiConstructor(
+    timeoutMs = CLERK_SCRIPT_READINESS_TIMEOUT_MS,
+  ): Promise<NonNullable<Window["__internal_ClerkUICtor"]>> {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      const ClerkUI = window.__internal_ClerkUICtor;
+      if (ClerkUI) return ClerkUI;
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+
+    throw new Error("Clerk UI bundle unavailable");
+  }
+
   private async refreshAuthToken() {
     await ClerkAuth.performTokenRefresh();
   }
@@ -575,7 +603,7 @@ export class ClerkAuth {
         console.warn("Attempting to recover session...");
 
         try {
-          await window.Clerk.load?.();
+          await ClerkAuth.loadClerk();
           if (window.Clerk?.session) {
             const recoveredToken = await window.Clerk.session.getToken({
               expirationBufferSeconds: 15,
