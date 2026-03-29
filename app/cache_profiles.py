@@ -12,15 +12,15 @@ class CacheProfile:
 
 
 HTML_PAGE = CacheProfile(
-    browser_cache_control="public, max-age=60, stale-while-revalidate=600",
-    cloudflare_cache_control="max-age=7200, stale-while-revalidate=86400",
-    browser_max_age=60,
+    browser_cache_control="public, max-age=86400, stale-while-revalidate=604800",
+    cloudflare_cache_control="max-age=604800, stale-while-revalidate=604800",
+    browser_max_age=86400,
 )
 
 CLASSIFICATION_RESULT = CacheProfile(
-    browser_cache_control="public, max-age=60, stale-while-revalidate=600",
-    cloudflare_cache_control="max-age=86400, stale-while-revalidate=86400",
-    browser_max_age=60,
+    browser_cache_control="public, max-age=86400, stale-while-revalidate=604800",
+    cloudflare_cache_control="max-age=604800, stale-while-revalidate=604800",
+    browser_max_age=86400,
 )
 
 STATIC_CODE = CacheProfile(

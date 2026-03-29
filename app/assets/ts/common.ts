@@ -140,6 +140,7 @@ export class TextareaEnhancer {
   private textarea: HTMLTextAreaElement | null;
   private defaultExampleCleared = false;
   private defaultExampleClearTimeoutId: number | null = null;
+  private initialCaretPlacementTimeoutId: number | null = null;
 
   constructor(textareaId: string) {
     this.textarea = document.getElementById(
@@ -175,6 +176,21 @@ export class TextareaEnhancer {
     this.textarea.setSelectionRange(length, length);
   }
 
+  private scheduleCaretPlacement() {
+    if (!this.textarea || !this.textarea.value) {
+      return;
+    }
+
+    if (this.initialCaretPlacementTimeoutId !== null) {
+      window.clearTimeout(this.initialCaretPlacementTimeoutId);
+    }
+
+    this.initialCaretPlacementTimeoutId = window.setTimeout(() => {
+      this.initialCaretPlacementTimeoutId = null;
+      this.moveCaretToEnd();
+    }, 0);
+  }
+
   private isDefaultExamplePrefill(): boolean {
     const form = this.textarea?.closest("form");
     return form?.dataset["defaultExamplePrefill"] === "true";
@@ -186,11 +202,13 @@ export class TextareaEnhancer {
     }
 
     this.moveCaretToEnd();
+    this.scheduleCaretPlacement();
 
     this.textarea.addEventListener(
       "focus",
       () => {
         this.moveCaretToEnd();
+        this.scheduleCaretPlacement();
       },
       { once: true },
     );

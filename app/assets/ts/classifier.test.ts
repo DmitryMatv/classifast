@@ -907,6 +907,109 @@ describe("classifier.ts", () => {
     expect(textarea.value).toBe("helicopter taxi");
   });
 
+  it("restores the focused textarea caret after results settle", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    const resultsContainer = document.getElementById(
+      "results-container",
+    ) as HTMLElement;
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "helicopter taxi";
+
+    await import("./classifier");
+
+    textarea.focus();
+    const expectedPosition = textarea.value.length;
+    textarea.setSelectionRange(expectedPosition, expectedPosition);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeRequest", {
+        detail: {
+          elt: form,
+          target: resultsContainer,
+        },
+      } as CustomEventInit),
+    );
+
+    textarea.setSelectionRange(0, 0);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterSettle", {
+        detail: {
+          target: resultsContainer,
+        },
+      } as CustomEventInit),
+    );
+
+    expect(textarea.selectionStart).toBe(expectedPosition);
+    expect(textarea.selectionEnd).toBe(expectedPosition);
+  });
+
+  it("does not reuse a stale textarea selection when a later request starts unfocused", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    const resultsContainer = document.getElementById(
+      "results-container",
+    ) as HTMLElement;
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const topK = document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement;
+    textarea.value = "helicopter taxi";
+
+    await import("./classifier");
+
+    textarea.focus();
+    const expectedPosition = textarea.value.length;
+    textarea.setSelectionRange(expectedPosition, expectedPosition);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeRequest", {
+        detail: {
+          elt: form,
+          target: resultsContainer,
+        },
+      } as CustomEventInit),
+    );
+
+    topK.focus();
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeRequest", {
+        detail: {
+          elt: form,
+          target: resultsContainer,
+        },
+      } as CustomEventInit),
+    );
+
+    textarea.focus();
+    textarea.setSelectionRange(0, 0);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterSettle", {
+        detail: {
+          target: resultsContainer,
+        },
+      } as CustomEventInit),
+    );
+
+    expect(textarea.selectionStart).toBe(0);
+    expect(textarea.selectionEnd).toBe(0);
+  });
+
   it("clears one-shot autoload overrides immediately after configRequest", async () => {
     window.__authReady = true;
     vi.doMock("./common", () => ({

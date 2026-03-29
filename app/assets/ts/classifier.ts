@@ -24,6 +24,11 @@ class ClassifierPage {
   private suppressNextHistoryUpdate = false;
   private activeQuery: string | null = null;
   private defaultExampleQuery: string | null = null;
+  private lastKnownSelection: {
+    start: number;
+    end: number;
+    direction: "forward" | "backward" | "none";
+  } | null = null;
 
   constructor() {
     this.init();
@@ -342,6 +347,43 @@ class ClassifierPage {
     this.hideLoadingIndicator();
   }
 
+  private rememberTextareaSelection(): void {
+    const productDescriptionArea = this.getProductDescriptionArea();
+
+    if (
+      !productDescriptionArea ||
+      document.activeElement !== productDescriptionArea
+    ) {
+      this.lastKnownSelection = null;
+      return;
+    }
+
+    this.lastKnownSelection = {
+      start: productDescriptionArea.selectionStart ?? 0,
+      end: productDescriptionArea.selectionEnd ?? 0,
+      direction: productDescriptionArea.selectionDirection ?? "none",
+    };
+  }
+
+  private restoreTextareaSelection(): void {
+    const productDescriptionArea = this.getProductDescriptionArea();
+
+    if (
+      !productDescriptionArea ||
+      !this.lastKnownSelection ||
+      document.activeElement !== productDescriptionArea
+    ) {
+      return;
+    }
+
+    const selection = this.lastKnownSelection;
+    this.lastKnownSelection = null;
+    const length = productDescriptionArea.value.length;
+    const start = Math.min(selection.start, length);
+    const end = Math.min(selection.end, length);
+    productDescriptionArea.setSelectionRange(start, end, selection.direction);
+  }
+
   private animateScoreBars(root: ParentNode = document): void {
     const scoreBars = Array.from(
       root.querySelectorAll<HTMLElement>("[data-score-bar]"),
@@ -397,6 +439,7 @@ class ClassifierPage {
     if (resultsContainer) {
       this.animateScoreBars(resultsContainer);
     }
+    this.restoreTextareaSelection();
   }
 
   /**
@@ -499,6 +542,7 @@ class ClassifierPage {
     document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
       const htmxEvent = evt as HtmxBeforeRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
+        this.rememberTextareaSelection();
         if (!this.isAutoloadRequest(htmxEvent.detail.elt)) {
           this.cancelInitialResultsAutoload();
         }
@@ -542,6 +586,7 @@ class ClassifierPage {
           htmxEvent.detail.target.innerHTML = htmxEvent.detail.xhr.response;
 
           this.ensureResultsSectionVisible();
+          this.restoreTextareaSelection();
           this.hideLoadingIndicator();
           if (this.isAutoloadRequest(htmxEvent.detail.elt)) {
             this.completeInitialResultsAutoload();
@@ -561,6 +606,7 @@ class ClassifierPage {
     });
 
     document.body.addEventListener("htmx:beforeHistorySave", () => {
+      this.rememberTextareaSelection();
       this.syncHistoryState();
     });
 

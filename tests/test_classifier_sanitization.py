@@ -178,11 +178,11 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
         self.assertEqual(
             headers["Cache-Control"],
-            "public, max-age=60, stale-while-revalidate=600",
+            "public, max-age=86400, stale-while-revalidate=604800",
         )
         self.assertEqual(
             headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=86400, stale-while-revalidate=86400",
+            "max-age=604800, stale-while-revalidate=604800",
         )
         self.assertEqual(headers["Vary"], "Accept-Encoding")
 
