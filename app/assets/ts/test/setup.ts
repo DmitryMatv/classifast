@@ -25,7 +25,7 @@ function createHtmxMock(): HtmxInstance {
 
 function createClerkMock(): ClerkInstance {
   return {
-    load: vi.fn(async () => {}),
+    load: vi.fn(async (_options?: ClerkLoadOptions) => {}),
     addListener: vi.fn(() => vi.fn()),
     mountUserButton: vi.fn(),
     openSignIn: vi.fn(),
@@ -42,6 +42,8 @@ beforeEach(() => {
   delete window.__authReady;
   delete window.__clerkAuthListenerRegistered;
   delete window.__clerkInteractionListenersRegistered;
+  delete window.__clerkScriptFailed;
+  delete window.__internal_ClerkUICtor;
   delete window.__initPaywall;
   delete window.__paywallClerkListenerRegistered;
   delete window.__paywallInitialized;
@@ -96,6 +98,7 @@ beforeEach(() => {
 
   window.htmx = createHtmxMock();
   window.Clerk = createClerkMock();
+  window.__internal_ClerkUICtor = {};
 
   vi.stubGlobal(
     "fetch",

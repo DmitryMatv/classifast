@@ -1,7 +1,0 @@
-{
-  "scripts": {
-    "setup": "bun install",
-    "teardown": "docker compose down",
-    "run": "bun run dev"
-  }
-}

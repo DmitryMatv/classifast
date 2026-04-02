@@ -4,7 +4,6 @@ import secrets
 from urllib.parse import urlparse
 
 import httpx
-import jwt
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from polar_sdk import Polar
@@ -17,12 +16,13 @@ from polar_sdk.models import (
     WebhookSubscriptionUpdatedPayload,
 )
 
-from .dependencies import (
-    CLERK_FRONTEND_API,
-    CLERK_PERMITTED_ORIGINS,
-    CLERK_SECRET_KEY,
-    get_jwks_client,
+from .clerk_auth import (
+    ClerkAuthenticationError,
+    ClerkInfrastructureError,
+    authenticate_clerk_token_with_session,
+    should_validate_clerk_azp,
 )
+from .dependencies import CLERK_SECRET_KEY
 from .mapping_store import get_mapping_product
 
 # Configure logging
@@ -34,6 +34,82 @@ POLAR_ACCESS_TOKEN = os.getenv("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET")
 
 CHECKOUT_PENDING_TTL = 900  # 15 minutes - token validity
+
+
+def get_pro_product_id() -> str:
+    product_id = os.getenv("POLAR_PRO_PRODUCT_ID", "").strip()
+    if not product_id:
+        raise HTTPException(status_code=500, detail="Polar Pro product not configured")
+    return product_id
+
+
+def _normalize_candidate_ids(raw_value) -> set[str]:
+    if raw_value is None:
+        return set()
+    if isinstance(raw_value, str):
+        values = [part.strip() for part in raw_value.split(",")]
+        return {value for value in values if value}
+    if isinstance(raw_value, (list, tuple, set)):
+        normalized_values: set[str] = set()
+        for item in raw_value:
+            normalized_values.update(_normalize_candidate_ids(item))
+        return normalized_values
+    if isinstance(raw_value, dict):
+        normalized_mapping: set[str] = set()
+        for key in ("id", "product_id", "polar_product_id"):
+            normalized_mapping.update(_normalize_candidate_ids(raw_value.get(key)))
+        return normalized_mapping
+
+    normalized_object: set[str] = set()
+    for attr in ("id", "product_id", "polar_product_id"):
+        if hasattr(raw_value, attr):
+            normalized_object.update(_normalize_candidate_ids(getattr(raw_value, attr)))
+    return normalized_object
+
+
+def extract_subscription_product_ids(subscription) -> set[str]:
+    metadata = getattr(subscription, "metadata", None) or {}
+    candidate_ids: set[str] = set()
+
+    for key in ("product_id", "polar_product_id", "product_ids", "polar_product_ids"):
+        if hasattr(subscription, key):
+            candidate_ids.update(_normalize_candidate_ids(getattr(subscription, key)))
+        if isinstance(metadata, dict):
+            candidate_ids.update(_normalize_candidate_ids(metadata.get(key)))
+
+    for attr in (
+        "product",
+        "products",
+        "prices",
+        "items",
+        "subscriptions",
+        "order_items",
+    ):
+        if hasattr(subscription, attr):
+            candidate_ids.update(_normalize_candidate_ids(getattr(subscription, attr)))
+
+    return candidate_ids
+
+
+def subscription_matches_pro_entitlement(subscription) -> bool:
+    try:
+        configured_product_id = get_pro_product_id()
+    except HTTPException:
+        logger.error("POLAR_PRO_PRODUCT_ID not configured; refusing entitlement update")
+        raise
+
+    product_ids = extract_subscription_product_ids(subscription)
+    if not product_ids:
+        logger.warning("Ignoring Polar subscription without product identity")
+        return False
+
+    if configured_product_id not in product_ids:
+        logger.info(
+            "Ignoring Polar subscription outside configured Pro product: %s",
+            sorted(product_ids),
+        )
+        return False
+    return True
 
 
 def validate_return_url(request: Request, return_url: str | None) -> str | None:
@@ -65,87 +141,15 @@ async def get_current_user_id(authorization: str = Header(None)):
         )
     token = authorization[7:]  # len("Bearer ") == 7
 
-    # Get JWKS client for signature verification
-    jwks_client = get_jwks_client()
-    if not jwks_client:
-        logger.error("CLERK_FRONTEND_API not set")
-        raise HTTPException(status_code=500, detail="Server configuration error")
-
     try:
-        # Get signing key from JWKS and verify JWT signature
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
-        expected_issuer = f"https://{CLERK_FRONTEND_API}"
-        payload = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256"],
-            issuer=expected_issuer,
-            options={
-                "verify_signature": True,
-                "verify_exp": True,
-                "verify_iat": True,
-                "verify_nbf": True,
-                "require": ["sid", "exp", "iat", "iss"],
-            },
+        user_id, _ = await authenticate_clerk_token_with_session(
+            token, validate_azp=should_validate_clerk_azp()
         )
-
-        # Validate authorized parties (azp) claim for CSRF protection
-        azp = payload.get("azp")
-        permitted_origins = (
-            [o.strip() for o in CLERK_PERMITTED_ORIGINS.split(",") if o.strip()]
-            if CLERK_PERMITTED_ORIGINS
-            else []
-        )
-
-        if permitted_origins:
-            if not azp:
-                logger.warning(
-                    "Missing azp claim when permitted origins are configured"
-                )
-                raise HTTPException(status_code=401, detail="Missing token origin")
-            if azp not in permitted_origins:
-                logger.warning(f"Invalid azp claim: {azp}")
-                raise HTTPException(status_code=401, detail="Invalid token origin")
-
-        session_id = payload.get("sid")
-
-        if not session_id:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-
-        # Verify session with Clerk API for additional security layer
-        if not CLERK_SECRET_KEY:
-            logger.error("CLERK_SECRET_KEY not set")
-            raise HTTPException(status_code=500, detail="Server configuration error")
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"https://api.clerk.com/v1/sessions/{session_id}",
-                headers={
-                    "Authorization": f"Bearer {CLERK_SECRET_KEY}",
-                    "Clerk-API-Version": "2025-11-10",
-                },
-            )
-
-            if response.status_code != 200:
-                logger.error(f"Clerk session verification failed: {response.text}")
-                raise HTTPException(status_code=401, detail="Invalid session")
-
-            session_data = response.json()
-            if session_data.get("status") != "active":
-                raise HTTPException(status_code=401, detail="Session is not active")
-
-            return session_data.get("user_id")
-
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid JWT token: {type(e).__name__}")
-        raise HTTPException(status_code=401, detail="Invalid token")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Auth error: {type(e).__name__}")
-        raise HTTPException(status_code=401, detail="Authentication failed")
+        return user_id
+    except ClerkInfrastructureError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    except ClerkAuthenticationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
 @router.post("/create-checkout")
@@ -154,16 +158,14 @@ async def create_checkout(
 ):
     try:
         body = await request.json()
-        product_id = body.get("product_id")
         return_url = validate_return_url(request, body.get("return_url"))
-
-        if not product_id:
-            raise HTTPException(status_code=400, detail="Missing product_id")
 
         if not POLAR_ACCESS_TOKEN:
             raise HTTPException(
                 status_code=500, detail="Polar Access Token not configured"
             )
+
+        product_id = get_pro_product_id()
 
         # Generate secure checkout token
         checkout_token = secrets.token_urlsafe(32)
@@ -256,10 +258,10 @@ async def create_mapping_checkout(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating mapping checkout: {e}")
+        logger.error(f"Error creating mapping checkout: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to create mapping checkout"
-        )
+        ) from e
 
 
 @router.post("/webhooks/polar")
@@ -288,16 +290,21 @@ async def polar_webhook(request: Request):
     if isinstance(
         event, (WebhookSubscriptionCreatedPayload, WebhookSubscriptionActivePayload)
     ):
-        await handle_subscription_update(event.data, tier="pro")
+        if subscription_matches_pro_entitlement(event.data):
+            await handle_subscription_update(event.data, tier="pro")
     elif isinstance(
         event, (WebhookSubscriptionCanceledPayload, WebhookSubscriptionRevokedPayload)
     ):
+        if not subscription_matches_pro_entitlement(event.data):
+            return {"status": "received"}
         # Skip Clerk tier update on cancellation - user keeps pro tier until trial expires
         # Polar will send subscription.updated webhook when trial actually ends
         logger.info(
             "Subscription canceled - skipping tier update, waiting for trial expiry"
         )
     elif isinstance(event, WebhookSubscriptionUpdatedPayload):
+        if not subscription_matches_pro_entitlement(event.data):
+            return {"status": "received"}
         # Handle subscription updates (e.g., status transitions)
         # Polar SDK status values: incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid
         status = getattr(event.data, "status", None)

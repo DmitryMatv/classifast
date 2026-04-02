@@ -5,7 +5,7 @@ FROM dhi.io/bun:1-dev AS frontend-builder
 WORKDIR /frontend
 
 COPY package.json bun.lock tsconfig.json ./
-RUN --mount=type=cache,target=/root/.bun bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun bun ci
 
 COPY app/assets ./app/assets
 COPY app/templates ./app/templates

@@ -441,15 +441,8 @@
         }
 
         .classifier-surface {
-            background-color: #f8fafc;
-            background:
-                radial-gradient(circle at top left, rgba(125, 211, 252, 0.3), transparent 24%),
-                radial-gradient(circle at top right, rgba(191, 219, 254, 0.2), transparent 20%),
-                linear-gradient(180deg, #f3f8ff 0%, #ffffff 38%, #f8fafc 100%);
-            background-attachment: fixed, fixed, fixed;
-            background-position: top left, top right, top left;
-            background-repeat: no-repeat, no-repeat, no-repeat;
-            background-size: 100vw 100vh, 100vw 100vh, 100vw 100vh;
+            background-color: #d6f0ff;
+            background-image: linear-gradient(180deg, #d6f0ff 0%, #f8fafc 100%);
         }
 
         .js-score-animations [data-score-bar] {
@@ -654,13 +647,20 @@
         <div class="container mx-auto flex min-h-14 justify-between items-center max-w-6xl px-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
-                <h1 class="text-sm md:text-xl font-medium text-slate-600 mobile-hidden">
-                    {{ classifier_type.upper() }} Classification
-                </h1>
             </a>
+            <h1 class="text-sm md:text-xl font-medium text-slate-600 mobile-hidden">
+                <a href="{{ url_for('show_classifier_page', classifier_type=classifier_type) }}"
+                    class="hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                    aria-label="{{ classifier_type.upper() }} classification page">
+                    {{ classifier_type.upper() }}
+                </a>
+            </h1>
 
             <nav class="desktop-nav ml-auto mr-8" role="navigation" aria-label="Main navigation">
                 <ul class="flex space-x-6 items-center">
+                    <li><a href="{{ url_for('read_root') }}"
+                            class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
+                            role="link" aria-label="Home">Home</a></li>
                     <li><a href="{{ url_for('show_mapping_index') }}"
                             class="text-gray-600 hover:text-sky-700 hover:underline underline-offset-2 transition-colors"
                             role="link" aria-label="Mapping Files">Mapping</a></li>
@@ -777,8 +777,14 @@
                 </div>
             </div>
 
-            <form hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator">
+            <form id="classifier-form"
+                hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
+                data-initial-query-present="{% if url_params.search %}true{% else %}false{% endif %}"
+                data-initial-track-usage="{% if url_params.search %}true{% else %}false{% endif %}"
+                data-default-example-prefill="{% if default_example_prefill %}true{% else %}false{% endif %}"
+                data-autoload-enabled="{% if trigger_search_on_load and versions %}true{% else %}false{% endif %}"
+                data-default-top-k="{{ default_top_k }}" data-default-version="{{ first_version }}">
 
                 {% if versions %}
                 <div class="flex items-center justify-start mb-1">
@@ -795,7 +801,7 @@
                 <textarea name="product_description" id="product_description_area" placeholder="{{ example }}" required
                     aria-describedby="description-help" maxlength="4000" role="textbox" aria-label="Product description"
                     autofocus
-                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-20 max-h-200 resize-y mb-1">{%- if url_params.search -%}{{ url_params.search | escape }}{%- endif -%}</textarea>
+                    class="w-full px-2 py-2 border border-gray-400 rounded min-h-20 h-20 max-h-200 resize-y mb-1">{%- if query -%}{{ query | escape }}{%- endif -%}</textarea>
                 <!-- Textarea enhancer is initialized inline at the bottom -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center space-x-2">
@@ -1293,8 +1299,12 @@
     <script src="{{ url_for('static', path='/js/paywall.js') }}"></script>
 
     <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->
-    <script async crossorigin="anonymous" data-clerk-publishable-key="pk_live_Y2xlcmsuY2xhc3NpZmFzdC5jb20k"
-        src="https://clerk.classifast.com/npm/@clerk/clerk-js@5/dist/clerk.browser.js" type="text/javascript">
+    <script defer crossorigin="anonymous" src="https://clerk.classifast.com/npm/@clerk/ui@1/dist/ui.browser.js"
+        type="text/javascript">
+        </script>
+
+    <script defer crossorigin="anonymous" data-clerk-publishable-key="pk_live_Y2xlcmsuY2xhc3NpZmFzdC5jb20k"
+        src="https://clerk.classifast.com/npm/@clerk/clerk-js@6/dist/clerk.browser.js" type="text/javascript">
         </script>
 
     <!-- Set tracking cookie for anonymous rate limiting (abuse prevention) -->

@@ -56,8 +56,9 @@ def slugify(text: str) -> str:
     text = str(text)[:200]  # Limit to 200 chars max
     # Normalize internal whitespace first (collapse multiple spaces/newlines into single space)
     text = re.sub(r"\s+", " ", text)
-    # Preserve periods, commas, apostrophes, and parentheses while removing other special characters
-    text = re.sub(r"[^\w\s.,'()-]", "", text)
+    # Preserve punctuation that sanitize_query_text accepts so URL slugs round-trip
+    # cleanly back into the classifier textbox.
+    text = re.sub(r"[^\w\s.,:;'()-]", "", text)
     text = re.sub(r"[\s]+", "_", text)
     return text.strip("_")
 
@@ -320,7 +321,7 @@ async def get_classification_fragment(
     classifier_type: str,
     product_description: str = Query(..., alias="product_description"),
     top_k: int | None = Query(None, ge=1, le=100),
-    version: str = Query(...),
+    version: str | None = Query(None),
     push_url: bool | None = Query(None),
     track_usage: bool = Query(True),
     url_change: bool | None = Query(None),
@@ -332,8 +333,20 @@ async def get_classification_fragment(
     # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
     normalized_description = re.sub(r"\s+", " ", product_description).strip()
     upper_type = classifier_type.strip().upper()
+    config = CLASSIFIER_CONFIG.get(upper_type)
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+
+    default_top_k = get_default_top_k(upper_type)
     if top_k is None:
-        top_k = get_default_top_k(upper_type)
+        top_k = default_top_k
+
+    versions_list = list(config["versions"].keys())
+    default_version = versions_list[0] if versions_list else ""
+    if version is None:
+        version = default_version
 
     logger.info(
         "WEB received GET fragment request for '%s' with version '%s'. Push URL: %s. Track usage: %s",
@@ -364,15 +377,13 @@ async def get_classification_fragment(
         # HTTP headers require Latin-1 encoding
         new_url += f"/{quote(slug, safe='')}"
 
-    # Handle version query param
-    config = CLASSIFIER_CONFIG.get(upper_type)
-    if config:
-        versions_list = list(config["versions"].keys())
-        default_version = versions_list[0] if versions_list else None
-
-        # Only append version if it's not the default one
-        if version and version != default_version:
-            new_url += f"?{urlencode({'version': version})}"
+    params: dict[str, str | int] = {}
+    if version and version != default_version:
+        params["version"] = version
+    if top_k != default_top_k:
+        params["top_k"] = top_k
+    if params:
+        new_url += f"?{urlencode(params)}"
 
     # Check usage limits before processing (only for user queries, not examples)
     redis_client = getattr(request.app.state, "redis_client", None)
@@ -559,6 +570,9 @@ async def show_classifier_page_with_query(
         "total_request_time": 0,
     }
 
+    raw_example = config["example"].strip()
+    display_example = raw_example if raw_example else ""
+
     # Determine if we should trigger a search on load
     # This is true if we have a URL search query OR if we're falling back to the example
     trigger_search_on_load = False
@@ -569,7 +583,7 @@ async def show_classifier_page_with_query(
         needs_initial_results_loader = True
     else:
         # If no search query (base URL), use example query
-        example_query = config["example"].replace("Example:", "").strip()
+        example_query = raw_example
         if example_query:
             results_data["query"] = example_query
             try:
@@ -603,12 +617,13 @@ async def show_classifier_page_with_query(
             "heading": config["heading"],
             "description": config["description"],
             "versions": list(config["versions"].keys()),
-            "example": config["example"],
+            "example": display_example,
             "url_params": {
                 "search": decoded_search_query,
                 "version": version if version and version != first_version else "",
                 "top_k": top_k,
             },
+            "default_example_prefill": default_example_prefill,
             "trigger_search_on_load": trigger_search_on_load,
             "needs_initial_results_loader": needs_initial_results_loader,
             "canonical_url": canonical_url,

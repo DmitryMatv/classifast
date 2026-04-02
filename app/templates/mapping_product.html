@@ -39,6 +39,7 @@
         "@type": "Product",
         "name": {{ product.title | tojson }},
         "description": {{ product.meta_description | tojson }},
+        "image": {{ product.image_url | tojson }},
         "url": "{{ canonical_url }}",
         "category": {{ (product.source_standard ~ " to " ~ product.target_standard ~ " mapping") | tojson }},
         "offers": {
@@ -251,15 +252,8 @@
         }
 
         .mapping-surface {
-            background-color: #f8fafc;
-            background:
-                radial-gradient(circle at top left, rgba(125, 211, 252, 0.3), transparent 24%),
-                radial-gradient(circle at top right, rgba(191, 219, 254, 0.2), transparent 20%),
-                linear-gradient(180deg, #f3f8ff 0%, #ffffff 38%, #f8fafc 100%);
-            background-attachment: fixed, fixed, fixed;
-            background-position: top left, top right, top left;
-            background-repeat: no-repeat, no-repeat, no-repeat;
-            background-size: 100vw 100vh, 100vw 100vh, 100vw 100vh;
+            background-color: #d6f0ff;
+            background-image: linear-gradient(180deg, #d6f0ff 0%, #f8fafc 100%);
         }
 
         .section-label {
@@ -510,7 +504,7 @@
                     <p class="text-[1rem] md:text-[1.04rem] text-slate-600 leading-7 mb-6">{{ product.hero_copy }}</p>
                     <div class="info-strip">
                         <div class="info-strip-item">
-                            <p class="section-label mb-2">Standard Versions</p>
+                            <p class="section-label mb-2">Version</p>
                             <p class="font-semibold text-slate-900">{{ product.version_label }}</p>
                         </div>
                         <div class="info-strip-item">
@@ -526,7 +520,7 @@
 
                 <section class="mb-9">
                     <h2 class="text-[1.35rem] md:text-[1.5rem] font-bold text-slate-900 mb-4">Typical use cases</h2>
-                    <ul class="space-y-4 text-slate-700 leading-7">
+                    <ul class="space-y-3 text-slate-700 leading-7">
                         {% for use_case in product.use_cases %}
                         <li class="border-l-2 border-slate-300 pl-4">{{ use_case }}</li>
                         {% endfor %}

@@ -10,16 +10,34 @@ const MAX_SCORE_BAR_STAGGER_MS = 600;
  */
 
 class ClassifierPage {
+  private autoloadStatus:
+    | "idle"
+    | "pending"
+    | "triggered"
+    | "cancelled"
+    | "completed" = "idle";
+  private pendingAutoloadRequestConfig: {
+    trackUsage: boolean;
+    suppressUrlChange: boolean;
+  } | null = null;
+  private autoloadRequestInFlight = false;
+  private suppressNextHistoryUpdate = false;
+  private activeQuery: string | null = null;
+  private defaultExampleQuery: string | null = null;
+
   constructor() {
     this.init();
   }
 
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
+    this.initializeQueryState();
     this.setupInitialResultsAutoload();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
     this.setupDescriptionToggle();
+    this.setupAutoloadCancellationListeners();
+    this.setupQueryStateTracking();
     this.attachShareButtonListener();
     this.animateScoreBars(document);
   }
@@ -40,47 +58,216 @@ class ClassifierPage {
     return target instanceof HTMLElement && target.id === "results-container";
   }
 
-  private getInitialResultsLoader(): HTMLElement | null {
-    return document.querySelector("[data-initial-results-loader='true']");
+  private getClassifierForm(): HTMLFormElement | null {
+    return document.getElementById("classifier-form") as HTMLFormElement | null;
   }
 
-  private cleanupInitialResultsLoader(): void {
-    this.getInitialResultsLoader()?.remove();
+  private getAutoloadConfig(): {
+    enabled: boolean;
+    requiresAuthReady: boolean;
+    trackUsage: boolean;
+    suppressUrlChange: boolean;
+  } | null {
+    const form = this.getClassifierForm();
+    if (!form) {
+      return null;
+    }
+
+    return {
+      enabled: form.dataset["autoloadEnabled"] === "true",
+      requiresAuthReady: form.dataset["initialQueryPresent"] === "true",
+      trackUsage: form.dataset["initialTrackUsage"] === "true",
+      suppressUrlChange: true,
+    };
   }
 
-  private cancelInitialResultsAutoload(): void {
-    const loader = this.getInitialResultsLoader();
-    if (!loader) {
+  private getDefaultTopK(): string | null {
+    return this.getClassifierForm()?.dataset["defaultTopK"] ?? null;
+  }
+
+  private getDefaultVersion(): string | null {
+    return this.getClassifierForm()?.dataset["defaultVersion"] ?? null;
+  }
+
+  private getTopKSelector(): HTMLSelectElement | null {
+    return document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement | null;
+  }
+
+  private getVersionSelector(): HTMLSelectElement | null {
+    return document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement | null;
+  }
+
+  private canonicalizeDefaultParameters(
+    parameters: Record<string, unknown>,
+  ): void {
+    const topKSelector = this.getTopKSelector();
+    const defaultTopK = this.getDefaultTopK();
+    if (topKSelector) {
+      if (defaultTopK && topKSelector.value === defaultTopK) {
+        delete parameters["top_k"];
+      } else {
+        parameters["top_k"] = topKSelector.value;
+      }
+    }
+
+    const versionSelector = this.getVersionSelector();
+    const defaultVersion = this.getDefaultVersion();
+    if (versionSelector) {
+      if (defaultVersion && versionSelector.value === defaultVersion) {
+        delete parameters["version"];
+      } else {
+        parameters["version"] = versionSelector.value;
+      }
+    }
+  }
+
+  private getProductDescriptionArea(): HTMLTextAreaElement | null {
+    return document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement | null;
+  }
+
+  private initializeQueryState(): void {
+    const form = this.getClassifierForm();
+    const productDescriptionArea = this.getProductDescriptionArea();
+
+    if (!form || !productDescriptionArea) {
       return;
     }
 
-    loader.dataset["autoloadCancelled"] = "true";
-    loader.remove();
+    if (
+      form.dataset["defaultExamplePrefill"] === "true" &&
+      form.dataset["initialQueryPresent"] !== "true" &&
+      productDescriptionArea.value.trim()
+    ) {
+      this.defaultExampleQuery = productDescriptionArea.value;
+      this.activeQuery = productDescriptionArea.value;
+    }
+  }
+
+  private getEffectiveQuery(): string {
+    const productDescriptionArea = this.getProductDescriptionArea();
+    const textareaValue = productDescriptionArea?.value.trim() ?? "";
+    if (textareaValue) {
+      return productDescriptionArea?.value ?? "";
+    }
+
+    return this.activeQuery ?? this.defaultExampleQuery ?? "";
+  }
+
+  private setupQueryStateTracking(): void {
+    const productDescriptionArea = this.getProductDescriptionArea();
+
+    if (!productDescriptionArea) {
+      return;
+    }
+
+    productDescriptionArea.addEventListener("input", () => {
+      if (productDescriptionArea.value.trim()) {
+        this.activeQuery = productDescriptionArea.value;
+      } else {
+        this.activeQuery = null;
+      }
+
+      this.defaultExampleQuery = null;
+    });
+  }
+
+  private isAutoloadRequest(element: Element | null): boolean {
+    const form = this.getClassifierForm();
+    return !!(form && element === form && this.autoloadRequestInFlight);
+  }
+
+  private cancelInitialResultsAutoload(): void {
+    if (
+      this.autoloadStatus === "completed" ||
+      this.autoloadStatus === "triggered"
+    ) {
+      return;
+    }
+
+    this.autoloadStatus = "cancelled";
+    this.hideLoadingIndicator();
+    this.pendingAutoloadRequestConfig = null;
+    this.autoloadRequestInFlight = false;
+    this.suppressNextHistoryUpdate = false;
+  }
+
+  private completeInitialResultsAutoload(): void {
+    this.autoloadStatus = "completed";
+    this.pendingAutoloadRequestConfig = null;
+    this.autoloadRequestInFlight = false;
+    this.suppressNextHistoryUpdate = false;
+  }
+
+  private clearAutoloadRequestState(): void {
+    this.pendingAutoloadRequestConfig = null;
+    this.autoloadRequestInFlight = false;
+    this.suppressNextHistoryUpdate = false;
+  }
+
+  private submitInitialResultsAutoload(
+    trackUsage: boolean,
+    suppressUrlChange: boolean,
+  ): void {
+    const form = this.getClassifierForm();
+
+    if (
+      !form ||
+      this.autoloadStatus === "triggered" ||
+      this.autoloadStatus === "completed" ||
+      this.autoloadStatus === "cancelled" ||
+      !window.htmx
+    ) {
+      return;
+    }
+
+    this.autoloadStatus = "triggered";
+    this.pendingAutoloadRequestConfig = { trackUsage, suppressUrlChange };
+    this.autoloadRequestInFlight = true;
+    this.suppressNextHistoryUpdate = trackUsage && suppressUrlChange;
+    window.htmx.trigger(form, "submit");
   }
 
   private setupInitialResultsAutoload(): void {
-    const loader = this.getInitialResultsLoader();
-    if (!loader || loader.dataset["authGated"] !== "true") {
+    const config = this.getAutoloadConfig();
+    if (!config?.enabled) {
       return;
     }
 
     const triggerInitialResultsLoad = () => {
       if (
-        !loader.isConnected ||
-        loader.dataset["autoloadTriggered"] === "true" ||
-        loader.dataset["autoloadCancelled"] === "true" ||
-        !window.htmx
+        this.autoloadStatus === "cancelled" ||
+        this.autoloadStatus === "triggered" ||
+        this.autoloadStatus === "completed"
       ) {
         return;
       }
 
-      loader.dataset["autoloadTriggered"] = "true";
-      window.htmx.trigger(loader, "initial-results-ready");
+      this.submitInitialResultsAutoload(
+        config.trackUsage,
+        config.suppressUrlChange,
+      );
     };
 
     const scheduleInitialResultsLoad = () => {
+      if (this.autoloadStatus === "cancelled") {
+        return;
+      }
+
       window.setTimeout(triggerInitialResultsLoad, 0);
     };
+
+    this.autoloadStatus = "pending";
+
+    if (!config.requiresAuthReady) {
+      scheduleInitialResultsLoad();
+      return;
+    }
 
     if (window.__authReady) {
       scheduleInitialResultsLoad();
@@ -117,16 +304,19 @@ class ClassifierPage {
   }
 
   private syncTextareaState(): void {
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
+    const productDescriptionArea = this.getProductDescriptionArea();
 
     if (!productDescriptionArea) {
       return;
     }
 
-    productDescriptionArea.defaultValue = productDescriptionArea.value;
-    productDescriptionArea.textContent = productDescriptionArea.value;
+    const syncedValue =
+      productDescriptionArea.value ||
+      this.activeQuery ||
+      this.defaultExampleQuery ||
+      "";
+    productDescriptionArea.defaultValue = syncedValue;
+    productDescriptionArea.textContent = syncedValue;
   }
 
   private syncSelectState(selectId: string): void {
@@ -150,7 +340,6 @@ class ClassifierPage {
     this.syncSelectState("version_selector");
     this.syncSelectState("show_top_k_categories");
     this.hideLoadingIndicator();
-    this.cleanupInitialResultsLoader();
   }
 
   private animateScoreBars(root: ParentNode = document): void {
@@ -201,7 +390,6 @@ class ClassifierPage {
   private handleResultsSwap(): void {
     this.ensureResultsSectionVisible();
     this.attachShareButtonListener();
-    this.cleanupInitialResultsLoader();
   }
 
   private handleResultsSettle(): void {
@@ -219,13 +407,11 @@ class ClassifierPage {
     const topKSelector = document.getElementById(
       "show_top_k_categories",
     ) as HTMLSelectElement | null;
-    const productDescriptionArea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement | null;
+    const productDescriptionArea = this.getProductDescriptionArea();
 
     if (topKSelector && productDescriptionArea) {
       topKSelector.addEventListener("change", () => {
-        if (productDescriptionArea.value.trim()) {
+        if (this.getEffectiveQuery()) {
           this.triggerFormSubmission();
         }
       });
@@ -257,17 +443,63 @@ class ClassifierPage {
     }
   }
 
+  private setupAutoloadCancellationListeners(): void {
+    const productDescriptionArea = this.getProductDescriptionArea();
+
+    if (!productDescriptionArea) {
+      return;
+    }
+
+    productDescriptionArea.addEventListener("input", () => {
+      if (this.autoloadStatus === "pending") {
+        this.cancelInitialResultsAutoload();
+      }
+    });
+  }
+
   /**
    * Setup HTMX event listeners for response handling
    */
   private setupHTMXListeners(): void {
+    document.body.addEventListener("htmx:configRequest", (evt: Event) => {
+      const htmxEvent = evt as HtmxConfigRequestEvent;
+      const form = this.getClassifierForm();
+
+      if (!form || htmxEvent.detail.elt !== form) {
+        return;
+      }
+
+      const effectiveQuery = this.getEffectiveQuery();
+      if (effectiveQuery) {
+        htmxEvent.detail.parameters["product_description"] = effectiveQuery;
+      }
+      this.canonicalizeDefaultParameters(htmxEvent.detail.parameters);
+
+      if (!this.pendingAutoloadRequestConfig) {
+        return;
+      }
+
+      if (!this.pendingAutoloadRequestConfig.trackUsage) {
+        htmxEvent.detail.parameters["track_usage"] = "false";
+      } else {
+        delete htmxEvent.detail.parameters["track_usage"];
+      }
+
+      if (
+        this.pendingAutoloadRequestConfig.suppressUrlChange &&
+        !this.pendingAutoloadRequestConfig.trackUsage
+      ) {
+        htmxEvent.detail.parameters["push_url"] = "false";
+      } else {
+        delete htmxEvent.detail.parameters["push_url"];
+      }
+      this.pendingAutoloadRequestConfig = null;
+    });
+
     document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
       const htmxEvent = evt as HtmxBeforeRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
-        if (
-          htmxEvent.detail.elt instanceof HTMLElement &&
-          !htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
-        ) {
+        if (!this.isAutoloadRequest(htmxEvent.detail.elt)) {
           this.cancelInitialResultsAutoload();
         }
         this.showLoadingIndicator();
@@ -279,13 +511,9 @@ class ClassifierPage {
       const htmxEvent = evt as HtmxAfterRequestEvent;
       if (this.isResultsTarget(htmxEvent.detail.target)) {
         this.hideLoadingIndicator();
-      }
-
-      if (
-        htmxEvent.detail.elt instanceof HTMLElement &&
-        htmxEvent.detail.elt.hasAttribute("data-initial-results-loader")
-      ) {
-        this.cleanupInitialResultsLoader();
+        if (this.isAutoloadRequest(htmxEvent.detail.elt)) {
+          this.completeInitialResultsAutoload();
+        }
       }
     });
 
@@ -315,21 +543,45 @@ class ClassifierPage {
 
           this.ensureResultsSectionVisible();
           this.hideLoadingIndicator();
-          this.cleanupInitialResultsLoader();
+          if (this.isAutoloadRequest(htmxEvent.detail.elt)) {
+            this.completeInitialResultsAutoload();
+          }
         }
       }
     });
 
     document.body.addEventListener("htmx:sendAbort", () => {
+      this.clearAutoloadRequestState();
       this.hideLoadingIndicator();
     });
 
     document.body.addEventListener("htmx:timeout", () => {
+      this.clearAutoloadRequestState();
       this.hideLoadingIndicator();
     });
 
     document.body.addEventListener("htmx:beforeHistorySave", () => {
       this.syncHistoryState();
+    });
+
+    document.body.addEventListener("htmx:beforeHistoryUpdate", (evt: Event) => {
+      if (!this.suppressNextHistoryUpdate) {
+        return;
+      }
+
+      const htmxEvent = evt as CustomEvent<{
+        history?: { type?: string; path?: string };
+      }>;
+      if (!htmxEvent.detail.history) {
+        return;
+      }
+
+      htmxEvent.detail.history.type = "replace";
+      htmxEvent.detail.history.path =
+        window.location.pathname +
+        window.location.search +
+        window.location.hash;
+      this.suppressNextHistoryUpdate = false;
     });
 
     document.body.addEventListener("htmx:historyRestore", () => {

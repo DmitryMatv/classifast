@@ -34,6 +34,12 @@ class SlugifyTests(unittest.TestCase):
             slugify("Pump, valve (industrial)'s"), "Pump,_valve_(industrial)'s"
         )
 
+    def test_preserves_colons_and_semicolons(self) -> None:
+        self.assertEqual(
+            slugify("pump: 10 bar; stainless steel"),
+            "pump:_10_bar;_stainless_steel",
+        )
+
     def test_normalizes_internal_whitespace(self) -> None:
         self.assertEqual(slugify("  multi \n spaced\tquery  "), "multi_spaced_query")
 
@@ -82,6 +88,8 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         params.update(extra_params)
         if "top_k" in params and params["top_k"] is None:
             params.pop("top_k")
+        if "version" in params and params["version"] is None:
+            params.pop("version")
         transport = httpx.ASGITransport(app=self.app)
         async with httpx.AsyncClient(
             transport=transport,
@@ -123,10 +131,52 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             f"/NAICS/industrial_pump?{urlencode({'version': self.non_default_version})}",
         )
 
+    @patch("app.web.perform_classification")
+    async def test_non_default_top_k_is_appended_to_hx_push_url(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(
+            push_url="true",
+            track_usage="false",
+            top_k="30",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            f"/NAICS/industrial_pump?{urlencode({'top_k': 30})}",
+        )
+
+    @patch("app.web.perform_classification")
+    async def test_non_default_version_and_top_k_are_appended_to_hx_push_url(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(
+            push_url="true",
+            track_usage="false",
+            version=self.non_default_version,
+            top_k="30",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            "/NAICS/industrial_pump?"
+            + urlencode({"version": self.non_default_version, "top_k": 30}),
+        )
+
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
     async def test_paywall_response_uses_no_store_cache_headers(
         self,
+        perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
         increment_usage_mock: AsyncMock,
     ) -> None:
@@ -152,6 +202,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             response.headers.get("HX-Push-Url"),
             "/NAICS/industrial_pump",
         )
+        perform_classification_mock.assert_not_called()
         increment_usage_mock.assert_not_awaited()
 
     @patch("app.web.perform_classification")
@@ -168,11 +219,11 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["Cache-Control"],
-            "public, max-age=60, stale-while-revalidate=600",
+            "public, max-age=86400, stale-while-revalidate=604800",
         )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=86400, stale-while-revalidate=86400",
+            "max-age=604800, stale-while-revalidate=604800",
         )
         perform_classification_mock.assert_not_called()
 
@@ -187,6 +238,21 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
+
+    @patch("app.web.perform_classification")
+    async def test_fragment_uses_default_version_when_omitted(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request_fragment(version=None, track_usage="false")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            perform_classification_mock.call_args.kwargs["version"],
+            self.default_version,
+        )
 
 
 class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
@@ -207,28 +273,32 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
-        self.assertIn('"top_k": 30', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_naics_page_defaults_to_top_10(self) -> None:
         response = await self._request("/NAICS/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
-        self.assertIn('"top_k": 10', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
         response = await self._request("/UNSPSC/?top_k=999")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
-        self.assertIn('"top_k": 30', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
         response = await self._request("/NAICS/?top_k=999")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
-        self.assertIn('"top_k": 10', response.text)
+        self.assertIn('id="classifier-form"', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
 
 
 class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):

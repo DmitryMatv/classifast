@@ -9,6 +9,10 @@ const SIGN_UP_CLASS =
   "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "h-9 px-4 leading-none";
 const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
+const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
+const CLERK_LOAD_TIMEOUT_MS = 10000;
+const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
+const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 500;
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -134,6 +138,8 @@ export class ShareLink {
 // Textarea enhanced functionality
 export class TextareaEnhancer {
   private textarea: HTMLTextAreaElement | null;
+  private defaultExampleCleared = false;
+  private defaultExampleClearTimeoutId: number | null = null;
 
   constructor(textareaId: string) {
     this.textarea = document.getElementById(
@@ -145,12 +151,60 @@ export class TextareaEnhancer {
   }
 
   private init() {
+    this.setupDefaultExampleClear();
+
     this.textarea?.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         this.submitForm();
       }
     });
+  }
+
+  private isDefaultExamplePrefill(): boolean {
+    const form = this.textarea?.closest("form");
+    return form?.dataset["defaultExamplePrefill"] === "true";
+  }
+
+  private setupDefaultExampleClear() {
+    if (!this.textarea || !this.isDefaultExamplePrefill()) {
+      return;
+    }
+
+    const initialValue = this.textarea.value;
+    if (!initialValue) {
+      return;
+    }
+
+    const clearDefaultExampleTimeout = () => {
+      if (this.defaultExampleClearTimeoutId === null) {
+        return;
+      }
+
+      window.clearTimeout(this.defaultExampleClearTimeoutId);
+      this.defaultExampleClearTimeoutId = null;
+    };
+
+    this.textarea.addEventListener("input", clearDefaultExampleTimeout, {
+      once: true,
+    });
+
+    this.defaultExampleClearTimeoutId = window.setTimeout(() => {
+      this.defaultExampleClearTimeoutId = null;
+
+      if (
+        !this.textarea ||
+        this.defaultExampleCleared ||
+        this.textarea.value !== initialValue
+      ) {
+        return;
+      }
+
+      this.defaultExampleCleared = true;
+      this.textarea.value = "";
+      this.textarea.defaultValue = "";
+      this.textarea.textContent = "";
+    }, DEFAULT_EXAMPLE_CLEAR_DELAY_MS);
   }
 
   private submitForm() {
@@ -241,29 +295,33 @@ export class ClerkAuth {
     this.clerkStarted = true;
 
     try {
-      await window.Clerk?.load();
-
-      // Register HTMX header injection (must be after Clerk loads)
-      this.registerHtmxAuthHeader();
+      await this.withTimeout(
+        ClerkAuth.loadClerk(),
+        CLERK_LOAD_TIMEOUT_MS,
+        "Timed out waiting for Clerk.load()",
+      );
 
       // Check if returning from successful checkout - clean up URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      const isCheckoutSuccess = urlParams.get("checkout") === "success";
+      const isCheckoutSuccess =
+        new URLSearchParams(window.location.search).get("checkout") ===
+        "success";
 
       if (isCheckoutSuccess) {
-        // Clean up checkout params from URL
-        urlParams.delete("checkout");
-        urlParams.delete("checkout_token");
-        urlParams.delete("customer_session_token");
-        const cleanUrl = urlParams.toString()
-          ? `${window.location.pathname}?${urlParams.toString()}`
-          : window.location.pathname;
-        window.history.replaceState({}, "", cleanUrl);
+        this.cleanupCheckoutTokens();
         // Backend verifies tier via Redis-cached Clerk API - no frontend retries needed
       }
 
       // Initial token cache and UI render
-      await this.refreshAuthToken();
+      await this.withTimeout(
+        this.refreshAuthToken(),
+        INITIAL_TOKEN_REFRESH_TIMEOUT_MS,
+        "Timed out waiting for initial Clerk token refresh",
+      );
+
+      // Only register the HTMX auth hook after the initial auth refresh settles.
+      // If bootstrap falls back to anonymous mode, requests should not be cancelled.
+      this.registerHtmxAuthHeader();
+
       this.updateAuthUI();
 
       // Signal that auth is ready for auto-classification (fire only once).
@@ -323,6 +381,43 @@ export class ClerkAuth {
     }
   }
 
+  private static async loadClerk(): Promise<void> {
+    const clerk = window.Clerk;
+    if (!clerk?.load) {
+      throw new Error("Clerk unavailable");
+    }
+
+    const ClerkUI = await ClerkAuth.waitForClerkUiConstructor();
+    await clerk.load({
+      ui: {
+        ClerkUI,
+      },
+    });
+  }
+
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMessage: string,
+  ): Promise<T> {
+    let timeoutId: number | null = null;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = window.setTimeout(() => {
+            reject(new Error(errorMessage));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    }
+  }
+
   private async waitForClerk() {
     if (window.Clerk) {
       await this.startClerk();
@@ -339,16 +434,19 @@ export class ClerkAuth {
       return;
     }
 
+    if (window.__clerkScriptFailed) {
+      console.error("Clerk script failed to load");
+      this.renderFallbackAuth();
+      return;
+    }
+
     let settled = false;
-    let timeoutId: number | null = null;
+    let rejectOnScriptError: ((reason?: unknown) => void) | null = null;
 
     const cleanup = () => {
       script.removeEventListener("load", onScriptLoaded);
       script.removeEventListener("error", onScriptError);
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-        timeoutId = null;
-      }
+      rejectOnScriptError = null;
     };
 
     const settleWithFallback = (message: string) => {
@@ -359,49 +457,51 @@ export class ClerkAuth {
       this.renderFallbackAuth();
     };
 
-    const onScriptLoaded = async () => {
+    const onScriptLoaded = () => {
+      // Readiness is detected by waitForClerkInstance polling; this handler
+      // exists only to be cleaned up and to guard against duplicate handling.
       if (settled) return;
-      const clerk = await this.pollForClerk();
-      if (clerk) {
-        settled = true;
-        cleanup();
-        await this.startClerk();
-      } else {
-        settleWithFallback(
-          "Clerk script loaded but window.Clerk was unavailable",
-        );
-      }
     };
 
     const onScriptError = () => {
+      const reject = rejectOnScriptError;
+      window.__clerkScriptFailed = true;
       settleWithFallback("Clerk script failed to load");
+      reject?.(new Error("Clerk script failed to load"));
     };
 
     script.addEventListener("load", onScriptLoaded, { once: true });
     script.addEventListener("error", onScriptError, { once: true });
 
-    const existingClerk = await this.pollForClerk(1000);
-    if (existingClerk) {
+    let clerk: ClerkInstance | null = null;
+    try {
+      clerk = await Promise.race([
+        this.waitForClerkInstance(CLERK_SCRIPT_READINESS_TIMEOUT_MS),
+        new Promise<ClerkInstance | null>((_, reject) => {
+          rejectOnScriptError = reject;
+        }),
+      ]);
+    } catch {
+      return;
+    }
+
+    if (settled) {
+      return;
+    }
+
+    if (clerk) {
       settled = true;
       cleanup();
       await this.startClerk();
       return;
     }
 
-    timeoutId = window.setTimeout(async () => {
-      if (settled) return;
-      if (window.Clerk) {
-        settled = true;
-        cleanup();
-        await this.startClerk();
-        return;
-      }
-
-      settleWithFallback("Timed out waiting for Clerk script readiness");
-    }, 4000);
+    settleWithFallback("Timed out waiting for Clerk script readiness");
   }
 
-  private async pollForClerk(timeoutMs = 4000) {
+  private async waitForClerkInstance(
+    timeoutMs = CLERK_SCRIPT_READINESS_TIMEOUT_MS,
+  ): Promise<ClerkInstance | null> {
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
@@ -409,7 +509,21 @@ export class ClerkAuth {
       await new Promise((resolve) => window.setTimeout(resolve, 50));
     }
 
-    return window.Clerk;
+    return window.Clerk ?? null;
+  }
+
+  private static async waitForClerkUiConstructor(
+    timeoutMs = CLERK_SCRIPT_READINESS_TIMEOUT_MS,
+  ): Promise<NonNullable<Window["__internal_ClerkUICtor"]>> {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      const ClerkUI = window.__internal_ClerkUICtor;
+      if (ClerkUI) return ClerkUI;
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+
+    throw new Error("Clerk UI bundle unavailable");
   }
 
   private async refreshAuthToken() {
@@ -441,7 +555,7 @@ export class ClerkAuth {
         console.warn("Attempting to recover session...");
 
         try {
-          await window.Clerk.load?.();
+          await ClerkAuth.loadClerk();
           if (window.Clerk?.session) {
             const recoveredToken = await window.Clerk.session.getToken({
               expirationBufferSeconds: 15,
@@ -638,9 +752,11 @@ export class ClerkAuth {
         appearance: {
           elements: {
             userButtonTrigger:
-              "h-9 w-9 rounded-full p-0 leading-none hover:bg-transparent focus:bg-transparent active:bg-transparent focus-visible:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-sky-100",
-            userButtonAvatarBox: "h-9 w-9 rounded-full overflow-hidden",
-            userButtonBox: "h-9 w-9 rounded-full overflow-hidden",
+              "inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-0 bg-transparent p-0 leading-none shadow-none outline-none hover:bg-transparent focus:bg-transparent focus:shadow-none focus:outline-none active:bg-transparent active:shadow-none focus-visible:bg-transparent focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0",
+            userButtonAvatarBox:
+              "h-9 w-9 rounded-full overflow-hidden border-0 bg-transparent p-0 shadow-none",
+            userButtonBox:
+              "h-9 w-9 rounded-full overflow-hidden border-0 bg-transparent p-0 shadow-none",
           },
         },
       });
@@ -655,7 +771,8 @@ export class ClerkAuth {
   ) {
     if (!container) return;
 
-    const signInBtn = document.createElement("div");
+    const signInBtn = document.createElement("button");
+    signInBtn.type = "button";
     if (type === "desktop") {
       signInBtn.id = "clerk-sign-in-button-desktop";
       signInBtn.className = `${SIGN_IN_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS}`;
@@ -670,7 +787,8 @@ export class ClerkAuth {
     });
     container.appendChild(signInBtn);
 
-    const signUpBtn = document.createElement("div");
+    const signUpBtn = document.createElement("button");
+    signUpBtn.type = "button";
     if (type === "desktop") {
       signUpBtn.id = "clerk-sign-up-button-desktop";
       signUpBtn.className = `${SIGN_UP_CLASS} ${DESKTOP_AUTH_BUTTON_SIZE_CLASS} ml-2`;
@@ -687,6 +805,8 @@ export class ClerkAuth {
   }
 
   private renderFallbackAuth() {
+    this.cleanupCheckoutTokens();
+
     const desktopContainer = document.getElementById("desktop-auth-container");
     const mobileContainer = document.getElementById("mobile-auth-container");
 
@@ -733,6 +853,23 @@ export class ClerkAuth {
     signalAuthReady();
   }
 
+  private cleanupCheckoutTokens() {
+    const url = new URL(window.location.href);
+    const hadCheckoutParams =
+      url.searchParams.has("checkout_token") ||
+      url.searchParams.has("customer_session_token");
+
+    if (!hadCheckoutParams) {
+      return;
+    }
+
+    url.searchParams.delete("checkout_token");
+    url.searchParams.delete("customer_session_token");
+
+    const cleanUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, "", cleanUrl);
+  }
+
   // Public method to get current auth token
   static getCachedAuthToken(): string | null {
     if (cachedAuthToken && isTokenExpired(cachedAuthToken)) {
@@ -772,7 +909,7 @@ export class ResultCopier {
       })
       .catch((err: unknown) => {
         console.error("Async: Could not copy text: ", err);
-        this.showTooltip(buttonElement, "Copy failed");
+        this.fallbackCopy(text, buttonElement);
       });
   }
 
@@ -786,8 +923,8 @@ export class ResultCopier {
     textArea.focus();
     textArea.select();
     try {
-      document.execCommand("copy");
-      this.showTooltip(buttonElement, "Copied!");
+      const didCopy = document.execCommand("copy");
+      this.showTooltip(buttonElement, didCopy ? "Copied!" : "Copy failed");
     } catch (err: unknown) {
       console.error("Fallback: Oops, unable to copy", err);
       this.showTooltip(buttonElement, "Copy failed");

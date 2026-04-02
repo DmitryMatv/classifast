@@ -1,13 +1,14 @@
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-from fastapi import FastAPI
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from polar_sdk._webhooks import WebhookVerificationError
 
 from app import payments
+from app.clerk_auth import ClerkAuthenticationError, ClerkInfrastructureError
 from app.mapping_store import MAPPING_PRODUCTS
 
 
@@ -46,10 +47,101 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["detail"], "Missing Authorization header")
 
+    async def test_create_checkout_uses_strict_session_auth_helper(self) -> None:
+        self.app.dependency_overrides[payments.get_current_user_id] = lambda: "user_123"
+        request = AsyncMock()
+        request.json.return_value = {"return_url": "http://testserver/NAICS/"}
+        request.base_url = "http://testserver/"
+        request.app.state.redis_client = AsyncMock()
+        polar_instance = MagicMock()
+        polar_instance.checkouts.create.return_value = SimpleNamespace(
+            url="https://polar.example/checkout"
+        )
+        polar_context = MagicMock()
+        polar_context.__enter__.return_value = polar_instance
+        polar_context.__exit__.return_value = None
+
+        with (
+            patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", "https://classifast.com"),
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "configured-pro-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.Polar", return_value=polar_context),
+            patch(
+                "app.payments.get_clerk_user_details",
+                new=AsyncMock(return_value={"email": None, "name": None}),
+            ),
+            patch(
+                "app.payments.authenticate_clerk_token_with_session",
+                new=AsyncMock(return_value=("user_123", "free")),
+            ) as auth_mock,
+        ):
+            user_id = await payments.get_current_user_id("Bearer token")
+            response = await payments.create_checkout(request, user_id=user_id)
+
+        self.assertEqual(user_id, "user_123")
+        self.assertEqual(response["url"], "https://polar.example/checkout")
+        auth_mock.assert_awaited_once_with("token", validate_azp=True)
+
+    async def test_create_checkout_skips_azp_when_permitted_origins_not_configured(
+        self,
+    ) -> None:
+        with (
+            patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", ""),
+            patch(
+                "app.payments.authenticate_clerk_token_with_session",
+                new=AsyncMock(return_value=("user_123", "free")),
+            ) as auth_mock,
+        ):
+            user_id = await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(user_id, "user_123")
+        auth_mock.assert_awaited_once_with("token", validate_azp=False)
+
+    async def test_create_checkout_rejects_invalid_session_from_strict_auth(
+        self,
+    ) -> None:
+        with patch(
+            "app.payments.authenticate_clerk_token_with_session",
+            new=AsyncMock(side_effect=ClerkAuthenticationError("Invalid session")),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail, "Invalid session")
+
+    async def test_create_checkout_rejects_missing_azp_from_strict_auth(self) -> None:
+        with patch(
+            "app.payments.authenticate_clerk_token_with_session",
+            new=AsyncMock(side_effect=ClerkAuthenticationError("Missing token origin")),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail, "Missing token origin")
+
+    async def test_create_checkout_maps_clerk_backend_failure_to_503(self) -> None:
+        with patch(
+            "app.payments.authenticate_clerk_token_with_session",
+            new=AsyncMock(side_effect=ClerkInfrastructureError()),
+        ):
+            with self.assertRaises(HTTPException) as ctx:
+                await payments.get_current_user_id("Bearer token")
+
+        self.assertEqual(ctx.exception.status_code, 503)
+        self.assertEqual(
+            ctx.exception.detail,
+            "Authentication service temporarily unavailable",
+        )
+
     async def test_create_checkout_rejects_invalid_return_url(self) -> None:
         request = AsyncMock()
         request.json.return_value = {
-            "product_id": "prod_123",
             "return_url": "https://evil.example/checkout-complete",
         }
         request.base_url = "https://classifast.com/"
@@ -62,6 +154,61 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertEqual(ctx.exception.detail, "Invalid return_url")
+
+    async def test_create_checkout_ignores_client_supplied_product_id(self) -> None:
+        request = AsyncMock()
+        request.json.return_value = {
+            "product_id": "attacker-product",
+            "return_url": "http://testserver/NAICS/",
+        }
+        request.base_url = "http://testserver/"
+        request.app.state.redis_client = AsyncMock()
+        polar_instance = MagicMock()
+        polar_instance.checkouts.create.return_value = SimpleNamespace(
+            url="https://polar.example/checkout"
+        )
+        polar_context = MagicMock()
+        polar_context.__enter__.return_value = polar_instance
+        polar_context.__exit__.return_value = None
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "configured-pro-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.Polar", return_value=polar_context),
+            patch(
+                "app.payments.get_clerk_user_details",
+                new=AsyncMock(return_value={"email": None, "name": None}),
+            ),
+        ):
+            response = await payments.create_checkout(request, user_id="user_123")
+
+        self.assertEqual(response["url"], "https://polar.example/checkout")
+        request_payload = polar_instance.checkouts.create.call_args.kwargs["request"]
+        self.assertEqual(request_payload["products"], ["configured-pro-product"])
+        self.assertEqual(request_payload["metadata"]["user_id"], "user_123")
+
+    async def test_create_checkout_requires_pro_product_configuration(self) -> None:
+        request = AsyncMock()
+        request.json.return_value = {"return_url": "http://testserver/NAICS/"}
+        request.base_url = "http://testserver/"
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": ""},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            self.assertRaises(HTTPException) as ctx,
+        ):
+            await payments.create_checkout(request, user_id="user_123")
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(ctx.exception.detail, "Polar Pro product not configured")
 
     async def test_create_mapping_checkout_rejects_unknown_slug(self) -> None:
         response = await self._post_json(
@@ -122,6 +269,37 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
             f"http://testserver/mapping/{product.slug}/?checkout=success",
         )
 
+    async def test_create_mapping_checkout_preserves_original_exception(self) -> None:
+        request = AsyncMock()
+        product = next(iter(MAPPING_PRODUCTS.values()))
+        request.json.return_value = {
+            "slug": product.slug,
+            "return_url": f"http://testserver/mapping/{product.slug}/",
+        }
+        request.base_url = "http://testserver/"
+        original_error = RuntimeError("polar create failed")
+        polar_instance = MagicMock()
+        polar_instance.checkouts.create.side_effect = original_error
+        polar_context = MagicMock()
+        polar_context.__enter__.return_value = polar_instance
+        polar_context.__exit__.return_value = None
+
+        with (
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.payments.logger.error") as logger_error_mock,
+            self.assertRaises(HTTPException) as ctx,
+        ):
+            await payments.create_mapping_checkout(request)
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(ctx.exception.detail, "Failed to create mapping checkout")
+        self.assertIs(ctx.exception.__cause__, original_error)
+        logger_error_mock.assert_called_once_with(
+            f"Error creating mapping checkout: {original_error}",
+            exc_info=True,
+        )
+
 
 class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
@@ -153,14 +331,64 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["detail"], "Invalid webhook signature")
 
-    async def test_trialing_subscription_update_routes_to_pro_tier(self) -> None:
+    async def test_trialing_subscription_update_routes_to_pro_tier_only_for_allowed_product(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str, product_id: str | None):
+                self.data = SimpleNamespace(
+                    status=status,
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing", "allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_awaited_once()
+        _, kwargs = handler_mock.await_args
+        self.assertEqual(kwargs["tier"], "pro")
+
+    async def test_subscription_update_matches_configured_product_in_nested_items(
+        self,
+    ) -> None:
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
             def __init__(self, status: str):
-                self.data = SimpleNamespace(status=status, metadata={"user_id": "u1"})
+                self.data = SimpleNamespace(
+                    status=status,
+                    items=[{"product_id": "allowed-product"}],
+                    metadata={"user_id": "u1"},
+                )
 
         with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
             patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
             patch(
                 "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
@@ -181,7 +409,119 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         _, kwargs = handler_mock.await_args
         self.assertEqual(kwargs["tier"], "pro")
 
-    async def test_canceled_subscription_update_routes_to_free_tier(self) -> None:
+    async def test_subscription_update_matches_configured_product_in_prices(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str):
+                self.data = SimpleNamespace(
+                    status=status,
+                    prices=[{"product_id": "allowed-product"}],
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_awaited_once()
+        _, kwargs = handler_mock.await_args
+        self.assertEqual(kwargs["tier"], "pro")
+
+    async def test_non_allowlisted_subscription_update_is_ignored(self) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str, product_id: str | None):
+                self.data = SimpleNamespace(
+                    status=status,
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing", "other-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
+
+    async def test_missing_configured_product_id_returns_server_error(self) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str, product_id: str | None):
+                self.data = SimpleNamespace(
+                    status=status,
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": ""},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing", "allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Polar Pro product not configured")
+        handler_mock.assert_not_awaited()
+
+    async def test_missing_configured_product_id_returns_server_error_without_product_identity(
+        self,
+    ) -> None:
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
@@ -189,13 +529,163 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
                 self.data = SimpleNamespace(status=status, metadata={"user_id": "u1"})
 
         with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": ""},
+                clear=False,
+            ),
             patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
             patch(
                 "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
             ),
             patch(
                 "app.payments.validate_event",
-                return_value=DummyUpdatedPayload("canceled"),
+                return_value=DummyUpdatedPayload("trialing"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "Polar Pro product not configured")
+        handler_mock.assert_not_awaited()
+
+    async def test_allowlisted_subscription_canceled_event_skips_tier_update(
+        self,
+    ) -> None:
+        class DummyCanceledPayload:
+            TYPE = "subscription.canceled"
+
+            def __init__(self, product_id: str | None):
+                self.data = SimpleNamespace(
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionCanceledPayload",
+                DummyCanceledPayload,
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyCanceledPayload("allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
+
+    async def test_allowlisted_subscription_revoked_event_skips_tier_update(
+        self,
+    ) -> None:
+        class DummyRevokedPayload:
+            TYPE = "subscription.revoked"
+
+            def __init__(self, product_id: str | None):
+                self.data = SimpleNamespace(
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionRevokedPayload",
+                DummyRevokedPayload,
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyRevokedPayload("allowed-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
+
+    async def test_subscription_update_without_product_identity_is_ignored(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str):
+                self.data = SimpleNamespace(status=status, metadata={"user_id": "u1"})
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("trialing"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
+
+    async def test_allowlisted_canceled_subscription_update_routes_to_free_tier(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str, product_id: str | None):
+                self.data = SimpleNamespace(
+                    status=status,
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("canceled", "allowed-product"),
             ),
             patch(
                 "app.payments.handle_subscription_update",
@@ -208,6 +698,43 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         handler_mock.assert_awaited_once()
         _, kwargs = handler_mock.await_args
         self.assertEqual(kwargs["tier"], "free")
+
+    async def test_non_allowlisted_terminal_subscription_update_is_ignored(
+        self,
+    ) -> None:
+        class DummyUpdatedPayload:
+            TYPE = "subscription.updated"
+
+            def __init__(self, status: str, product_id: str | None):
+                self.data = SimpleNamespace(
+                    status=status,
+                    product_id=product_id,
+                    metadata={"user_id": "u1"},
+                )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "allowed-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_WEBHOOK_SECRET", "secret"),
+            patch(
+                "app.payments.WebhookSubscriptionUpdatedPayload", DummyUpdatedPayload
+            ),
+            patch(
+                "app.payments.validate_event",
+                return_value=DummyUpdatedPayload("past_due", "other-product"),
+            ),
+            patch(
+                "app.payments.handle_subscription_update",
+                new_callable=AsyncMock,
+            ) as handler_mock,
+        ):
+            response = await self._post_webhook()
+
+        self.assertEqual(response.status_code, 200)
+        handler_mock.assert_not_awaited()
 
 
 if __name__ == "__main__":

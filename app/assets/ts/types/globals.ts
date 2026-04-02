@@ -9,6 +9,8 @@ declare global {
     __authReady?: boolean;
     __clerkAuthListenerRegistered?: boolean;
     __clerkInteractionListenersRegistered?: boolean;
+    __clerkScriptFailed?: boolean;
+    __internal_ClerkUICtor?: unknown;
     __initPaywall?: () => void;
     __paywallClerkListenerRegistered?: boolean;
     __paywallInitialized?: boolean;
@@ -43,8 +45,14 @@ declare global {
   // ============================================
   // Clerk Authentication SDK
   // ============================================
+  interface ClerkLoadOptions {
+    ui?: {
+      ClerkUI: NonNullable<Window["__internal_ClerkUICtor"]>;
+    };
+  }
+
   interface ClerkInstance {
-    load: () => Promise<void>;
+    load: (options?: ClerkLoadOptions) => Promise<void>;
     session?: ClerkSession;
     user?: ClerkUser;
     addListener: (
@@ -112,6 +120,7 @@ declare global {
       headers: Record<string, string>;
       xhr: XMLHttpRequest;
       elt: Element;
+      parameters: Record<string, unknown>;
     };
   }
 
@@ -144,6 +153,7 @@ declare global {
   interface HtmxResponseErrorEvent extends CustomEvent {
     detail: {
       xhr: XMLHttpRequest;
+      elt: Element;
       target: HTMLElement;
     };
   }

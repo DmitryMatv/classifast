@@ -7,6 +7,12 @@ function createScoreBarsMarkup(count = 3): string {
   }).join("");
 }
 
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 function setResultsMarkup(markup: string): HTMLElement {
   const resultsContainer = document.getElementById(
     "results-container",
@@ -19,16 +25,31 @@ function getScoreBars(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>("[data-score-bar]"));
 }
 
-function appendInitialResultsLoader(): HTMLElement {
-  document.body.innerHTML += `
-    <div
-      id="initial-results-loader"
-      data-initial-results-loader="true"
-      data-auth-gated="true"
-    ></div>
-  `;
+function getClassifierForm(): HTMLFormElement {
+  return document.getElementById("classifier-form") as HTMLFormElement;
+}
 
-  return document.getElementById("initial-results-loader") as HTMLElement;
+function createConfigRequestDetail(
+  form: HTMLFormElement,
+): HtmxConfigRequestEvent["detail"] {
+  return {
+    headers: {},
+    xhr: {} as XMLHttpRequest,
+    elt: form,
+    parameters: {
+      product_description: (
+        document.getElementById(
+          "product_description_area",
+        ) as HTMLTextAreaElement
+      ).value,
+      top_k: (
+        document.getElementById("show_top_k_categories") as HTMLSelectElement
+      ).value,
+      version: (
+        document.getElementById("version_selector") as HTMLSelectElement
+      ).value,
+    } as Record<string, unknown>,
+  };
 }
 
 function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
@@ -81,13 +102,23 @@ describe("classifier.ts", () => {
     const freshBody = document.body.cloneNode(false) as HTMLBodyElement;
     document.body.replaceWith(freshBody);
     document.body.innerHTML = `
-      <form hx-get="/NAICS/fragment">
-        <textarea id="product_description_area"></textarea>
-        <select id="show_top_k_categories">
+      <form
+        id="classifier-form"
+        hx-get="/NAICS/fragment"
+        data-default-example-prefill="false"
+        data-initial-query-present="false"
+        data-initial-track-usage="false"
+        data-autoload-enabled="false"
+        data-default-top-k="10"
+        data-default-version="v1"
+      >
+        <textarea id="product_description_area" name="product_description"></textarea>
+        <select id="show_top_k_categories" name="top_k">
           <option value="5">5</option>
           <option value="10" selected>10</option>
+          <option value="30">30</option>
         </select>
-        <select id="version_selector">
+        <select id="version_selector" name="version">
           <option value="v1" selected>v1</option>
           <option value="v2">v2</option>
         </select>
@@ -149,6 +180,74 @@ describe("classifier.ts", () => {
     textarea.value = "industrial pump";
     topK.dispatchEvent(new Event("change", { bubbles: true }));
     expect(trigger).toHaveBeenCalled();
+  });
+
+  it("omits default top-k and version on manual requests", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "industrial pump";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("industrial pump");
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
+  });
+
+  it("keeps non-default top-k on manual requests", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const topK = document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement;
+    textarea.value = "industrial pump";
+    topK.value = "30";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["top_k"]).toBe("30");
+    expect(detail.parameters["version"]).toBeUndefined();
+  });
+
+  it("keeps non-default version on manual requests", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const versionSelector = document.getElementById(
+      "version_selector",
+    ) as HTMLSelectElement;
+    textarea.value = "industrial pump";
+    versionSelector.value = "v2";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBe("v2");
   });
 
   it("shows and hides the loading indicator across HTMX request events", async () => {
@@ -375,16 +474,28 @@ describe("classifier.ts", () => {
         copyShareableLink: vi.fn(),
       },
     }));
-    appendInitialResultsLoader();
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
     window.__authReady = true;
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
 
-    expect(window.htmx?.trigger).toHaveBeenCalledWith(
-      document.getElementById("initial-results-loader"),
-      "initial-results-ready",
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
     );
+
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
   });
 
   it("waits for authReady before autoloading auth-gated initial results", async () => {
@@ -394,23 +505,90 @@ describe("classifier.ts", () => {
         copyShareableLink: vi.fn(),
       },
     }));
-    appendInitialResultsLoader();
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
 
-    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(
-      document.getElementById("initial-results-loader"),
-      "initial-results-ready",
-    );
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(form, "submit");
 
     document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
     vi.advanceTimersByTime(0);
 
-    expect(window.htmx?.trigger).toHaveBeenCalledWith(
-      document.getElementById("initial-results-loader"),
-      "initial-results-ready",
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+  });
+
+  it("suppresses deep-link autoload history pushes without changing the request URL", async () => {
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    window.__authReady = true;
+
+    window.history.replaceState({}, "", "/NAICS/industrial_pump?version=v2");
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    const historyDetail = {
+      history: {
+        type: "push",
+        path: "/NAICS/industrial_pump?version=v2",
+      },
+    };
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeHistoryUpdate", {
+        detail: historyDetail,
+      } as CustomEventInit),
     );
+
+    expect(historyDetail.history.type).toBe("replace");
+    expect(historyDetail.history.path).toBe(
+      "/NAICS/industrial_pump?version=v2",
+    );
+  });
+
+  it("does not use history suppression fallback for base example autoload", async () => {
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    const historyDetail = {
+      history: {
+        type: "push",
+        path: "/NAICS/industrial_pump",
+      },
+    };
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:beforeHistoryUpdate", {
+        detail: historyDetail,
+      } as CustomEventInit),
+    );
+
+    expect(historyDetail.history.type).toBe("push");
+    expect(historyDetail.history.path).toBe("/NAICS/industrial_pump");
   });
 
   it("cancels auth-gated autoload when a manual results request starts before authReady", async () => {
@@ -420,8 +598,10 @@ describe("classifier.ts", () => {
         copyShareableLink: vi.fn(),
       },
     }));
-    const loader = appendInitialResultsLoader();
-    const form = document.querySelector("form") as HTMLFormElement;
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
 
@@ -436,32 +616,463 @@ describe("classifier.ts", () => {
     document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
     vi.advanceTimersByTime(0);
 
-    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(
-      loader,
-      "initial-results-ready",
-    );
-    expect(document.getElementById("initial-results-loader")).toBeNull();
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(form, "submit");
   });
 
-  it("keeps the hidden loader request when authReady triggers it directly", async () => {
+  it("deep-link autoload only submits once even if authReady fires again later", async () => {
     window.__authReady = false;
     vi.doMock("./common", () => ({
       ShareLink: {
         copyShareableLink: vi.fn(),
       },
     }));
-    const loader = appendInitialResultsLoader();
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
 
     document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
     vi.advanceTimersByTime(0);
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: form,
+        },
+      } as CustomEventInit),
+    );
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(0);
 
     expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
-    expect(window.htmx?.trigger).toHaveBeenCalledWith(
-      loader,
-      "initial-results-ready",
+  });
+
+  it("autoloads the base example query immediately without tracking usage", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    form.dataset["defaultExamplePrefill"] = "true";
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+    expect(textarea.value).toBe("Industrial pump");
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
     );
+
+    expect(detail.parameters["push_url"]).toBe("false");
+    expect(detail.parameters["track_usage"]).toBe("false");
+    expect(detail.parameters["product_description"]).toBe("Industrial pump");
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
+  });
+
+  it("keeps the default example query active for top-k changes after timer clear", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const topK = document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+    vi.mocked(window.htmx!.trigger).mockClear();
+
+    textarea.value = "";
+    topK.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+  });
+
+  it("uses the stored default example query when configRequest runs after timer clear", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    textarea.value = "";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("Industrial pump");
+    expect(detail.parameters["push_url"]).toBe("false");
+    expect(detail.parameters["track_usage"]).toBe("false");
+    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["version"]).toBeUndefined();
+  });
+
+  it("replaces the stored default example query after real user input", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+
+    textarea.value = "custom typed query";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("custom typed query");
+  });
+
+  it("drops the hidden fallback query after the user clears the textarea", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    const topK = document.getElementById(
+      "show_top_k_categories",
+    ) as HTMLSelectElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+    vi.mocked(window.htmx!.trigger).mockClear();
+
+    textarea.value = "";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    topK.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("");
+  });
+
+  it("does not create a hidden fallback query for deep-link prefills", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "false";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "helicopter taxi";
+
+    await import("./classifier");
+
+    textarea.value = "";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe("");
+  });
+
+  it("preserves history metadata for the hidden active query without repopulating the textarea", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["defaultExamplePrefill"] = "true";
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "false";
+    form.dataset["initialTrackUsage"] = "false";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump";
+
+    await import("./classifier");
+
+    textarea.value = "";
+    document.body.dispatchEvent(new CustomEvent("htmx:beforeHistorySave"));
+
+    expect(textarea.value).toBe("");
+    expect(textarea.defaultValue).toBe("Industrial pump");
+    expect(textarea.textContent).toBe("Industrial pump");
+  });
+
+  it("keeps the deep-link query in the textarea during auth-gated autoload", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "helicopter taxi";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+    expect(textarea.value).toBe("helicopter taxi");
+  });
+
+  it("clears one-shot autoload overrides immediately after configRequest", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    const firstDetail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail: firstDetail,
+      } as CustomEventInit),
+    );
+    expect(firstDetail.parameters["push_url"]).toBeUndefined();
+    expect(firstDetail.parameters["track_usage"]).toBeUndefined();
+
+    const secondDetail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail: secondDetail,
+      } as CustomEventInit),
+    );
+
+    expect(secondDetail.parameters["push_url"]).toBeUndefined();
+    expect(secondDetail.parameters["track_usage"]).toBeUndefined();
+  });
+
+  it("completes autoload state on 429 responses from the form request", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    const resultsContainer = document.getElementById(
+      "results-container",
+    ) as HTMLElement;
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail: createConfigRequestDetail(form),
+      } as CustomEventInit),
+    );
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:responseError", {
+        detail: {
+          xhr: { status: 429, response: "<div>Paywall</div>" },
+          target: resultsContainer,
+          elt: form,
+        },
+      } as CustomEventInit),
+    );
+
+    expect(resultsContainer.innerHTML).toContain("Paywall");
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
+  });
+
+  it("clears autoload override state after request completion", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail: createConfigRequestDetail(form),
+      } as CustomEventInit),
+    );
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:afterRequest", {
+        detail: {
+          target: document.getElementById("results-container"),
+          elt: form,
+        },
+      } as CustomEventInit),
+    );
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
+  });
+
+  it("does not retrigger autoload during history restore", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+    vi.mocked(window.htmx!.trigger).mockClear();
+
+    document.body.dispatchEvent(new CustomEvent("htmx:historyRestore"));
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+  });
+
+  it("cancels pending autoload when the user edits the textarea before authReady", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+
+    await import("./classifier");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "edited query";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(form, "submit");
   });
 
   it("shows the loading indicator while waiting for authReady", async () => {
@@ -471,7 +1082,10 @@ describe("classifier.ts", () => {
         copyShareableLink: vi.fn(),
       },
     }));
-    appendInitialResultsLoader();
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
     const indicator = document.getElementById(
       "loading-indicator",
     ) as HTMLElement;
@@ -482,6 +1096,34 @@ describe("classifier.ts", () => {
     expect(window.htmx?.trigger).not.toHaveBeenCalled();
   });
 
+  it("autoloads auth-gated initial results after a delayed authReady fallback signal", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    window.setTimeout(() => {
+      window.__authReady = true;
+      document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    }, 4000);
+
+    await import("./classifier");
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(4000);
+    vi.runOnlyPendingTimers();
+    await flushAsyncWork();
+
+    expect(window.__authReady).toBe(true);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
+  });
+
   it("manual request path keeps spinner behavior consistent", async () => {
     window.__authReady = false;
     vi.doMock("./common", () => ({
@@ -489,11 +1131,13 @@ describe("classifier.ts", () => {
         copyShareableLink: vi.fn(),
       },
     }));
-    appendInitialResultsLoader();
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
     const indicator = document.getElementById(
       "loading-indicator",
     ) as HTMLElement;
-    const form = document.querySelector("form") as HTMLFormElement;
 
     await import("./classifier");
     indicator.classList.remove("htmx-request"); // Clear initial state

@@ -53,9 +53,12 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('data-auth-slot="desktop"', response.text)
         self.assertNotIn('id="desktop-auth-container"', response.text)
         self.assertIn('data-auth-ui="disabled"', response.text)
-        self.assertIn("background-attachment: fixed, fixed, fixed;", response.text)
         self.assertIn(
-            "background-size: 100vw 100vh, 100vw 100vh, 100vw 100vh;", response.text
+            "background-image: linear-gradient(180deg, #d6f0ff 0%, #f8fafc 100%);",
+            response.text,
+        )
+        self.assertNotIn(
+            "background-attachment: scroll, scroll, scroll;", response.text
         )
 
     async def test_mapping_product_head_uses_product_canonical_link(self) -> None:
@@ -74,9 +77,12 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('data-auth-slot="desktop"', response.text)
         self.assertNotIn('id="desktop-auth-container"', response.text)
         self.assertIn('data-auth-ui="disabled"', response.text)
-        self.assertIn("background-attachment: fixed, fixed, fixed;", response.text)
         self.assertIn(
-            "background-size: 100vw 100vh, 100vw 100vh, 100vw 100vh;", response.text
+            "background-image: linear-gradient(180deg, #d6f0ff 0%, #f8fafc 100%);",
+            response.text,
+        )
+        self.assertNotIn(
+            "background-attachment: scroll, scroll, scroll;", response.text
         )
 
     async def test_mapping_routes_redirect_to_trailing_slash(self) -> None:
