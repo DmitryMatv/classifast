@@ -560,6 +560,7 @@ async def show_classifier_page_with_query(
     # Get first version for default handling
     versions_list = list(config["versions"].keys())
     first_version = versions_list[0] if versions_list else ""
+    validated_version = version if version in config["versions"] else first_version
 
     # Initialize results data structure
     results_data = {
@@ -596,7 +597,7 @@ async def show_classifier_page_with_query(
                     request=request,
                     classifier_type=effective_classifier_type,
                     query=example_query,
-                    version=version or first_version,
+                    version=validated_version,
                     top_k=top_k,
                 )
             except Exception as e:
@@ -624,7 +625,11 @@ async def show_classifier_page_with_query(
             "example": display_example,
             "url_params": {
                 "search": decoded_search_query,
-                "version": version if version and version != first_version else "",
+                "version": (
+                    validated_version
+                    if validated_version and validated_version != first_version
+                    else ""
+                ),
                 "top_k": top_k,
             },
             "default_example_prefill": default_example_prefill,

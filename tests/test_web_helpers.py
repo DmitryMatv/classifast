@@ -385,6 +385,23 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
 
     @patch("app.web.perform_classification")
+    async def test_base_page_normalizes_invalid_version_before_ssr(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result(
+            "43211503", "Laptop computers"
+        )
+
+        response = await self._request("/UNSPSC/?version=missing-version")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            perform_classification_mock.call_args.kwargs["version"], self.unspsc_version
+        )
+        self.assertNotIn('id="initial-results-loader"', response.text)
+
+    @patch("app.web.perform_classification")
     async def test_search_page_keeps_client_loaded_initial_results(
         self,
         perform_classification_mock: Mock,
@@ -393,7 +410,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn('hx-trigger="initial-results-ready once"', response.text)
+        self.assertIn('hx-trigger="htmx:authReady from:body once"', response.text)
         self.assertNotIn('data-autoload-enabled="true"', response.text)
         self.assertNotIn("Laptop computers", response.text)
         perform_classification_mock.assert_not_called()

@@ -237,10 +237,27 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn('hx-trigger="initial-results-ready once"', response.text)
+        self.assertIn('hx-trigger="htmx:authReady from:body once"', response.text)
         self.assertIn('data-auth-gated="true"', response.text)
         self.assertNotIn('data-autoload-enabled="true"', response.text)
         self.assertIn('"track_usage": true', response.text)
+
+    async def test_search_page_normalizes_invalid_version_in_loader_payload(self):
+        transport = httpx.ASGITransport(app=self.app)
+        default_version = next(iter(self.config["versions"]))
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(
+                f"/{self.classifier_type}/industrial_pump",
+                params={"version": "missing-version"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(f'"version": "{default_version}"', response.text)
+        self.assertNotIn('"version": "missing-version"', response.text)
 
     async def test_base_page_falls_back_to_initial_loader_when_ssr_cannot_run(self):
         transport = httpx.ASGITransport(app=self.app)
