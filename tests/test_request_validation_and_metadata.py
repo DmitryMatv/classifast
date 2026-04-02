@@ -1,6 +1,7 @@
 import unittest
 from html import escape
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 from fastapi import FastAPI, Request
@@ -236,13 +237,13 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response = await client.get(f"/{self.classifier_type}/industrial_pump")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn('hx-trigger="htmx:authReady from:body once"', response.text)
-        self.assertIn('data-auth-gated="true"', response.text)
-        self.assertNotIn('data-autoload-enabled="true"', response.text)
-        self.assertIn('"track_usage": true', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('data-initial-query-present="true"', response.text)
+        self.assertIn('data-initial-track-usage="true"', response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertNotIn("data-auth-gated=", response.text)
 
-    async def test_search_page_normalizes_invalid_version_in_loader_payload(self):
+    async def test_search_page_normalizes_invalid_version_in_rendered_form(self):
         transport = httpx.ASGITransport(app=self.app)
         default_version = next(iter(self.config["versions"]))
 
@@ -256,10 +257,20 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(f'"version": "{default_version}"', response.text)
-        self.assertNotIn('"version": "missing-version"', response.text)
+        self.assertIn(
+            f'<option value="{escape(default_version)}" selected>',
+            response.text,
+        )
+        self.assertNotIn(
+            '<option value="missing-version" selected>',
+            response.text,
+        )
 
-    async def test_base_page_falls_back_to_initial_loader_when_ssr_cannot_run(self):
+    @patch("app.web.perform_classification", side_effect=RuntimeError("no backend"))
+    async def test_base_page_falls_back_to_initial_loader_when_ssr_cannot_run(
+        self,
+        _perform_classification_mock,
+    ):
         transport = httpx.ASGITransport(app=self.app)
 
         async with httpx.AsyncClient(
@@ -269,11 +280,11 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response = await client.get(f"/{self.classifier_type}/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('id="initial-results-loader"', response.text)
-        self.assertIn('hx-trigger="load"', response.text)
-        self.assertIn('data-auth-gated="false"', response.text)
-        self.assertNotIn('data-autoload-enabled="true"', response.text)
-        self.assertIn('"track_usage": false', response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('data-default-example-prefill="true"', response.text)
+        self.assertIn('data-initial-track-usage="false"', response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertNotIn("data-auth-gated=", response.text)
 
     def _expected_generic_name(self) -> str:
         if self.classifier_type == "UNSPSC":

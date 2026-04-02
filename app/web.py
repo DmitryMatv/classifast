@@ -578,14 +578,10 @@ async def show_classifier_page_with_query(
     # This must always be initialized before the template context is built.
     default_example_prefill = False
 
-    # Keep the hidden HTMX loader as the only autoload mechanism on this page.
-    # That avoids duplicate initial fragment requests if other client autoload
-    # hooks are introduced alongside the loader markup.
     trigger_search_on_load = False
-    needs_initial_results_loader = False
 
     if decoded_search_query:
-        needs_initial_results_loader = True
+        trigger_search_on_load = True
     else:
         # If no search query (base URL), use example query
         example_query = raw_example
@@ -607,7 +603,7 @@ async def show_classifier_page_with_query(
                     type(e).__name__,
                     e,
                 )
-                needs_initial_results_loader = True
+                trigger_search_on_load = True
 
     today = datetime.now()
     current_year = today.year
@@ -634,7 +630,6 @@ async def show_classifier_page_with_query(
             },
             "default_example_prefill": default_example_prefill,
             "trigger_search_on_load": trigger_search_on_load,
-            "needs_initial_results_loader": needs_initial_results_loader,
             "default_top_k": default_top_k,
             "first_version": first_version,
             "canonical_url": canonical_url,

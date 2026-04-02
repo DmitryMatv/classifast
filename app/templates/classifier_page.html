@@ -792,7 +792,8 @@
                         aria-expanded="false" aria-haspopup="listbox"
                         class="border border-gray-400 rounded text-left px-1 py-1 mb-1">
                         {% for v in versions %}
-                        <option value="{{ v }}" {% if v==url_params.version %}selected{% endif %}>{{ v }}</option>
+                        <option value="{{ v }}" {% if v==(url_params.version if url_params.version else first_version)
+                            %}selected{% endif %}>{{ v }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -838,17 +839,6 @@
                 {% include 'results.html' %}
             </div>
         </section>
-
-        {% if needs_initial_results_loader and versions %}
-        <div id="initial-results-loader"
-            hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-            hx-trigger="{% if url_params.search %}htmx:authReady from:body once{% else %}load{% endif %}"
-            hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
-            data-initial-results-loader="true"
-            data-auth-gated="{% if url_params.search %}true{% else %}false{% endif %}"
-            hx-vals='{"version": {{ (url_params.version if url_params.version else versions[0]) | tojson }}, "product_description": {{ query | tojson }}, "top_k": {{ url_params.top_k | tojson }}, "push_url": false, "track_usage": {{ "true" if url_params.search else "false" }}}'>
-        </div>
-        {% endif %}
 
         <!-- Standard-specific content sections to address Google indexing issues -->
         {% if classifier_type == 'UNSPSC' %}
