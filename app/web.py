@@ -573,18 +573,23 @@ async def show_classifier_page_with_query(
     raw_example = config["example"].strip()
     display_example = raw_example if raw_example else ""
 
-    # Determine if we should trigger a search on load
-    # This is true if we have a URL search query OR if we're falling back to the example
+    # Track whether the base page is seeded from the configured example text.
+    # This must always be initialized before the template context is built.
+    default_example_prefill = False
+
+    # Keep the hidden HTMX loader as the only autoload mechanism on this page.
+    # That avoids duplicate initial fragment requests if other client autoload
+    # hooks are introduced alongside the loader markup.
     trigger_search_on_load = False
     needs_initial_results_loader = False
 
     if decoded_search_query:
-        trigger_search_on_load = True
         needs_initial_results_loader = True
     else:
         # If no search query (base URL), use example query
         example_query = raw_example
         if example_query:
+            default_example_prefill = True
             results_data["query"] = example_query
             try:
                 results_data = build_classification_results_context(
@@ -601,7 +606,6 @@ async def show_classifier_page_with_query(
                     type(e).__name__,
                     e,
                 )
-                trigger_search_on_load = True
                 needs_initial_results_loader = True
 
     today = datetime.now()

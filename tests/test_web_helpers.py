@@ -274,7 +274,8 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
-        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertNotIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('id="initial-results-loader"', response.text)
 
     async def test_naics_page_defaults_to_top_10(self) -> None:
         response = await self._request("/NAICS/")
@@ -282,7 +283,8 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
-        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertNotIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('id="initial-results-loader"', response.text)
 
     async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
         response = await self._request("/UNSPSC/?top_k=999")
@@ -290,7 +292,8 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
-        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertNotIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('id="initial-results-loader"', response.text)
 
     async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
         response = await self._request("/NAICS/?top_k=999")
@@ -298,7 +301,8 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
-        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertNotIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('id="initial-results-loader"', response.text)
 
 
 class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
@@ -390,6 +394,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
         self.assertIn('hx-trigger="initial-results-ready once"', response.text)
+        self.assertNotIn('data-autoload-enabled="true"', response.text)
         self.assertNotIn("Laptop computers", response.text)
         perform_classification_mock.assert_not_called()
 
@@ -410,6 +415,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="initial-results-loader"', response.text)
         self.assertIn('hx-trigger="load"', response.text)
+        self.assertNotIn('data-autoload-enabled="true"', response.text)
         self.assertIn(expected_example, response.text)
         self.assertNotIn("Set-Cookie", response.headers)
         perform_classification_mock.assert_called_once()
