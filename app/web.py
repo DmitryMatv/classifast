@@ -635,6 +635,8 @@ async def show_classifier_page_with_query(
             "default_example_prefill": default_example_prefill,
             "trigger_search_on_load": trigger_search_on_load,
             "needs_initial_results_loader": needs_initial_results_loader,
+            "default_top_k": default_top_k,
+            "first_version": first_version,
             "canonical_url": canonical_url,
             "current_year": current_year,
             "current_month_name": current_month_name,
