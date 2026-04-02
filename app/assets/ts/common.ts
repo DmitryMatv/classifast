@@ -12,7 +12,7 @@ const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
 const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
 const CLERK_LOAD_TIMEOUT_MS = 10000;
 const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
-const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 1000;
+const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 500;
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -140,7 +140,6 @@ export class TextareaEnhancer {
   private textarea: HTMLTextAreaElement | null;
   private defaultExampleCleared = false;
   private defaultExampleClearTimeoutId: number | null = null;
-  private initialCaretPlacementTimeoutId: number | null = null;
 
   constructor(textareaId: string) {
     this.textarea = document.getElementById(
@@ -152,7 +151,6 @@ export class TextareaEnhancer {
   }
 
   private init() {
-    this.setupInitialCaretPlacement();
     this.setupDefaultExampleClear();
 
     this.textarea?.addEventListener("keydown", (event) => {
@@ -163,55 +161,9 @@ export class TextareaEnhancer {
     });
   }
 
-  private moveCaretToEnd() {
-    if (
-      !this.textarea ||
-      !this.textarea.value ||
-      document.activeElement !== this.textarea
-    ) {
-      return;
-    }
-
-    const length = this.textarea.value.length;
-    this.textarea.setSelectionRange(length, length);
-  }
-
-  private scheduleCaretPlacement() {
-    if (!this.textarea || !this.textarea.value) {
-      return;
-    }
-
-    if (this.initialCaretPlacementTimeoutId !== null) {
-      window.clearTimeout(this.initialCaretPlacementTimeoutId);
-    }
-
-    this.initialCaretPlacementTimeoutId = window.setTimeout(() => {
-      this.initialCaretPlacementTimeoutId = null;
-      this.moveCaretToEnd();
-    }, 0);
-  }
-
   private isDefaultExamplePrefill(): boolean {
     const form = this.textarea?.closest("form");
     return form?.dataset["defaultExamplePrefill"] === "true";
-  }
-
-  private setupInitialCaretPlacement() {
-    if (!this.textarea || !this.textarea.value) {
-      return;
-    }
-
-    this.moveCaretToEnd();
-    this.scheduleCaretPlacement();
-
-    this.textarea.addEventListener(
-      "focus",
-      () => {
-        this.moveCaretToEnd();
-        this.scheduleCaretPlacement();
-      },
-      { once: true },
-    );
   }
 
   private setupDefaultExampleClear() {

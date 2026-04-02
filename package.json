@@ -1,5 +1,7 @@
 {
   "name": "classifast",
+  "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "scripts": {
@@ -22,9 +24,5 @@
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
-  },
-  "trustedDependencies": [
-    "@parcel/watcher",
-    "esbuild"
-  ]
+  }
 }

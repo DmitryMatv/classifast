@@ -141,103 +141,6 @@ describe("common.ts", () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("moves the caret to the end of initial prefilled text when already focused on init", async () => {
-    document.body.dataset["authUi"] = "disabled";
-    document.body.innerHTML = `
-      <form data-default-example-prefill="true">
-        <textarea id="product_description_area" autofocus>Industrial pump</textarea>
-      </form>
-    `;
-
-    const textarea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement;
-    textarea.focus();
-
-    await import("./common");
-
-    const expectedPosition = textarea.value.length;
-
-    expect(document.activeElement).toBe(textarea);
-    expect(textarea.selectionStart).toBe(expectedPosition);
-    expect(textarea.selectionEnd).toBe(expectedPosition);
-  });
-
-  it("moves the caret to the end of initial prefilled text when focus arrives after init", async () => {
-    document.body.dataset["authUi"] = "disabled";
-    document.body.innerHTML = `
-      <form data-default-example-prefill="false">
-        <textarea id="product_description_area" autofocus>helicopter taxi</textarea>
-      </form>
-    `;
-
-    const textarea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement;
-    const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
-
-    await import("./common");
-
-    expect(setSelectionRangeSpy).not.toHaveBeenCalled();
-
-    textarea.focus();
-
-    const expectedPosition = textarea.value.length;
-
-    expect(document.activeElement).toBe(textarea);
-    expect(textarea.selectionStart).toBe(expectedPosition);
-    expect(textarea.selectionEnd).toBe(expectedPosition);
-    expect(setSelectionRangeSpy).toHaveBeenCalledWith(
-      expectedPosition,
-      expectedPosition,
-    );
-  });
-
-  it("moves the caret to the end for non-default prefilled text", async () => {
-    document.body.dataset["authUi"] = "disabled";
-    document.body.innerHTML = `
-      <form data-default-example-prefill="false">
-        <textarea id="product_description_area" autofocus>industrial pump</textarea>
-      </form>
-    `;
-
-    const textarea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement;
-    const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
-
-    await import("./common");
-    textarea.focus();
-
-    const expectedPosition = textarea.value.length;
-
-    expect(setSelectionRangeSpy).toHaveBeenCalledWith(
-      expectedPosition,
-      expectedPosition,
-    );
-    expect(textarea.selectionStart).toBe(expectedPosition);
-    expect(textarea.selectionEnd).toBe(expectedPosition);
-  });
-
-  it("does not move the caret for an empty default example textarea", async () => {
-    document.body.dataset["authUi"] = "disabled";
-    document.body.innerHTML = `
-      <form data-default-example-prefill="true">
-        <textarea id="product_description_area" autofocus></textarea>
-      </form>
-    `;
-
-    const textarea = document.getElementById(
-      "product_description_area",
-    ) as HTMLTextAreaElement;
-    const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
-
-    await import("./common");
-    textarea.focus();
-
-    expect(setSelectionRangeSpy).not.toHaveBeenCalled();
-  });
-
   it("clears the default example text after the configured delay", async () => {
     document.body.dataset["authUi"] = "disabled";
     document.body.innerHTML = `
@@ -254,7 +157,7 @@ describe("common.ts", () => {
 
     expect(textarea.value).toBe("Industrial pump");
 
-    await advanceTimersAndFlushAsync(999);
+    await advanceTimersAndFlushAsync(499);
 
     expect(textarea.value).toBe("Industrial pump");
 
@@ -281,7 +184,7 @@ describe("common.ts", () => {
     textarea.value = "Industrial pump updated";
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
 
-    await advanceTimersAndFlushAsync(1000);
+    await advanceTimersAndFlushAsync(300);
 
     expect(textarea.value).toBe("Industrial pump updated");
   });

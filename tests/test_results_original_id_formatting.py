@@ -5,7 +5,7 @@ import httpx
 from fastapi import FastAPI
 
 from app.classifier_config import CLASSIFIER_CONFIG
-from app.template_filters import group_original_id_tokens
+from app.dependencies import group_original_id_tokens
 from app.usage_tracker import UsageStatus
 from app.web import router
 
