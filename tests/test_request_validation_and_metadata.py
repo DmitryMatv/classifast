@@ -52,6 +52,11 @@ def _build_web_test_app() -> FastAPI:
         "/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static"
     )
     app.include_router(router)
+    app.state.embed_client = object()
+    app.state.qdrant_client = object()
+    app.state.collection_quantization_cache = {}
+    app.state.zclient = None
+    app.state.redis_client = object()
     return app
 
 
@@ -269,7 +274,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
     @patch("app.web.perform_classification", side_effect=RuntimeError("no backend"))
     async def test_base_page_falls_back_to_initial_loader_when_ssr_cannot_run(
         self,
-        _perform_classification_mock,
+        perform_classification_mock,
     ):
         transport = httpx.ASGITransport(app=self.app)
 
@@ -285,6 +290,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-initial-track-usage="false"', response.text)
         self.assertNotIn('id="initial-results-loader"', response.text)
         self.assertNotIn("data-auth-gated=", response.text)
+        perform_classification_mock.assert_called_once()
 
     def _expected_generic_name(self) -> str:
         if self.classifier_type == "UNSPSC":
