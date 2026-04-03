@@ -792,7 +792,8 @@
                         aria-expanded="false" aria-haspopup="listbox"
                         class="border border-gray-400 rounded text-left px-1 py-1 mb-1">
                         {% for v in versions %}
-                        <option value="{{ v }}" {% if v==url_params.version %}selected{% endif %}>{{ v }}</option>
+                        <option value="{{ v }}" {% if v==(url_params.version if url_params.version else first_version)
+                            %}selected{% endif %}>{{ v }}</option>
                         {% endfor %}
                     </select>
                 </div>

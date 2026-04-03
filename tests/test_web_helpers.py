@@ -274,7 +274,6 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
-        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_naics_page_defaults_to_top_10(self) -> None:
         response = await self._request("/NAICS/")
@@ -282,7 +281,6 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
-        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
         response = await self._request("/UNSPSC/?top_k=999")
@@ -290,7 +288,6 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
-        self.assertIn('data-autoload-enabled="true"', response.text)
 
     async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
         response = await self._request("/NAICS/?top_k=999")
@@ -298,7 +295,142 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
+
+
+class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_test_app()
+        cls.unspsc_version = next(iter(CLASSIFIER_CONFIG["UNSPSC"]["versions"]))
+        cls.naics_version = next(iter(CLASSIFIER_CONFIG["NAICS"]["versions"]))
+
+    def _classification_result(self, original_id: str, class_name: str) -> dict:
+        return {
+            "results": [
+                {
+                    "score": 0.97,
+                    "payload": {
+                        "original_id": original_id,
+                        "class_name": class_name,
+                        "definition": f"{class_name} definition.",
+                    },
+                }
+            ],
+            "version_config": {
+                "base_url": "",
+                "tooltip": "",
+            },
+        }
+
+    async def _request(self, path: str) -> httpx.Response:
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(path)
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_unspsc_base_page_inlines_ssr_results(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result(
+            "43211503", "Laptop computers"
+        )
+
+        response = await self._request("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Laptop computers", response.text)
+        self.assertNotIn("Loading...</p>", response.text)
+        self.assertIn('data-autoload-enabled="false"', response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertNotIn("Set-Cookie", response.headers)
+        self.assertEqual(
+            perform_classification_mock.call_args.kwargs["version"], self.unspsc_version
+        )
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
+        check_usage_mock.assert_not_awaited()
+        increment_usage_mock.assert_not_awaited()
+
+    @patch("app.web.perform_classification")
+    async def test_naics_base_page_inlines_ssr_results(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result(
+            "541511", "Custom computer programming services"
+        )
+
+        response = await self._request("/NAICS/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Custom computer programming services", response.text)
+        self.assertIn('data-autoload-enabled="false"', response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertEqual(
+            perform_classification_mock.call_args.kwargs["version"], self.naics_version
+        )
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
+
+    @patch("app.web.perform_classification")
+    async def test_base_page_normalizes_invalid_version_before_ssr(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result(
+            "43211503", "Laptop computers"
+        )
+
+        response = await self._request("/UNSPSC/?version=missing-version")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            perform_classification_mock.call_args.kwargs["version"], self.unspsc_version
+        )
+        self.assertIn('data-autoload-enabled="false"', response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+
+    @patch("app.web.perform_classification")
+    async def test_search_page_keeps_client_loaded_initial_results(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request("/UNSPSC/industrial_pump")
+
+        self.assertEqual(response.status_code, 200)
         self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertIn('data-initial-query-present="true"', response.text)
+        self.assertIn('data-initial-track-usage="true"', response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertNotIn("Laptop computers", response.text)
+        perform_classification_mock.assert_not_called()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification", side_effect=RuntimeError("qdrant down"))
+    async def test_base_page_ssr_failure_falls_back_to_loader(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        response = await self._request("/UNSPSC/")
+        expected_example = CLASSIFIER_CONFIG["UNSPSC"]["example"].strip()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertNotIn('id="initial-results-loader"', response.text)
+        self.assertIn(expected_example, response.text)
+        self.assertNotIn("Set-Cookie", response.headers)
+        perform_classification_mock.assert_called_once()
+        check_usage_mock.assert_not_awaited()
+        increment_usage_mock.assert_not_awaited()
 
 
 class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):

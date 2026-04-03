@@ -87,6 +87,50 @@ def get_sample_cache_profile(sample_path: str):
     return STATIC_MEDIA
 
 
+def build_classification_results_context(
+    request: Request,
+    classifier_type: str,
+    query: str,
+    version: str,
+    top_k: int,
+) -> dict[str, object]:
+    """Build the template context used to render classification results."""
+    normalized_query = re.sub(r"\s+", " ", query).strip()
+    upper_type = classifier_type.strip().upper()
+
+    if not normalized_query:
+        return {
+            "query": normalized_query,
+            "results_for_query": [],
+            "base_url": "",
+            "tooltip": "",
+            "total_request_time": 0,
+        }
+
+    start_total_time = time.perf_counter()
+    quantization_cache = getattr(request.app.state, "collection_quantization_cache", {})
+    zclient = getattr(request.app.state, "zclient", None)
+    result = perform_classification(
+        embed_client=request.app.state.embed_client,
+        qdrant_client=request.app.state.qdrant_client,
+        query=normalized_query,
+        classifier_type=upper_type,
+        version=version,
+        top_k=top_k,
+        quantization_cache=quantization_cache,
+        zclient=zclient,
+    )
+    total_request_time = time.perf_counter() - start_total_time
+
+    return {
+        "query": normalized_query,
+        "results_for_query": result["results"],
+        "base_url": result["version_config"].get("base_url", ""),
+        "tooltip": result["version_config"].get("tooltip", ""),
+        "total_request_time": total_request_time,
+    }
+
+
 def get_related_mapping_products(product: MappingProduct) -> list[MappingProduct]:
     related_products: list[MappingProduct] = []
     for slug in product.related_slugs:
@@ -390,27 +434,14 @@ async def get_classification_fragment(
         add_quota_headers(response, usage_status)
         return response
 
-    start_total_time = time.perf_counter()
-
     try:
-        quantization_cache = getattr(
-            request.app.state, "collection_quantization_cache", {}
-        )
-        # Use shared classification service with ZeroEntropy reranking
-        zclient = getattr(request.app.state, "zclient", None)
-        result = perform_classification(
-            embed_client=request.app.state.embed_client,
-            qdrant_client=request.app.state.qdrant_client,
-            query=normalized_description,
+        results_context = build_classification_results_context(
+            request=request,
             classifier_type=upper_type,
+            query=normalized_description,
             version=version,
             top_k=top_k,
-            quantization_cache=quantization_cache,
-            zclient=zclient,
         )
-
-        classification_results = result["results"]
-
     except HTTPException:
         # Let HTTP exceptions propagate
         raise
@@ -419,9 +450,6 @@ async def get_classification_fragment(
         raise HTTPException(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
-
-    end_total_time = time.perf_counter()
-    total_request_time = end_total_time - start_total_time
 
     # Calculate dynamic page title for OOB swap
     page_title = None
@@ -433,11 +461,7 @@ async def get_classification_fragment(
         request,
         "results.html",
         {
-            "query": normalized_description,
-            "results_for_query": classification_results,
-            "base_url": result["version_config"].get("base_url", ""),
-            "tooltip": result["version_config"].get("tooltip", ""),
-            "total_request_time": total_request_time,
+            **results_context,
             "page_title": page_title,
         },
     )
@@ -536,6 +560,7 @@ async def show_classifier_page_with_query(
     # Get first version for default handling
     versions_list = list(config["versions"].keys())
     first_version = versions_list[0] if versions_list else ""
+    validated_version = version if version in config["versions"] else first_version
 
     # Initialize results data structure
     results_data = {
@@ -549,10 +574,11 @@ async def show_classifier_page_with_query(
     raw_example = config["example"].strip()
     display_example = raw_example if raw_example else ""
 
-    # Determine if we should trigger a search on load
-    # This is true if we have a URL search query OR if we're falling back to the example
-    trigger_search_on_load = False
+    # Track whether the base page is seeded from the configured example text.
+    # This must always be initialized before the template context is built.
     default_example_prefill = False
+
+    trigger_search_on_load = False
 
     if decoded_search_query:
         trigger_search_on_load = True
@@ -560,9 +586,24 @@ async def show_classifier_page_with_query(
         # If no search query (base URL), use example query
         example_query = raw_example
         if example_query:
-            results_data["query"] = example_query
-            trigger_search_on_load = True
             default_example_prefill = True
+            results_data["query"] = example_query
+            try:
+                results_data = build_classification_results_context(
+                    request=request,
+                    classifier_type=effective_classifier_type,
+                    query=example_query,
+                    version=validated_version,
+                    top_k=top_k,
+                )
+            except Exception as e:
+                logger.warning(
+                    "SSR fallback for '%s' page classification due to %s: %s",
+                    effective_classifier_type,
+                    type(e).__name__,
+                    e,
+                )
+                trigger_search_on_load = True
 
     today = datetime.now()
     current_year = today.year
@@ -580,7 +621,11 @@ async def show_classifier_page_with_query(
             "example": display_example,
             "url_params": {
                 "search": decoded_search_query,
-                "version": version if version and version != first_version else "",
+                "version": (
+                    validated_version
+                    if validated_version and validated_version != first_version
+                    else ""
+                ),
                 "top_k": top_k,
             },
             "default_example_prefill": default_example_prefill,
