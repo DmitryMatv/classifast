@@ -6,7 +6,7 @@ import { ClerkHelpers } from "./clerk-helpers";
 const SIGN_IN_CLASS =
   "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-50 text-sky-700 hover:bg-sky-100 active:bg-sky-100 active:scale-95 rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const SIGN_UP_CLASS =
-  "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-600 hover:bg-sky-700 active:bg-sky-800 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
+  "inline-flex shrink-0 items-center justify-center whitespace-nowrap bg-sky-700 hover:bg-sky-800 active:bg-sky-900 active:scale-95 text-white rounded transition-all duration-150 ease-in-out transform cursor-pointer auth-loaded";
 const DESKTOP_AUTH_BUTTON_SIZE_CLASS = "h-9 px-4 leading-none";
 const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
 const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
