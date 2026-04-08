@@ -2,7 +2,7 @@ import { ShareLink } from "./common";
 
 const BASE_SCORE_BAR_DELAY_MS = 0;
 const SCORE_BAR_STAGGER_MS = 100;
-const MAX_SCORE_BAR_STAGGER_MS = 600;
+const MAX_SCORE_BAR_STAGGER_MS = 1000;
 
 /**
  * Classifier page specific functionality

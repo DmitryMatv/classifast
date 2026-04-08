@@ -37,3 +37,8 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 ## Rapid API (API.py)
 
 `app/api.py` is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
+
+## Frontend SSR Animation Gotcha
+
+- Classifier pages can server-render default/example results directly into `#results-container`.
+- If score bar animation depends on the `js-score-animations` class, add that class in an inline `<head>` script before first paint. Setting it only inside `app/assets/ts/classifier.ts` is too late for SSR results and causes the bars to appear already finished or flash without a smooth entrance animation.

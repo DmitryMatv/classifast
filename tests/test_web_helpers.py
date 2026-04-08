@@ -379,6 +379,29 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
 
     @patch("app.web.perform_classification")
+    async def test_base_page_primes_score_bar_animation_before_page_scripts(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result(
+            "43211503", "Laptop computers"
+        )
+
+        response = await self._request("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        animation_bootstrap = (
+            "<script>\n"
+            '        document.documentElement.classList.add("js-score-animations");\n'
+            "    </script>"
+        )
+        self.assertIn("/js/classifier.js", response.text)
+        self.assertLess(
+            response.text.index(animation_bootstrap),
+            response.text.index("/js/classifier.js"),
+        )
+
+    @patch("app.web.perform_classification")
     async def test_base_page_normalizes_invalid_version_before_ssr(
         self,
         perform_classification_mock: Mock,
