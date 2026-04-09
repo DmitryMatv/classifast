@@ -54,7 +54,7 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('id="desktop-auth-container"', response.text)
         self.assertIn('data-auth-ui="disabled"', response.text)
         self.assertIn(
-            "background-image: linear-gradient(180deg, #d6f0ff 0%, #f8fafc 100%);",
+            "background-image: linear-gradient(180deg, #c6ecff 0%, #ebf8ff 30%, #ffffff 100%);",
             response.text,
         )
         self.assertNotIn(
@@ -78,7 +78,7 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('id="desktop-auth-container"', response.text)
         self.assertIn('data-auth-ui="disabled"', response.text)
         self.assertIn(
-            "background-image: linear-gradient(180deg, #d6f0ff 0%, #f8fafc 100%);",
+            "background-image: linear-gradient(180deg, #c6ecff 0%, #ebf8ff 30%, #ffffff 100%);",
             response.text,
         )
         self.assertNotIn(

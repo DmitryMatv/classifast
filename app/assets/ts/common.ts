@@ -12,7 +12,7 @@ const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
 const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
 const CLERK_LOAD_TIMEOUT_MS = 10000;
 const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
-const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 500;
+const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 300;
 
 // Global error handlers
 window.addEventListener("error", (event) => {
@@ -724,7 +724,9 @@ export class ClerkAuth {
         const params = {
           cancelOnTapOutside: false,
           itpSupport: true,
-          fedCmSupport: true,
+          // FedCM currently logs browser console errors with our Clerk custom
+          // domains because the provider config endpoint is not resolving cleanly.
+          fedCmSupport: false,
         };
         window.Clerk.openGoogleOneTap(params);
       }
