@@ -139,8 +139,9 @@ describe("paywall.ts", () => {
     initPaywall();
     (document.getElementById("upgrade-button") as HTMLButtonElement).click();
 
-    await vi.waitFor(() => expect(global.fetch).toHaveBeenCalled());
-    const [requestUrl, requestInit] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    const [requestUrl, requestInit] =
+      vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
     expect(requestUrl).toBe("/api/create-checkout");
     expect(requestInit?.body).toBeDefined();
     expect(JSON.parse(String(requestInit?.body))).toEqual({
