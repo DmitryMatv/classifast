@@ -547,7 +547,7 @@
 
             <aside class="space-y-4">
                 <section class="aside-box purchase-box">
-                    <p class="section-label mb-2">Full mapping file</p>
+                    <p class="section-label mb-2">Full crosswalk table</p>
                     <p class="text-[2rem] font-bold text-slate-900 mb-3">${{ product.price_usd }}</p>
                     <p class="text-slate-700 leading-7 mb-4">{{ product.paid_format_label }} for {{
                         product.source_standard }} and {{ product.target_standard }} reference and conversion workflows.
@@ -569,7 +569,7 @@
                         </a>
                     </div>
                     <div class="sample-callout mt-4">
-                        <img src="https://cdn-icons-png.flaticon.com/512/8242/8242984.png" alt="CSV mapping file">
+                        <img src="https://cdn-icons-png.flaticon.com/512/8242/8242984.png" alt="CSV icon">
                         <div>
                             <p class="font-semibold text-slate-900 mb-1">Check before you buy</p>
                             <p class="text-sm leading-6 text-slate-600">Review the free CSV sample structure and data
@@ -585,7 +585,7 @@
                         {% for related_product in related_products %}
                         <a href="{{ url_for('show_mapping_product_page', slug=related_product.slug) }}"
                             class="related-link">
-                            <p class="section-label mb-2">CSV MAPPING TABLE</p>
+                            <p class="section-label mb-2">CROSSWALK TABLE</p>
                             <p class="font-semibold text-slate-900">{{ related_product.title }}</p>
                         </a>
                         {% endfor %}

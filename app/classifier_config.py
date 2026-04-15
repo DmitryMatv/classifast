@@ -50,7 +50,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "title": "NAICS Code Finder",
         "heading": "Get the right NAICS codes for your business.",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
-        "example": "Gamedev studio",
+        "example": "Used tire dealer",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -79,6 +79,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
             },
             "ISIC Rev. 5": {
                 "collection_name": "ISIC_5_new001_v3corr",
+                "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/2029/",
             },
         },
     },
@@ -86,11 +87,11 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "title": "HS Code Finder",
         "heading": "Find the right HS (Harmonized System) codes for your goods.",
         "description": "The Harmonized Commodity Description and Coding System (HS) is a globally standardized nomenclature developed by the World Customs Organization (WCO) for classifying traded products. Used by over 200 countries and territories, the HS serves as the foundation for international trade statistics, customs tariffs, and trade negotiations. This six-digit classification system is essential for importers, exporters, customs brokers, and logistics professionals to determine applicable duties, taxes, trade restrictions, and regulatory requirements for goods crossing international borders.",
-        "example": "Electric motor",
+        "example": "Frozen mangoes",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
-            "HS 2022": {
+            "HS6 2022": {
                 "collection_name": "H6-HS_2022_new001_v4",
                 "base_url": "https://www.tariffnumber.com/2025/",
             },
@@ -100,7 +101,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "title": "CN Code Finder",
         "heading": "Get CN (Combined Nomenclature) codes for EU customs and trade.",
         "description": "The Combined Nomenclature (CN) is the European Union's integrated tariff and statistical classification system, extending the international Harmonized System (HS) with EU-specific provisions. This 8-digit code structure is mandatory for all customs declarations, import/export documentation, and intra-EU trade statistics, serving as the legal basis for the EU's Common Customs Tariff and providing detailed classification for goods traded within the single market.",
-        "example": "Steel sheets, 2mm thick",
+        "example": "Frozen mangoes from Brazil",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {

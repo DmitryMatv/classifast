@@ -103,6 +103,34 @@ class RequestValidationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"], "INVALID_ENCODING")
 
+    async def test_cloudflare_bypass_spam_is_blocked(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(
+                "/echo?q=cfRLUnblockHandlers2920return20false253B20window.copyOriginalId28274321161927252C20this29"
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "INVALID_ENCODING")
+
+    async def test_copyOriginalId_spam_is_blocked(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            response = await client.get(
+                "/echo?q=copyOriginalId25282527114125272C2520this25292520return2520false3B2520window.copyOriginalId25282527114125272C2520this2529"
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "INVALID_ENCODING")
+
 
 class QueryNormalizationMiddlewareTests(unittest.IsolatedAsyncioTestCase):
     @classmethod

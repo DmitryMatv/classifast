@@ -321,7 +321,12 @@ app.add_middleware(GZipMiddlewareExcludingSitemap, minimum_size=1000)
 
 # URL Encoding Validation Middleware
 class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
-    # Simplified regex combining all attack patterns
+    _spam_signatures = [
+        "cfRLUnblockHandlers",
+        "UnblockHandlers",
+        "copyOriginalId",
+    ]
+
     _attack_patterns = re.compile(
         r"(%25){3,}"  # Triple+ encoded % signs
         r"|"  # OR
@@ -361,6 +366,12 @@ class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
                 "Suspicious pattern detected: %s...", pattern_checked_content[:100]
             )
             return self._create_error_response()
+
+        # Check for known spam signatures (Cloudflare bypass attempts)
+        for sig in self._spam_signatures:
+            if sig in pattern_checked_content:
+                logger.warning("Known spam signature detected: %s...", sig)
+                return self._create_error_response()
 
         response = await call_next(request)
         return response
