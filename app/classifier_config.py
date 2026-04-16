@@ -69,7 +69,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "title": "ISIC Classifier",
         "heading": "Instantly categorize economic activities using the UN's ISIC.",
         "description": "The International Standard Industrial Classification of All Economic Activities (ISIC) is the global reference classification for economic activities developed by the United Nations Statistics Division. Used by national statistical offices worldwide, ISIC provides a comprehensive framework for organizing economic data by type of productive activity. It serves as the foundation for compiling national accounts, analyzing industrial statistics, and facilitating international comparisons of economic structure and performance across countries.",
-        "example": "Manufacture of motor vehicles",
+        "example": "Gas station operation",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -93,7 +93,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "versions": {
             "HS6 2022": {
                 "collection_name": "H6-HS_2022_new001_v4",
-                "base_url": "https://www.tariffnumber.com/2025/",
+                "base_url": "https://www.tariffnumber.com/2026/",
             },
         },
     },
@@ -135,11 +135,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "versions": {
             "CPV 2008 (ver. 2013)": {
                 "collection_name": "cpv_2008_ver_2013_v3",
-                # "base_url": "https://www.tariffnumber.com/2025/",
             },
             "CPV 2008 Supplementary codes": {
                 "collection_name": "cpv_2008_ver_2013_Supplementary_codes_v2",
-                # "base_url": "https://www.tariffnumber.com/2025/",
             },
         },
     },
@@ -153,7 +151,6 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "versions": {
             "NSN extract (February 22, 2023)": {
                 "collection_name": "nsn-extract-2-21-23_v3",
-                # "base_url": "https://www.tariffnumber.com/2025/",
             },
         },
     },

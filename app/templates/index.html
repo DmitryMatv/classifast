@@ -592,26 +592,51 @@
             }
         }
 
+        .testimonials-section {
+            background: white;
+            padding: 6rem 0;
+        }
+
+        .testimonial-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px -8px rgba(15, 23, 42, 0.12);
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .testimonial-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px -16px rgba(15, 23, 42, 0.2);
+        }
+
+        .testimonial-text {
+            color: #475569;
+            font-size: 1rem;
+            line-height: 1.6;
+            font-style: normal;
+        }
+
+        .testimonial-subtitle {
+            max-width: 35rem;
+            margin: 0 auto 2rem;
+            color: #475569;
+            font-size: clamp(1.06rem, 1.45vw, 1.28rem);
+            line-height: 1.7;
+        }
+
         @media (max-width: 768px) {
-            .desktop-nav {
-                display: none;
+            .testimonials-section {
+                padding: 4rem 0;
             }
 
-            .mobile-menu {
-                width: 95vw;
-                right: 50%;
-                transform: translateX(50%);
-                border-radius: 1rem;
+            .testimonial-card {
+                padding: 1.25rem;
             }
 
-            .menu-panel {
-                grid-template-columns: 1fr;
-                gap: 1rem;
-                padding: 1rem;
-            }
-
-            .menu-chip-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+            .testimonial-text {
+                font-size: 0.95rem;
             }
         }
     </style>
@@ -817,6 +842,47 @@
                                 href="https://developers.googleblog.com/gemini-embedding-available-gemini-api/"
                                 target="_blank" rel="noopener" class="text-sky-600 hover:underline">Gemini Embedding</a>
                             can achieve SOTA performance and remove human bias.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonials Section -->
+        <section class="testimonials-section">
+            <div class="container mx-auto px-4 max-w-6xl">
+                <div class="text-center mb-12">
+                    <h2 class="text-2xl md:text-3xl font-bold text-gray-800 mb-3">Real feedback from PMs
+                        and business owners</h2>
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6" role="list">
+                    <article class="testimonial-card" role="listitem">
+                        <p class="testimonial-text">I came to my company a couple years ago and I was shocked they
+                            haven't implemented it yet company-wide, let alone for e-commerce. One product manager asked
+                            me how the heck do I look these things up? This is much better that looking on the .org
+                            site's spreadsheet!</p>
+                    </article>
+
+                    <article class="testimonial-card" role="listitem">
+                        <p class="testimonial-text">I'm on annual leave until Friday, but will try some mappings on
+                            these categories and let you know how it goes! You sir are a hero. I'd definitely list this
+                            for sale elsewhere as well as I'm sure many organisations will be able to use it.</p>
+                    </article>
+
+                    <article class="testimonial-card" role="listitem">
+                        <p class="testimonial-text">I have been trying to figure out what NAICS to use for my
+                            macrame/anything i can DIY shop ALL MORNING and i stumbled upon your website and YOURE A
+                            GENIUS THANK YOU!!!!!! just saved me an entire afternoon of rage!!!! sending nothing but
+                            positive vibes to you and yours</p>
+                    </article>
+
+                    <article class="testimonial-card" role="listitem">
+                        <p class="testimonial-text">Surprised you stumbled across this. I can't even remember the
+                            problem I was trying to solve back then, but I'll certainly give this a look. Cheers!</p>
+                    </article>
+
+                    <article class="testimonial-card" role="listitem">
+                        <p class="testimonial-text">Wow, denne var genial. Tusen takk!!!</p>
                     </article>
                 </div>
             </div>
