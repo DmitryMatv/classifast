@@ -274,6 +274,7 @@ function signalAuthReady(): void {
 export class ClerkAuth {
   private static htmxAuthHeaderRegistered = false;
   private clerkStarted = false;
+  private hasAttemptedGoogleOneTap = false;
   private readonly clerkScriptSelector =
     'script[src*="@clerk/clerk-js"], script[src*="clerk.browser.js"]';
 
@@ -718,15 +719,28 @@ export class ClerkAuth {
     }
   }
 
+  private shouldOpenGoogleOneTap(): boolean {
+    if (this.hasAttemptedGoogleOneTap || window.Clerk?.user) {
+      return false;
+    }
+
+    try {
+      return window.top === window.self;
+    } catch {
+      return false;
+    }
+  }
+
   private openGoogleOneTap() {
     try {
-      if (window.Clerk?.openGoogleOneTap) {
+      if (this.shouldOpenGoogleOneTap() && window.Clerk?.openGoogleOneTap) {
+        this.hasAttemptedGoogleOneTap = true;
         const params = {
           cancelOnTapOutside: false,
           itpSupport: true,
-          // FedCM currently logs browser console errors with our Clerk custom
-          // domains because the provider config endpoint is not resolving cleanly.
-          fedCmSupport: false,
+          // GIS/FedCM is the intended path here. The remaining FedCM migration
+          // warning is emitted by Clerk's bundled One Tap wrapper, not by our code.
+          fedCmSupport: true,
         };
         window.Clerk.openGoogleOneTap(params);
       }

@@ -26,6 +26,7 @@ describe("common.ts", () => {
     delete window.__clerkScriptFailed;
     delete window.copyOriginalId;
     window.__internal_ClerkUICtor = {};
+    window.self = window;
   });
 
   afterEach(() => {
@@ -308,6 +309,84 @@ describe("common.ts", () => {
     expect(window.__authReady).toBe(true);
     expect(authReadyListener).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).not.toContain("Sign In");
+    expect(window.Clerk?.openGoogleOneTap).not.toHaveBeenCalled();
+  });
+
+  it("opens Google One Tap with FedCM enabled for anonymous users", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.Clerk?.openGoogleOneTap).toHaveBeenCalledTimes(1);
+    expect(window.Clerk?.openGoogleOneTap).toHaveBeenCalledWith({
+      cancelOnTapOutside: false,
+      itpSupport: true,
+      fedCmSupport: true,
+    });
+  });
+
+  it("does not open Google One Tap when the user is already signed in", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.session = {
+        getToken: vi.fn(async () => "token-123"),
+      };
+    }
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.Clerk?.openGoogleOneTap).not.toHaveBeenCalled();
+  });
+
+  it("opens Google One Tap only once across anonymous auth UI rerenders", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+
+    let listener: (() => Promise<void>) | undefined;
+    if (window.Clerk) {
+      window.Clerk.addListener = vi.fn((callback) => {
+        listener = callback as () => Promise<void>;
+        return vi.fn();
+      });
+    }
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.Clerk?.openGoogleOneTap).toHaveBeenCalledTimes(1);
+    expect(listener).toBeTypeOf("function");
+
+    await listener?.();
+    await flushAsyncWork();
+    await listener?.();
+    await flushAsyncWork();
+
+    expect(window.Clerk?.openGoogleOneTap).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips Google One Tap in an embedded browsing context", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+    `;
+    // Embedded context is detected via `window.self !== window`
+    window.self = { embedded: true } as unknown as Window & typeof globalThis;
+
+    await import("./common");
+    await flushAsyncWork();
+
+    expect(window.Clerk?.openGoogleOneTap).not.toHaveBeenCalled();
   });
 
   it("mounts Clerk user buttons without the extra trigger ring or background chrome", async () => {
