@@ -7,6 +7,7 @@ import redis.asyncio as redis
 
 from app.clerk_auth import ClerkAuthenticationError, ClerkInfrastructureError
 from app.usage_tracker import (
+    ANON_USAGE_TTL,
     FREE_USER_LIMIT,
     NEGATIVE_TIER_CACHE_TTL,
     TIER_CACHE_TTL,
@@ -758,8 +759,10 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         redis_client.incr.assert_any_await("anon:track-123:usage_count")
         redis_client.incr.assert_any_await(ip_key)
         self.assertEqual(redis_client.expire.await_count, 2)
-        redis_client.expire.assert_any_await("anon:track-123:usage_count", USAGE_TTL)
-        redis_client.expire.assert_any_await(ip_key, USAGE_TTL)
+        redis_client.expire.assert_any_await(
+            "anon:track-123:usage_count", ANON_USAGE_TTL
+        )
+        redis_client.expire.assert_any_await(ip_key, ANON_USAGE_TTL)
 
     async def test_increment_usage_skips_pro_user(self) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})

@@ -1321,8 +1321,8 @@
                 }
 
                 if (trackingId) {
-                    // 30 days max-age to match Redis usage data TTL (prevents abuse of free tier)
-                    var maxAge = 30 * 24 * 60 * 60;
+                    // 1 year max-age to match anonymous Redis usage data TTL
+                    var maxAge = 365 * 24 * 60 * 60;
                     document.cookie = cookieName + "=" + encodeURIComponent(trackingId) +
                         "; max-age=" + maxAge + "; path=/; secure; samesite=lax";
                 }

@@ -50,7 +50,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "title": "NAICS Code Finder",
         "heading": "Get the right NAICS codes for your business.",
         "description": "The North American Industry Classification System (NAICS) is the official industry classification system used by the United States, Canada, and Mexico to collect, analyze, and publish statistical data about their business economies. Developed jointly by these three countries, NAICS provides a standardized framework for measuring economic activity and is essential for business registration, tax reporting, government contracting, market research, and economic analysis across North America.",
-        "example": "Used tire dealer",
+        "example": "Dog grooming",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {
@@ -115,7 +115,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "title": "NACE Business Activity Classifier",
         "heading": "Classify economic activities with EU's NACE standard.",
         "description": "NACE (Nomenclature statistique des activités économiques) is the European Union's statistical classification of economic activities, developed by Eurostat to ensure harmonized economic analysis across all EU member states. This comprehensive framework enables consistent business registration, national accounts compilation, employment statistics, and cross-country economic comparisons, serving as the foundation for EU policy-making, regional development planning, and structural business statistics.",
-        "example": "Nuclear power plant operation",
+        "example": "Used car dealership",
         "embed_model_name": "gemini-embedding-001",
         "embed_dims": 3072,
         "versions": {

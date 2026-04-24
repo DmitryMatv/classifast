@@ -5,7 +5,9 @@ Run this after deploying the payload-index contract fix to reconcile existing
 collections with the classifier lookup logic.
 
 Usage:
-    python utilities/create_text_indexes.py
+    python utilities/sync_payload_indexes.py
+
+This utility manages both keyword and text payload indexes.
 
 The script will:
 1. Connect to Qdrant
@@ -28,7 +30,7 @@ from app.classifier_config import CLASSIFIER_CONFIG
 
 load_dotenv()
 
-PAYLOAD_INDEX_FIELDS = ("original_id", "class_name")
+PAYLOAD_INDEX_FIELDS = ("original_id", "original_id_normalized", "class_name")
 
 
 def build_original_id_index_params() -> models.KeywordIndexParams:
@@ -51,7 +53,7 @@ def get_payload_index_schema(
     field_name: str,
 ) -> models.KeywordIndexParams | models.TextIndexParams:
     """Return the expected payload index schema for a classifier field."""
-    if field_name == "original_id":
+    if field_name in {"original_id", "original_id_normalized"}:
         return build_original_id_index_params()
     if field_name == "class_name":
         return build_text_index_params()
@@ -111,7 +113,7 @@ def is_expected_payload_index(
     index_info: models.PayloadIndexInfo,
 ) -> bool:
     """Return whether the existing payload index matches the field contract."""
-    if field_name == "original_id":
+    if field_name in {"original_id", "original_id_normalized"}:
         return index_info.data_type == models.PayloadSchemaType.KEYWORD
 
     if field_name == "class_name":
@@ -277,7 +279,7 @@ def migrate_collection_payload_indexes(
                 field_name,
                 existing_index,
             ):
-                print(f"  ⚠ WARNING: '{field_name}' left without any index!")
+                print(f"  WARNING: '{field_name}' left without any index!")
 
     return collection_success
 
@@ -306,10 +308,10 @@ def migrate_configured_collections(
 
 def main() -> int:
     print("=" * 60)
-    print("Qdrant Payload Index Remediation")
+    print("Qdrant Payload Index Sync")
     print("=" * 60)
     print(
-        "This reconciles existing payload indexes with classifier exact and partial ID lookup behavior."
+        "This syncs both keyword and text payload indexes with classifier exact and partial ID lookup behavior."
     )
 
     client = create_qdrant_client()

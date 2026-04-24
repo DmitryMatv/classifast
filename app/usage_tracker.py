@@ -38,8 +38,9 @@ QUOTA_FAIL_OPEN = os.getenv("QUOTA_FAIL_OPEN", "true").lower() in (
 
 # Constants
 TRACKING_COOKIE_NAME = "cf_track"
-TRACKING_COOKIE_MAX_AGE = 30 * 24 * 60 * 60  # 30 days (matches Redis usage data TTL)
-USAGE_TTL = 30 * 24 * 60 * 60  # 30 days
+ANON_USAGE_TTL = 365 * 24 * 60 * 60  # 1 year
+TRACKING_COOKIE_MAX_AGE = ANON_USAGE_TTL  # Keep the anon cookie aligned with Redis
+USAGE_TTL = ANON_USAGE_TTL  # 1 year for authenticated free-user usage too
 TIER_CACHE_TTL = 3600  # Cache user tier for 1 hour
 NEGATIVE_TIER_CACHE_TTL = 60  # Cache failed lookups for 1 minute
 GRACE_PERIOD_TTL = int(
@@ -649,8 +650,6 @@ async def increment_usage(
     if not redis_client or usage_status.is_pro:
         return
 
-    ttl = USAGE_TTL  # 30 days
-
     try:
         # tracking_id carries the post-check identity:
         # authenticated user_id for signed-in users, cookie id for anonymous users.
@@ -665,7 +664,7 @@ async def increment_usage(
         if usage_status.is_authenticated:
             key = f"user:{tracking_id}:usage_count"
             await redis_client.incr(key)
-            await redis_client.expire(key, ttl)
+            await redis_client.expire(key, USAGE_TTL)
             logger.info(f"Incremented authenticated user usage: {key}")
         else:
             # Anonymous user - always increment BOTH counters
@@ -676,8 +675,8 @@ async def increment_usage(
 
             await redis_client.incr(cookie_key)
             await redis_client.incr(ip_key)
-            await redis_client.expire(cookie_key, ttl)
-            await redis_client.expire(ip_key, ttl)
+            await redis_client.expire(cookie_key, ANON_USAGE_TTL)
+            await redis_client.expire(ip_key, ANON_USAGE_TTL)
 
             logger.info(
                 f"Incremented anonymous user usage: tracking_id={tracking_id}, ip_hash={ip_hash}, cookie_key={cookie_key}, ip_key={ip_key}"
