@@ -12,7 +12,7 @@ const MOBILE_AUTH_BUTTON_SIZE_CLASS = "min-h-9 px-4 py-2 leading-none";
 const CLERK_SCRIPT_READINESS_TIMEOUT_MS = 10000;
 const CLERK_LOAD_TIMEOUT_MS = 10000;
 const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
-const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 200;
+const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 100;
 
 // Global error handlers
 window.addEventListener("error", (event) => {

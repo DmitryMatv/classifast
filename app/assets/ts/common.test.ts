@@ -158,7 +158,7 @@ describe("common.ts", () => {
 
     expect(textarea.value).toBe("Industrial pump");
 
-    await advanceTimersAndFlushAsync(199);
+    await advanceTimersAndFlushAsync(99);
 
     expect(textarea.value).toBe("Industrial pump");
 
