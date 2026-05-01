@@ -48,21 +48,22 @@
                                 {% endif %}
                                 {%- set id_tokens = result.payload.original_id | group_original_id_tokens -%}
                                 {%- set digit_colors = {
-                                '1': 'text-[#ff488a]',
-                                '2': 'text-[#8f360b]',
-                                '3': 'text-[#dda023]',
-                                '4': 'text-[#92af00]',
-                                '5': 'text-[#007621]',
-                                '6': 'text-[#45b6e7]',
-                                '7': 'text-[#0260ae]',
-                                '8': 'text-[#7561eb]',
-                                '9': 'text-[#853666]',
+                                '0': 'text-[#1f77b4]',
+                                '1': 'text-[#17becf]',
+                                '2': 'text-[#e377c2]',
+                                '3': 'text-[#8c564b]',
+                                '4': 'text-[#bcbd22]',
+                                '5': 'text-[#9467bd]',
+                                '6': 'text-[#2ca02c]',
+                                '7': 'text-[#7f7f7f]',
+                                '8': 'text-[#ff7f0e]',
+                                '9': 'text-[#d62728]',
                                 } -%}
                                 {%- for token in id_tokens -%}
                                 {%- if token.char in digit_colors -%}
                                 <span class="{{ digit_colors[token.char] }}">{{ token.char }}</span>
                                 {%- else -%}
-                                <span class="text-gray-400">{{ token.char }}</span>
+                                <span class="text-gray-600">{{ token.char }}</span>
                                 {%- endif -%}
                                 {# Insert a small visual-only separator after every 2 digits within a contiguous
                                 digit run. The copy button still uses the raw original_id passed into JS. #}
