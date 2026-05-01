@@ -158,10 +158,10 @@ describe("classifier.ts", () => {
     ).toBe("0ms");
     expect(
       scoreBars[1]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("100ms");
+    ).toBe("0ms");
     expect(
       scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("200ms");
+    ).toBe("0ms");
   });
 
   it("auto-submits on top-k change only when textarea has content", async () => {

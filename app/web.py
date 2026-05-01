@@ -128,6 +128,7 @@ def build_classification_results_context(
         "base_url": result["version_config"].get("base_url", ""),
         "tooltip": result["version_config"].get("tooltip", ""),
         "total_request_time": total_request_time,
+        "classifier_type": upper_type,
     }
 
 
