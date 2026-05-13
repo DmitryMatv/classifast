@@ -11,7 +11,7 @@ COPY app/assets ./app/assets
 COPY app/templates ./app/templates
 RUN mkdir -p app/static/js app/static/css && bun run build
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 WORKDIR /service_root
 
