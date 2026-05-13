@@ -5,19 +5,19 @@ FROM dhi.io/bun:1-dev AS frontend-builder
 WORKDIR /frontend
 
 COPY package.json bun.lock tsconfig.json ./
-RUN --mount=type=cache,target=/root/.bun bun ci
+RUN --mount=type=cache,target=/root/.bun bun ci --minimum-release-age=259200
 
 COPY app/assets ./app/assets
 COPY app/templates ./app/templates
 RUN mkdir -p app/static/js app/static/css && bun run build
 
-FROM python:3.14-slim-bookworm AS runtime
+FROM python:3.12-slim-bookworm AS runtime
 
 WORKDIR /service_root
 
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-compile -r requirements.txt
+    pip install --no-compile --uploaded-prior-to=P3D -r requirements.txt
 
 # Install curl for health checks
 RUN apt-get update && apt-get install --no-install-recommends -y curl \
