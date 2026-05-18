@@ -72,12 +72,17 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
             headers={"X-RapidAPI-Proxy-Secret": "secret"},
         )
 
-        with patch.object(api, "RAPIDAPI_SECRET", "secret"), patch(
-            "app.api.perform_classification",
-            return_value=build_classification_result("2025"),
-        ), patch("app.usage_tracker.check_usage", new=AsyncMock()) as check_usage, patch(
-            "app.usage_tracker.increment_usage", new=AsyncMock()
-        ) as increment_usage:
+        with (
+            patch.object(api, "RAPIDAPI_SECRET", "secret"),
+            patch(
+                "app.api.perform_classification",
+                return_value=build_classification_result("2025"),
+            ),
+            patch("app.usage_tracker.check_usage", new=AsyncMock()) as check_usage,
+            patch(
+                "app.usage_tracker.increment_usage", new=AsyncMock()
+            ) as increment_usage,
+        ):
             self.assertTrue(api.verify_rapidapi_auth(request))
             response = await api.rapid_classify(
                 request,
@@ -122,14 +127,22 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
             tracking_id=None,
         )
 
-        with patch("app.web.check_usage", new=AsyncMock(return_value=usage_status)) as check_usage, patch(
-            "app.web.increment_usage", new=AsyncMock()
-        ) as increment_usage, patch(
-            "app.web.perform_classification",
-            return_value=build_classification_result(version_name),
-        ), patch("app.web.add_quota_headers") as add_quota_headers:
-            def quota_header_side_effect(response, current_usage_status):
-                response.headers["X-RateLimit-Remaining"] = str(current_usage_status.remaining)
+        with (
+            patch(
+                "app.web.check_usage", new=AsyncMock(return_value=usage_status)
+            ) as check_usage,
+            patch("app.web.increment_usage", new=AsyncMock()) as increment_usage,
+            patch(
+                "app.web.perform_classification",
+                return_value=build_classification_result(version_name),
+            ),
+            patch("app.web.add_quota_headers") as add_quota_headers,
+        ):
+
+            def quota_header_side_effect(response, current_usage_status) -> None:
+                response.headers["X-RateLimit-Remaining"] = str(
+                    current_usage_status.remaining
+                )
                 response.headers["X-RateLimit-Limit"] = str(current_usage_status.limit)
 
             add_quota_headers.side_effect = quota_header_side_effect

@@ -1,7 +1,7 @@
 import os
 
 from fastapi.templating import Jinja2Templates
-from jwt import PyJWKClient
+from jwt.jwks_client import PyJWKClient
 
 
 def group_original_id_tokens(original_id: object) -> list[dict[str, object]]:
@@ -44,7 +44,7 @@ CLERK_PERMITTED_ORIGINS = os.getenv("CLERK_PERMITTED_ORIGINS", "")
 _jwks_client = None
 
 
-def get_jwks_client():
+def get_jwks_client() -> PyJWKClient | None:
     global _jwks_client
     if _jwks_client is None and CLERK_FRONTEND_API:
         _jwks_client = PyJWKClient(

@@ -15,6 +15,7 @@ from polar_sdk.models import (
     WebhookSubscriptionRevokedPayload,
     WebhookSubscriptionUpdatedPayload,
 )
+from polar_sdk.models.subscription import Subscription
 
 from .clerk_auth import (
     ClerkAuthenticationError,
@@ -67,7 +68,7 @@ def _normalize_candidate_ids(raw_value) -> set[str]:
     return normalized_object
 
 
-def extract_subscription_product_ids(subscription) -> set[str]:
+def extract_subscription_product_ids(subscription: Subscription) -> set[str]:
     metadata = getattr(subscription, "metadata", None) or {}
     candidate_ids: set[str] = set()
 
@@ -91,7 +92,7 @@ def extract_subscription_product_ids(subscription) -> set[str]:
     return candidate_ids
 
 
-def subscription_matches_pro_entitlement(subscription) -> bool:
+def subscription_matches_pro_entitlement(subscription: Subscription) -> bool:
     try:
         configured_product_id = get_pro_product_id()
     except HTTPException:
@@ -324,12 +325,12 @@ async def polar_webhook(request: Request):
     return {"status": "received"}
 
 
-async def handle_subscription_update(subscription, tier: str):
+async def handle_subscription_update(subscription: Subscription, tier: str):
     """Update user tier based on subscription metadata."""
     metadata = subscription.metadata or {}
     user_id = metadata.get("user_id")
 
-    if user_id:
+    if isinstance(user_id, str) and user_id:
         logger.info(f"Updating user {user_id} to tier {tier}")
         success = await update_clerk_user_metadata(user_id, {"tier": tier})
         if not success:
@@ -339,6 +340,10 @@ async def handle_subscription_update(subscription, tier: str):
             raise HTTPException(
                 status_code=502, detail="Failed to update user metadata"
             )
+    elif user_id:
+        logger.warning(
+            "Ignoring non-string user_id in subscription metadata: %r", user_id
+        )
     else:
         logger.warning("No user_id found in subscription metadata")
 

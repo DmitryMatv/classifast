@@ -23,7 +23,7 @@ client = QdrantClient(
 # --- Add the code below ---
 
 # Define your collection name
-COLLECTION_NAME = "collection_name"  # <--- IMPORTANT: Change this!
+COLLECTION_NAME = "UNSPSC_gemini2-v1"  # <--- IMPORTANT: Change this!
 
 # 1. & 2. Update Quantization and HNSW Config
 # This operation tells Qdrant to update the collection's configuration.
@@ -41,9 +41,9 @@ client.update_collection(
                 m=32,
                 ef_construct=256,
                 max_indexing_threads=2,
-                on_disk=False,
+                on_disk=True,
             ),
-            on_disk=False,  # Move vectors to RAM for speed
+            on_disk=True,
         )
     },
     # Global HNSW config
@@ -51,7 +51,7 @@ client.update_collection(
         m=32,
         ef_construct=256,
         max_indexing_threads=2,
-        on_disk=False,
+        on_disk=True,
         inline_storage=True,
         full_scan_threshold=5000,  # Force index use earlier
     ),

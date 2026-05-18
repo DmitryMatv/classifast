@@ -31,7 +31,8 @@ from dotenv import load_dotenv
 from google import genai
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import ApiException as QdrantApiException
-from zeroentropy import ZeroEntropy, APIError as ZeroEntropyAPIError
+from zeroentropy import APIError as ZeroEntropyAPIError
+from zeroentropy import ZeroEntropy
 
 from app.classifier import (
     get_embedding,
@@ -668,7 +669,7 @@ def classify_single(
         return None
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     # Load environment variables from project root
     env_path = Path(__file__).parent.parent / ".env"

@@ -35,7 +35,7 @@ PAYLOAD_INDEX_FIELDS = ("original_id", "original_id_normalized", "class_name")
 
 def build_original_id_index_params() -> models.KeywordIndexParams:
     """Return the exact-match payload index settings for classification IDs."""
-    return models.KeywordIndexParams(type="keyword")
+    return models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD)
 
 
 def build_text_index_params() -> models.TextIndexParams:

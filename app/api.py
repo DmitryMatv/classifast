@@ -223,7 +223,7 @@ async def rapid_health_public(request: Request):
 
 
 @router.get("/debug-headers")
-def debug_headers(request: Request):
+def debug_headers(request: Request) -> JSONResponse:
     """Debug endpoint to show all received headers for Cloudflare troubleshooting."""
     # Only allow in development mode
     if os.getenv("DEBUG_MODE", "false").lower() != "true":

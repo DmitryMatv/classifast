@@ -10,9 +10,9 @@ from app.usage_tracker import (
     ANON_USAGE_TTL,
     FREE_USER_LIMIT,
     NEGATIVE_TIER_CACHE_TTL,
-    TIER_CACHE_TTL,
     TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE,
     TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
+    TIER_CACHE_TTL,
     USAGE_TTL,
     TierResolution,
     UsageStatus,
@@ -29,7 +29,7 @@ def _build_request(
     headers: dict[str, str] | None = None,
     cookies: dict[str, str] | None = None,
     client_host: str = "127.0.0.1",
-):
+) -> Mock:
     request = Mock()
     request.headers = headers or {}
     request.cookies = cookies or {}

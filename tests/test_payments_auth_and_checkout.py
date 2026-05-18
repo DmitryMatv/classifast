@@ -337,7 +337,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str, product_id: str | None):
+            def __init__(self, status: str, product_id: str | None) -> None:
                 self.data = SimpleNamespace(
                     status=status,
                     product_id=product_id,
@@ -376,7 +376,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str):
+            def __init__(self, status: str) -> None:
                 self.data = SimpleNamespace(
                     status=status,
                     items=[{"product_id": "allowed-product"}],
@@ -415,7 +415,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str):
+            def __init__(self, status: str) -> None:
                 self.data = SimpleNamespace(
                     status=status,
                     prices=[{"product_id": "allowed-product"}],
@@ -452,7 +452,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str, product_id: str | None):
+            def __init__(self, status: str, product_id: str | None) -> None:
                 self.data = SimpleNamespace(
                     status=status,
                     product_id=product_id,
@@ -487,7 +487,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str, product_id: str | None):
+            def __init__(self, status: str, product_id: str | None) -> None:
                 self.data = SimpleNamespace(
                     status=status,
                     product_id=product_id,
@@ -525,7 +525,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str):
+            def __init__(self, status: str) -> None:
                 self.data = SimpleNamespace(status=status, metadata={"user_id": "u1"})
 
         with (
@@ -559,7 +559,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyCanceledPayload:
             TYPE = "subscription.canceled"
 
-            def __init__(self, product_id: str | None):
+            def __init__(self, product_id: str | None) -> None:
                 self.data = SimpleNamespace(
                     product_id=product_id,
                     metadata={"user_id": "u1"},
@@ -596,7 +596,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyRevokedPayload:
             TYPE = "subscription.revoked"
 
-            def __init__(self, product_id: str | None):
+            def __init__(self, product_id: str | None) -> None:
                 self.data = SimpleNamespace(
                     product_id=product_id,
                     metadata={"user_id": "u1"},
@@ -633,7 +633,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str):
+            def __init__(self, status: str) -> None:
                 self.data = SimpleNamespace(status=status, metadata={"user_id": "u1"})
 
         with (
@@ -666,7 +666,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str, product_id: str | None):
+            def __init__(self, status: str, product_id: str | None) -> None:
                 self.data = SimpleNamespace(
                     status=status,
                     product_id=product_id,
@@ -705,7 +705,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         class DummyUpdatedPayload:
             TYPE = "subscription.updated"
 
-            def __init__(self, status: str, product_id: str | None):
+            def __init__(self, status: str, product_id: str | None) -> None:
                 self.data = SimpleNamespace(
                     status=status,
                     product_id=product_id,

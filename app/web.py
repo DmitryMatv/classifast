@@ -8,6 +8,8 @@ from urllib.parse import quote, unquote_plus, urlencode
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
+from app.cache_profiles import CacheProfile
+
 from .cache_profiles import (
     CLASSIFICATION_RESULT,
     HTML_PAGE,
@@ -81,7 +83,7 @@ def build_mapping_canonical_url(slug: str | None = None) -> str:
     return canonical_url
 
 
-def get_sample_cache_profile(sample_path: str):
+def get_sample_cache_profile(sample_path: str) -> CacheProfile:
     if sample_path.endswith(".csv"):
         return STATIC_TEXT
     return STATIC_MEDIA
