@@ -1286,10 +1286,10 @@
     {% include "site_footer.html" %}
 
     <!-- Classifier page specific functionality (global script, compiled from TypeScript) -->
-    <script src="{{ url_for('static', path='/js/classifier.js') }}"></script>
+    <script type="module" src="{{ url_for('static', path='/js/classifier.js') }}"></script>
 
     <!-- Paywall functionality (loaded once, handles HTMX-swapped paywall content) -->
-    <script src="{{ url_for('static', path='/js/paywall.js') }}"></script>
+    <script type="module" src="{{ url_for('static', path='/js/paywall.js') }}"></script>
 
     <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->
     <script defer crossorigin="anonymous" src="https://clerk.classifast.com/npm/@clerk/ui@1/dist/ui.browser.js"

@@ -1,15 +1,15 @@
 # syntax=docker/dockerfile:1
 
-FROM dhi.io/bun:1-dev AS frontend-builder
+FROM node:24-bookworm-slim AS frontend-builder
 
 WORKDIR /frontend
 
-COPY package.json bun.lock tsconfig.json ./
-RUN --mount=type=cache,target=/root/.bun bun ci --minimum-release-age=259200
+COPY package.json package-lock.json .npmrc tsconfig.json vite.config.ts ./
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY app/assets ./app/assets
 COPY app/templates ./app/templates
-RUN mkdir -p app/static/js app/static/css && bun run build
+RUN npm run build
 
 FROM python:3.14-slim-bookworm AS runtime
 

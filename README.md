@@ -52,9 +52,9 @@ Visit the working instance at [classifast.com](https://classifast.com) to try.
 1. Clone the repository
 2. Install Python dependencies: `pip install -r requirements.txt`
 3. Install development-only Python tooling: `pip install -r requirements-dev.txt`
-4. Install frontend dependencies: `bun install`
+4. Install frontend dependencies: `npm install`
 5. Set environment variables for API keys and payments/quota behavior
-6. Run frontend watchers and the app: `bun run dev`
+6. Run frontend watchers and the app: `npm run dev`
 
 Relevant payment and quota environment variables:
 
@@ -68,7 +68,7 @@ Frontend JS/CSS files under `app/static/` are build artifacts. They are generate
 
 ## Deployment
 
-For production, deploy from the repo root with the provided `Dockerfile`. The image builds the frontend assets in a Bun builder stage and copies only the compiled files into the final Python runtime image.
+For production, deploy from the repo root with the provided `Dockerfile`. The image builds the frontend assets in a Node/npm builder stage and copies only the compiled files into the final Python runtime image.
 
 For Coolify, use:
 
@@ -91,7 +91,7 @@ For Coolify, use:
 Automated backend tests live under [`tests/`](/home/dimon/.t3/worktrees/classifast/t3code-b0b635c3/tests) and use Python's standard-library `unittest` framework.
 
 - Run the backend suite: `python -m unittest discover -s tests -v`
-- Run the frontend typecheck: `bun run typecheck`
+- Run the frontend typecheck: `npm run typecheck`
 - Run the Python typecheck: `python -m mypy`
 
 `utilities/test_*.py` scripts are manual smoke/debug helpers for live integrations and are intentionally separate from the main regression suite.

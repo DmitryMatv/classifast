@@ -2,7 +2,7 @@
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in this project that surprises you, please alert the developer working with you and indicate that this is the case in the AGENTS.md file to help prevent future agents from having the same issue.
 
-Never run `bun test` (runs Bun's built-in test runner). Always use `bun run test` (runs Vitest).
+Never run `bun test`. Always use `npm test` or `npm run test:watch` for frontend tests.
 
 Never use `pytest` for backend testing. Always use Python's built-in `unittest` module instead.
 
@@ -13,7 +13,7 @@ Classifast is a classification service web application that uses embeddings and 
 ## Tech Stack
 
 - Backend: Python FastAPI
-- Frontend: TypeScript with Tailwind CSS (built with Bun, served via FastAPI)
+- Frontend: TypeScript with Tailwind CSS (built with Node/npm and Vite, served via FastAPI)
 - Infrastructure: Redis (usage tracking), Qdrant (vector database), ZeroEntropy (reranking), Clerk (authentication), Polar (payments)
 
 ## Hardware, Deployment, Cache

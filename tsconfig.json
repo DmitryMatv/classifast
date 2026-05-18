@@ -1,17 +1,12 @@
 {
-  "extends": "@tsconfig/strictest/tsconfig.json",
   "compilerOptions": {
+    "strict": true,
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleDetection": "force",
-    "allowJs": true,
     "moduleResolution": "bundler",
-    "outDir": "./app/static/js",
-    "rootDir": "./app/assets/ts",
-    "noEmit": false,
-    "sourceMap": true
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": true
   },
-  "include": ["app/assets/ts/**/*"],
+  "include": ["app/assets/ts/**/*", "vite.config.ts"],
   "exclude": ["node_modules"]
 }

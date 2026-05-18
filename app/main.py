@@ -44,7 +44,7 @@ BASE_DIR = Path(__file__).parent.parent
 
 # Configure logging with Dozzle-friendly JSON formatter
 class JsonFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record) -> str:
         log = {
             "time": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
             "level": record.levelname.lower(),
@@ -305,7 +305,9 @@ app.add_middleware(PerformanceMiddleware)
 # Add Gzip compression middleware, excluding sitemap.xml and robots.txt
 # Googlebot may not handle gzipped sitemaps properly
 class GZipMiddlewareExcludingSitemap(GZipMiddleware):
-    def __init__(self, app: ASGIApp, minimum_size: int = 500, compresslevel: int = 9):
+    def __init__(
+        self, app: ASGIApp, minimum_size: int = 500, compresslevel: int = 9
+    ) -> None:
         super().__init__(app, minimum_size, compresslevel)
         self.exclude_paths = {"/sitemap.xml", "/robots.txt", "/llms.txt"}
 
@@ -407,7 +409,33 @@ class QueryNormalizationMiddleware(BaseHTTPMiddleware):
 
         if needs_redirect:
             # Build canonical URL with normalized parameters
-            from urllib.parse import quote, urlencode, urlparse, urlunparse
+            from urllib.parse import (
+                quote,
+                quote_from_bytes,
+                urlencode,
+                urlparse,
+                urlunparse,
+            )
+
+            def quote_query_component(
+                s: str | bytes,
+                safe: str | bytes,
+                encoding: str | None = None,
+                errors: str | None = None,
+            ) -> str:
+                extra_safe = "()*,:"
+                if isinstance(s, bytes):
+                    safe_bytes = (
+                        safe if isinstance(safe, bytes) else safe.encode("ascii")
+                    )
+                    return quote_from_bytes(
+                        s, safe=extra_safe.encode("ascii") + safe_bytes
+                    )
+
+                safe_str = safe.decode("ascii") if isinstance(safe, bytes) else safe
+                return quote(
+                    s, safe=extra_safe + safe_str, encoding=encoding, errors=errors
+                )
 
             parsed = urlparse(str(request.url))
             # Use quote to preserve %20 encoding (not +) for consistency with Cloudflare cache
@@ -415,9 +443,7 @@ class QueryNormalizationMiddleware(BaseHTTPMiddleware):
             canonical_query = urlencode(
                 normalized_items,
                 doseq=True,
-                quote_via=lambda s, safe, encoding=None, errors=None: quote(
-                    s, safe="()*,:" + safe, encoding=encoding, errors=errors
-                ),
+                quote_via=quote_query_component,
             )
             canonical_url = urlunparse(
                 (
