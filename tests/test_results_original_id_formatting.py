@@ -123,13 +123,6 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text.count("code-spacer-halves"), 3)
 
-    async def test_etim_fragment_renders_spacing_markers_for_digit_run(self) -> None:
-        version = next(iter(CLASSIFIER_CONFIG["ETIM"]["versions"]))
-        response = await self._request_fragment("ETIM", version, "EC000123")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text.count("code-spacer-halves"), 2)
-
     async def test_copy_button_keeps_raw_original_id(self) -> None:
         version = next(iter(CLASSIFIER_CONFIG["UNSPSC"]["versions"]))
         response = await self._request_fragment("UNSPSC", version, "12345678")

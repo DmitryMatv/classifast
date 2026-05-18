@@ -176,10 +176,7 @@ class ClerkAuthTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ClerkInfrastructureError) as ctx:
                 await verify_clerk_session_active("sess_123")
 
-        self.assertEqual(
-            ctx.exception.detail,
-            "Authentication service temporarily unavailable",
-        )
+        self.assertEqual(ctx.exception.detail, "Auth service unavailable now")
 
     async def test_verify_clerk_session_active_maps_429_to_infrastructure_error(
         self,

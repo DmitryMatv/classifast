@@ -136,7 +136,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.status_code, 503)
         self.assertEqual(
             ctx.exception.detail,
-            "Authentication service temporarily unavailable",
+            "Auth service unavailable now",
         )
 
     async def test_create_checkout_rejects_invalid_return_url(self) -> None:

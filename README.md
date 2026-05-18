@@ -88,7 +88,7 @@ For Coolify, use:
 
 ## Testing
 
-Automated backend tests live under [`tests/`](/home/dimon/.t3/worktrees/classifast/t3code-b0b635c3/tests) and use Python's standard-library `unittest` framework.
+Automated backend tests live under `tests/` and use Python's standard-library `unittest` framework.
 
 - Run the backend suite: `python -m unittest discover -s tests -v`
 - Run the frontend typecheck: `npm run typecheck`
