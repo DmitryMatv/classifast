@@ -6,7 +6,9 @@ import os
 import re
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import redis.asyncio as redis
 from dotenv import load_dotenv
@@ -62,6 +64,15 @@ logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+
+@dataclass
+class StartupClients:
+    embed_client: Any | None
+    qdrant_client: QdrantClient | None
+    collection_quantization_cache: dict[str, bool]
+    redis_client: redis.Redis | None
+    zclient: ZeroEntropy | None
 
 
 def build_original_id_index_params() -> models.KeywordIndexParams:
@@ -133,28 +144,87 @@ def provision_payload_indexes(
             )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Runs when the application starts
-    logger.info("FastAPI application startup...")
-
-    # Initialize Embedding Client (Google GenAI)
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    embed_client = None
-    if not GEMINI_API_KEY:
+def initialize_embed_client() -> Any | None:
+    """Initialize the Google GenAI embedding client if credentials are present."""
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
         logger.error("Error: GEMINI_API_KEY not found in environment variables.")
-    else:
-        try:
-            embed_client = genai.Client(api_key=GEMINI_API_KEY)
-            embed_client.models.list()  # Test connection
-            logger.info("Google GenAI Client initialized successfully.")
-        except Exception as e:
-            logger.error("Error initializing Google GenAI Client: %s", e)
-            embed_client = None
+        return None
 
-    # Initialize Qdrant Client with connection pooling
-    qdrant_client = None
-    collection_quantization_cache = {}  # Cache quantization config per collection
+    try:
+        embed_client = genai.Client(api_key=gemini_api_key)
+        embed_client.models.list()  # Test connection
+        logger.info("Google GenAI Client initialized successfully.")
+        return embed_client
+    except Exception as e:
+        logger.error("Error initializing Google GenAI Client: %s", e)
+        return None
+
+
+def get_existing_qdrant_collections(qdrant_client: QdrantClient) -> set[str]:
+    """Return collection names visible to Qdrant, or an empty set on list failure."""
+    try:
+        collections_result = qdrant_client.get_collections()
+        existing_collections = {col.name for col in collections_result.collections}
+        collection_names = sorted(list(existing_collections))
+        logger.info(
+            "Qdrant client initialized. Found collections: %s",
+            collection_names,
+        )
+        return existing_collections
+    except Exception as e:
+        logger.error(
+            "Qdrant client initialized, but could not list collections: %s",
+            e,
+        )
+        return set()
+
+
+def validate_qdrant_collections(
+    qdrant_client: QdrantClient,
+    existing_collections: set[str],
+) -> dict[str, bool]:
+    """Validate configured Qdrant collections and provision required payload indexes."""
+    collection_quantization_cache = {}
+
+    for classifier_type, config in CLASSIFIER_CONFIG.items():
+        embed_dims = config.get("embed_dims")
+        for version, version_config in config["versions"].items():
+            collection_name = version_config.get("collection_name")
+            if not collection_name:
+                continue
+
+            if collection_name not in existing_collections:
+                logger.warning(
+                    "Warning: Collection %s for %s version %s does not exist.",
+                    collection_name,
+                    classifier_type,
+                    version,
+                )
+                continue
+
+            collection_info = qdrant_client.get_collection(collection_name)
+            vector_params = collection_info.config.params.vectors
+
+            if isinstance(vector_params, dict) and "size" in vector_params:
+                vector_size = vector_params["size"]
+                if vector_size != embed_dims:
+                    logger.warning(
+                        "Warning: Collection %s has vector size %d but config specifies %d",
+                        collection_name,
+                        vector_size,
+                        embed_dims,
+                    )
+
+            has_quantization = collection_info.config.quantization_config is not None
+            collection_quantization_cache[collection_name] = has_quantization
+            provision_payload_indexes(qdrant_client, collection_name)
+
+    return collection_quantization_cache
+
+
+def initialize_qdrant_client() -> tuple[QdrantClient, dict[str, bool]]:
+    """Initialize Qdrant and validate configured collections."""
     try:
         logger.info("Connecting to Qdrant at %s:%d...", QDRANT_HOST, QDRANT_PORT)
         qdrant_client = QdrantClient(
@@ -162,67 +232,19 @@ async def lifespan(app: FastAPI):
             api_key=QDRANT_API_KEY or None,
             timeout=30,
         )
-
-        # Check if Qdrant client can list collections as a health check
-        existing_collections = set()
-        try:
-            collections_result = qdrant_client.get_collections()
-            existing_collections = {col.name for col in collections_result.collections}
-            collection_names = sorted(list(existing_collections))
-            logger.info(
-                "Qdrant client initialized. Found collections: %s", collection_names
-            )
-        except Exception as e:
-            logger.error(
-                "Qdrant client initialized, but could not list collections: %s", e
-            )
-
-        # Verify collections exist and store their vector sizes
-        for classifier_type, config in CLASSIFIER_CONFIG.items():
-            embed_dims = config.get("embed_dims")
-            for version, version_config in config["versions"].items():
-                collection_name = version_config.get("collection_name")
-                if not collection_name:
-                    continue
-
-                # Check against the set of existing collections instead of making a new API call
-                if collection_name not in existing_collections:
-                    logger.warning(
-                        "Warning: Collection %s for %s version %s does not exist.",
-                        collection_name,
-                        classifier_type,
-                        version,
-                    )
-                    continue
-
-                # Get collection info and check vector configuration
-                collection_info = qdrant_client.get_collection(collection_name)
-                vector_params = collection_info.config.params.vectors
-
-                if isinstance(vector_params, dict) and "size" in vector_params:
-                    vector_size = vector_params["size"]
-                    if vector_size != embed_dims:
-                        logger.warning(
-                            "Warning: Collection %s has vector size %d but config specifies %d",
-                            collection_name,
-                            vector_size,
-                            embed_dims,
-                        )
-
-                # Cache quantization config for this collection
-                has_quantization = (
-                    collection_info.config.quantization_config is not None
-                )
-                collection_quantization_cache[collection_name] = has_quantization
-
-                # Ensure text-search indexes exist for MatchText lookups.
-                provision_payload_indexes(qdrant_client, collection_name)
-
+        existing_collections = get_existing_qdrant_collections(qdrant_client)
+        collection_quantization_cache = validate_qdrant_collections(
+            qdrant_client,
+            existing_collections,
+        )
+        return qdrant_client, collection_quantization_cache
     except Exception as e:
         logger.error("Error initializing Qdrant client: %s", e)
         raise RuntimeError(f"Failed to initialize Qdrant client: {e}") from e
 
-    # Initialize Redis client for usage tracking
+
+async def initialize_redis_client() -> redis.Redis | None:
+    """Initialize Redis for usage tracking when available."""
     redis_client = None
     try:
         logger.info("Connecting to Redis at %s:%d...", REDIS_HOST, REDIS_PORT)
@@ -239,6 +261,7 @@ async def lifespan(app: FastAPI):
         if inspect.isawaitable(ping_result):
             await ping_result
         logger.info("Redis client initialized successfully.")
+        return redis_client
     except Exception as e:
         logger.warning("Redis not available, usage tracking disabled: %s", e)
         if redis_client:
@@ -246,44 +269,75 @@ async def lifespan(app: FastAPI):
                 await redis_client.close()
             except Exception:
                 pass
-        redis_client = None
+        return None
 
-    # Initialize ZeroEntropy client for reranking
-    ZEROENTROPY_API_KEY = os.getenv("ZEROENTROPY_API_KEY")
-    zclient = None
-    if not ZEROENTROPY_API_KEY:
+
+def initialize_zeroentropy_client() -> ZeroEntropy | None:
+    """Initialize ZeroEntropy reranking when credentials are present."""
+    zeroentropy_api_key = os.getenv("ZEROENTROPY_API_KEY")
+    if not zeroentropy_api_key:
         logger.warning("ZEROENTROPY_API_KEY not found - reranking disabled")
-    else:
+        return None
+
+    try:
+        zclient = ZeroEntropy()
+        logger.info("ZeroEntropy client initialized successfully.")
+        return zclient
+    except Exception as e:
+        logger.error("Error initializing ZeroEntropy client: %s", e)
+        return None
+
+
+async def initialize_startup_clients() -> StartupClients:
+    """Initialize all startup clients using the existing fatal/non-fatal semantics."""
+    embed_client = initialize_embed_client()
+    qdrant_client, collection_quantization_cache = initialize_qdrant_client()
+    redis_client = await initialize_redis_client()
+    zclient = initialize_zeroentropy_client()
+    return StartupClients(
+        embed_client=embed_client,
+        qdrant_client=qdrant_client,
+        collection_quantization_cache=collection_quantization_cache,
+        redis_client=redis_client,
+        zclient=zclient,
+    )
+
+
+def assign_startup_clients(app: FastAPI, clients: StartupClients) -> None:
+    """Store initialized clients and caches on FastAPI app state."""
+    app.state.embed_client = clients.embed_client
+    app.state.zclient = clients.zclient
+    app.state.qdrant_client = clients.qdrant_client
+    app.state.collection_quantization_cache = clients.collection_quantization_cache
+    app.state.redis_client = clients.redis_client
+
+
+async def close_startup_clients(clients: StartupClients) -> None:
+    """Close startup clients that expose shutdown hooks."""
+    if clients.qdrant_client:
         try:
-            zclient = ZeroEntropy()
-            logger.info("ZeroEntropy client initialized successfully.")
-        except Exception as e:
-            logger.error("Error initializing ZeroEntropy client: %s", e)
-            zclient = None
-
-    # Store clients and caches in app state
-    app.state.embed_client = embed_client
-    app.state.zclient = zclient
-    app.state.qdrant_client = qdrant_client
-    app.state.collection_quantization_cache = collection_quantization_cache
-    app.state.redis_client = redis_client
-
-    yield
-
-    # Runs when the application is shutting down
-    logger.info("FastAPI application shutdown...")
-    if qdrant_client:
-        try:
-            qdrant_client.close()
+            clients.qdrant_client.close()
             logger.info("Qdrant client closed.")
         except Exception as e:
             logger.error("Error closing Qdrant client: %s", e)
-    if redis_client:
+    if clients.redis_client:
         try:
-            await redis_client.close()
+            await clients.redis_client.close()
             logger.info("Redis client closed.")
         except Exception as e:
             logger.error("Error closing Redis client: %s", e)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("FastAPI application startup...")
+    clients = await initialize_startup_clients()
+    assign_startup_clients(app, clients)
+
+    yield
+
+    logger.info("FastAPI application shutdown...")
+    await close_startup_clients(clients)
 
 
 app = FastAPI(lifespan=lifespan)
@@ -304,12 +358,15 @@ app.add_middleware(PerformanceMiddleware)
 
 # Add Gzip compression middleware, excluding sitemap.xml and robots.txt
 # Googlebot may not handle gzipped sitemaps properly
+GZIP_EXCLUDED_PATHS = frozenset({"/sitemap.xml", "/robots.txt", "/llms.txt"})
+
+
 class GZipMiddlewareExcludingSitemap(GZipMiddleware):
     def __init__(
         self, app: ASGIApp, minimum_size: int = 500, compresslevel: int = 9
     ) -> None:
         super().__init__(app, minimum_size, compresslevel)
-        self.exclude_paths = {"/sitemap.xml", "/robots.txt", "/llms.txt"}
+        self.exclude_paths = GZIP_EXCLUDED_PATHS
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http" and scope.get("path") in self.exclude_paths:
