@@ -315,6 +315,67 @@ async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
         return TierResolution(status="explicit_negative")
 
 
+def _tier_resolution_from_cache(cached: bytes | str | None) -> TierResolution | None:
+    if not cached:
+        return None
+
+    cached_value = cached.decode() if isinstance(cached, bytes) else cached
+    if cached_value == "pro":
+        return TierResolution(status="confirmed_pro", tier="pro")
+    if cached_value == TIER_CACHE_SENTINEL_NON_PRO:
+        return TierResolution(status="confirmed_non_pro")
+    if cached_value == TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE:
+        return TierResolution(status="explicit_negative")
+    if cached_value == TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE:
+        return TierResolution(status="transient_unavailable")
+    return TierResolution(status="confirmed_non_pro", tier=cached_value)
+
+
+async def _cache_tier_resolution(
+    redis_client: redis.Redis,
+    cache_key: str,
+    user_id: str,
+    resolution: TierResolution,
+) -> None:
+    if resolution.status == "confirmed_pro":
+        await redis_client.setex(cache_key, TIER_CACHE_TTL, "pro")
+        logger.debug(
+            "Tier cache set: user_id=%s, status=%s, ttl=%d",
+            user_id,
+            resolution.status,
+            TIER_CACHE_TTL,
+        )
+        return
+
+    if resolution.status == "confirmed_non_pro":
+        await redis_client.setex(
+            cache_key,
+            TIER_CACHE_TTL,
+            resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
+        )
+        logger.debug(
+            "Tier cache set: user_id=%s, status=%s, tier=%s, ttl=%d",
+            user_id,
+            resolution.status,
+            resolution.tier,
+            TIER_CACHE_TTL,
+        )
+        return
+
+    if resolution.status == "explicit_negative":
+        cache_value = TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE
+    else:
+        cache_value = TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE
+
+    await redis_client.setex(cache_key, NEGATIVE_TIER_CACHE_TTL, cache_value)
+    logger.debug(
+        "Tier cache set: user_id=%s, status=%s, ttl=%d",
+        user_id,
+        resolution.status,
+        NEGATIVE_TIER_CACHE_TTL,
+    )
+
+
 async def get_cached_user_tier(
     user_id: str, redis_client: redis.Redis | None
 ) -> TierResolution:
@@ -333,20 +394,14 @@ async def get_cached_user_tier(
     if redis_client:
         try:
             cached = await redis_client.get(cache_key)
-            if cached:
-                cached_value = cached.decode() if isinstance(cached, bytes) else cached
+            cached_resolution = _tier_resolution_from_cache(cached)
+            if cached_resolution:
                 logger.debug(
-                    "Tier cache hit: user_id=%s, tier=%s", user_id, cached_value
+                    "Tier cache hit: user_id=%s, tier=%s",
+                    user_id,
+                    cached.decode() if isinstance(cached, bytes) else cached,
                 )
-                if cached_value == "pro":
-                    return TierResolution(status="confirmed_pro", tier="pro")
-                if cached_value == TIER_CACHE_SENTINEL_NON_PRO:
-                    return TierResolution(status="confirmed_non_pro")
-                if cached_value == TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE:
-                    return TierResolution(status="explicit_negative")
-                if cached_value == TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE:
-                    return TierResolution(status="transient_unavailable")
-                return TierResolution(status="confirmed_non_pro", tier=cached_value)
+                return cached_resolution
         except (redis.RedisError, ValueError):
             pass
 
@@ -355,51 +410,7 @@ async def get_cached_user_tier(
 
     if redis_client:
         try:
-            if resolution.status == "confirmed_pro":
-                await redis_client.setex(cache_key, TIER_CACHE_TTL, "pro")
-                logger.debug(
-                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
-                    user_id,
-                    resolution.status,
-                    TIER_CACHE_TTL,
-                )
-            elif resolution.status == "confirmed_non_pro":
-                await redis_client.setex(
-                    cache_key,
-                    TIER_CACHE_TTL,
-                    resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
-                )
-                logger.debug(
-                    "Tier cache set: user_id=%s, status=%s, tier=%s, ttl=%d",
-                    user_id,
-                    resolution.status,
-                    resolution.tier,
-                    TIER_CACHE_TTL,
-                )
-            elif resolution.status == "explicit_negative":
-                await redis_client.setex(
-                    cache_key,
-                    NEGATIVE_TIER_CACHE_TTL,
-                    TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE,
-                )
-                logger.debug(
-                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
-                    user_id,
-                    resolution.status,
-                    NEGATIVE_TIER_CACHE_TTL,
-                )
-            else:
-                await redis_client.setex(
-                    cache_key,
-                    NEGATIVE_TIER_CACHE_TTL,
-                    TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
-                )
-                logger.debug(
-                    "Tier cache set: user_id=%s, status=%s, ttl=%d",
-                    user_id,
-                    resolution.status,
-                    NEGATIVE_TIER_CACHE_TTL,
-                )
+            await _cache_tier_resolution(redis_client, cache_key, user_id, resolution)
         except redis.RedisError:
             pass
 
@@ -414,195 +425,185 @@ async def get_cached_user_tier(
     return resolution
 
 
-async def check_usage(
-    request: Request,
-    redis_client: redis.Redis | None,
+def _log_anonymous_auth_diagnostics(request: Request, user_id: str | None) -> None:
+    if user_id:
+        return
+
+    auth_header = request.headers.get("authorization", "")
+    session_cookie = request.cookies.get("__session")
+    if not auth_header and not session_cookie:
+        logger.debug("Anonymous request - no Authorization header, no __session cookie")
+    elif not auth_header and session_cookie:
+        logger.debug(
+            "__session cookie present but token extraction failed - treating as anon"
+        )
+    elif auth_header:
+        logger.debug("Auth header present but token extract failed - treating as anon")
+
+
+def _usage_status(
+    *,
+    allowed: bool,
+    remaining: int,
+    limit: int,
+    is_authenticated: bool,
+    is_pro: bool = False,
+    tracking_id: str | None = None,
 ) -> UsageStatus:
-    """
-    Check if the user/anonymous visitor can make a classification request.
-    Returns UsageStatus with allowed flag and remaining quota.
-    """
-    # Check if user is authenticated
-    user_id, tier = await extract_user_info_from_token(request)
+    return UsageStatus(
+        allowed=allowed,
+        remaining=remaining,
+        limit=limit,
+        is_authenticated=is_authenticated,
+        is_pro=is_pro,
+        tracking_id=tracking_id,
+    )
 
-    # Log diagnostic info for debugging mismatches between frontend and backend
-    if not user_id:
-        auth_header = request.headers.get("authorization", "")
-        session_cookie = request.cookies.get("__session")
-        if not auth_header and not session_cookie:
-            logger.debug(
-                "Anonymous request - no Authorization header, no __session cookie"
-            )
-        elif not auth_header and session_cookie:
-            logger.debug(
-                "__session cookie present but token extraction failed - treating as anon"
-            )
-        elif auth_header:
-            logger.debug(
-                "Auth header present but token extract failed - treating as anon"
-            )
 
-    if not redis_client:
+def _unlimited_pro_usage(user_id: str) -> UsageStatus:
+    return _usage_status(
+        allowed=True,
+        remaining=-1,
+        limit=-1,
+        is_authenticated=True,
+        is_pro=True,
+        tracking_id=user_id,
+    )
+
+
+def _redis_unavailable_usage_status(
+    request: Request, user_id: str | None
+) -> UsageStatus:
+    if quota_fail_open_enabled():
+        logger.warning(
+            "Redis not available, allowing request because QUOTA_FAIL_OPEN is enabled"
+        )
+        return _usage_status(
+            allowed=True,
+            remaining=-1,
+            limit=-1,
+            is_authenticated=bool(user_id),
+            tracking_id=user_id,
+        )
+
+    logger.warning("Redis not available, denying metered request")
+    if user_id:
+        return _usage_status(
+            allowed=False,
+            remaining=0,
+            limit=FREE_USER_LIMIT,
+            is_authenticated=True,
+            tracking_id=user_id,
+        )
+
+    tracking_id, _ = get_or_create_tracking_id(request)
+    return _usage_status(
+        allowed=False,
+        remaining=0,
+        limit=ANON_LIMIT,
+        is_authenticated=False,
+        tracking_id=tracking_id,
+    )
+
+
+async def _resolve_authenticated_pro_status(
+    user_id: str,
+    jwt_tier_hint: str | None,
+    redis_client: redis.Redis,
+) -> bool:
+    if await has_active_grace(user_id, redis_client):
+        logger.info(
+            f"Checkout grace period active for user {user_id} - allowing unlimited access"
+        )
+        return True
+
+    tier_resolution = await get_cached_user_tier(user_id, redis_client)
+    if tier_resolution.status == "confirmed_pro":
+        logger.info(f"Pro tier confirmed via Clerk for user {user_id}")
+        return True
+
+    if tier_resolution.status == "transient_unavailable" and jwt_tier_hint == "pro":
+        logger.info(
+            "Using JWT Pro hint for user %s because Clerk tier confirmation is temporarily unavailable",
+            user_id,
+        )
+        return True
+
+    if tier_resolution.status == "confirmed_non_pro" and jwt_tier_hint == "pro":
+        logger.info(
+            "Ignoring stale JWT Pro hint for user %s because Clerk tier is explicitly %s",
+            user_id,
+            tier_resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
+        )
+    if tier_resolution.status == "explicit_negative" and jwt_tier_hint == "pro":
+        logger.info(
+            "Ignoring JWT Pro hint for user %s because Clerk returned an explicit negative tier result",
+            user_id,
+        )
+    return False
+
+
+async def _check_anonymous_usage(
+    request: Request, redis_client: redis.Redis
+) -> UsageStatus:
+    tracking_id, _ = get_or_create_tracking_id(request)
+    ip_hash = hash_ip(get_client_ip(request))
+    limit = ANON_LIMIT
+
+    logger.info(
+        f"Checking usage for anonymous user: tracking_id={tracking_id}, ip_hash={ip_hash}"
+    )
+
+    cookie_key = f"anon:{tracking_id}:usage_count"
+    ip_key = f"anon:ip:{ip_hash}:usage_count"
+
+    try:
+        cookie_count = await redis_client.get(cookie_key)
+        cookie_count = int(cookie_count) if cookie_count else 0
+
+        ip_count = await redis_client.get(ip_key)
+        ip_count = int(ip_count) if ip_count else 0
+
+        current_count = max(cookie_count, ip_count)
+        remaining = max(0, limit - current_count)
+
+        logger.info(
+            f"Anonymous usage counts: cookie={cookie_count}, ip={ip_count}, current={current_count}, remaining={remaining}"
+        )
+
+        return _usage_status(
+            allowed=current_count < limit,
+            remaining=remaining,
+            limit=limit,
+            is_authenticated=False,
+            tracking_id=tracking_id,
+        )
+    except redis.RedisError as e:
+        logger.error(f"Redis error checking anonymous usage: {e}")
         if quota_fail_open_enabled():
-            logger.warning(
-                "Redis not available, allowing request because QUOTA_FAIL_OPEN is enabled"
-            )
-            return UsageStatus(
+            return _usage_status(
                 allowed=True,
                 remaining=-1,
                 limit=-1,
-                is_authenticated=bool(user_id),
-                is_pro=False,
-                tracking_id=user_id,
+                is_authenticated=False,
+                tracking_id=tracking_id,
             )
-
-        logger.warning("Redis not available, denying metered request")
-        if user_id:
-            return UsageStatus(
-                allowed=False,
-                remaining=0,
-                limit=FREE_USER_LIMIT,
-                is_authenticated=True,
-                is_pro=False,
-                tracking_id=user_id,
-            )
-
-        tracking_id, _ = get_or_create_tracking_id(request)
-        return UsageStatus(
+        return _usage_status(
             allowed=False,
             remaining=0,
-            limit=ANON_LIMIT,
+            limit=limit,
             is_authenticated=False,
-            is_pro=False,
             tracking_id=tracking_id,
         )
 
-    # Check for pro user status (combines JWT, cache, and grace period)
-    if user_id:
-        # Check checkout grace period first (takes priority)
-        if await has_active_grace(user_id, redis_client):
-            logger.info(
-                f"Checkout grace period active for user {user_id} - allowing unlimited access"
-            )
-            return UsageStatus(
-                allowed=True,
-                remaining=-1,
-                limit=-1,
-                is_authenticated=True,
-                is_pro=True,
-                tracking_id=user_id,
-            )
 
-        jwt_tier_hint = tier
-        tier_resolution = await get_cached_user_tier(user_id, redis_client)
-        if tier_resolution.status == "confirmed_pro":
-            is_pro = True
-            logger.info(f"Pro tier confirmed via Clerk for user {user_id}")
-        elif (
-            tier_resolution.status == "transient_unavailable" and jwt_tier_hint == "pro"
-        ):
-            is_pro = True
-            logger.info(
-                "Using JWT Pro hint for user %s because Clerk tier confirmation is temporarily unavailable",
-                user_id,
-            )
-        else:
-            is_pro = False
+async def _check_authenticated_free_usage(
+    user_id: str, redis_client: redis.Redis
+) -> UsageStatus:
+    key = f"user:{user_id}:usage_count"
+    limit = FREE_USER_LIMIT
+    logger.info(f"Checking usage for authenticated free user: {user_id}")
 
-        if (
-            tier_resolution.status == "confirmed_non_pro"
-            and jwt_tier_hint == "pro"
-            and not is_pro
-        ):
-            logger.info(
-                "Ignoring stale JWT Pro hint for user %s because Clerk tier is explicitly %s",
-                user_id,
-                tier_resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
-            )
-        if (
-            tier_resolution.status == "explicit_negative"
-            and jwt_tier_hint == "pro"
-            and not is_pro
-        ):
-            logger.info(
-                "Ignoring JWT Pro hint for user %s because Clerk returned an explicit negative tier result",
-                user_id,
-            )
-
-        if is_pro:
-            return UsageStatus(
-                allowed=True,
-                remaining=-1,  # Unlimited
-                limit=-1,
-                is_authenticated=True,
-                is_pro=True,
-                tracking_id=user_id,
-            )
-
-    # Determine tracking key and limit
-    if user_id:
-        # Authenticated free user
-        key = f"user:{user_id}:usage_count"
-        limit = FREE_USER_LIMIT
-        tracking_id = user_id
-        logger.info(f"Checking usage for authenticated free user: {user_id}")
-    else:
-        # Anonymous user - check BOTH cookie AND IP counters
-        tracking_id, _ = get_or_create_tracking_id(request)
-        ip_hash = hash_ip(get_client_ip(request))
-        limit = ANON_LIMIT
-
-        logger.info(
-            f"Checking usage for anonymous user: tracking_id={tracking_id}, ip_hash={ip_hash}"
-        )
-
-        cookie_key = f"anon:{tracking_id}:usage_count"
-        ip_key = f"anon:ip:{ip_hash}:usage_count"
-
-        try:
-            cookie_count = await redis_client.get(cookie_key)
-            cookie_count = int(cookie_count) if cookie_count else 0
-
-            ip_count = await redis_client.get(ip_key)
-            ip_count = int(ip_count) if ip_count else 0
-
-            # Use higher of the two (defense against cookie clearing)
-            current_count = max(cookie_count, ip_count)
-            remaining = max(0, limit - current_count)
-
-            logger.info(
-                f"Anonymous usage counts: cookie={cookie_count}, ip={ip_count}, current={current_count}, remaining={remaining}"
-            )
-
-            return UsageStatus(
-                allowed=current_count < limit,
-                remaining=remaining,
-                limit=limit,
-                is_authenticated=False,
-                is_pro=False,
-                tracking_id=tracking_id,
-            )
-        except redis.RedisError as e:
-            logger.error(f"Redis error checking anonymous usage: {e}")
-            if quota_fail_open_enabled():
-                return UsageStatus(
-                    allowed=True,
-                    remaining=-1,
-                    limit=-1,
-                    is_authenticated=False,
-                    is_pro=False,
-                    tracking_id=tracking_id,
-                )
-            return UsageStatus(
-                allowed=False,
-                remaining=0,
-                limit=limit,
-                is_authenticated=False,
-                is_pro=False,
-                tracking_id=tracking_id,
-            )
-
-    # Authenticated free user path
     try:
         current_count = await redis_client.get(key)
         current_count = int(current_count) if current_count else 0
@@ -612,33 +613,53 @@ async def check_usage(
             f"Authenticated free user usage: {key}, current={current_count}, remaining={remaining}"
         )
 
-        return UsageStatus(
+        return _usage_status(
             allowed=current_count < limit,
             remaining=remaining,
             limit=limit,
             is_authenticated=True,
-            is_pro=False,
-            tracking_id=tracking_id,
+            tracking_id=user_id,
         )
     except redis.RedisError as e:
         logger.error(f"Redis error checking user usage: {e}")
         if quota_fail_open_enabled():
-            return UsageStatus(
+            return _usage_status(
                 allowed=True,
                 remaining=-1,
                 limit=-1,
                 is_authenticated=True,
-                is_pro=False,
-                tracking_id=tracking_id,
+                tracking_id=user_id,
             )
-        return UsageStatus(
+        return _usage_status(
             allowed=False,
             remaining=0,
             limit=limit,
             is_authenticated=True,
-            is_pro=False,
-            tracking_id=tracking_id,
+            tracking_id=user_id,
         )
+
+
+async def check_usage(
+    request: Request,
+    redis_client: redis.Redis | None,
+) -> UsageStatus:
+    """
+    Check if the user/anonymous visitor can make a classification request.
+    Returns UsageStatus with allowed flag and remaining quota.
+    """
+    user_id, tier = await extract_user_info_from_token(request)
+    _log_anonymous_auth_diagnostics(request, user_id)
+
+    if not redis_client:
+        return _redis_unavailable_usage_status(request, user_id)
+
+    if user_id and await _resolve_authenticated_pro_status(user_id, tier, redis_client):
+        return _unlimited_pro_usage(user_id)
+
+    if not user_id:
+        return await _check_anonymous_usage(request, redis_client)
+
+    return await _check_authenticated_free_usage(user_id, redis_client)
 
 
 async def increment_usage(

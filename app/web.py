@@ -134,6 +134,164 @@ def build_classification_results_context(
     }
 
 
+def _normalize_product_description(product_description: str) -> str:
+    return re.sub(r"\s+", " ", product_description).strip()
+
+
+def _get_classifier_config_or_404(classifier_type: str) -> tuple[str, dict]:
+    upper_type = classifier_type.strip().upper()
+    config = CLASSIFIER_CONFIG.get(upper_type)
+    if not config:
+        raise HTTPException(
+            status_code=404, detail=f"Classifier '{classifier_type}' not found"
+        )
+    return upper_type, config
+
+
+def _resolve_classifier_options(
+    upper_type: str,
+    config: dict,
+    version: str | None,
+    top_k: int | None,
+) -> tuple[str, int, str, int]:
+    default_top_k = get_default_top_k(upper_type)
+    resolved_top_k = default_top_k if top_k is None else top_k
+
+    versions_list = list(config["versions"].keys())
+    default_version = versions_list[0] if versions_list else ""
+    resolved_version = default_version if version is None else version
+
+    return resolved_version, resolved_top_k, default_version, default_top_k
+
+
+def _resolve_fragment_flags(
+    request: Request,
+    push_url: bool | None,
+    track_usage: bool,
+    url_change: bool | None,
+) -> tuple[bool, bool]:
+    resolved_push_url = True if push_url is None and url_change is None else push_url
+    if resolved_push_url is None:
+        resolved_push_url = url_change
+
+    resolved_track_usage = track_usage
+    if "track_usage" not in request.query_params and url_change is not None:
+        resolved_track_usage = url_change
+
+    return bool(resolved_push_url), resolved_track_usage
+
+
+def _get_redis_client(request: Request):
+    return getattr(request.app.state, "redis_client", None)
+
+
+async def _maybe_verify_checkout_return(request: Request, redis_client) -> None:
+    checkout_success = request.query_params.get("checkout")
+    checkout_token = request.query_params.get("checkout_token")
+    if checkout_success == "success" and checkout_token:
+        await verify_checkout_token(checkout_token, request, redis_client)
+
+
+def _build_fragment_push_url(
+    upper_type: str,
+    normalized_description: str,
+    version: str,
+    default_version: str,
+    top_k: int,
+    default_top_k: int,
+) -> str:
+    slug = slugify(normalized_description.replace("/", " "))
+    new_url = f"/{upper_type}"
+    if slug:
+        new_url += f"/{quote(slug, safe='')}"
+
+    params: dict[str, str | int] = {}
+    if version and version != default_version:
+        params["version"] = version
+    if top_k != default_top_k:
+        params["top_k"] = top_k
+    if params:
+        new_url += f"?{urlencode(params)}"
+
+    return new_url
+
+
+def _build_unmetered_usage_status() -> UsageStatus:
+    return UsageStatus(
+        allowed=True,
+        remaining=-1,
+        limit=-1,
+        is_authenticated=False,
+        is_pro=False,
+        tracking_id=None,
+    )
+
+
+def _render_paywall_fragment(
+    request: Request,
+    usage_status: UsageStatus,
+    push_url: bool,
+    new_url: str,
+):
+    response = templates.TemplateResponse(
+        request,
+        "paywall.html",
+        {
+            "limit": usage_status.limit,
+            "is_authenticated": usage_status.is_authenticated,
+            "free_user_limit": FREE_USER_LIMIT,
+        },
+    )
+    response.headers.update(build_cache_headers(NO_STORE))
+    if push_url:
+        response.headers["HX-Push-Url"] = new_url
+    add_quota_headers(response, usage_status)
+
+    return response
+
+
+def _render_empty_results_fragment(
+    request: Request,
+    normalized_description: str,
+    usage_status: UsageStatus,
+):
+    response = templates.TemplateResponse(
+        request,
+        "results.html",
+        {
+            "query": normalized_description,
+            "results_for_query": [],
+        },
+    )
+    response.headers.update(build_cache_headers(CLASSIFICATION_RESULT))
+    response.headers["Vary"] = "Accept-Encoding"
+    add_quota_headers(response, usage_status)
+    return response
+
+
+def _render_classification_results_fragment(
+    request: Request,
+    results_context: dict,
+    page_title: str | None,
+    push_url: bool,
+    new_url: str,
+    usage_status: UsageStatus,
+):
+    response = templates.TemplateResponse(
+        request,
+        "results.html",
+        {
+            **results_context,
+            "page_title": page_title,
+        },
+    )
+    response.headers.update(get_classification_cache_headers())
+    if push_url:
+        response.headers["HX-Push-Url"] = new_url
+    add_quota_headers(response, usage_status)
+    return response
+
+
 def get_related_mapping_products(product: MappingProduct) -> list[MappingProduct]:
     related_products: list[MappingProduct] = []
     for slug in product.related_slugs:
@@ -333,23 +491,11 @@ async def get_classification_fragment(
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
     """
-    # Normalize inputs early to ensure cache hits and prevent unnecessary API calls
-    normalized_description = re.sub(r"\s+", " ", product_description).strip()
-    upper_type = classifier_type.strip().upper()
-    config = CLASSIFIER_CONFIG.get(upper_type)
-    if not config:
-        raise HTTPException(
-            status_code=404, detail=f"Classifier '{classifier_type}' not found"
-        )
-
-    default_top_k = get_default_top_k(upper_type)
-    if top_k is None:
-        top_k = default_top_k
-
-    versions_list = list(config["versions"].keys())
-    default_version = versions_list[0] if versions_list else ""
-    if version is None:
-        version = default_version
+    normalized_description = _normalize_product_description(product_description)
+    upper_type, config = _get_classifier_config_or_404(classifier_type)
+    version, top_k, default_version, default_top_k = _resolve_classifier_options(
+        upper_type, config, version, top_k
+    )
 
     logger.info(
         "WEB received GET fragment request for '%s' with version '%s'. Push URL: %s. Track usage: %s",
@@ -359,83 +505,31 @@ async def get_classification_fragment(
         track_usage,
     )
 
-    if push_url is None:
-        push_url = True if url_change is None else url_change
-    if "track_usage" not in request.query_params and url_change is not None:
-        track_usage = url_change
-
-    # Handle checkout return with token verification (also on fragment requests)
-    checkout_success = request.query_params.get("checkout")
-    checkout_token = request.query_params.get("checkout_token")
-    if checkout_success == "success" and checkout_token:
-        redis_client = getattr(request.app.state, "redis_client", None)
-        await verify_checkout_token(checkout_token, request, redis_client)
-
-    # Build the new URL early so we can set it before usage check
-    # This ensures the URL updates even if user hits the paywall
-    slug = slugify(normalized_description.replace("/", " "))
-    new_url = f"/{upper_type}"
-    if slug:
-        # URL-encode slug to handle non-Latin characters (Chinese, Arabic, etc.)
-        # HTTP headers require Latin-1 encoding
-        new_url += f"/{quote(slug, safe='')}"
-
-    params: dict[str, str | int] = {}
-    if version and version != default_version:
-        params["version"] = version
-    if top_k != default_top_k:
-        params["top_k"] = top_k
-    if params:
-        new_url += f"?{urlencode(params)}"
-
-    # Check usage limits before processing (only for user queries, not examples)
-    redis_client = getattr(request.app.state, "redis_client", None)
+    push_url, track_usage = _resolve_fragment_flags(
+        request, push_url, track_usage, url_change
+    )
+    redis_client = _get_redis_client(request)
+    await _maybe_verify_checkout_return(request, redis_client)
+    new_url = _build_fragment_push_url(
+        upper_type,
+        normalized_description,
+        version,
+        default_version,
+        top_k,
+        default_top_k,
+    )
 
     if track_usage:
         usage_status = await check_usage(request, redis_client)
-
         if not usage_status.allowed:
-            response = templates.TemplateResponse(
-                request,
-                "paywall.html",
-                {
-                    "limit": usage_status.limit,
-                    "is_authenticated": usage_status.is_authenticated,
-                    "free_user_limit": FREE_USER_LIMIT,
-                },
-            )
-            response.headers.update(build_cache_headers(NO_STORE))
-            if push_url:
-                response.headers["HX-Push-Url"] = new_url
-            add_quota_headers(response, usage_status)
-            if usage_status.tracking_id:
-                set_tracking_cookie(response, usage_status.tracking_id)
-            return response
+            return _render_paywall_fragment(request, usage_status, push_url, new_url)
     else:
-        usage_status = UsageStatus(
-            allowed=True,
-            remaining=-1,
-            limit=-1,
-            is_authenticated=False,
-            is_pro=False,
-            tracking_id=None,
-        )
+        usage_status = _build_unmetered_usage_status()
 
-    # Handle empty query gracefully
-    # normalized_description was already set above for URL building
     if not normalized_description:
-        response = templates.TemplateResponse(
-            request,
-            "results.html",
-            {
-                "query": normalized_description,
-                "results_for_query": [],
-            },
+        return _render_empty_results_fragment(
+            request, normalized_description, usage_status
         )
-        response.headers.update(build_cache_headers(CLASSIFICATION_RESULT))
-        response.headers["Vary"] = "Accept-Encoding"
-        add_quota_headers(response, usage_status)
-        return response
 
     try:
         results_context = build_classification_results_context(
@@ -454,34 +548,16 @@ async def get_classification_fragment(
             status_code=500, detail=f"Error processing request: {str(e)}"
         )
 
-    # Calculate dynamic page title for OOB swap
-    page_title = None
-    if push_url:
-        page_title = f"{upper_type} codes for '{normalized_description.title()}'"
-
-    # Render the results partial with normalized query
-    response = templates.TemplateResponse(
-        request,
-        "results.html",
-        {
-            **results_context,
-            "page_title": page_title,
-        },
+    page_title = (
+        f"{upper_type} codes for '{normalized_description.title()}'"
+        if push_url
+        else None
     )
-
-    # Cache classification results to save expensive API calls (ZeroEntropy, Gemini, Qdrant)
-    # Cloudflare edge cache handles this - cache hits don't consume quotas
-    cache_headers = get_classification_cache_headers()
-    response.headers.update(cache_headers)
-
-    # Set HTMX header to update URL in browser address bar (new_url was built earlier)
-    if push_url:
-        response.headers["HX-Push-Url"] = new_url
-
-    # Increment usage counter for real user-triggered searches.
+    response = _render_classification_results_fragment(
+        request, results_context, page_title, push_url, new_url, usage_status
+    )
     if track_usage:
         await increment_usage(request, redis_client, usage_status)
-    add_quota_headers(response, usage_status)
 
     return response
 

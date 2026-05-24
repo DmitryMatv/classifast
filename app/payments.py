@@ -44,6 +44,18 @@ def get_pro_product_id() -> str:
     return product_id
 
 
+def _candidate_id_values_from_mapping(raw_value: dict) -> list[object]:
+    return [raw_value.get(key) for key in ("id", "product_id", "polar_product_id")]
+
+
+def _candidate_id_values_from_object(raw_value: object) -> list[object]:
+    return [
+        getattr(raw_value, attr)
+        for attr in ("id", "product_id", "polar_product_id")
+        if hasattr(raw_value, attr)
+    ]
+
+
 def _normalize_candidate_ids(raw_value) -> set[str]:
     if raw_value is None:
         return set()
@@ -51,21 +63,21 @@ def _normalize_candidate_ids(raw_value) -> set[str]:
         values = [part.strip() for part in raw_value.split(",")]
         return {value for value in values if value}
     if isinstance(raw_value, (list, tuple, set)):
-        normalized_values: set[str] = set()
-        for item in raw_value:
-            normalized_values.update(_normalize_candidate_ids(item))
-        return normalized_values
+        return set().union(*(_normalize_candidate_ids(item) for item in raw_value))
     if isinstance(raw_value, dict):
-        normalized_mapping: set[str] = set()
-        for key in ("id", "product_id", "polar_product_id"):
-            normalized_mapping.update(_normalize_candidate_ids(raw_value.get(key)))
-        return normalized_mapping
+        return set().union(
+            *(
+                _normalize_candidate_ids(value)
+                for value in _candidate_id_values_from_mapping(raw_value)
+            )
+        )
 
-    normalized_object: set[str] = set()
-    for attr in ("id", "product_id", "polar_product_id"):
-        if hasattr(raw_value, attr):
-            normalized_object.update(_normalize_candidate_ids(getattr(raw_value, attr)))
-    return normalized_object
+    return set().union(
+        *(
+            _normalize_candidate_ids(value)
+            for value in _candidate_id_values_from_object(raw_value)
+        )
+    )
 
 
 def extract_subscription_product_ids(subscription: Subscription) -> set[str]:

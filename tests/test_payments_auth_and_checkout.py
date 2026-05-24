@@ -19,6 +19,36 @@ def _build_test_app() -> FastAPI:
     return app
 
 
+class ProductIdNormalizationTests(unittest.TestCase):
+    def test_normalize_candidate_ids_handles_nested_supported_shapes(self) -> None:
+        product_object = SimpleNamespace(
+            id="object-id",
+            product_id=["object-product-id", {"polar_product_id": "nested-polar-id"}],
+        )
+
+        normalized = payments._normalize_candidate_ids(
+            [
+                "prod_a, prod_b, ",
+                {"id": "mapping-id", "product_id": ["mapping-product-id", ""]},
+                product_object,
+                None,
+            ]
+        )
+
+        self.assertEqual(
+            normalized,
+            {
+                "prod_a",
+                "prod_b",
+                "mapping-id",
+                "mapping-product-id",
+                "object-id",
+                "object-product-id",
+                "nested-polar-id",
+            },
+        )
+
+
 class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:

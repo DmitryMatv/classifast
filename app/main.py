@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, quote_from_bytes, urlencode, urlparse, urlunparse
 
 import redis.asyncio as redis
 from dotenv import load_dotenv
@@ -450,70 +451,87 @@ app.add_middleware(URLEncodingValidationMiddleware)
 
 
 # Query Parameter Normalization Middleware
+QUERY_WHITESPACE_RE = re.compile(r"\s+")
+QUERY_COMPONENT_EXTRA_SAFE_CHARS = "()*,:"
+
+
+def _normalize_query_value(value: str) -> str:
+    return QUERY_WHITESPACE_RE.sub(" ", value).strip()
+
+
+def _normalize_query_items(
+    query_items: list[tuple[str, str]],
+) -> tuple[list[tuple[str, str]], bool]:
+    normalized_items = []
+    needs_redirect = False
+
+    for key, value in query_items:
+        normalized = _normalize_query_value(value)
+        normalized_items.append((key, normalized))
+        if normalized != value:
+            needs_redirect = True
+
+    return normalized_items, needs_redirect
+
+
+def _quote_query_component(
+    s: str | bytes,
+    safe: str | bytes,
+    encoding: str | None = None,
+    errors: str | None = None,
+) -> str:
+    if isinstance(s, bytes):
+        safe_bytes = safe if isinstance(safe, bytes) else safe.encode("ascii")
+        return quote_from_bytes(
+            s, safe=QUERY_COMPONENT_EXTRA_SAFE_CHARS.encode("ascii") + safe_bytes
+        )
+
+    safe_str = safe.decode("ascii") if isinstance(safe, bytes) else safe
+    return quote(
+        s,
+        safe=QUERY_COMPONENT_EXTRA_SAFE_CHARS + safe_str,
+        encoding=encoding,
+        errors=errors,
+    )
+
+
+def _build_canonical_query(normalized_items: list[tuple[str, str]]) -> str:
+    return urlencode(
+        normalized_items,
+        doseq=True,
+        quote_via=_quote_query_component,
+    )
+
+
+def _build_canonical_url(request_url: str, canonical_query: str) -> str:
+    parsed = urlparse(request_url)
+    return urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            canonical_query,
+            parsed.fragment,
+        )
+    )
+
+
+def _query_redirect_response(canonical_url: str) -> Response:
+    return Response(status_code=308, headers={"Location": canonical_url})
+
+
 class QueryNormalizationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         """Normalize query parameters by stripping whitespace and redirect to canonical URL."""
         query_items = list(request.query_params.multi_items())
-        normalized_items = []
-        needs_redirect = False
-
-        for key, value in query_items:
-            # Normalize: replace multiple spaces/newlines with single space and strip
-            normalized = re.sub(r"\s+", " ", value).strip()
-            normalized_items.append((key, normalized))
-            if normalized != value:
-                needs_redirect = True
+        normalized_items, needs_redirect = _normalize_query_items(query_items)
 
         if needs_redirect:
-            # Build canonical URL with normalized parameters
-            from urllib.parse import (
-                quote,
-                quote_from_bytes,
-                urlencode,
-                urlparse,
-                urlunparse,
-            )
-
-            def quote_query_component(
-                s: str | bytes,
-                safe: str | bytes,
-                encoding: str | None = None,
-                errors: str | None = None,
-            ) -> str:
-                extra_safe = "()*,:"
-                if isinstance(s, bytes):
-                    safe_bytes = (
-                        safe if isinstance(safe, bytes) else safe.encode("ascii")
-                    )
-                    return quote_from_bytes(
-                        s, safe=extra_safe.encode("ascii") + safe_bytes
-                    )
-
-                safe_str = safe.decode("ascii") if isinstance(safe, bytes) else safe
-                return quote(
-                    s, safe=extra_safe + safe_str, encoding=encoding, errors=errors
-                )
-
-            parsed = urlparse(str(request.url))
-            # Use quote to preserve %20 encoding (not +) for consistency with Cloudflare cache
-            # Use safe='()' to preserve parentheses as they were in the original URL
-            canonical_query = urlencode(
-                normalized_items,
-                doseq=True,
-                quote_via=quote_query_component,
-            )
-            canonical_url = urlunparse(
-                (
-                    parsed.scheme,
-                    parsed.netloc,
-                    parsed.path,
-                    parsed.params,
-                    canonical_query,
-                    parsed.fragment,
-                )
-            )
-            logger.info("Redirecting to normalized URL for path: %s", parsed.path)
-            return Response(status_code=308, headers={"Location": canonical_url})
+            canonical_query = _build_canonical_query(normalized_items)
+            canonical_url = _build_canonical_url(str(request.url), canonical_query)
+            logger.info("Redirecting to normalized URL for path: %s", request.url.path)
+            return _query_redirect_response(canonical_url)
 
         return await call_next(request)
 

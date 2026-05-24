@@ -49,6 +49,84 @@ def _is_transient_clerk_verification_error(exc: Exception) -> bool:
     return "jwks" in exc_text and "fetch" in exc_text
 
 
+def _required_clerk_claims(require_session_claims: bool) -> list[str]:
+    required_claims = ["exp", "iat", "iss", "nbf"]
+    if require_session_claims:
+        required_claims.extend(["sid", "sub"])
+    return required_claims
+
+
+def _decode_clerk_payload(
+    token: str,
+    signing_key,
+    expected_issuer: str,
+    required_claims: list[str],
+) -> dict:
+    return jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],
+        issuer=expected_issuer,
+        options={
+            "verify_signature": True,
+            "verify_exp": True,
+            "verify_iat": True,
+            "verify_nbf": True,
+            "require": required_claims,
+        },
+    )
+
+
+def _permitted_clerk_origins() -> list[str]:
+    if not CLERK_PERMITTED_ORIGINS:
+        return []
+    return [
+        origin.strip()
+        for origin in CLERK_PERMITTED_ORIGINS.split(",")
+        if origin.strip()
+    ]
+
+
+def _validate_clerk_payload(
+    payload: dict,
+    require_session_claims: bool,
+    validate_azp: bool,
+) -> None:
+    if require_session_claims and not payload.get("sid"):
+        raise ClerkAuthenticationError("Invalid token payload")
+
+    if not validate_azp:
+        return
+
+    if not CLERK_PERMITTED_ORIGINS:
+        logger.error("CLERK_PERMITTED_ORIGINS not set but AZP validation requested")
+        raise ClerkAuthenticationError("Server configuration error", status_code=500)
+
+    permitted_origins = _permitted_clerk_origins()
+    if not permitted_origins:
+        logger.error("CLERK_PERMITTED_ORIGINS is empty but AZP validation requested")
+        raise ClerkAuthenticationError("Server configuration error", status_code=500)
+
+    azp = payload.get("azp")
+    if not azp:
+        raise ClerkAuthenticationError("Missing token origin")
+    if azp not in permitted_origins:
+        raise ClerkAuthenticationError("Invalid token origin")
+
+
+def _map_clerk_jwt_error(exc: Exception) -> Exception:
+    if isinstance(exc, jwt.ExpiredSignatureError):
+        return ClerkAuthenticationError("Token has expired")
+    if isinstance(exc, jwt.InvalidTokenError):
+        logger.warning("Invalid Clerk JWT: %s", type(exc).__name__)
+        return ClerkAuthenticationError("Invalid token")
+
+    logger.error("Unexpected Clerk JWT verification error: %s", type(exc).__name__)
+    if _is_transient_clerk_verification_error(exc):
+        return ClerkInfrastructureError()
+    return ClerkAuthenticationError("Authentication failed")
+
+
 def decode_and_verify_clerk_jwt(
     token: str,
     *,
@@ -64,66 +142,18 @@ def decode_and_verify_clerk_jwt(
     try:
         signing_key = jwks_client.get_signing_key_from_jwt(token)
         expected_issuer = f"https://{CLERK_FRONTEND_API}"
-        required_claims = ["exp", "iat", "iss", "nbf"]
-        if require_session_claims:
-            required_claims.extend(["sid", "sub"])
-
-        payload = jwt.decode(
+        payload = _decode_clerk_payload(
             token,
-            signing_key.key,
-            algorithms=["RS256"],
-            issuer=expected_issuer,
-            options={
-                "verify_signature": True,
-                "verify_exp": True,
-                "verify_iat": True,
-                "verify_nbf": True,
-                "require": required_claims,
-            },
+            signing_key,
+            expected_issuer,
+            _required_clerk_claims(require_session_claims),
         )
-
-        if require_session_claims and not payload.get("sid"):
-            raise ClerkAuthenticationError("Invalid token payload")
-
-        if validate_azp:
-            if not CLERK_PERMITTED_ORIGINS:
-                logger.error(
-                    "CLERK_PERMITTED_ORIGINS not set but AZP validation requested"
-                )
-                raise ClerkAuthenticationError(
-                    "Server configuration error", status_code=500
-                )
-            permitted_origins = [
-                origin.strip()
-                for origin in CLERK_PERMITTED_ORIGINS.split(",")
-                if origin.strip()
-            ]
-            if not permitted_origins:
-                logger.error(
-                    "CLERK_PERMITTED_ORIGINS is empty but AZP validation requested"
-                )
-                raise ClerkAuthenticationError(
-                    "Server configuration error", status_code=500
-                )
-            azp = payload.get("azp")
-            if not azp:
-                raise ClerkAuthenticationError("Missing token origin")
-            if azp not in permitted_origins:
-                raise ClerkAuthenticationError("Invalid token origin")
-
+        _validate_clerk_payload(payload, require_session_claims, validate_azp)
         return payload
     except ClerkAuthenticationError:
         raise
-    except jwt.ExpiredSignatureError as exc:
-        raise ClerkAuthenticationError("Token has expired") from exc
-    except jwt.InvalidTokenError as exc:
-        logger.warning("Invalid Clerk JWT: %s", type(exc).__name__)
-        raise ClerkAuthenticationError("Invalid token") from exc
     except Exception as exc:
-        logger.error("Unexpected Clerk JWT verification error: %s", type(exc).__name__)
-        if _is_transient_clerk_verification_error(exc):
-            raise ClerkInfrastructureError() from exc
-        raise ClerkAuthenticationError("Authentication failed") from exc
+        raise _map_clerk_jwt_error(exc) from exc
 
 
 async def verify_clerk_session_active(session_id: str) -> str:
