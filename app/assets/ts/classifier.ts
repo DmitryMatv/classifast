@@ -4,6 +4,12 @@ const BASE_SCORE_BAR_DELAY_MS = 0;
 const SCORE_BAR_STAGGER_MS = 0; // 100 before
 const MAX_SCORE_BAR_STAGGER_MS = 0; // 1000 before
 
+type DescriptionToggleElements = {
+  toggleButton: HTMLButtonElement;
+  descriptionContent: HTMLElement;
+  container: HTMLElement;
+};
+
 /**
  * Classifier page specific functionality
  * Handles form auto-submission, HTMX event handling, and UI interactions
@@ -618,6 +624,23 @@ class ClassifierPage {
    * Toggles the visibility of the description content
    */
   private setupDescriptionToggle(): void {
+    const elements = this.getDescriptionToggleElements();
+    if (!elements) return;
+
+    if (!this.hasDescriptionText(elements.descriptionContent)) {
+      this.hideDescriptionBlock(elements);
+      return;
+    }
+
+    const learnMoreText = this.getDescriptionLearnMoreText(
+      elements.toggleButton,
+    );
+    const isExpanded = this.isDescriptionExpanded(elements.toggleButton);
+    this.applyDescriptionState(elements, isExpanded, learnMoreText);
+    this.bindDescriptionToggle(elements, learnMoreText);
+  }
+
+  private getDescriptionToggleElements(): DescriptionToggleElements | null {
     const toggleButton = document.getElementById(
       "description-toggle",
     ) as HTMLButtonElement | null;
@@ -626,59 +649,67 @@ class ClassifierPage {
     ) as HTMLElement | null;
     const container = document.getElementById("description-container");
 
-    if (!toggleButton || !descriptionContent || !container) return;
+    if (!toggleButton || !descriptionContent || !container) return null;
 
-    // Hide entire block if description empty
+    return { toggleButton, descriptionContent, container };
+  }
+
+  private hasDescriptionText(descriptionContent: HTMLElement): boolean {
     const text = descriptionContent.textContent ?? "";
-    if (!text.trim()) {
-      toggleButton.style.display = "none";
-      container.style.display = "none";
-      return;
-    }
+    return Boolean(text.trim());
+  }
 
+  private hideDescriptionBlock({
+    toggleButton,
+    container,
+  }: DescriptionToggleElements): void {
+    toggleButton.style.display = "none";
+    container.style.display = "none";
+  }
+
+  private getDescriptionLearnMoreText(toggleButton: HTMLButtonElement): string {
     const classifierType =
       toggleButton.getAttribute("data-classifier-type") || "";
-    const learnMoreText = classifierType
-      ? `Learn more about ${classifierType}`
-      : "Learn more";
-    const isExpanded = toggleButton.getAttribute("aria-expanded") === "true";
+    return classifierType ? `Learn more about ${classifierType}` : "Learn more";
+  }
+
+  private isDescriptionExpanded(toggleButton: HTMLButtonElement): boolean {
+    return toggleButton.getAttribute("aria-expanded") === "true";
+  }
+
+  private bindDescriptionToggle(
+    elements: DescriptionToggleElements,
+    learnMoreText: string,
+  ): void {
+    elements.toggleButton.addEventListener("click", () => {
+      const newExpandedState = !this.isDescriptionExpanded(
+        elements.toggleButton,
+      );
+      elements.toggleButton.setAttribute(
+        "aria-expanded",
+        String(newExpandedState),
+      );
+      this.applyDescriptionState(elements, newExpandedState, learnMoreText);
+    });
+  }
+
+  private applyDescriptionState(
+    { toggleButton, descriptionContent }: DescriptionToggleElements,
+    isExpanded: boolean,
+    learnMoreText: string,
+  ): void {
     descriptionContent.style.display = isExpanded ? "block" : "none";
     descriptionContent.setAttribute("aria-hidden", String(!isExpanded));
     toggleButton.textContent = isExpanded ? "Show less" : learnMoreText;
+    this.setClassifierLogosVisible(!isExpanded);
+  }
 
-    const initialLogoElements = document.querySelectorAll(
+  private setClassifierLogosVisible(visible: boolean): void {
+    const logoElements = document.querySelectorAll(
       '[data-classifier-logo="true"]',
     ) as NodeListOf<HTMLElement>;
-    initialLogoElements.forEach((logo) => {
-      logo.style.display = isExpanded ? "none" : "";
-    });
-
-    toggleButton.addEventListener("click", () => {
-      const currentlyExpanded =
-        toggleButton.getAttribute("aria-expanded") === "true";
-      const newExpandedState = !currentlyExpanded;
-
-      toggleButton.setAttribute("aria-expanded", String(newExpandedState));
-
-      const currentLogoElements = document.querySelectorAll(
-        '[data-classifier-logo="true"]',
-      ) as NodeListOf<HTMLElement>;
-
-      if (newExpandedState) {
-        descriptionContent.style.display = "block";
-        descriptionContent.setAttribute("aria-hidden", "false");
-        toggleButton.textContent = "Show less";
-        currentLogoElements.forEach((logo) => {
-          logo.style.display = "none";
-        });
-      } else {
-        descriptionContent.style.display = "none";
-        descriptionContent.setAttribute("aria-hidden", "true");
-        toggleButton.textContent = learnMoreText;
-        currentLogoElements.forEach((logo) => {
-          logo.style.display = "";
-        });
-      }
+    logoElements.forEach((logo) => {
+      logo.style.display = visible ? "" : "none";
     });
   }
 

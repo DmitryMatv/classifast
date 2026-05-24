@@ -3,16 +3,16 @@
 Comprehensive test suite for embedding ordering issues and edge cases.
 Tests the robustness of the embedding generation system.
 """
-import os
+
 import asyncio
-import numpy as np
+import os
+import sys
 from typing import List
 from unittest.mock import MagicMock
-from google import genai
-from dotenv import load_dotenv
 
-# Import the functions we want to test
-import sys
+import numpy as np
+from dotenv import load_dotenv
+from google import genai
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from app.classifier import get_embeddings_batch, validate_embedding_correspondence
@@ -83,16 +83,16 @@ async def test_embedding_ordering_with_titles():
     )
 
     # Validate results
-    assert len(embeddings) == len(
-        test_texts
-    ), f"Expected {len(test_texts)} embeddings, got {len(embeddings)}"
+    assert len(embeddings) == len(test_texts), (
+        f"Expected {len(test_texts)} embeddings, got {len(embeddings)}"
+    )
 
     # Verify embeddings are in correct order
     for i, embedding in enumerate(embeddings):
         expected_value = 1.0 + (0.1 * i)
-        assert (
-            embedding[0] == expected_value
-        ), f"Embedding {i} has wrong value: {embedding[0]} != {expected_value}"
+        assert embedding[0] == expected_value, (
+            f"Embedding {i} has wrong value: {embedding[0]} != {expected_value}"
+        )
 
     print("[PASS] Order preservation test passed")
     return True
@@ -131,16 +131,16 @@ async def test_batch_embedding_ordering():
     )
 
     # Validate results
-    assert len(embeddings) == len(
-        test_texts
-    ), f"Expected {len(test_texts)} embeddings, got {len(embeddings)}"
+    assert len(embeddings) == len(test_texts), (
+        f"Expected {len(test_texts)} embeddings, got {len(embeddings)}"
+    )
 
     # Verify batch preserves order
     for i, embedding in enumerate(embeddings):
         expected_value = 2.0 + (0.2 * i)
-        assert (
-            embedding[0] == expected_value
-        ), f"Batch embedding {i} has wrong value: {embedding[0]} != {expected_value}"
+        assert embedding[0] == expected_value, (
+            f"Batch embedding {i} has wrong value: {embedding[0]} != {expected_value}"
+        )
 
     print("[PASS] Batch order preservation test passed")
     return True
@@ -187,9 +187,9 @@ async def test_partial_embedding_failures():
             embed_dims=3072,
         )
         # The function should return an empty list when errors occur
-        assert (
-            embeddings == []
-        ), f"Expected empty list due to partial failures, got {len(embeddings)} embeddings"
+        assert embeddings == [], (
+            f"Expected empty list due to partial failures, got {len(embeddings)} embeddings"
+        )
         print("[PASS] Partial failures handled gracefully (returned empty list)")
         return True
     except RuntimeError as e:
@@ -197,8 +197,6 @@ async def test_partial_embedding_failures():
         print(f"[PASS] Partial failures raised RuntimeError: {e}")
         assert "Failed to generate embedding" in str(e)
         return True
-
-    return True
 
 
 async def test_validation_function():
@@ -268,9 +266,9 @@ async def test_api_response_validation():
             embed_dims=3072,
         )
         # The function should return an empty list when API response is invalid
-        assert (
-            embeddings == []
-        ), f"Expected empty list due to API response validation failure, got {len(embeddings)} embeddings"
+        assert embeddings == [], (
+            f"Expected empty list due to API response validation failure, got {len(embeddings)} embeddings"
+        )
         print("[PASS] API response validation handled correctly (returned empty list)")
     except RuntimeError as e:
         # This is also acceptable - the function might raise an error
@@ -298,9 +296,9 @@ async def test_api_response_validation():
             embed_dims=3072,
         )
         # The function should return an empty list when API response is invalid
-        assert (
-            embeddings == []
-        ), f"Expected empty list due to extra embeddings, got {len(embeddings)} embeddings"
+        assert embeddings == [], (
+            f"Expected empty list due to extra embeddings, got {len(embeddings)} embeddings"
+        )
         print(
             "[PASS] Extra embeddings validation handled correctly (returned empty list)"
         )
@@ -397,9 +395,9 @@ async def test_real_api_integration():
             titles=test_titles,
         )
 
-        assert len(embeddings_with_titles) == len(
-            test_texts
-        ), f"Expected {len(test_texts)} embeddings, got {len(embeddings_with_titles)}"
+        assert len(embeddings_with_titles) == len(test_texts), (
+            f"Expected {len(test_texts)} embeddings, got {len(embeddings_with_titles)}"
+        )
         print(
             f"[PASS] Real API with titles: {len(embeddings_with_titles)} embeddings, {len(embeddings_with_titles[0])} dimensions"
         )
@@ -412,9 +410,9 @@ async def test_real_api_integration():
             texts=test_texts,
         )
 
-        assert len(embeddings_without_titles) == len(
-            test_texts
-        ), f"Expected {len(test_texts)} embeddings, got {len(embeddings_without_titles)}"
+        assert len(embeddings_without_titles) == len(test_texts), (
+            f"Expected {len(test_texts)} embeddings, got {len(embeddings_without_titles)}"
+        )
         print(
             f"[PASS] Real API batch: {len(embeddings_without_titles)} embeddings, {len(embeddings_without_titles[0])} dimensions"
         )

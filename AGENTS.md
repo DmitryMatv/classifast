@@ -2,9 +2,11 @@
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in this project that surprises you, please alert the developer working with you and indicate that this is the case in the AGENTS.md file to help prevent future agents from having the same issue.
 
-Never run `bun test`. Always use `npm test` or `npm run test:watch` for frontend tests.
+Always use `npm test` or `npm run test:watch` for frontend tests.
 
 Never use `pytest` for backend testing. Always use Python's built-in `unittest` module instead.
+
+Use Virtual Environment `source .venv/bin/activate` because all dependencies are installed there already.
 
 ## Project Snapshot
 
@@ -27,18 +29,6 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - Full pages can set cookies - but prefer client-side JavaScript to prevent CDN cache pollution
 - Generate per-user state client-side when possible (e.g., tracking IDs via `crypto.randomUUID()`) instead of server-side templating - keeps HTML cacheable across all users
 
-## Qdrant Index Contract Gotcha
-
-- Do not add a Qdrant full-text index to `original_id`.
-- Exact ID lookup in `app/classifier.py` uses `MatchValue` on `original_id`, so that field should use a `keyword` payload index.
-- Partial ID lookup in `app/classifier.py` uses `MatchText` plus Python-side normalization/filtering, and it relies on `original_id` not having a full-text index so Qdrant keeps substring-style matching behavior for that field.
-- Use `text(word)` payload indexes only for human-readable fields such as `class_name`.
-
 ## Rapid API (API.py)
 
 `app/api.py` is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
-
-## Frontend SSR Animation Gotcha
-
-- Classifier pages can server-render default/example results directly into `#results-container`.
-- If score bar animation depends on the `js-score-animations` class, add that class in an inline `<head>` script before first paint. Setting it only inside `app/assets/ts/classifier.ts` is too late for SSR results and causes the bars to appear already finished or flash without a smooth entrance animation.

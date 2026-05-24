@@ -239,6 +239,20 @@ export class TextareaEnhancer {
 // Cached auth token for synchronous HTMX header injection
 let cachedAuthToken: string | null = null;
 
+type PendingHtmxRetry = {
+  element: HTMLElement;
+};
+
+type HtmxRetryMethod = "GET" | "POST";
+
+type HtmxRetryRequest = {
+  method: HtmxRetryMethod;
+  url: string;
+  source: HTMLElement;
+  target: string;
+  swap: string;
+};
+
 function isTokenExpired(token: string): boolean {
   try {
     const parts = token.split(".");
@@ -534,64 +548,87 @@ export class ClerkAuth {
   // Shared implementation to avoid duplication between instance and static methods
   private static async performTokenRefresh(): Promise<string | null> {
     try {
-      if (window.Clerk?.session) {
-        const newToken = await window.Clerk.session.getToken({
-          expirationBufferSeconds: 15,
-        });
-        if (newToken) {
-          cachedAuthToken = newToken;
-        } else {
-          console.warn(
-            "Clerk session exists but getToken() returned empty - clearing stale token",
-          );
-          cachedAuthToken = null;
-        }
-        return cachedAuthToken;
-      }
-
-      if (window.Clerk?.user) {
-        console.warn(
-          "Clerk user exists but session is missing - user will be treated as anonymous",
-        );
-        console.warn("Attempting to recover session...");
-
-        try {
-          await ClerkAuth.loadClerk();
-          if (window.Clerk?.session) {
-            const recoveredToken = await window.Clerk.session.getToken({
-              expirationBufferSeconds: 15,
-            });
-            if (recoveredToken) {
-              cachedAuthToken = recoveredToken;
-              console.log("Session recovered successfully");
-              return cachedAuthToken;
-            }
-          }
-          console.warn("Session recovery failed - session still missing");
-        } catch (recoveryErr: unknown) {
-          console.error("Failed to recover Clerk session:", recoveryErr);
-        }
-      } else {
-        cachedAuthToken = null;
-      }
-
-      return cachedAuthToken;
+      return await ClerkAuth.refreshTokenFromClerkState();
     } catch (e: unknown) {
-      console.error("Failed to refresh auth token:", e);
-      if (cachedAuthToken && !isTokenExpired(cachedAuthToken)) {
-        return cachedAuthToken;
-      }
-      return null;
+      return ClerkAuth.handleTokenRefreshError(e);
     }
+  }
+
+  private static async refreshTokenFromClerkState(): Promise<string | null> {
+    const session = window.Clerk?.session;
+    if (session) {
+      return await ClerkAuth.refreshTokenFromSession(session);
+    }
+
+    if (window.Clerk?.user) {
+      return await ClerkAuth.recoverSessionAndRefreshToken();
+    }
+
+    return ClerkAuth.clearCachedAuthToken();
+  }
+
+  private static async refreshTokenFromSession(
+    session: ClerkSession,
+  ): Promise<string | null> {
+    const token = await session.getToken({
+      expirationBufferSeconds: 15,
+    });
+
+    if (!token) {
+      console.warn(
+        "Clerk session exists but getToken() returned empty - clearing stale token",
+      );
+    }
+
+    return ClerkAuth.cacheAuthTokenResult(token);
+  }
+
+  private static cacheAuthTokenResult(token: string | null): string | null {
+    cachedAuthToken = token;
+    return cachedAuthToken;
+  }
+
+  private static async recoverSessionAndRefreshToken(): Promise<string | null> {
+    console.warn(
+      "Clerk user exists but session is missing - user will be treated as anonymous",
+    );
+    console.warn("Attempting to recover session...");
+
+    try {
+      await ClerkAuth.loadClerk();
+      const session = window.Clerk?.session;
+      if (session) {
+        const recoveredToken = await ClerkAuth.refreshTokenFromSession(session);
+        if (recoveredToken) {
+          console.log("Session recovered successfully");
+          return recoveredToken;
+        }
+      }
+      console.warn("Session recovery failed - session still missing");
+    } catch (recoveryErr: unknown) {
+      console.error("Failed to recover Clerk session:", recoveryErr);
+    }
+
+    return cachedAuthToken;
+  }
+
+  private static clearCachedAuthToken(): null {
+    cachedAuthToken = null;
+    return null;
+  }
+
+  private static handleTokenRefreshError(err: unknown): string | null {
+    console.error("Failed to refresh auth token:", err);
+    if (cachedAuthToken && !isTokenExpired(cachedAuthToken)) {
+      return cachedAuthToken;
+    }
+    return null;
   }
 
   // Track if we're currently refreshing token to prevent duplicate retries
   private static isRefreshingToken = false;
   // Queue of pending retry requests
-  private static pendingRetries: Array<{
-    element: HTMLElement;
-    originalTrigger: string;
-  }> = [];
+  private static pendingRetries: PendingHtmxRetry[] = [];
 
   private static async handleTokenRefreshAndRetry() {
     ClerkAuth.isRefreshingToken = true;
@@ -599,51 +636,71 @@ export class ClerkAuth {
 
     try {
       const newToken = await ClerkAuth.performTokenRefresh();
-
-      if (newToken) {
-        console.log(
-          "Token refreshed successfully, retrying",
-          ClerkAuth.pendingRetries.length,
-          "requests",
-        );
-
-        const retries = [...ClerkAuth.pendingRetries];
-        ClerkAuth.pendingRetries = [];
-
-        for (const request of retries) {
-          if (window.htmx) {
-            const method = request.element.getAttribute("hx-get")
-              ? "GET"
-              : "POST";
-            const url =
-              request.element.getAttribute("hx-get") ||
-              request.element.getAttribute("hx-post") ||
-              "";
-            const target = request.element.getAttribute("hx-target") || "";
-            const swap = request.element.getAttribute("hx-swap") || "innerHTML";
-
-            window.htmx.ajax(method, url, {
-              source: request.element,
-              target: target,
-              swap: swap,
-            });
-          }
-        }
-      } else {
-        console.error("Failed to refresh token - requests will remain blocked");
-        ClerkAuth.pendingRetries = [];
-        document.body.dispatchEvent(
-          new CustomEvent("htmx:authRefreshFailed", {
-            detail: { message: "Authentication failed. Please try again." },
-          }),
-        );
-      }
+      ClerkAuth.handleRefreshRetryResult(newToken);
     } catch (err: unknown) {
-      console.error("Error during token refresh for HTMX retry:", err);
-      ClerkAuth.pendingRetries = [];
+      ClerkAuth.handleRefreshRetryError(err);
     } finally {
       ClerkAuth.isRefreshingToken = false;
     }
+  }
+
+  private static handleRefreshRetryResult(newToken: string | null): void {
+    if (!newToken) {
+      console.error("Failed to refresh token - requests will remain blocked");
+      ClerkAuth.pendingRetries = [];
+      ClerkAuth.dispatchAuthRefreshFailed();
+      return;
+    }
+
+    console.log(
+      "Token refreshed successfully, retrying",
+      ClerkAuth.pendingRetries.length,
+      "requests",
+    );
+    ClerkAuth.replayPendingRetries(ClerkAuth.drainPendingRetries());
+  }
+
+  private static drainPendingRetries(): PendingHtmxRetry[] {
+    const retries = [...ClerkAuth.pendingRetries];
+    ClerkAuth.pendingRetries = [];
+    return retries;
+  }
+
+  private static replayPendingRetries(retries: PendingHtmxRetry[]): void {
+    if (!window.htmx) return;
+
+    for (const retry of retries) {
+      const request = ClerkAuth.buildHtmxRetryRequest(retry.element);
+      window.htmx.ajax(request.method, request.url, {
+        source: request.source,
+        target: request.target,
+        swap: request.swap,
+      });
+    }
+  }
+
+  private static buildHtmxRetryRequest(element: HTMLElement): HtmxRetryRequest {
+    return {
+      method: element.getAttribute("hx-get") ? "GET" : "POST",
+      url:
+        element.getAttribute("hx-get") || element.getAttribute("hx-post") || "",
+      source: element,
+      target: element.getAttribute("hx-target") || "",
+      swap: element.getAttribute("hx-swap") || "innerHTML",
+    };
+  }
+
+  private static dispatchAuthRefreshFailed(): void {
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:authRefreshFailed", {
+        detail: { message: "Authentication failed. Please try again." },
+      }),
+    );
+  }
+
+  private static handleRefreshRetryError(err: unknown): void {
+    console.error("Error during token refresh for HTMX retry:", err);
+    ClerkAuth.pendingRetries = [];
   }
 
   private registerHtmxAuthHeader() {
@@ -651,49 +708,74 @@ export class ClerkAuth {
     ClerkAuth.htmxAuthHeaderRegistered = true;
 
     document.body.addEventListener("htmx:configRequest", (event) => {
-      const htmxEvent = event as HtmxConfigRequestEvent;
-
-      const tokenExpired = cachedAuthToken
-        ? isTokenExpired(cachedAuthToken)
-        : true;
-
-      if (cachedAuthToken && !tokenExpired) {
-        htmxEvent.detail.headers["Authorization"] = `Bearer ${cachedAuthToken}`;
-      } else if (window.Clerk?.user) {
-        if (tokenExpired && cachedAuthToken) {
-          console.warn(
-            "HTMX request: Auth token expired. Cancelling request to refresh token and retry...",
-          );
-        } else {
-          console.warn(
-            "HTMX request: User is logged in but no auth token available. " +
-              "Cancelling request to refresh token and retry...",
-          );
-        }
-
-        // Synchronously prevent this request
-        event.preventDefault();
-
-        // Store the element that triggered this request for retry
-        const triggerElement = htmxEvent.detail.elt as HTMLElement;
-
-        // Add to pending retries if not already there
-        const alreadyPending = ClerkAuth.pendingRetries.some(
-          (r) => r.element === triggerElement,
-        );
-        if (!alreadyPending) {
-          ClerkAuth.pendingRetries.push({
-            element: triggerElement,
-            originalTrigger: triggerElement.getAttribute("hx-trigger") || "",
-          });
-        }
-
-        // Handle async refresh separately
-        if (!ClerkAuth.isRefreshingToken) {
-          ClerkAuth.handleTokenRefreshAndRetry();
-        }
-      }
+      ClerkAuth.configureHtmxAuthRequest(event as HtmxConfigRequestEvent);
     });
+  }
+
+  private static configureHtmxAuthRequest(
+    htmxEvent: HtmxConfigRequestEvent,
+  ): void {
+    const token = ClerkAuth.getCachedAuthTokenForRequest();
+    if (token) {
+      ClerkAuth.attachAuthorizationHeader(htmxEvent, token);
+      return;
+    }
+
+    if (window.Clerk?.user) {
+      ClerkAuth.blockRequestAndQueueRetry(htmxEvent);
+      ClerkAuth.startTokenRefreshIfIdle();
+    }
+  }
+
+  private static getCachedAuthTokenForRequest(): string | null {
+    if (!cachedAuthToken || isTokenExpired(cachedAuthToken)) {
+      return null;
+    }
+    return cachedAuthToken;
+  }
+
+  private static attachAuthorizationHeader(
+    htmxEvent: HtmxConfigRequestEvent,
+    token: string,
+  ): void {
+    htmxEvent.detail.headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  private static blockRequestAndQueueRetry(
+    htmxEvent: HtmxConfigRequestEvent,
+  ): void {
+    ClerkAuth.logBlockedHtmxRequest();
+    htmxEvent.preventDefault();
+    ClerkAuth.queuePendingRetry(htmxEvent.detail.elt as HTMLElement);
+  }
+
+  private static logBlockedHtmxRequest(): void {
+    if (cachedAuthToken) {
+      console.warn(
+        "HTMX request: Auth token expired. Cancelling request to refresh token and retry...",
+      );
+      return;
+    }
+
+    console.warn(
+      "HTMX request: User is logged in but no auth token available. " +
+        "Cancelling request to refresh token and retry...",
+    );
+  }
+
+  private static queuePendingRetry(element: HTMLElement): void {
+    const alreadyPending = ClerkAuth.pendingRetries.some(
+      (retry) => retry.element === element,
+    );
+    if (!alreadyPending) {
+      ClerkAuth.pendingRetries.push({ element });
+    }
+  }
+
+  private static startTokenRefreshIfIdle(): void {
+    if (!ClerkAuth.isRefreshingToken) {
+      ClerkAuth.handleTokenRefreshAndRetry();
+    }
   }
 
   private updateAuthUI() {

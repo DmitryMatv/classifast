@@ -361,6 +361,44 @@ describe("classifier.ts", () => {
     expect(content.style.display).toBe("none");
   });
 
+  it("hides the description block when description text is empty", async () => {
+    const toggle = document.getElementById(
+      "description-toggle",
+    ) as HTMLButtonElement;
+    const container = document.getElementById(
+      "description-container",
+    ) as HTMLElement;
+    const content = document.getElementById(
+      "description-content",
+    ) as HTMLElement;
+    content.textContent = "   ";
+
+    await import("./classifier");
+
+    expect(toggle.style.display).toBe("none");
+    expect(container.style.display).toBe("none");
+  });
+
+  it("applies initially expanded description state", async () => {
+    const toggle = document.getElementById(
+      "description-toggle",
+    ) as HTMLButtonElement;
+    const content = document.getElementById(
+      "description-content",
+    ) as HTMLElement;
+    const logo = document.querySelector(
+      '[data-classifier-logo="true"]',
+    ) as HTMLElement;
+    toggle.setAttribute("aria-expanded", "true");
+
+    await import("./classifier");
+
+    expect(toggle.textContent).toBe("Show less");
+    expect(content.style.display).toBe("block");
+    expect(content.getAttribute("aria-hidden")).toBe("false");
+    expect(logo.style.display).toBe("none");
+  });
+
   it("replays score bar animation during history restore", async () => {
     const animationFrameController = createAnimationFrameController();
     await import("./classifier");

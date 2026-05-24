@@ -13,10 +13,20 @@ async function advanceTimersAndFlushAsync(ms: number): Promise<void> {
   await flushAsyncWork();
 }
 
+function createJwtWithExpiration(exp: number): string {
+  const payload = btoa(JSON.stringify({ exp }))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  return `header.${payload}.signature`;
+}
+
 describe("common.ts", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
+    const freshBody = document.body.cloneNode(false) as HTMLBodyElement;
+    document.body.replaceWith(freshBody);
     document.body.innerHTML = "";
     document.body.removeAttribute("data-common-initialized");
     document.body.removeAttribute("data-auth-ui");
@@ -698,5 +708,175 @@ describe("common.ts", () => {
     expect(window.location.pathname).toBe("/NAICS/");
     expect(window.location.search).toBe("?checkout=success&foo=bar");
     expect(window.location.hash).toBe("#results");
+  });
+
+  it("caches a refreshed Clerk session token", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    const token = createJwtWithExpiration(Math.floor(Date.now() / 1000) + 60);
+    if (window.Clerk) {
+      window.Clerk.session = {
+        getToken: vi.fn(async () => token),
+      };
+    }
+    const { ClerkAuth } = await import("./common");
+
+    await expect(ClerkAuth.refreshAuthToken()).resolves.toBe(token);
+
+    expect(ClerkAuth.getCachedAuthToken()).toBe(token);
+    expect(window.Clerk?.session?.getToken).toHaveBeenCalledWith({
+      expirationBufferSeconds: 15,
+    });
+  });
+
+  it("clears the cached Clerk token when session token refresh returns empty", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    const token = createJwtWithExpiration(Math.floor(Date.now() / 1000) + 60);
+    if (window.Clerk) {
+      window.Clerk.session = {
+        getToken: vi
+          .fn()
+          .mockResolvedValueOnce(token)
+          .mockResolvedValueOnce(null),
+      };
+    }
+    const { ClerkAuth } = await import("./common");
+
+    await ClerkAuth.refreshAuthToken();
+    await expect(ClerkAuth.refreshAuthToken()).resolves.toBeNull();
+
+    expect(ClerkAuth.getCachedAuthToken()).toBeNull();
+  });
+
+  it("recovers a missing Clerk session before refreshing the token", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    const recoveredToken = createJwtWithExpiration(
+      Math.floor(Date.now() / 1000) + 60,
+    );
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.load = vi.fn(async () => {
+        if (window.Clerk) {
+          window.Clerk.session = {
+            getToken: vi.fn(async () => recoveredToken),
+          };
+        }
+      });
+      delete window.Clerk.session;
+    }
+    const { ClerkAuth } = await import("./common");
+
+    await expect(ClerkAuth.refreshAuthToken()).resolves.toBe(recoveredToken);
+
+    expect(window.Clerk?.load).toHaveBeenCalledWith({
+      ui: {
+        ClerkUI: window.__internal_ClerkUICtor,
+      },
+    });
+    expect(ClerkAuth.getCachedAuthToken()).toBe(recoveredToken);
+  });
+
+  it("returns a still-valid cached token when token refresh fails", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    const validCachedToken = createJwtWithExpiration(
+      Math.floor(Date.now() / 1000) + 60,
+    );
+    if (window.Clerk) {
+      window.Clerk.session = {
+        getToken: vi
+          .fn()
+          .mockResolvedValueOnce(validCachedToken)
+          .mockRejectedValueOnce(new Error("refresh failed")),
+      };
+    }
+    const { ClerkAuth } = await import("./common");
+
+    await ClerkAuth.refreshAuthToken();
+    await expect(ClerkAuth.refreshAuthToken()).resolves.toBe(validCachedToken);
+  });
+
+  it("blocks and replays HTMX requests after refreshing a missing auth token", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+      <button
+        id="retry-source"
+        hx-post="/NAICS/fragment"
+        hx-target="#results-container"
+        hx-swap="outerHTML"
+      ></button>
+    `;
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.session = {
+        getToken: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce("retry-token"),
+      };
+    }
+    await import("./common");
+    await flushAsyncWork();
+
+    const source = document.getElementById("retry-source") as HTMLElement;
+    const event = new CustomEvent("htmx:configRequest", {
+      bubbles: true,
+      cancelable: true,
+      detail: {
+        headers: {},
+        xhr: {},
+        elt: source,
+        parameters: {},
+      },
+    });
+
+    document.body.dispatchEvent(event);
+    await flushAsyncWork();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(window.htmx?.ajax).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.ajax).toHaveBeenCalledWith("POST", "/NAICS/fragment", {
+      source,
+      target: "#results-container",
+      swap: "outerHTML",
+    });
+  });
+
+  it("dispatches authRefreshFailed and skips HTMX replay when retry token refresh fails", async () => {
+    document.body.innerHTML = `
+      <div id="desktop-auth-container"></div>
+      <div id="mobile-auth-container"></div>
+      <button id="retry-source" hx-get="/NAICS/fragment"></button>
+    `;
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.session = {
+        getToken: vi.fn(async () => null),
+      };
+    }
+    const refreshFailedListener = vi.fn();
+    document.body.addEventListener(
+      "htmx:authRefreshFailed",
+      refreshFailedListener,
+    );
+    await import("./common");
+    await flushAsyncWork();
+
+    const source = document.getElementById("retry-source") as HTMLElement;
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        bubbles: true,
+        cancelable: true,
+        detail: {
+          headers: {},
+          xhr: {},
+          elt: source,
+          parameters: {},
+        },
+      }),
+    );
+    await flushAsyncWork();
+
+    expect(refreshFailedListener).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.ajax).not.toHaveBeenCalled();
   });
 });
