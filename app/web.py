@@ -7,6 +7,7 @@ from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from starlette.templating import _TemplateResponse
 
 from app.cache_profiles import CacheProfile
 
@@ -19,7 +20,7 @@ from .cache_profiles import (
     build_cache_headers,
 )
 from .classifier import get_classification_cache_headers, perform_classification
-from .classifier_config import CLASSIFIER_CONFIG
+from .classifier_config import CLASSIFIER_CONFIG, ClassifierConfig
 from .dependencies import templates
 from .mapping_store import (
     MappingProduct,
@@ -32,7 +33,6 @@ from .usage_tracker import (
     add_quota_headers,
     check_usage,
     increment_usage,
-    set_tracking_cookie,
     verify_checkout_token,
 )
 
@@ -55,7 +55,7 @@ def slugify(text: str) -> str:
     if not text:
         return ""
     # Sanitize input: limit length and remove harmful characters
-    text = str(text)[:200]  # Limit to 200 chars max
+    text = text[:200]  # Limit to 200 chars max
     # Normalize internal whitespace first (collapse multiple spaces/newlines into single space)
     text = re.sub(r"\s+", " ", text)
     # Preserve punctuation that sanitize_query_text accepts so URL slugs round-trip
@@ -138,7 +138,7 @@ def _normalize_product_description(product_description: str) -> str:
     return re.sub(r"\s+", " ", product_description).strip()
 
 
-def _get_classifier_config_or_404(classifier_type: str) -> tuple[str, dict]:
+def _get_classifier_or_404(classifier_type: str) -> tuple[str, ClassifierConfig]:
     upper_type = classifier_type.strip().upper()
     config = CLASSIFIER_CONFIG.get(upper_type)
     if not config:
@@ -148,9 +148,15 @@ def _get_classifier_config_or_404(classifier_type: str) -> tuple[str, dict]:
     return upper_type, config
 
 
+def _get_classifier_config_or_404(
+    classifier_type: str,
+) -> tuple[str, ClassifierConfig]:
+    return _get_classifier_or_404(classifier_type)
+
+
 def _resolve_classifier_options(
     upper_type: str,
-    config: dict,
+    config: ClassifierConfig,
     version: str | None,
     top_k: int | None,
 ) -> tuple[str, int, str, int]:
@@ -232,7 +238,7 @@ def _render_paywall_fragment(
     usage_status: UsageStatus,
     push_url: bool,
     new_url: str,
-):
+) -> _TemplateResponse:
     response = templates.TemplateResponse(
         request,
         "paywall.html",
@@ -254,7 +260,7 @@ def _render_empty_results_fragment(
     request: Request,
     normalized_description: str,
     usage_status: UsageStatus,
-):
+) -> _TemplateResponse:
     response = templates.TemplateResponse(
         request,
         "results.html",
@@ -276,7 +282,7 @@ def _render_classification_results_fragment(
     push_url: bool,
     new_url: str,
     usage_status: UsageStatus,
-):
+) -> _TemplateResponse:
     response = templates.TemplateResponse(
         request,
         "results.html",
@@ -290,6 +296,148 @@ def _render_classification_results_fragment(
         response.headers["HX-Push-Url"] = new_url
     add_quota_headers(response, usage_status)
     return response
+
+
+def _build_classifier_redirect_url(
+    upper_type: str,
+    search_query: str,
+    query_string: str,
+) -> str:
+    redirect_url = f"/{upper_type}/"
+    if search_query:
+        redirect_url += search_query
+    if query_string:
+        redirect_url += f"?{query_string}"
+    return redirect_url
+
+
+def _decode_search_query(search_query: str) -> str:
+    if not search_query or not search_query.strip():
+        return ""
+
+    decoded_query = (
+        unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
+    )
+    decoded_query = re.sub(r"\s+", " ", decoded_query).strip()
+    if len(decoded_query) > 4000:
+        decoded_query = decoded_query[:4000].strip()
+    return decoded_query
+
+
+def _build_classifier_canonical_url(classifier_type: str, decoded_query: str) -> str:
+    canonical_url = f"https://classifast.com/{classifier_type}"
+    if decoded_query:
+        slug = slugify(decoded_query)
+        canonical_url += f"/{quote(slug, safe='')}"
+    if not canonical_url.endswith("/"):
+        canonical_url += "/"
+    return canonical_url
+
+
+def _resolve_classifier_page_options(
+    config: ClassifierConfig,
+    version: str | None,
+    top_k: int | None,
+    default_top_k: int,
+) -> tuple[str, int, str]:
+    resolved_top_k = (
+        default_top_k if top_k is None or top_k < 1 or top_k > 100 else top_k
+    )
+    versions_list = list(config["versions"].keys())
+    first_version: str = versions_list[0] if versions_list else ""
+    validated_version: str = (
+        version
+        if version is not None and version in config["versions"]
+        else first_version
+    )
+    return validated_version, resolved_top_k, first_version
+
+
+def _build_empty_classifier_results(decoded_query: str) -> dict[str, object]:
+    return {
+        "results_for_query": [],
+        "query": decoded_query,
+        "base_url": "",
+        "tooltip": "",
+        "total_request_time": 0,
+    }
+
+
+async def _maybe_seed_base_page_results(
+    request: Request,
+    classifier_type: str,
+    decoded_query: str,
+    example_query: str,
+    version: str,
+    top_k: int,
+) -> tuple[dict[str, object], bool, bool]:
+    results_data = _build_empty_classifier_results(decoded_query)
+    if decoded_query:
+        return results_data, False, True
+
+    if not example_query:
+        return results_data, False, False
+
+    results_data["query"] = example_query
+    try:
+        seeded_results = build_classification_results_context(
+            request=request,
+            classifier_type=classifier_type,
+            query=example_query,
+            version=version,
+            top_k=top_k,
+        )
+        return seeded_results, True, False
+    except Exception as e:
+        logger.warning(
+            "SSR fallback for '%s' page classification due to %s: %s",
+            classifier_type,
+            type(e).__name__,
+            e,
+        )
+        return results_data, True, True
+
+
+def _build_classifier_page_context(
+    classifier_type: str,
+    config: ClassifierConfig,
+    display_example: str,
+    decoded_query: str,
+    validated_version: str,
+    first_version: str,
+    top_k: int,
+    default_top_k: int,
+    canonical_url: str,
+    results_data: dict[str, object],
+    default_example_prefill: bool,
+    trigger_search_on_load: bool,
+) -> dict[str, object]:
+    today = datetime.now()
+    return {
+        "classifier_type": classifier_type,
+        "title": config["title"],
+        "heading": config["heading"],
+        "description": config["description"],
+        "versions": list(config["versions"].keys()),
+        "example": display_example,
+        "url_params": {
+            "search": decoded_query,
+            "version": (
+                validated_version
+                if validated_version and validated_version != first_version
+                else ""
+            ),
+            "top_k": top_k,
+        },
+        "default_example_prefill": default_example_prefill,
+        "trigger_search_on_load": trigger_search_on_load,
+        "default_top_k": default_top_k,
+        "first_version": first_version,
+        "canonical_url": canonical_url,
+        "current_year": today.year,
+        "current_month_name": today.strftime("%B"),
+        **results_data,
+    }
 
 
 def get_related_mapping_products(product: MappingProduct) -> list[MappingProduct]:
@@ -576,149 +724,60 @@ async def show_classifier_page_with_query(
     Handles both base URLs like /NAICS and search URLs like /NAICS/gamedev-studio
     Also redirects lowercase classifier types to uppercase.
     """
-    # Normalize classifier type early
-    upper_type = classifier_type.strip().upper()
-    config = CLASSIFIER_CONFIG.get(upper_type)
-    if not config:
-        raise HTTPException(
-            status_code=404, detail=f"Classifier '{classifier_type}' not found"
-        )
+    upper_type, config = _get_classifier_or_404(classifier_type)
 
-    # Redirect lowercase to uppercase for SEO consistency
     if classifier_type != upper_type:
-        query_string = f"?{request.url.query}" if request.url.query else ""
-        redirect_url = f"/{upper_type}/"
-        if search_query:
-            redirect_url += f"{search_query}"
-        return RedirectResponse(url=f"{redirect_url}{query_string}", status_code=301)
-
-    # Use the uppercase classifier_type from here
-    effective_classifier_type = upper_type
-    default_top_k = get_default_top_k(effective_classifier_type)
-
-    # Handle checkout return with token verification
-    checkout_success = request.query_params.get("checkout")
-    checkout_token = request.query_params.get("checkout_token")
-    if checkout_success == "success" and checkout_token:
-        redis_client = getattr(request.app.state, "redis_client", None)
-        await verify_checkout_token(checkout_token, request, redis_client)
-
-    # Handle empty search query for base URLs
-    decoded_search_query = ""
-    if search_query and search_query.strip():
-        decoded_search_query = (
-            unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
+        redirect_url = _build_classifier_redirect_url(
+            upper_type, search_query, request.url.query
         )
-        # Normalize internal whitespace (collapse multiple spaces/newlines into single space)
-        decoded_search_query = re.sub(r"\s+", " ", decoded_search_query).strip()
-        # Sanitize the decoded query
-        # Relaxed sanitization: allow characters like apostrophes, but keep length limit
-        if len(decoded_search_query) > 4000:
-            decoded_search_query = decoded_search_query[:4000]
-            decoded_search_query = decoded_search_query.strip()
+        return RedirectResponse(url=redirect_url, status_code=301)
 
-    # Build canonical URL
-    # URL-encode slug to handle non-Latin characters in HTTP headers
-    canonical_url = f"https://classifast.com/{effective_classifier_type}"
-    if decoded_search_query:
-        slug = slugify(decoded_search_query)
-        canonical_url += f"/{quote(slug, safe='')}"
+    default_top_k = get_default_top_k(upper_type)
+    redis_client = _get_redis_client(request)
+    await _maybe_verify_checkout_return(request, redis_client)
 
-    # Ensure trailing slash for consistency with redirects and sitemap
-    if not canonical_url.endswith("/"):
-        canonical_url += "/"
+    decoded_search_query = _decode_search_query(search_query)
+    canonical_url = _build_classifier_canonical_url(upper_type, decoded_search_query)
 
-    # For HEAD requests, return just headers
     if request.method == "HEAD":
         return Response(headers=build_page_headers(canonical_url))
 
-    # Validate top_k parameter
-    if top_k is None or top_k < 1 or top_k > 100:
-        top_k = default_top_k
-
-    # Get first version for default handling
-    versions_list = list(config["versions"].keys())
-    first_version = versions_list[0] if versions_list else ""
-    validated_version = version if version in config["versions"] else first_version
-
-    # Initialize results data structure
-    results_data = {
-        "results_for_query": [],
-        "query": decoded_search_query,
-        "base_url": "",
-        "tooltip": "",
-        "total_request_time": 0,
-    }
-
+    validated_version, top_k, first_version = _resolve_classifier_page_options(
+        config, version, top_k, default_top_k
+    )
     raw_example = config["example"].strip()
     display_example = raw_example if raw_example else ""
-
-    # Track whether the base page is seeded from the configured example text.
-    # This must always be initialized before the template context is built.
-    default_example_prefill = False
-
-    trigger_search_on_load = False
-
-    if decoded_search_query:
-        trigger_search_on_load = True
-    else:
-        # If no search query (base URL), use example query
-        example_query = raw_example
-        if example_query:
-            default_example_prefill = True
-            results_data["query"] = example_query
-            try:
-                results_data = build_classification_results_context(
-                    request=request,
-                    classifier_type=effective_classifier_type,
-                    query=example_query,
-                    version=validated_version,
-                    top_k=top_k,
-                )
-            except Exception as e:
-                logger.warning(
-                    "SSR fallback for '%s' page classification due to %s: %s",
-                    effective_classifier_type,
-                    type(e).__name__,
-                    e,
-                )
-                trigger_search_on_load = True
-
-    today = datetime.now()
-    current_year = today.year
-    current_month_name = today.strftime("%B")
+    (
+        results_data,
+        default_example_prefill,
+        trigger_search_on_load,
+    ) = await _maybe_seed_base_page_results(
+        request,
+        upper_type,
+        decoded_search_query,
+        raw_example,
+        validated_version,
+        top_k,
+    )
 
     response = templates.TemplateResponse(
         request,
         "classifier_page.html",
-        {
-            "classifier_type": effective_classifier_type,
-            "title": config["title"],
-            "heading": config["heading"],
-            "description": config["description"],
-            "versions": list(config["versions"].keys()),
-            "example": display_example,
-            "url_params": {
-                "search": decoded_search_query,
-                "version": (
-                    validated_version
-                    if validated_version and validated_version != first_version
-                    else ""
-                ),
-                "top_k": top_k,
-            },
-            "default_example_prefill": default_example_prefill,
-            "trigger_search_on_load": trigger_search_on_load,
-            "default_top_k": default_top_k,
-            "first_version": first_version,
-            "canonical_url": canonical_url,
-            "current_year": current_year,
-            "current_month_name": current_month_name,
-            **results_data,
-        },
+        _build_classifier_page_context(
+            upper_type,
+            config,
+            display_example,
+            decoded_search_query,
+            validated_version,
+            first_version,
+            top_k,
+            default_top_k,
+            canonical_url,
+            results_data,
+            default_example_prefill,
+            trigger_search_on_load,
+        ),
     )
-
-    # Cloudflare-friendly cache headers (aligned with homepage)
     response.headers.update(build_page_headers(canonical_url))
 
     return response

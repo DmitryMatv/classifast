@@ -3,6 +3,7 @@ import logging
 
 import httpx
 import jwt
+from jwt.api_jwk import PyJWK
 
 from .dependencies import (
     CLERK_FRONTEND_API,
@@ -58,7 +59,7 @@ def _required_clerk_claims(require_session_claims: bool) -> list[str]:
 
 def _decode_clerk_payload(
     token: str,
-    signing_key,
+    signing_key: PyJWK,
     expected_issuer: str,
     required_claims: list[str],
 ) -> dict:

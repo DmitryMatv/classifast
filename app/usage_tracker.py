@@ -212,18 +212,31 @@ async def extract_from_auth_header(
         return None, None
 
     token = auth_header[7:]
+    return await _authenticate_clerk_token_or_none(
+        token,
+        validate_azp=should_validate_clerk_azp(),
+        source_label="Bearer token",
+    )
 
+
+async def _authenticate_clerk_token_or_none(
+    token: str,
+    *,
+    validate_azp: bool,
+    source_label: str,
+) -> Tuple[Optional[str], Optional[str]]:
     try:
         return await authenticate_clerk_token_local(
             token,
-            validate_azp=should_validate_clerk_azp(),
+            validate_azp=validate_azp,
         )
     except ClerkAuthenticationError as exc:
-        logger.debug("Bearer token authentication failed: %s", exc.detail)
+        logger.debug("%s authentication failed: %s", source_label, exc.detail)
         return None, None
     except ClerkInfrastructureError as exc:
         logger.warning(
-            "Bearer token verification temporarily unavailable; falling back to anonymous quota: %s",
+            "%s verification temporarily unavailable; falling back to anonymous quota: %s",
+            source_label,
             exc.detail,
         )
         return None, None
@@ -237,20 +250,11 @@ async def extract_from_session_cookie(
     if not session_cookie:
         return None, None
 
-    try:
-        return await authenticate_clerk_token_local(
-            session_cookie,
-            validate_azp=False,
-        )
-    except ClerkAuthenticationError as exc:
-        logger.debug("Session cookie authentication failed: %s", exc.detail)
-        return None, None
-    except ClerkInfrastructureError as exc:
-        logger.warning(
-            "Session cookie verification temporarily unavailable; falling back to anonymous quota: %s",
-            exc.detail,
-        )
-        return None, None
+    return await _authenticate_clerk_token_or_none(
+        session_cookie,
+        validate_azp=False,
+        source_label="Session cookie",
+    )
 
 
 async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
