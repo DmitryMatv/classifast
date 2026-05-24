@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import tenacity
@@ -16,8 +17,81 @@ from .classifier_config import CLASSIFIER_CONFIG
 
 logger = logging.getLogger(__name__)
 
+SEARCH_SANITIZE_PATTERN = re.compile(
+    r"[^\w\s\-\.\,\:\;\(\)\{\}\[\]\/\'\"\&\%\#\+\=\!\@]+"
+)
+WHITESPACE_PATTERN = re.compile(r"\s+")
+PURE_NUMERIC_CODE_PATTERN = re.compile(r"^[\d\s\.\-]+$")
+REPEATED_URL_ENCODING_PATTERN = re.compile(r"(?:25){2,}")
+HEX_SEQUENCE_PATTERN = re.compile(r"[0-9A-Fa-f]{4,}")
+HEX_LETTER_PATTERN = re.compile(r"[A-Fa-f]")
+DIGIT_PATTERN = re.compile(r"\d")
+ALLOWED_QUERY_PATTERN = re.compile(
+    r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
+)
+
 
 # ===== Input Sanitization =====
+
+
+def _sanitize_search_query(query: str) -> str:
+    query = SEARCH_SANITIZE_PATTERN.sub(" ", query)
+    return WHITESPACE_PATTERN.sub(" ", query).strip()
+
+
+def _validate_query_length(query: str) -> None:
+    if len(query) > 4000:
+        raise HTTPException(
+            status_code=400, detail="Query too long (max 4000 characters)"
+        )
+
+    if len(query) < 2:
+        raise HTTPException(
+            status_code=400, detail="Query too short (min 2 characters)"
+        )
+
+
+def _is_pure_numeric_code(query: str) -> bool:
+    return bool(PURE_NUMERIC_CODE_PATTERN.match(query))
+
+
+def _reject_suspicious_encoding(query: str, is_pure_numeric: bool) -> None:
+    if REPEATED_URL_ENCODING_PATTERN.search(query):
+        raise HTTPException(
+            status_code=400,
+            detail="Query contains suspicious URL encoding patterns",
+        )
+
+    if is_pure_numeric:
+        return
+
+    hex_sequences = HEX_SEQUENCE_PATTERN.findall(query)
+    if len(hex_sequences) >= 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Query contains suspicious hex encoding patterns",
+        )
+
+    hex_letters = len(HEX_LETTER_PATTERN.findall(query))
+    has_digits = bool(DIGIT_PATTERN.search(query))
+    non_space_chars = len(query.replace(" ", ""))
+    if has_digits and non_space_chars > 0 and hex_letters / non_space_chars > 0.7:
+        raise HTTPException(
+            status_code=400,
+            detail="Query appears to be encoded garbage",
+        )
+
+
+def _collapse_query_whitespace(query: str) -> str:
+    return WHITESPACE_PATTERN.sub(" ", query)
+
+
+def _validate_allowed_query_characters(query: str) -> None:
+    if not ALLOWED_QUERY_PATTERN.match(query):
+        raise HTTPException(
+            status_code=400,
+            detail="Query contains invalid characters. Please use standard text characters only.",
+        )
 
 
 def sanitize_query_text(query: str, for_search: bool = False) -> str:
@@ -40,68 +114,13 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
     query = query.strip().rstrip("/")
 
     if for_search:
-        # Minimal sanitization for exact ID matching - preserve most characters
-        query = re.sub(
-            r"[^\w\s\-\.\,\:\;\(\)\{\}\[\]\/\'\"\&\%\#\+\=\!\@]+", " ", query
-        )
-        return re.sub(r"\s+", " ", query).strip()
+        return _sanitize_search_query(query)
 
-    # Full validation for user queries
-    if len(query) > 4000:
-        raise HTTPException(
-            status_code=400, detail="Query too long (max 4000 characters)"
-        )
-
-    if len(query) < 2:
-        raise HTTPException(
-            status_code=400, detail="Query too short (min 2 characters)"
-        )
-
-    # Check if query is pure numeric (e.g., UNSPSC 25100000, HS 8471) - skip hex density checks
-    # Classification codes are typically numeric, possibly with dots/dashes, but don't contain A-F letters
-    is_pure_numeric = bool(re.match(r"^[\d\s\.\-]+$", query))
-
-    # Detect malicious encoding patterns (e.g., %25%25%25 = 25252525)
-    # Pattern 1: Repeated %25 encoding (appears as 2525 repeated 2+ times)
-    if re.search(r"(?:25){2,}", query):  # 252525, 25252525, 2525252525, etc.
-        raise HTTPException(
-            status_code=400,
-            detail="Query contains suspicious URL encoding patterns",
-        )
-
-    # Pattern 2: High density of hex-like sequences (10+ occurrences of 4+ hex chars)
-    # Skip for pure numeric codes which may be valid classification IDs
-    if not is_pure_numeric:
-        hex_sequences = re.findall(r"[0-9A-Fa-f]{4,}", query)
-        if len(hex_sequences) >= 10:
-            raise HTTPException(
-                status_code=400,
-                detail="Query contains suspicious hex encoding patterns",
-            )
-
-    # Pattern 3: Detect queries that are mostly hex letters (70%+ A-F) AND contain digits
-    # Only flag queries that have both hex letters AND digits - pure letter words like
-    # "cafe", "facade" are legitimate but hex+digits like "25252525" are suspicious
-    if not is_pure_numeric:
-        hex_letters = len(re.findall(r"[A-Fa-f]", query))
-        has_digits = bool(re.search(r"\d", query))
-        non_space_chars = len(query.replace(" ", ""))
-        if has_digits and non_space_chars > 0 and hex_letters / non_space_chars > 0.7:
-            raise HTTPException(
-                status_code=400,
-                detail="Query appears to be encoded garbage",
-            )
-
-    # Normalize whitespace
-    query = re.sub(r"\s+", " ", query)
-
-    # Basic character validation - allow Unicode letters, numbers, spaces, basic punctuation
-    allowed_pattern = r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
-    if not re.match(allowed_pattern, query):
-        raise HTTPException(
-            status_code=400,
-            detail="Query contains invalid characters. Please use standard text characters only.",
-        )
+    _validate_query_length(query)
+    is_pure_numeric = _is_pure_numeric_code(query)
+    _reject_suspicious_encoding(query, is_pure_numeric)
+    query = _collapse_query_whitespace(query)
+    _validate_allowed_query_characters(query)
 
     return query.strip()
 
@@ -190,6 +209,16 @@ def get_embedding(
 # ===== Search Functions =====
 
 
+def _point_result(point: Any, score: float) -> Dict[str, Any]:
+    return {"score": score, "payload": point.payload, "id": point.id}
+
+
+def _scroll_points(scroll_result: Any) -> List[Any]:
+    if isinstance(scroll_result, tuple):
+        return list(scroll_result[0])
+    return []
+
+
 def perform_semantic_search(
     qdrant_client: QdrantClient,
     collection_name: str,
@@ -247,7 +276,7 @@ def perform_semantic_search(
         )
 
         return [
-            {"score": hit.score, "payload": hit.payload, "id": hit.id}
+            _point_result(hit, hit.score)
             for hit in search_result.points
         ]
 
@@ -294,13 +323,7 @@ def perform_exact_id_search(
             with_vectors=False,
         )
 
-        if isinstance(scroll_result, tuple):
-            points = scroll_result[0]
-            return [
-                {"score": 1.0, "payload": point.payload, "id": point.id}
-                for point in points
-            ]
-        return []
+        return [_point_result(point, 1.0) for point in _scroll_points(scroll_result)]
 
     except Exception as e:
         logger.warning("Exact ID search failed: %s", e)
@@ -366,7 +389,7 @@ def perform_partial_id_search(
         )
 
         partial_results = []
-        for point in scroll_result[0]:
+        for point in _scroll_points(scroll_result):
             if point.payload:
                 original_id_value = point.payload.get("original_id", "")
                 # Normalize the stored original_id for comparison
@@ -375,9 +398,7 @@ def perform_partial_id_search(
                 if normalized_original_id.startswith(
                     normalized_query
                 ) or normalized_original_id.endswith(normalized_query):
-                    partial_results.append(
-                        {"score": 0.90, "payload": point.payload, "id": point.id}
-                    )
+                    partial_results.append(_point_result(point, 0.90))
 
         return partial_results
 
@@ -398,6 +419,96 @@ def get_classification_cache_headers() -> Dict[str, str]:
     headers = build_cache_headers(CLASSIFICATION_RESULT)
     add_vary(headers, "Accept-Encoding")
     return headers
+
+
+def _split_rerank_candidates(
+    candidates: List[Dict[str, Any]],
+    rerank_top_n: int,
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
+    remaining_candidates = candidates[len(candidates_to_rerank) :]
+    return candidates_to_rerank, remaining_candidates
+
+
+def _default_zeroentropy_document(candidate: Dict[str, Any]) -> str:
+    payload = candidate.get("payload", {})
+    class_name = payload.get("class_name", "")
+    definition = payload.get("definition", "")
+
+    if class_name and definition:
+        return f"{class_name} - Definition: {definition}"
+    if definition:
+        return definition
+    return class_name or ""
+
+
+def _build_zeroentropy_documents(
+    candidates: List[Dict[str, Any]],
+    document_builder: Optional[Callable[[Dict[str, Any]], str]],
+) -> List[str]:
+    builder = document_builder or _default_zeroentropy_document
+    return [builder(candidate) for candidate in candidates]
+
+
+def _copy_with_zeroentropy_score(
+    candidate: Dict[str, Any],
+    score: float,
+) -> Dict[str, Any]:
+    candidate_copy = candidate.copy()
+    candidate_copy["zeroentropy_relevance_score"] = score
+    return candidate_copy
+
+
+def _zero_score_candidates(
+    candidates: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    return [_copy_with_zeroentropy_score(candidate, 0.0) for candidate in candidates]
+
+
+def _sort_by_score_desc(
+    results: List[Dict[str, Any]],
+    top_k: int,
+) -> List[Dict[str, Any]]:
+    return sorted(results, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
+
+
+def _apply_zeroentropy_response(
+    candidates: List[Dict[str, Any]],
+    response: Any,
+) -> List[Dict[str, Any]]:
+    reranked_candidates = []
+    seen_indices = set()
+
+    for result in response.results:
+        original_index = result.index
+        seen_indices.add(original_index)
+        reranked_candidates.append(
+            _copy_with_zeroentropy_score(
+                candidates[original_index],
+                round(result.relevance_score, 4),
+            )
+        )
+
+    missing_candidates = [
+        candidate for i, candidate in enumerate(candidates) if i not in seen_indices
+    ]
+    reranked_candidates.extend(_zero_score_candidates(missing_candidates))
+    return reranked_candidates
+
+
+def _log_rerank_complete(
+    reranked_candidates: List[Dict[str, Any]],
+    document_count: int,
+) -> None:
+    if not reranked_candidates:
+        return
+
+    logger.info(
+        "RERANK_COMPLETE: Top result=%s score=%.2f (reranked %d docs)",
+        reranked_candidates[0].get("payload", {}).get("original_id", "N/A"),
+        reranked_candidates[0].get("zeroentropy_relevance_score", 0) * 100,
+        document_count,
+    )
 
 
 def rerank_with_zeroentropy(
@@ -427,28 +538,10 @@ def rerank_with_zeroentropy(
     if not candidates or not zclient:
         return candidates
 
-    # Limit candidates to rerank
-    candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
-    remaining_candidates = candidates[len(candidates_to_rerank) :]
-
-    # Prepare documents for ZeroEntropy
-    documents = []
-    for candidate in candidates_to_rerank:
-        if document_builder is not None:
-            documents.append(document_builder(candidate))
-        else:
-            # Default: use class_name and definition from payload
-            payload = candidate.get("payload", {})
-            class_name = payload.get("class_name", "")
-            definition = payload.get("definition", "")
-
-            if class_name and definition:
-                doc = f"{class_name} - Definition: {definition}"
-            elif definition:
-                doc = definition
-            else:
-                doc = class_name or ""
-            documents.append(doc)
+    candidates_to_rerank, remaining_candidates = _split_rerank_candidates(
+        candidates, rerank_top_n
+    )
+    documents = _build_zeroentropy_documents(candidates_to_rerank, document_builder)
 
     try:
         logger.info(
@@ -464,60 +557,35 @@ def rerank_with_zeroentropy(
             documents=documents,
         )
 
-        # Map rerank results back to original candidates
-        reranked_candidates = []
-        seen_indices = set()
-
-        # Process results from ZeroEntropy
-        for result in response.results:
-            original_index = result.index
-            seen_indices.add(original_index)
-            original_candidate = candidates_to_rerank[original_index].copy()
-
-            # Add ZeroEntropy relevance score (0-1 scale)
-            original_candidate["zeroentropy_relevance_score"] = round(
-                result.relevance_score, 4
-            )
-
-            reranked_candidates.append(original_candidate)
-
-        # Add any candidates that weren't returned with 0 score
-        for i, candidate in enumerate(candidates_to_rerank):
-            if i not in seen_indices:
-                candidate_copy = candidate.copy()
-                candidate_copy["zeroentropy_relevance_score"] = 0.0
-                reranked_candidates.append(candidate_copy)
-
-        if reranked_candidates:
-            logger.info(
-                "RERANK_COMPLETE: Top result=%s score=%.2f (reranked %d docs)",
-                reranked_candidates[0].get("payload", {}).get("original_id", "N/A"),
-                reranked_candidates[0].get("zeroentropy_relevance_score", 0) * 100,
-                len(documents),
-            )
+        reranked_candidates = _apply_zeroentropy_response(
+            candidates_to_rerank, response
+        )
+        _log_rerank_complete(reranked_candidates, len(documents))
 
     except Exception as e:
         logger.warning(
             "RERANK_FAILED: ZeroEntropy reranking failed: %s, using semantic search scores",
             e,
         )
-        # Return original candidates with zeroentropy_relevance_score = 0
-        reranked_candidates = []
-        for c in candidates_to_rerank:
-            c_copy = c.copy()
-            c_copy["zeroentropy_relevance_score"] = 0.0
-            reranked_candidates.append(c_copy)
+        reranked_candidates = _zero_score_candidates(candidates_to_rerank)
 
-    # Add remaining candidates (not reranked) with 0 score
-    for c in remaining_candidates:
-        c_copy = c.copy()
-        c_copy["zeroentropy_relevance_score"] = 0.0
-        reranked_candidates.append(c_copy)
+    reranked_candidates.extend(_zero_score_candidates(remaining_candidates))
 
     return reranked_candidates[:top_k]
 
 
 # ===== Classification Function =====
+
+
+@dataclass(frozen=True)
+class _ClassificationContext:
+    config: Dict[str, Any]
+    version_name: str
+    version_config: Dict[str, Any]
+    collection_name: str
+    embed_model_name: str
+    normalized_query: str
+    classifier_type: str
 
 
 def validate_and_prepare_classification(
@@ -565,6 +633,192 @@ def validate_and_prepare_classification(
     }
 
 
+def _prepare_classification_context(
+    embed_client: genai.Client,
+    qdrant_client: QdrantClient,
+    query: str,
+    classifier_type: str,
+    version: Optional[str],
+) -> _ClassificationContext:
+    try:
+        validation_result = validate_and_prepare_classification(
+            classifier_type, version
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Validation failed for '%s': %s", classifier_type, e)
+        raise HTTPException(status_code=500, detail="Invalid classifier configuration")
+
+    if not embed_client or not qdrant_client:
+        raise HTTPException(
+            status_code=503,
+            detail="Backend services not available. Please check server logs.",
+        )
+
+    try:
+        normalized_query = sanitize_query_text(query)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Query validation failed: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid query format")
+
+    logger.info(
+        "CLASSIFICATION_QUERY: classifier=%s query='%s'",
+        classifier_type,
+        normalized_query,
+    )
+
+    return _ClassificationContext(
+        config=validation_result["config"],
+        version_name=validation_result["version_name"],
+        version_config=validation_result["version_config"],
+        collection_name=validation_result["collection_name"],
+        embed_model_name=validation_result["embed_model_name"],
+        normalized_query=normalized_query,
+        classifier_type=classifier_type,
+    )
+
+
+def _classification_response(
+    context: _ClassificationContext,
+    results: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    return {
+        "results": results,
+        "collection_name": context.collection_name,
+        "version_name": context.version_name,
+        "version_config": context.version_config,
+        "config": context.config,
+        "query": context.normalized_query,
+    }
+
+
+def _collection_has_quantization(
+    collection_name: str,
+    quantization_cache: Optional[Dict[str, bool]],
+) -> bool:
+    if not quantization_cache:
+        return False
+    return quantization_cache.get(collection_name, False)
+
+
+def _timed_exact_id_search(
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    normalized_query: str,
+) -> tuple[List[Dict[str, Any]], float]:
+    exact_start = time.perf_counter()
+    exact_results = perform_exact_id_search(
+        qdrant_client=qdrant_client,
+        collection_name=collection_name,
+        query_text=normalized_query,
+    )
+    exact_ms = (time.perf_counter() - exact_start) * 1000
+    return exact_results, exact_ms
+
+
+def _timed_partial_id_search(
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    normalized_query: str,
+) -> tuple[List[Dict[str, Any]], float]:
+    normalized_id_query = normalize_for_partial_match(normalized_query)
+    if len(normalized_id_query) < 3:
+        return [], 0.0
+
+    partial_start = time.perf_counter()
+    partial_results = perform_partial_id_search(
+        qdrant_client=qdrant_client,
+        collection_name=collection_name,
+        normalized_query=normalized_id_query,
+    )
+    partial_ms = (time.perf_counter() - partial_start) * 1000
+    return partial_results, partial_ms
+
+
+def _prepare_exact_id_shortcut_results(
+    exact_results: List[Dict[str, Any]],
+    top_k: int,
+) -> List[Dict[str, Any]]:
+    classification_results = _sort_by_score_desc(exact_results, top_k)
+    for result in classification_results:
+        result["zeroentropy_relevance_score"] = 0.0
+    return classification_results
+
+
+def _run_semantic_classification_search(
+    embed_client: genai.Client,
+    qdrant_client: QdrantClient,
+    context: _ClassificationContext,
+    top_k: int,
+    has_quantization: bool,
+) -> List[Dict[str, Any]]:
+    query_embedding = get_embedding(
+        embed_client=embed_client,
+        model_name=context.embed_model_name,
+        text=context.normalized_query,
+        task_type="RETRIEVAL_QUERY",
+        embed_dims=context.config.get("embed_dims"),
+    )
+
+    return perform_semantic_search(
+        qdrant_client=qdrant_client,
+        collection_name=context.collection_name,
+        query_embedding=query_embedding,
+        top_k=top_k,
+        has_quantization=has_quantization,
+    )
+
+
+def _exclude_id_match_results(
+    semantic_results: List[Dict[str, Any]],
+    id_match_results: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    match_ids = {r.get("id") for r in id_match_results if r.get("id") is not None}
+    return [r for r in semantic_results if r.get("id") not in match_ids]
+
+
+def _rank_semantic_results(
+    zclient: Optional[ZeroEntropy],
+    normalized_query: str,
+    filtered_semantic: List[Dict[str, Any]],
+    id_match_results: List[Dict[str, Any]],
+    top_k: int,
+) -> List[Dict[str, Any]]:
+    if zclient is not None and not id_match_results and filtered_semantic:
+        logger.info(
+            "RERANK_STATUS: Using ZeroEntropy for %d semantic candidates",
+            len(filtered_semantic),
+        )
+        reranked_semantic = rerank_with_zeroentropy(
+            zclient=zclient,
+            query=normalized_query,
+            candidates=filtered_semantic,
+            top_k=top_k,
+            rerank_top_n=top_k,
+        )
+        for result in reranked_semantic:
+            result["score"] = result.get("zeroentropy_relevance_score", 0)
+        return reranked_semantic
+
+    if id_match_results:
+        logger.info("RERANK_STATUS: Skipped - ID matches present")
+    elif not zclient:
+        logger.info("RERANK_STATUS: Skipped - ZeroEntropy not available")
+
+    return _zero_score_candidates(filtered_semantic[:top_k])
+
+
+def _merge_classification_results(
+    id_match_results: List[Dict[str, Any]],
+    semantic_results: List[Dict[str, Any]],
+    top_k: int,
+) -> List[Dict[str, Any]]:
+    return _sort_by_score_desc(id_match_results + semantic_results, top_k)
+
+
 def perform_classification(
     embed_client: genai.Client,
     qdrant_client: QdrantClient,
@@ -591,58 +845,21 @@ def perform_classification(
     Returns:
         Dict containing classification results and metadata
     """
-    # Validate and prepare configuration
-    try:
-        validation_result = validate_and_prepare_classification(
-            classifier_type, version
-        )
-        config = validation_result["config"]
-        version_name = validation_result["version_name"]
-        version_config = validation_result["version_config"]
-        collection_name = validation_result["collection_name"]
-        embed_model_name = validation_result["embed_model_name"]
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Validation failed for '%s': %s", classifier_type, e)
-        raise HTTPException(status_code=500, detail="Invalid classifier configuration")
-
-    # Validate clients
-    if not embed_client or not qdrant_client:
-        raise HTTPException(
-            status_code=503,
-            detail="Backend services not available. Please check server logs.",
-        )
-
-    # Sanitize and validate query
-    try:
-        normalized_query = sanitize_query_text(query)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Query validation failed: %s", e)
-        raise HTTPException(status_code=400, detail="Invalid query format")
-
-    logger.info(
-        "CLASSIFICATION_QUERY: classifier=%s query='%s'",
-        classifier_type,
-        normalized_query,
+    context = _prepare_classification_context(
+        embed_client=embed_client,
+        qdrant_client=qdrant_client,
+        query=query,
+        classifier_type=classifier_type,
+        version=version,
     )
 
     try:
-        # Check collection quantization from cache (populated at startup)
-        has_quantization = False
-        if quantization_cache:
-            has_quantization = quantization_cache.get(collection_name, False)
-
-        # Step 1: Perform exact ID search (scroll) - these always stay on top
-        exact_start = time.perf_counter()
-        exact_results = perform_exact_id_search(
-            qdrant_client=qdrant_client,
-            collection_name=collection_name,
-            query_text=normalized_query,
+        has_quantization = _collection_has_quantization(
+            context.collection_name, quantization_cache
         )
-        exact_ms = (time.perf_counter() - exact_start) * 1000
+        exact_results, exact_ms = _timed_exact_id_search(
+            qdrant_client, context.collection_name, context.normalized_query
+        )
 
         if exact_results:
             logger.info(
@@ -654,40 +871,18 @@ def perform_classification(
             )
             logger.info(
                 "ID_SEARCH_SHORTCUT: classifier=%s query='%s' matches=%d",
-                classifier_type,
-                normalized_query,
+                context.classifier_type,
+                context.normalized_query,
                 len(exact_results),
             )
-            classification_results = sorted(
-                exact_results,
-                key=lambda x: x.get("score", 0),
-                reverse=True,
-            )[:top_k]
-            for result in classification_results:
-                result["zeroentropy_relevance_score"] = 0.0
-            return {
-                "results": classification_results,
-                "collection_name": collection_name,
-                "version_name": version_name,
-                "version_config": version_config,
-                "config": config,
-                "query": normalized_query,
-            }
-
-        # Step 2: If no exact matches, try partial ID search
-        partial_results = []
-        partial_ms = 0.0
-        normalized_id_query = normalize_for_partial_match(normalized_query)
-        if len(normalized_id_query) >= 3:
-            partial_start = time.perf_counter()
-            partial_results = perform_partial_id_search(
-                qdrant_client=qdrant_client,
-                collection_name=collection_name,
-                normalized_query=normalized_id_query,
+            return _classification_response(
+                context,
+                _prepare_exact_id_shortcut_results(exact_results, top_k),
             )
-            partial_ms = (time.perf_counter() - partial_start) * 1000
 
-        id_match_results = partial_results
+        partial_results, partial_ms = _timed_partial_id_search(
+            qdrant_client, context.collection_name, context.normalized_query
+        )
         logger.info(
             "ID_SEARCH: exact=%d partial=%d exact_ms=%.2f partial_ms=%.2f",
             0,
@@ -696,91 +891,35 @@ def perform_classification(
             partial_ms,
         )
 
-        # Step 3: Generate embedding for semantic search
-        query_embedding = get_embedding(
-            embed_client=embed_client,
-            model_name=embed_model_name,
-            text=normalized_query,
-            task_type="RETRIEVAL_QUERY",
-            embed_dims=config.get("embed_dims"),
-        )
-
-        # Step 4: Perform semantic search
-        # Only use reranking if no ID matches found and ZeroEntropy is available
-        use_reranking = zclient is not None and not id_match_results
-        semantic_top_k = top_k
-
         logger.info(
             "SEMANTIC_SEARCH: Fetching top %d candidates (reranking=%s, id_matches=%d)",
-            semantic_top_k,
-            "enabled" if use_reranking else "disabled",
-            len(id_match_results),
+            top_k,
+            "enabled" if zclient is not None and not partial_results else "disabled",
+            len(partial_results),
         )
-        semantic_results = perform_semantic_search(
+        semantic_results = _run_semantic_classification_search(
+            embed_client=embed_client,
             qdrant_client=qdrant_client,
-            collection_name=collection_name,
-            query_embedding=query_embedding,
-            top_k=semantic_top_k,
+            context=context,
+            top_k=top_k,
             has_quantization=has_quantization,
         )
+        filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
+        ranked_semantic = _rank_semantic_results(
+            zclient,
+            context.normalized_query,
+            filtered_semantic,
+            partial_results,
+            top_k,
+        )
+        classification_results = _merge_classification_results(
+            partial_results, ranked_semantic, top_k
+        )
 
-        # Step 5: Get IDs from ID match results to deduplicate semantic results
-        match_ids = {r.get("id") for r in id_match_results if r.get("id") is not None}
-
-        # Step 6: Filter out semantic results that match ID results
-        filtered_semantic = [
-            r for r in semantic_results if r.get("id") not in match_ids
-        ]
-
-        # Step 7: Apply reranking only if no ID matches and ZeroEntropy is available
-        if use_reranking and filtered_semantic:
-            logger.info(
-                "RERANK_STATUS: Using ZeroEntropy for %d semantic candidates",
-                len(filtered_semantic),
-            )
-            assert zclient is not None  # use_reranking ensures this
-            reranked_semantic = rerank_with_zeroentropy(
-                zclient=zclient,
-                query=normalized_query,
-                candidates=filtered_semantic,
-                top_k=top_k,
-                rerank_top_n=semantic_top_k,
-            )
-            # Use ZeroEntropy scores directly (already 0-1 range)
-            for result in reranked_semantic:
-                result["score"] = result.get("zeroentropy_relevance_score", 0)
-        else:
-            # No reranking - just add zero scores and limit results
-            if id_match_results:
-                logger.info("RERANK_STATUS: Skipped - ID matches present")
-            elif not zclient:
-                logger.info("RERANK_STATUS: Skipped - ZeroEntropy not available")
-            reranked_semantic = []
-            for result in filtered_semantic[:top_k]:
-                result_copy = result.copy()
-                result_copy["zeroentropy_relevance_score"] = 0.0
-                reranked_semantic.append(result_copy)
-
-        # Step 8: Merge results - ID matches first, then semantic
-        classification_results = id_match_results + reranked_semantic
-
-        # Step 9: Sort all results by score descending (top scores first)
-        classification_results.sort(key=lambda x: x.get("score", 0), reverse=True)
-
-        # Step 10: Limit to top_k
-        classification_results = classification_results[:top_k]
-
-        return {
-            "results": classification_results,
-            "collection_name": collection_name,
-            "version_name": version_name,
-            "version_config": version_config,
-            "config": config,
-            "query": normalized_query,
-        }
+        return _classification_response(context, classification_results)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Classification error for '%s': %s", classifier_type, e)
+        logger.error("Classification error for '%s': %s", context.classifier_type, e)
         raise HTTPException(status_code=500, detail="Error processing request")
