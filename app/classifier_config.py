@@ -28,7 +28,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "versions": {
             "ETIM version 10.0 (2024-12-10)": {
                 "collection_name": "ETIM_10_eng_new001_v4",
-                "base_url": "https://prod.etim-international.com/Class/Details?classId=",
+                "base_url": "https://viewer.etim-international.com/class/",
             },
         },
     },
