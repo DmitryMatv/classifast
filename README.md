@@ -40,7 +40,7 @@ Classifast is a web application that provides easy classification of any text in
 - **Backend**: FastAPI with Python
 - **Frontend**: TypeScript, Tailwind CSS, HTMX
 - **Vector Database**: Qdrant for semantic search
-- **Embedding Models**: Google Gemini
+- **Embedding Models**: Hugging Face Inference with Qwen embeddings
 - **Deployment**: Docker containerized
 
 ## Demo
@@ -51,10 +51,17 @@ Visit the working instance at [classifast.com](https://classifast.com) to try.
 
 1. Clone the repository
 2. Install Python dependencies: `pip install -r requirements.txt`
-3. Install development-only Python tooling: `pip install -r requirements-dev.txt`
-4. Install frontend dependencies: `npm install`
-5. Set environment variables for API keys and payments/quota behavior
-6. Run frontend watchers and the app: `npm run dev`
+3. Install frontend dependencies: `npm install`
+4. Set environment variables for embedding inference, API keys, and payments/quota behavior
+5. Run frontend watchers and the app: `npm run dev`
+
+Relevant embedding environment variables:
+
+- `HF_TOKEN`
+- `HF_INFERENCE_PROVIDER` defaults to `auto`
+- `HF_EMBEDDING_MODEL` defaults to `Qwen/Qwen3-Embedding-8B`
+- `HF_EMBEDDING_DIMS` defaults to `2048`
+- `HF_QUERY_INSTRUCTION` defaults to a query-side classification retrieval instruction
 
 Relevant payment and quota environment variables:
 

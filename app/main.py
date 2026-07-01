@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from google import genai
+from huggingface_hub import InferenceClient
 from qdrant_client import QdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -146,19 +146,22 @@ def provision_payload_indexes(
 
 
 def initialize_embed_client() -> Any | None:
-    """Initialize the Google GenAI embedding client if credentials are present."""
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_api_key:
-        logger.error("Error: GEMINI_API_KEY not found in environment variables.")
+    """Initialize the Hugging Face embedding client if credentials are present."""
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        logger.error("Error: HF_TOKEN not found in environment variables.")
         return None
 
     try:
-        embed_client = genai.Client(api_key=gemini_api_key)
-        embed_client.models.list()  # Test connection
-        logger.info("Google GenAI Client initialized successfully.")
+        provider: Any = os.getenv("HF_INFERENCE_PROVIDER", "").strip() or "auto"
+        embed_client = InferenceClient(provider=provider, api_key=hf_token)
+        logger.info(
+            "Hugging Face Inference client initialized successfully with provider=%s.",
+            provider,
+        )
         return embed_client
     except Exception as e:
-        logger.error("Error initializing Google GenAI Client: %s", e)
+        logger.error("Error initializing Hugging Face Inference client: %s", e)
         return None
 
 
@@ -669,21 +672,16 @@ async def health_check(request: Request):
     embed_client = getattr(request.app.state, "embed_client", None)
     qdrant_client = getattr(request.app.state, "qdrant_client", None)
 
-    # Basic check: if we can reach here, the app is running.
-    if embed_client and qdrant_client:
-        # Optionally, perform a quick check on clients
-        try:
-            # Test embed client (run in thread pool to avoid blocking)
-            await asyncio.to_thread(embed_client.models.list)
-            # Test qdrant client (run in thread pool to avoid blocking)
-            await asyncio.to_thread(qdrant_client.get_collections)
-            return {"status": "healthy"}
-        except Exception:
-            raise HTTPException(
-                status_code=503,
-                detail="Service Unavailable",
-            )
-    else:
+    if not embed_client or not qdrant_client:
+        raise HTTPException(
+            status_code=503,
+            detail="Service Unavailable",
+        )
+
+    try:
+        await asyncio.to_thread(qdrant_client.get_collections)
+        return {"status": "healthy"}
+    except Exception:
         raise HTTPException(
             status_code=503,
             detail="Service Unavailable",

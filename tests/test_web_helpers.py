@@ -141,13 +141,13 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(
             push_url="true",
             track_usage="false",
-            top_k="30",
+            top_k="10",
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/NAICS/industrial_pump?{urlencode({'top_k': 30})}",
+            f"/NAICS/industrial_pump?{urlencode({'top_k': 10})}",
         )
 
     @patch("app.web.perform_classification")
@@ -161,14 +161,14 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             push_url="true",
             track_usage="false",
             version=self.non_default_version,
-            top_k="30",
+            top_k="10",
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
             "/NAICS/industrial_pump?"
-            + urlencode({"version": self.non_default_version, "top_k": 30}),
+            + urlencode({"version": self.non_default_version, "top_k": 10}),
         )
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
@@ -228,7 +228,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         perform_classification_mock.assert_not_called()
 
     @patch("app.web.perform_classification")
-    async def test_fragment_uses_default_top_k_when_omitted_for_non_unspsc(
+    async def test_fragment_uses_default_top_k_when_omitted(
         self,
         perform_classification_mock: Mock,
     ) -> None:
@@ -237,7 +237,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(top_k=None, track_usage="false")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
 
     @patch("app.web.perform_classification")
     async def test_fragment_uses_default_version_when_omitted(
@@ -275,11 +275,11 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
-    async def test_naics_page_defaults_to_top_10(self) -> None:
+    async def test_naics_page_defaults_to_top_30(self) -> None:
         response = await self._request("/NAICS/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="10" selected', response.text)
+        self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
     async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
@@ -289,11 +289,11 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
-    async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
+    async def test_naics_invalid_top_k_falls_back_to_30(self) -> None:
         response = await self._request("/NAICS/?top_k=999")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="10" selected', response.text)
+        self.assertIn('option value="30" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
 
@@ -376,7 +376,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             perform_classification_mock.call_args.kwargs["version"], self.naics_version
         )
-        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
 
     @patch("app.web.perform_classification")
     async def test_base_page_primes_score_bar_animation_before_page_scripts(

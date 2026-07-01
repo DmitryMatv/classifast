@@ -44,7 +44,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 def get_default_top_k(classifier_type: str) -> int:
     """Return the default number of results to show for a classifier page."""
-    return 30 if classifier_type.strip().upper() == "UNSPSC" else 10
+    return 30
 
 
 def slugify(text: str) -> str:

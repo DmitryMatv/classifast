@@ -735,10 +735,10 @@
             </ol>
         </nav>
 
-        <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4" role="form"
-            aria-label="Product Classification Form">
+        <section id="classifier-form-section" class="bg-white p-6 rounded-lg shadow mb-4"
+            aria-labelledby="classifier-form-heading">
             <div class="relative">
-                <h2>{{ heading }}</h2>
+                <h2 id="classifier-form-heading">{{ heading }}</h2>
                 {% if classifier_type == 'NACE' %}
                 <img src="{{ url_for('static', path='images/Eurostat_Newlogo.png') }}"
                     alt="NACE classification standard logo" data-classifier-logo="true"

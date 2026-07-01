@@ -197,18 +197,14 @@ async def rapid_health_public(request: Request):
 
     # Check embedding service
     if embed_client:
-        try:
-            embed_client.models.list()
-            health_status["services"]["embedding"] = "healthy"
-        except Exception:
-            health_status["services"]["embedding"] = "unhealthy"
+        health_status["services"]["embedding"] = "configured"
     else:
         health_status["services"]["embedding"] = "unavailable"
 
     # Check Qdrant service
     if qdrant_client:
         try:
-            qdrant_client.get_collections()
+            await qdrant_client.get_collections()
             health_status["services"]["database"] = "healthy"
         except Exception:
             health_status["services"]["database"] = "unhealthy"
@@ -216,7 +212,9 @@ async def rapid_health_public(request: Request):
         health_status["services"]["database"] = "unavailable"
 
     # Overall health
-    all_healthy = all(v == "healthy" for v in health_status["services"].values())
+    all_healthy = all(
+        v in ("healthy", "configured") for v in health_status["services"].values()
+    )
     status_code = 200 if all_healthy else 503
 
     return JSONResponse(content=health_status, status_code=status_code)
