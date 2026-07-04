@@ -6,9 +6,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import tenacity
 from fastapi import HTTPException
-from google import genai
-from google.genai import errors as genai_errors
-from google.genai import types
+from huggingface_hub import InferenceClient
+from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
 from qdrant_client import QdrantClient, models
 from zeroentropy import ZeroEntropy
 
@@ -29,6 +28,7 @@ DIGIT_PATTERN = re.compile(r"\d")
 ALLOWED_QUERY_PATTERN = re.compile(
     r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
 )
+TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 
 # ===== Input Sanitization =====
@@ -125,27 +125,77 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
     return query.strip()
 
 
-@tenacity.retry(
-    stop=tenacity.stop_after_attempt(3),
-    wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
-    retry=tenacity.retry_if_exception_type(genai_errors.ServerError),
-    reraise=True,
-)
+def _is_transient_hf_error(error: BaseException) -> bool:
+    if isinstance(error, InferenceTimeoutError):
+        return True
+    if isinstance(error, HfHubHTTPError):
+        response = getattr(error, "response", None)
+        status_code = getattr(response, "status_code", None)
+        return status_code in TRANSIENT_HF_STATUS_CODES
+    return False
+
+
+def _normalize_embedding_response(response: Any) -> List[float]:
+    if hasattr(response, "tolist"):
+        response = response.tolist()
+
+    if not isinstance(response, list):
+        raise RuntimeError("Embedding response is not a list")
+
+    if len(response) == 1 and isinstance(response[0], list):
+        response = response[0]
+    elif response and isinstance(response[0], list):
+        raise RuntimeError(
+            "Embedding response is token-level; expected a pooled sentence vector"
+        )
+
+    if not response:
+        raise RuntimeError("Empty embedding generated")
+
+    try:
+        return [float(value) for value in response]
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Embedding response contains non-numeric values") from exc
+
+
+def _embedding_dimension_mismatch(
+    embedding_vector: List[float],
+    embed_dims: Optional[int],
+) -> bool:
+    return embed_dims is not None and len(embedding_vector) != embed_dims
+
+
+def build_query_embedding_text(query: str, instruction: Optional[str]) -> str:
+    """Format query-side text for instruction-aware embedding models."""
+    if not instruction:
+        return query
+    return f"Instruct: {instruction.strip()}\nQuery: {query}"
+
+
+def _build_embedding_retry() -> tenacity.Retrying:
+    return tenacity.Retrying(
+        stop=tenacity.stop_after_attempt(3),
+        wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
+        retry=tenacity.retry_if_exception(_is_transient_hf_error),
+        reraise=True,
+    )
+
+
 def get_embedding(
-    embed_client: genai.Client,
+    embed_client: InferenceClient,
     model_name: str,
     text: str,
     task_type: str = "RETRIEVAL_QUERY",
     embed_dims: Optional[int] = None,
 ) -> List[float]:
     """
-    Generate a single embedding for text using Google GenAI.
+    Generate a single embedding for text using Hugging Face Inference.
 
     Args:
-        embed_client: The Google GenAI client
+        embed_client: The Hugging Face Inference client
         model_name: The embedding model name
         text: Text to embed
-        task_type: Task type for embedding
+        task_type: Kept for compatibility; Hugging Face feature extraction ignores it
         embed_dims: Expected embedding dimensions
 
     Returns:
@@ -164,32 +214,27 @@ def get_embedding(
             embed_dims,
         )
 
-        config = types.EmbedContentConfig(
-            task_type=task_type,
-            output_dimensionality=embed_dims,
-        )
-
         api_start = time.time()
-        response = embed_client.models.embed_content(
-            model=model_name,
-            contents=text,
-            config=config,
-        )
-        api_duration = time.time() - api_start
-        logger.debug("Gemini API embedding call: %.3fs", api_duration)
-
-        # Validate response
-        if response.embeddings is None or len(response.embeddings) != 1:
-            raise RuntimeError(
-                f"Expected 1 embedding, got {len(response.embeddings) if response.embeddings else 'None'}"
+        retry = _build_embedding_retry()
+        if embed_dims is None:
+            response = retry(
+                embed_client.feature_extraction,
+                text,
+                model=model_name,
             )
+        else:
+            response = retry(
+                embed_client.feature_extraction,
+                text,
+                model=model_name,
+                dimensions=embed_dims,
+            )
+        api_duration = time.time() - api_start
+        logger.debug("Hugging Face embedding call: %.3fs", api_duration)
 
-        embedding_vector = response.embeddings[0].values
+        embedding_vector = _normalize_embedding_response(response)
 
-        if not embedding_vector:
-            raise RuntimeError("Empty embedding generated")
-
-        if embed_dims and len(embedding_vector) != embed_dims:
+        if _embedding_dimension_mismatch(embedding_vector, embed_dims):
             raise RuntimeError(
                 f"Embedding dimension mismatch: expected {embed_dims}, got {len(embedding_vector)}"
             )
@@ -199,8 +244,6 @@ def get_embedding(
     except Exception as e:
         elapsed = time.time() - start_time
         logger.error("Embedding generation failed: %s (%.3fs elapsed)", e, elapsed)
-        if isinstance(e, genai_errors.ServerError):
-            raise
         raise HTTPException(
             status_code=500, detail="Failed to generate embedding for classification"
         )
@@ -275,10 +318,7 @@ def perform_semantic_search(
             len(search_result.points),
         )
 
-        return [
-            _point_result(hit, hit.score)
-            for hit in search_result.points
-        ]
+        return [_point_result(hit, hit.score) for hit in search_result.points]
 
     except Exception as e:
         elapsed = time.time() - start_time
@@ -634,7 +674,7 @@ def validate_and_prepare_classification(
 
 
 def _prepare_classification_context(
-    embed_client: genai.Client,
+    embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -749,16 +789,20 @@ def _prepare_exact_id_shortcut_results(
 
 
 def _run_semantic_classification_search(
-    embed_client: genai.Client,
+    embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     context: _ClassificationContext,
     top_k: int,
     has_quantization: bool,
 ) -> List[Dict[str, Any]]:
+    embedding_text = build_query_embedding_text(
+        context.normalized_query,
+        context.config.get("query_instruction"),
+    )
     query_embedding = get_embedding(
         embed_client=embed_client,
         model_name=context.embed_model_name,
-        text=context.normalized_query,
+        text=embedding_text,
         task_type="RETRIEVAL_QUERY",
         embed_dims=context.config.get("embed_dims"),
     )
@@ -820,7 +864,7 @@ def _merge_classification_results(
 
 
 def perform_classification(
-    embed_client: genai.Client,
+    embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -833,7 +877,7 @@ def perform_classification(
     Classify a single query using hybrid search (exact text + semantic) with optional ZeroEntropy reranking.
 
     Args:
-        embed_client: The Google GenAI client
+        embed_client: The Hugging Face Inference client
         qdrant_client: The Qdrant client
         query: The product/service description to classify
         classifier_type: The classification standard (e.g., 'unspsc', 'etim')

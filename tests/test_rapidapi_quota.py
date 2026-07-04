@@ -1,6 +1,6 @@
 import json
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import FastAPI, Request
 
@@ -101,6 +101,59 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("X-RateLimit-Limit", response.headers)
         check_usage.assert_not_awaited()
         increment_usage.assert_not_awaited()
+
+
+class RapidApiHealthTests(unittest.IsolatedAsyncioTestCase):
+    def build_app(self) -> tuple[FastAPI, MagicMock, MagicMock]:
+        test_app = FastAPI()
+        embed_client = MagicMock()
+        qdrant_client = MagicMock()
+        test_app.state.embed_client = embed_client
+        test_app.state.qdrant_client = qdrant_client
+        return test_app, embed_client, qdrant_client
+
+    async def test_ping_reports_embedding_available_when_client_exists_without_inference(
+        self,
+    ):
+        rapid_app, embed_client, qdrant_client = self.build_app()
+        request = build_request(rapid_app, "/api/v1/rapid/ping")
+
+        response = await api.rapid_health_public(request)
+
+        payload = json.loads(response.body)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["services"]["embedding"], "configured")
+        self.assertEqual(payload["services"]["database"], "healthy")
+        embed_client.embeddings.create.assert_not_called()
+        qdrant_client.get_collections.assert_called_once_with()
+
+    async def test_ping_returns_503_when_embedding_client_missing(self):
+        rapid_app = FastAPI()
+        qdrant_client = MagicMock()
+        rapid_app.state.qdrant_client = qdrant_client
+        request = build_request(rapid_app, "/api/v1/rapid/ping")
+
+        response = await api.rapid_health_public(request)
+
+        payload = json.loads(response.body)
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(payload["services"]["embedding"], "unavailable")
+        self.assertEqual(payload["services"]["database"], "healthy")
+
+    async def test_ping_returns_503_when_database_unhealthy(self):
+        rapid_app, _, qdrant_client = self.build_app()
+        qdrant_client.get_collections.side_effect = RuntimeError("down")
+        request = build_request(rapid_app, "/api/v1/rapid/ping")
+
+        response = await api.rapid_health_public(request)
+
+        payload = json.loads(response.body)
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(payload["services"]["embedding"], "configured")
+        self.assertEqual(payload["services"]["database"], "unhealthy")
 
 
 class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):

@@ -3,9 +3,13 @@ from typing import NotRequired, TypedDict
 
 DEFAULT_EMBEDDING_MODEL = os.getenv(
     "HF_EMBEDDING_MODEL",
-    "Qwen/Qwen3-Embedding-0.6B",
+    "Qwen/Qwen3-Embedding-8B",
 )
-DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "1024"))
+DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "2048"))
+
+# 'Given a web search query, retrieve relevant passages that answer the query'
+DEFAULT_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant entry from the target classification taxonomy."
+UNSPSC_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant specific entry from the UNSPSC taxonomy that corresponds to that description."
 
 
 class VersionConfig(TypedDict):
@@ -21,6 +25,7 @@ class ClassifierConfig(TypedDict):
     example: str
     embed_model_name: str
     embed_dims: int
+    query_instruction: str
     versions: dict[str, VersionConfig]
 
 
@@ -32,6 +37,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "SH203-C20 Miniature Circuit Breaker 6kA 20A 3P",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "ETIM version 10.0 (2024-12-10)": {
                 "collection_name": "ETIM_10_eng_new001_v4",
@@ -46,6 +52,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Apple MacBook Air (13-inch, M3, 2024)",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": UNSPSC_QUERY_INSTRUCTION,
         "versions": {
             "UNSPSC UNv260801.1 (18 March 2025)": {
                 "collection_name": "UNSPSC_UNv260801-1-eng_new001-3072_v1",
@@ -60,11 +67,12 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Dog grooming",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "2022 NAICS": {
                 "collection_name": "NAICS_2022_eng_new001_v1",
                 "base_url": "https://www.naics.com/code-search/?trms=",
-                "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
+                # "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
             },
             "2022 NAICS (only 6-digit codes)": {
                 "collection_name": "NAICS_2022_SIXdigits_new001_v3",
@@ -79,6 +87,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Gas station operation",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "ISIC Rev. 4": {
                 "collection_name": "ISIC_4_new001_3corr",
@@ -97,6 +106,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Frozen mangoes",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "HS6 2022": {
                 "collection_name": "H6-HS_2022_new001_v4",
@@ -111,6 +121,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Frozen mangoes from Brazil",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "CN 2025": {
                 "collection_name": "CN2025_v2",
@@ -125,6 +136,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Used car dealership",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "NACE Rev. 2.1": {
                 "collection_name": "NACErev2-1_v2",
@@ -139,6 +151,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Indie gamedev studio",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "CPV 2008 (ver. 2013)": {
                 "collection_name": "cpv_2008_ver_2013_v3",
@@ -155,6 +168,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "1000W 120V AC power supply",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "NSN extract (February 22, 2023)": {
                 "collection_name": "nsn-extract-2-21-23_v3",
@@ -168,6 +182,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Smartphone",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "HTS 2024": {
                 "collection_name": "HTS_v4",

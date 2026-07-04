@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import time
@@ -204,7 +205,9 @@ async def rapid_health_public(request: Request):
     # Check Qdrant service
     if qdrant_client:
         try:
-            await qdrant_client.get_collections()
+            await asyncio.wait_for(
+                asyncio.to_thread(qdrant_client.get_collections), timeout=5
+            )
             health_status["services"]["database"] = "healthy"
         except Exception:
             health_status["services"]["database"] = "unhealthy"

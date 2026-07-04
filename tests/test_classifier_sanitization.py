@@ -2,15 +2,19 @@ import unittest
 from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
-from google.genai import errors as genai_errors
+from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
+from requests import Response
 
 from app.classifier import (
+    build_query_embedding_text,
     get_classification_cache_headers,
     get_embedding,
     perform_classification,
     sanitize_query_text,
 )
 from app.classifier_config import CLASSIFIER_CONFIG
+
+EMBED_MODEL = "Qwen/Qwen3-Embedding-8B"
 
 
 def _first_classifier_with_version() -> tuple[str, str]:
@@ -118,7 +122,10 @@ class ClassificationContractTests(unittest.TestCase):
         with (
             patch("app.classifier.perform_exact_id_search", return_value=[]),
             patch("app.classifier.perform_partial_id_search", return_value=[]),
-            patch("app.classifier.get_embedding", return_value=[0.1, 0.2, 0.3]),
+            patch(
+                "app.classifier.get_embedding",
+                return_value=[0.1, 0.2, 0.3],
+            ) as embedding_mock,
             patch(
                 "app.classifier.perform_semantic_search",
                 return_value=semantic_results,
@@ -143,19 +150,46 @@ class ClassificationContractTests(unittest.TestCase):
             [item["id"] for item in result["results"]],
             ["semantic-2", "semantic-1"],
         )
+        self.assertEqual(result["query"], "industrial pump")
+        expected_embedding_text = build_query_embedding_text(
+            "industrial pump",
+            CLASSIFIER_CONFIG[self.classifier_type]["query_instruction"],
+        )
+        self.assertEqual(
+            embedding_mock.call_args.kwargs["text"],
+            expected_embedding_text,
+        )
         self.assertEqual(result["results"][0]["score"], 0.91)
         self.assertEqual(semantic_mock.call_args.kwargs["top_k"], 2)
         rerank_mock.assert_called_once()
         self.assertEqual(rerank_mock.call_args.kwargs["rerank_top_n"], 2)
 
+    def test_build_query_embedding_text_adds_instruction(self) -> None:
+        result = build_query_embedding_text("industrial pump", "Find matching codes.")
+
+        self.assertEqual(
+            result,
+            "Instruct: Find matching codes.\nQuery: industrial pump",
+        )
+
+    def test_build_query_embedding_text_returns_query_without_instruction(self) -> None:
+        self.assertEqual(
+            build_query_embedding_text("industrial pump", None),
+            "industrial pump",
+        )
+        self.assertEqual(
+            build_query_embedding_text("industrial pump", ""),
+            "industrial pump",
+        )
+
 
 class EmbeddingAndCacheHeaderTests(unittest.TestCase):
     def test_embedding_failure_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.models.embed_content.side_effect = RuntimeError("boom")
+        client.feature_extraction.side_effect = RuntimeError("boom")
 
         with self.assertRaises(HTTPException) as ctx:
-            get_embedding(client, "gemini-embedding-001", "industrial pump")
+            get_embedding(client, EMBED_MODEL, "industrial pump")
 
         self.assertEqual(ctx.exception.status_code, 500)
         self.assertEqual(
@@ -163,15 +197,164 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
             "Failed to generate embedding for classification",
         )
 
-    def test_server_error_is_re_raised_for_retry_handling(self) -> None:
+    def test_flat_embedding_response_is_returned_as_floats(self) -> None:
         client = Mock()
-        client.models.embed_content.side_effect = genai_errors.ServerError(
-            503,
-            {"error": "temporary failure"},
+        client.feature_extraction.return_value = [1, 2.5, "3.0"]
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            embed_dims=3,
         )
 
-        with self.assertRaises(genai_errors.ServerError):
-            get_embedding(client, "gemini-embedding-001", "industrial pump")
+        self.assertEqual(result, [1.0, 2.5, 3.0])
+        client.feature_extraction.assert_called_once_with(
+            "industrial pump",
+            model=EMBED_MODEL,
+            dimensions=3,
+        )
+
+    def test_embedding_without_dimensions_omits_dimensions_parameter(self) -> None:
+        client = Mock()
+        client.feature_extraction.return_value = [1, 2.5, "3.0"]
+
+        result = get_embedding(client, EMBED_MODEL, "industrial pump")
+
+        self.assertEqual(result, [1.0, 2.5, 3.0])
+        client.feature_extraction.assert_called_once_with(
+            "industrial pump",
+            model=EMBED_MODEL,
+        )
+
+    def test_task_type_is_accepted_for_compatibility_and_ignored(self) -> None:
+        client = Mock()
+        client.feature_extraction.return_value = [0.1, 0.2, 0.3]
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            task_type="RETRIEVAL_QUERY",
+            embed_dims=3,
+        )
+
+        self.assertEqual(result, [0.1, 0.2, 0.3])
+        client.feature_extraction.assert_called_once_with(
+            "industrial pump",
+            model=EMBED_MODEL,
+            dimensions=3,
+        )
+
+    def test_nested_single_embedding_response_is_flattened(self) -> None:
+        client = Mock()
+        client.feature_extraction.return_value = [[0.1, 0.2, 0.3]]
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            embed_dims=3,
+        )
+
+        self.assertEqual(result, [0.1, 0.2, 0.3])
+
+    def test_array_like_embedding_response_is_converted(self) -> None:
+        class ArrayLike:
+            def tolist(self):
+                return [[0.1, 0.2, 0.3]]
+
+        client = Mock()
+        client.feature_extraction.return_value = ArrayLike()
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            embed_dims=3,
+        )
+
+        self.assertEqual(result, [0.1, 0.2, 0.3])
+
+    def test_empty_embedding_response_returns_stable_http_exception(self) -> None:
+        client = Mock()
+        client.feature_extraction.return_value = []
+
+        with self.assertRaises(HTTPException) as ctx:
+            get_embedding(client, EMBED_MODEL, "industrial pump")
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(
+            ctx.exception.detail,
+            "Failed to generate embedding for classification",
+        )
+
+    def test_token_level_embedding_response_returns_stable_http_exception(self) -> None:
+        client = Mock()
+        client.feature_extraction.return_value = [[0.1, 0.2], [0.3, 0.4]]
+
+        with self.assertRaises(HTTPException) as ctx:
+            get_embedding(client, EMBED_MODEL, "industrial pump")
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(
+            ctx.exception.detail,
+            "Failed to generate embedding for classification",
+        )
+
+    def test_embedding_dimension_mismatch_returns_stable_http_exception(self) -> None:
+        client = Mock()
+        client.feature_extraction.return_value = [0.1, 0.2]
+
+        with self.assertRaises(HTTPException) as ctx:
+            get_embedding(
+                client,
+                EMBED_MODEL,
+                "industrial pump",
+                embed_dims=3,
+            )
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(
+            ctx.exception.detail,
+            "Failed to generate embedding for classification",
+        )
+
+    def test_transient_hf_error_is_retried(self) -> None:
+        client = Mock()
+        client.feature_extraction.side_effect = [
+            InferenceTimeoutError("temporary failure"),
+            [0.1, 0.2, 0.3],
+        ]
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            embed_dims=3,
+        )
+
+        self.assertEqual(result, [0.1, 0.2, 0.3])
+        self.assertEqual(client.feature_extraction.call_count, 2)
+
+    def test_transient_hf_http_error_is_retried(self) -> None:
+        response = Response()
+        response.status_code = 503
+        client = Mock()
+        client.feature_extraction.side_effect = [
+            HfHubHTTPError("temporary failure", response=response),
+            [0.1, 0.2, 0.3],
+        ]
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            embed_dims=3,
+        )
+
+        self.assertEqual(result, [0.1, 0.2, 0.3])
+        self.assertEqual(client.feature_extraction.call_count, 2)
 
     def test_cache_headers_match_cloudflare_policy(self) -> None:
         headers = get_classification_cache_headers()

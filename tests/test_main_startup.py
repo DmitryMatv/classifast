@@ -3,9 +3,26 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 
 from app import main
+
+
+def build_request(test_app: FastAPI) -> Request:
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/health",
+        "raw_path": b"/health",
+        "query_string": b"",
+        "headers": [],
+        "client": ("127.0.0.1", 12345),
+        "server": ("testserver", 80),
+        "app": test_app,
+    }
+    return Request(scope)
 
 
 class MainStartupClientTests(unittest.TestCase):
@@ -16,12 +33,12 @@ class MainStartupClientTests(unittest.TestCase):
 
         self.assertIsNone(client)
         self.assertTrue(
-            any("GEMINI_API_KEY not found" in message for message in logs.output)
+            any("HF_TOKEN not found" in message for message in logs.output)
         )
 
-    @patch.dict(main.os.environ, {"GEMINI_API_KEY": "test-key"}, clear=True)
-    @patch.object(main.genai, "Client")
-    def test_initialize_embed_client_builds_client_and_checks_connection(
+    @patch.dict(main.os.environ, {"HF_TOKEN": "test-key"}, clear=True)
+    @patch.object(main, "InferenceClient")
+    def test_initialize_embed_client_builds_client_with_default_provider(
         self,
         client_class,
     ):
@@ -31,8 +48,49 @@ class MainStartupClientTests(unittest.TestCase):
         result = main.initialize_embed_client()
 
         self.assertIs(result, embed_client)
-        client_class.assert_called_once_with(api_key="test-key")
-        embed_client.models.list.assert_called_once_with()
+        client_class.assert_called_once_with(
+            provider="auto",
+            api_key="test-key",
+        )
+
+    @patch.dict(
+        main.os.environ,
+        {"HF_TOKEN": "test-key", "HF_INFERENCE_PROVIDER": "  "},
+        clear=True,
+    )
+    @patch.object(main, "InferenceClient")
+    def test_initialize_embed_client_defaults_blank_provider_to_auto(
+        self,
+        client_class,
+    ):
+        embed_client = MagicMock()
+        client_class.return_value = embed_client
+
+        result = main.initialize_embed_client()
+
+        self.assertIs(result, embed_client)
+        client_class.assert_called_once_with(
+            provider="auto",
+            api_key="test-key",
+        )
+
+    @patch.dict(
+        main.os.environ,
+        {"HF_TOKEN": "test-key", "HF_INFERENCE_PROVIDER": "custom-provider"},
+        clear=True,
+    )
+    @patch.object(main, "InferenceClient")
+    def test_initialize_embed_client_uses_configured_provider(self, client_class):
+        embed_client = MagicMock()
+        client_class.return_value = embed_client
+
+        result = main.initialize_embed_client()
+
+        self.assertIs(result, embed_client)
+        client_class.assert_called_once_with(
+            provider="custom-provider",
+            api_key="test-key",
+        )
 
     @patch.object(main, "validate_qdrant_collections", side_effect=Exception("boom"))
     @patch.object(main, "get_existing_qdrant_collections", return_value={"products"})
@@ -173,6 +231,56 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             any("Redis client closed" in message for message in logs.output)
         )
+
+    async def test_health_check_returns_healthy_when_embed_client_exists_and_qdrant_is_healthy(
+        self,
+    ):
+        test_app = FastAPI()
+        qdrant_client = MagicMock()
+        test_app.state.embed_client = object()
+        test_app.state.qdrant_client = qdrant_client
+        request = build_request(test_app)
+
+        result = await main.health_check(request)
+
+        self.assertEqual(result, {"status": "healthy"})
+        qdrant_client.get_collections.assert_called_once_with()
+
+    async def test_health_check_returns_503_when_embed_client_missing(self):
+        test_app = FastAPI()
+        qdrant_client = MagicMock()
+        test_app.state.qdrant_client = qdrant_client
+        request = build_request(test_app)
+
+        with self.assertRaises(HTTPException) as ctx:
+            await main.health_check(request)
+
+        self.assertEqual(ctx.exception.status_code, 503)
+        qdrant_client.get_collections.assert_not_called()
+
+    async def test_health_check_returns_503_when_qdrant_missing(self):
+        test_app = FastAPI()
+        test_app.state.embed_client = object()
+        request = build_request(test_app)
+
+        with self.assertRaises(HTTPException) as ctx:
+            await main.health_check(request)
+
+        self.assertEqual(ctx.exception.status_code, 503)
+
+    async def test_health_check_returns_503_when_qdrant_check_fails(self):
+        test_app = FastAPI()
+        qdrant_client = MagicMock()
+        qdrant_client.get_collections.side_effect = RuntimeError("down")
+        test_app.state.embed_client = object()
+        test_app.state.qdrant_client = qdrant_client
+        request = build_request(test_app)
+
+        with self.assertRaises(HTTPException) as ctx:
+            await main.health_check(request)
+
+        self.assertEqual(ctx.exception.status_code, 503)
+        qdrant_client.get_collections.assert_called_once_with()
 
 
 if __name__ == "__main__":
