@@ -40,7 +40,7 @@ Classifast is a web application that provides easy classification of any text in
 - **Backend**: FastAPI with Python
 - **Frontend**: TypeScript, Tailwind CSS, HTMX
 - **Vector Database**: Qdrant for semantic search
-- **Embedding Models**: Hugging Face Inference with Qwen embeddings
+- **Embedding Models**: OpenRouter with Qwen embeddings
 - **Deployment**: Docker containerized
 
 ## Demo
@@ -57,11 +57,10 @@ Visit the working instance at [classifast.com](https://classifast.com) to try.
 
 Relevant embedding environment variables:
 
-- `HF_TOKEN`
-- `HF_INFERENCE_PROVIDER` defaults to `auto`
-- `HF_EMBEDDING_MODEL` defaults to `Qwen/Qwen3-Embedding-8B`
-- `HF_EMBEDDING_DIMS` defaults to `2048`
-- `HF_QUERY_INSTRUCTION` defaults to a query-side classification retrieval instruction
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_BASE_URL` defaults to `https://openrouter.ai/api/v1`
+- `EMBEDDING_MODEL` defaults to `qwen/qwen3-embedding-8b`
+- `EMBEDDING_DIMS` defaults to `2048`
 
 Relevant payment and quota environment variables:
 

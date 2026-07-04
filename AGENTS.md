@@ -8,6 +8,8 @@ Never use `pytest` for backend testing. Always use Python's built-in `unittest` 
 
 Use Virtual Environment `source .venv/bin/activate` because all dependencies are installed there already.
 
+`utilities/qdrant_config.py` is an executable migration-style script, not passive configuration. Importing or running it updates a hardcoded Qdrant collection, so review it carefully before execution.
+
 ## Project Snapshot
 
 Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.

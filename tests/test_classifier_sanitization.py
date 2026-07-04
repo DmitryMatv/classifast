@@ -1,20 +1,27 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
-from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
-from requests import Response
+from httpx import Request, Response
+from openai import APIStatusError, APITimeoutError
 
 from app.classifier import (
     build_query_embedding_text,
     get_classification_cache_headers,
     get_embedding,
     perform_classification,
+    rerank_with_zeroentropy,
     sanitize_query_text,
 )
 from app.classifier_config import CLASSIFIER_CONFIG
+from app.id_lookup import normalize_original_id_for_lookup
 
-EMBED_MODEL = "Qwen/Qwen3-Embedding-8B"
+EMBED_MODEL = "qwen/qwen3-embedding-8b"
+
+
+def _embedding_response(vector):
+    return SimpleNamespace(data=[SimpleNamespace(embedding=vector)])
 
 
 def _first_classifier_with_version() -> tuple[str, str]:
@@ -56,6 +63,27 @@ class SanitizeQueryTextTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("too long", ctx.exception.detail)
+
+
+class OriginalIdNormalizationTests(unittest.TestCase):
+    def test_formatted_and_unformatted_ids_normalize_equally(self) -> None:
+        self.assertEqual(
+            normalize_original_id_for_lookup("03111000-2"),
+            normalize_original_id_for_lookup("031110002"),
+        )
+
+    def test_punctuation_and_spaces_are_removed(self) -> None:
+        self.assertEqual(
+            normalize_original_id_for_lookup(" 03.111-000/2 "),
+            "3111002",
+        )
+
+    def test_leading_and_trailing_zero_behavior_is_preserved(self) -> None:
+        self.assertEqual(normalize_original_id_for_lookup("0008471000"), "8471")
+        self.assertEqual(normalize_original_id_for_lookup("000"), "000")
+
+    def test_alphanumeric_ids_casefold(self) -> None:
+        self.assertEqual(normalize_original_id_for_lookup("EC000123"), "ec000123")
 
 
 class ClassificationContractTests(unittest.TestCase):
@@ -182,11 +210,42 @@ class ClassificationContractTests(unittest.TestCase):
             "industrial pump",
         )
 
+    def test_rerank_failure_preserves_semantic_scores(self) -> None:
+        semantic_results = [
+            {
+                "id": "semantic-1",
+                "score": 0.41,
+                "payload": {"original_id": "1234", "class_name": "Pump body"},
+            },
+            {
+                "id": "semantic-2",
+                "score": 0.39,
+                "payload": {"original_id": "5678", "class_name": "Pump casing"},
+            },
+        ]
+        zclient = SimpleNamespace(
+            models=SimpleNamespace(rerank=Mock(side_effect=RuntimeError("down")))
+        )
+
+        result = rerank_with_zeroentropy(
+            zclient=zclient,
+            query="industrial pump",
+            candidates=semantic_results,
+            top_k=2,
+            rerank_top_n=2,
+        )
+
+        self.assertEqual([item["score"] for item in result], [0.41, 0.39])
+        self.assertTrue(all(item["score"] != 0.0 for item in result))
+        self.assertTrue(
+            all("zeroentropy_relevance_score" not in item for item in result)
+        )
+
 
 class EmbeddingAndCacheHeaderTests(unittest.TestCase):
     def test_embedding_failure_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.feature_extraction.side_effect = RuntimeError("boom")
+        client.embeddings.create.side_effect = RuntimeError("boom")
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(client, EMBED_MODEL, "industrial pump")
@@ -199,7 +258,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_flat_embedding_response_is_returned_as_floats(self) -> None:
         client = Mock()
-        client.feature_extraction.return_value = [1, 2.5, "3.0"]
+        client.embeddings.create.return_value = _embedding_response([1, 2.5, "3.0"])
 
         result = get_embedding(
             client,
@@ -209,46 +268,29 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
         )
 
         self.assertEqual(result, [1.0, 2.5, 3.0])
-        client.feature_extraction.assert_called_once_with(
-            "industrial pump",
+        client.embeddings.create.assert_called_once_with(
             model=EMBED_MODEL,
+            input="industrial pump",
             dimensions=3,
+            encoding_format="float",
         )
 
     def test_embedding_without_dimensions_omits_dimensions_parameter(self) -> None:
         client = Mock()
-        client.feature_extraction.return_value = [1, 2.5, "3.0"]
+        client.embeddings.create.return_value = _embedding_response([1, 2.5, "3.0"])
 
         result = get_embedding(client, EMBED_MODEL, "industrial pump")
 
         self.assertEqual(result, [1.0, 2.5, 3.0])
-        client.feature_extraction.assert_called_once_with(
-            "industrial pump",
+        client.embeddings.create.assert_called_once_with(
             model=EMBED_MODEL,
-        )
-
-    def test_task_type_is_accepted_for_compatibility_and_ignored(self) -> None:
-        client = Mock()
-        client.feature_extraction.return_value = [0.1, 0.2, 0.3]
-
-        result = get_embedding(
-            client,
-            EMBED_MODEL,
-            "industrial pump",
-            task_type="RETRIEVAL_QUERY",
-            embed_dims=3,
-        )
-
-        self.assertEqual(result, [0.1, 0.2, 0.3])
-        client.feature_extraction.assert_called_once_with(
-            "industrial pump",
-            model=EMBED_MODEL,
-            dimensions=3,
+            input="industrial pump",
+            encoding_format="float",
         )
 
     def test_nested_single_embedding_response_is_flattened(self) -> None:
         client = Mock()
-        client.feature_extraction.return_value = [[0.1, 0.2, 0.3]]
+        client.embeddings.create.return_value = _embedding_response([[0.1, 0.2, 0.3]])
 
         result = get_embedding(
             client,
@@ -265,7 +307,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
                 return [[0.1, 0.2, 0.3]]
 
         client = Mock()
-        client.feature_extraction.return_value = ArrayLike()
+        client.embeddings.create.return_value = _embedding_response(ArrayLike())
 
         result = get_embedding(
             client,
@@ -278,7 +320,20 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_empty_embedding_response_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.feature_extraction.return_value = []
+        client.embeddings.create.return_value = _embedding_response([])
+
+        with self.assertRaises(HTTPException) as ctx:
+            get_embedding(client, EMBED_MODEL, "industrial pump")
+
+        self.assertEqual(ctx.exception.status_code, 500)
+        self.assertEqual(
+            ctx.exception.detail,
+            "Failed to generate embedding for classification",
+        )
+
+    def test_empty_openrouter_data_returns_stable_http_exception(self) -> None:
+        client = Mock()
+        client.embeddings.create.return_value = SimpleNamespace(data=[])
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(client, EMBED_MODEL, "industrial pump")
@@ -291,7 +346,9 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_token_level_embedding_response_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.feature_extraction.return_value = [[0.1, 0.2], [0.3, 0.4]]
+        client.embeddings.create.return_value = _embedding_response(
+            [[0.1, 0.2], [0.3, 0.4]]
+        )
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(client, EMBED_MODEL, "industrial pump")
@@ -304,7 +361,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_embedding_dimension_mismatch_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.feature_extraction.return_value = [0.1, 0.2]
+        client.embeddings.create.return_value = _embedding_response([0.1, 0.2])
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(
@@ -320,11 +377,11 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
             "Failed to generate embedding for classification",
         )
 
-    def test_transient_hf_error_is_retried(self) -> None:
+    def test_transient_openai_timeout_error_is_retried(self) -> None:
         client = Mock()
-        client.feature_extraction.side_effect = [
-            InferenceTimeoutError("temporary failure"),
-            [0.1, 0.2, 0.3],
+        client.embeddings.create.side_effect = [
+            APITimeoutError(Request("POST", "https://openrouter.ai/api/v1/embeddings")),
+            _embedding_response([0.1, 0.2, 0.3]),
         ]
 
         result = get_embedding(
@@ -335,15 +392,15 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
         )
 
         self.assertEqual(result, [0.1, 0.2, 0.3])
-        self.assertEqual(client.feature_extraction.call_count, 2)
+        self.assertEqual(client.embeddings.create.call_count, 2)
 
-    def test_transient_hf_http_error_is_retried(self) -> None:
-        response = Response()
-        response.status_code = 503
+    def test_transient_openai_status_error_is_retried(self) -> None:
+        request = Request("POST", "https://openrouter.ai/api/v1/embeddings")
+        response = Response(503, request=request)
         client = Mock()
-        client.feature_extraction.side_effect = [
-            HfHubHTTPError("temporary failure", response=response),
-            [0.1, 0.2, 0.3],
+        client.embeddings.create.side_effect = [
+            APIStatusError("temporary failure", response=response, body=None),
+            _embedding_response([0.1, 0.2, 0.3]),
         ]
 
         result = get_embedding(
@@ -354,7 +411,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
         )
 
         self.assertEqual(result, [0.1, 0.2, 0.3])
-        self.assertEqual(client.feature_extraction.call_count, 2)
+        self.assertEqual(client.embeddings.create.call_count, 2)
 
     def test_cache_headers_match_cloudflare_policy(self) -> None:
         headers = get_classification_cache_headers()

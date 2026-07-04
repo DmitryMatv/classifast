@@ -1,8 +1,18 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from app.classifier import perform_classification
+from qdrant_client import models
+
+from app.classifier import perform_classification, perform_partial_id_search
 from app.classifier_config import CLASSIFIER_CONFIG
+from app.id_lookup import (
+    ORIGINAL_ID_FIELD,
+    ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    normalize_original_id_for_lookup,
+    reverse_normalized_id,
+)
 
 
 def _first_classifier_with_version() -> tuple[str, str]:
@@ -112,6 +122,96 @@ class PerformClassificationShortcutTests(unittest.TestCase):
         semantic_mock.assert_called_once()
         self.assertEqual(semantic_mock.call_args.kwargs["top_k"], 10)
         rerank_mock.assert_not_called()
+
+
+class PartialOriginalIdSearchTests(unittest.TestCase):
+    def _point(self, point_id: str, original_id: str) -> SimpleNamespace:
+        normalized = normalize_original_id_for_lookup(original_id)
+        return SimpleNamespace(
+            id=point_id,
+            payload={
+                ORIGINAL_ID_FIELD: original_id,
+                ORIGINAL_ID_NORMALIZED_FIELD: normalized,
+                ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: reverse_normalized_id(
+                    normalized
+                ),
+            },
+        )
+
+    def test_partial_search_filter_contract(self) -> None:
+        captured = {}
+
+        def scroll(**kwargs):
+            captured.update(kwargs)
+            return [self._point("p1", "03111000-2")], None
+
+        client = SimpleNamespace(scroll=scroll)
+
+        perform_partial_id_search(client, "products", "311")
+
+        conditions = captured["scroll_filter"].should
+        keys = {condition.key for condition in conditions}
+        self.assertEqual(
+            keys,
+            {
+                ORIGINAL_ID_NORMALIZED_FIELD,
+                ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+            },
+        )
+        self.assertTrue(
+            all(
+                not (
+                    condition.key == ORIGINAL_ID_FIELD
+                    and isinstance(condition.match, models.MatchText)
+                )
+                for condition in conditions
+            )
+        )
+
+    def test_prefix_match_accepts_formatted_stored_id(self) -> None:
+        client = SimpleNamespace(
+            scroll=lambda **kwargs: ([self._point("p1", "03111000-2")], None)
+        )
+
+        results = perform_partial_id_search(client, "products", "311")
+
+        self.assertEqual([result["id"] for result in results], ["p1"])
+
+    def test_suffix_match_accepts_reversed_field_candidates_and_deduplicates(
+        self,
+    ) -> None:
+        duplicate = self._point("p2", "AA-1002")
+        client = SimpleNamespace(
+            scroll=lambda **kwargs: (
+                [
+                    self._point("p1", "03111000-2"),
+                    duplicate,
+                    duplicate,
+                ],
+                None,
+            )
+        )
+
+        results = perform_partial_id_search(client, "products", "1002")
+
+        self.assertEqual([result["id"] for result in results], ["p1", "p2"])
+
+    def test_malformed_normalized_payload_does_not_drop_later_matches(self) -> None:
+        malformed = self._point("bad", "BAD-100")
+        malformed.payload[ORIGINAL_ID_NORMALIZED_FIELD] = 12345
+        client = SimpleNamespace(
+            scroll=lambda **kwargs: (
+                [
+                    malformed,
+                    self._point("valid", "03111000-2"),
+                ],
+                None,
+            )
+        )
+
+        results = perform_partial_id_search(client, "products", "311")
+
+        self.assertEqual([result["id"] for result in results], ["valid"])
 
 
 if __name__ == "__main__":

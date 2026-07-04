@@ -6,13 +6,26 @@ from typing import Any, Callable, Dict, List, Optional
 
 import tenacity
 from fastapi import HTTPException
-from huggingface_hub import InferenceClient
-from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    InternalServerError,
+    OpenAI,
+    RateLimitError,
+)
 from qdrant_client import QdrantClient, models
 from zeroentropy import ZeroEntropy
 
 from .cache_profiles import CLASSIFICATION_RESULT, add_vary, build_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG
+from .id_lookup import (
+    ORIGINAL_ID_FIELD,
+    ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    normalize_original_id_for_lookup,
+    reverse_normalized_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +41,7 @@ DIGIT_PATTERN = re.compile(r"\d")
 ALLOWED_QUERY_PATTERN = re.compile(
     r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
 )
-TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+TRANSIENT_EMBEDDING_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 
 # ===== Input Sanitization =====
@@ -125,13 +138,13 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
     return query.strip()
 
 
-def _is_transient_hf_error(error: BaseException) -> bool:
-    if isinstance(error, InferenceTimeoutError):
+def _is_transient_embedding_error(error: BaseException) -> bool:
+    if isinstance(error, (APIConnectionError, APITimeoutError)):
         return True
-    if isinstance(error, HfHubHTTPError):
-        response = getattr(error, "response", None)
-        status_code = getattr(response, "status_code", None)
-        return status_code in TRANSIENT_HF_STATUS_CODES
+    if isinstance(error, (InternalServerError, RateLimitError)):
+        return True
+    if isinstance(error, APIStatusError):
+        return error.status_code in TRANSIENT_EMBEDDING_STATUS_CODES
     return False
 
 
@@ -176,26 +189,24 @@ def _build_embedding_retry() -> tenacity.Retrying:
     return tenacity.Retrying(
         stop=tenacity.stop_after_attempt(3),
         wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
-        retry=tenacity.retry_if_exception(_is_transient_hf_error),
+        retry=tenacity.retry_if_exception(_is_transient_embedding_error),
         reraise=True,
     )
 
 
 def get_embedding(
-    embed_client: InferenceClient,
+    embed_client: OpenAI,
     model_name: str,
     text: str,
-    task_type: str = "RETRIEVAL_QUERY",
     embed_dims: Optional[int] = None,
 ) -> List[float]:
     """
-    Generate a single embedding for text using Hugging Face Inference.
+    Generate a single embedding for text using OpenRouter's OpenAI-compatible API.
 
     Args:
-        embed_client: The Hugging Face Inference client
+        embed_client: The OpenAI SDK client configured for OpenRouter
         model_name: The embedding model name
         text: Text to embed
-        task_type: Kept for compatibility; Hugging Face feature extraction ignores it
         embed_dims: Expected embedding dimensions
 
     Returns:
@@ -208,31 +219,33 @@ def get_embedding(
 
     try:
         logger.debug(
-            "Generating embedding: model=%s, task_type=%s, dims=%s",
+            "Generating embedding: model=%s, dims=%s",
             model_name,
-            task_type,
             embed_dims,
         )
 
         api_start = time.time()
         retry = _build_embedding_retry()
+        embedding_args: Dict[str, Any] = {
+            "model": model_name,
+            "input": text,
+            "encoding_format": "float",
+        }
         if embed_dims is None:
-            response = retry(
-                embed_client.feature_extraction,
-                text,
-                model=model_name,
-            )
+            response = retry(embed_client.embeddings.create, **embedding_args)
         else:
+            embedding_args["dimensions"] = embed_dims
             response = retry(
-                embed_client.feature_extraction,
-                text,
-                model=model_name,
-                dimensions=embed_dims,
+                embed_client.embeddings.create,
+                **embedding_args,
             )
         api_duration = time.time() - api_start
-        logger.debug("Hugging Face embedding call: %.3fs", api_duration)
+        logger.debug("OpenRouter embedding call: %.3fs", api_duration)
 
-        embedding_vector = _normalize_embedding_response(response)
+        if not response.data:
+            raise RuntimeError("OpenRouter embedding response contained no data")
+
+        embedding_vector = _normalize_embedding_response(response.data[0].embedding)
 
         if _embedding_dimension_mismatch(embedding_vector, embed_dims):
             raise RuntimeError(
@@ -349,7 +362,7 @@ def perform_exact_id_search(
         id_filter = models.Filter(
             must=[
                 models.FieldCondition(
-                    key="original_id",
+                    key=ORIGINAL_ID_FIELD,
                     match=models.MatchValue(value=safe_query),
                 )
             ]
@@ -368,29 +381,6 @@ def perform_exact_id_search(
     except Exception as e:
         logger.warning("Exact ID search failed: %s", e)
         return []
-
-
-def normalize_for_partial_match(query: str) -> str:
-    """
-    Normalize query for partial matching by removing dots and spaces,
-    and stripping leading/trailing zeros.
-
-    Args:
-        query: Sanitized query string
-
-    Returns:
-        Normalized query string for partial matching
-    """
-    normalized = query.replace(" ", "")  # replace(".", "").replace("-", "")
-
-    # Strip leading and trailing zeros
-    normalized = normalized.lstrip("0").rstrip("0")
-
-    # If empty after stripping, return original (handles case of "000")
-    if not normalized:
-        return query.replace(" ", "")  # replace(".", "").replace("-", "")
-
-    return normalized
 
 
 def perform_partial_id_search(
@@ -412,11 +402,17 @@ def perform_partial_id_search(
     """
     try:
         partial_filter = models.Filter(
-            must=[
+            should=[
                 models.FieldCondition(
-                    key="original_id",
+                    key=ORIGINAL_ID_NORMALIZED_FIELD,
                     match=models.MatchText(text=normalized_query),
-                )
+                ),
+                models.FieldCondition(
+                    key=ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+                    match=models.MatchText(
+                        text=reverse_normalized_id(normalized_query)
+                    ),
+                ),
             ]
         )
 
@@ -429,16 +425,24 @@ def perform_partial_id_search(
         )
 
         partial_results = []
+        seen_ids = set()
         for point in _scroll_points(scroll_result):
             if point.payload:
-                original_id_value = point.payload.get("original_id", "")
-                # Normalize the stored original_id for comparison
-                normalized_original_id = normalize_for_partial_match(original_id_value)
-                # Check if normalized original_id contains the normalized query
+                if point.id in seen_ids:
+                    continue
+
+                original_id_value = point.payload.get(ORIGINAL_ID_FIELD, "")
+                raw_normalized_id = point.payload.get(ORIGINAL_ID_NORMALIZED_FIELD)
+                normalized_original_id = (
+                    str(raw_normalized_id)
+                    if raw_normalized_id is not None
+                    else normalize_original_id_for_lookup(original_id_value)
+                )
                 if normalized_original_id.startswith(
                     normalized_query
                 ) or normalized_original_id.endswith(normalized_query):
                     partial_results.append(_point_result(point, 0.90))
+                    seen_ids.add(point.id)
 
         return partial_results
 
@@ -503,6 +507,10 @@ def _zero_score_candidates(
     candidates: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     return [_copy_with_zeroentropy_score(candidate, 0.0) for candidate in candidates]
+
+
+def _copy_candidates(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [candidate.copy() for candidate in candidates]
 
 
 def _sort_by_score_desc(
@@ -607,7 +615,7 @@ def rerank_with_zeroentropy(
             "RERANK_FAILED: ZeroEntropy reranking failed: %s, using semantic search scores",
             e,
         )
-        reranked_candidates = _zero_score_candidates(candidates_to_rerank)
+        return _copy_candidates(candidates[:top_k])
 
     reranked_candidates.extend(_zero_score_candidates(remaining_candidates))
 
@@ -674,7 +682,7 @@ def validate_and_prepare_classification(
 
 
 def _prepare_classification_context(
-    embed_client: InferenceClient,
+    embed_client: OpenAI,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -764,7 +772,7 @@ def _timed_partial_id_search(
     collection_name: str,
     normalized_query: str,
 ) -> tuple[List[Dict[str, Any]], float]:
-    normalized_id_query = normalize_for_partial_match(normalized_query)
+    normalized_id_query = normalize_original_id_for_lookup(normalized_query)
     if len(normalized_id_query) < 3:
         return [], 0.0
 
@@ -789,7 +797,7 @@ def _prepare_exact_id_shortcut_results(
 
 
 def _run_semantic_classification_search(
-    embed_client: InferenceClient,
+    embed_client: OpenAI,
     qdrant_client: QdrantClient,
     context: _ClassificationContext,
     top_k: int,
@@ -803,7 +811,6 @@ def _run_semantic_classification_search(
         embed_client=embed_client,
         model_name=context.embed_model_name,
         text=embedding_text,
-        task_type="RETRIEVAL_QUERY",
         embed_dims=context.config.get("embed_dims"),
     )
 
@@ -844,7 +851,8 @@ def _rank_semantic_results(
             rerank_top_n=top_k,
         )
         for result in reranked_semantic:
-            result["score"] = result.get("zeroentropy_relevance_score", 0)
+            if "zeroentropy_relevance_score" in result:
+                result["score"] = result["zeroentropy_relevance_score"]
         return reranked_semantic
 
     if id_match_results:
@@ -864,7 +872,7 @@ def _merge_classification_results(
 
 
 def perform_classification(
-    embed_client: InferenceClient,
+    embed_client: OpenAI,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -877,7 +885,7 @@ def perform_classification(
     Classify a single query using hybrid search (exact text + semantic) with optional ZeroEntropy reranking.
 
     Args:
-        embed_client: The Hugging Face Inference client
+        embed_client: The OpenAI SDK client configured for OpenRouter
         qdrant_client: The Qdrant client
         query: The product/service description to classify
         classifier_type: The classification standard (e.g., 'unspsc', 'etim')

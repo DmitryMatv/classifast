@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from huggingface_hub import InferenceClient
+from openai import OpenAI
 from qdrant_client import QdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -32,6 +32,11 @@ from .cache_profiles import (
     build_cache_headers,
 )
 from .classifier_config import CLASSIFIER_CONFIG
+from .id_lookup import (
+    ORIGINAL_ID_FIELD,
+    ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+)
 from .usage_tracker import (
     QDRANT_API_KEY,
     QDRANT_HOST,
@@ -92,12 +97,28 @@ def build_class_name_text_index_params() -> models.TextIndexParams:
     )
 
 
+def build_normalized_original_id_text_index_params() -> models.TextIndexParams:
+    """Return prefix text-search settings for normalized classification IDs."""
+    return models.TextIndexParams(
+        type=models.TextIndexType.TEXT,
+        tokenizer=models.TokenizerType.PREFIX,
+        min_token_len=1,
+        max_token_len=64,
+        lowercase=True,
+    )
+
+
 def get_payload_index_schema(
     field_name: str,
 ) -> models.KeywordIndexParams | models.TextIndexParams:
     """Return the expected payload index schema for a classifier field."""
-    if field_name == "original_id":
+    if field_name == ORIGINAL_ID_FIELD:
         return build_original_id_index_params()
+    if field_name in {
+        ORIGINAL_ID_NORMALIZED_FIELD,
+        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    }:
+        return build_normalized_original_id_text_index_params()
     if field_name == "class_name":
         return build_class_name_text_index_params()
     raise KeyError(f"Unsupported payload index field: {field_name}")
@@ -114,7 +135,12 @@ def provision_payload_indexes(
         qdrant_client: The Qdrant client instance
         collection_name: The name of the collection to index
     """
-    for field_name in ("original_id", "class_name"):
+    for field_name in (
+        ORIGINAL_ID_FIELD,
+        ORIGINAL_ID_NORMALIZED_FIELD,
+        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+        "class_name",
+    ):
         try:
             qdrant_client.create_payload_index(
                 collection_name=collection_name,
@@ -131,7 +157,7 @@ def provision_payload_indexes(
             error_message = str(e).lower()
             if "already exists" in error_message:
                 logger.warning(
-                    "Payload index for field '%s' in collection '%s' already exists. Existing collections may need utilities/create_text_indexes.py if 'original_id' was previously indexed as TEXT.",
+                    "Payload index for field '%s' in collection '%s' already exists. Existing collections may need utilities/sync_payload_indexes.py if payload indexes or normalized ID payload fields are out of date.",
                     field_name,
                     collection_name,
                 )
@@ -146,22 +172,30 @@ def provision_payload_indexes(
 
 
 def initialize_embed_client() -> Any | None:
-    """Initialize the Hugging Face embedding client if credentials are present."""
-    hf_token = os.getenv("HF_TOKEN")
-    if not hf_token:
-        logger.error("Error: HF_TOKEN not found in environment variables.")
+    """Initialize the OpenRouter embedding client if credentials are present."""
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+    if not openrouter_api_key:
+        logger.error("Error: OPENROUTER_API_KEY not found in environment variables.")
         return None
 
     try:
-        provider: Any = os.getenv("HF_INFERENCE_PROVIDER", "").strip() or "auto"
-        embed_client = InferenceClient(provider=provider, api_key=hf_token)
+        base_url = (
+            os.getenv("OPENROUTER_BASE_URL", "").strip()
+            or "https://openrouter.ai/api/v1"
+        )
+        embed_client = OpenAI(
+            base_url=base_url,
+            api_key=openrouter_api_key,
+            max_retries=0,
+            timeout=60,  # tune to your SLA; avoids multi-minute hangs per attempt
+        )
         logger.info(
-            "Hugging Face Inference client initialized successfully with provider=%s.",
-            provider,
+            "OpenRouter embedding client initialized successfully with base_url=%s.",
+            base_url,
         )
         return embed_client
     except Exception as e:
-        logger.error("Error initializing Hugging Face Inference client: %s", e)
+        logger.error("Error initializing OpenRouter embedding client: %s", e)
         return None
 
 
@@ -679,7 +713,9 @@ async def health_check(request: Request):
         )
 
     try:
-        await asyncio.to_thread(qdrant_client.get_collections)
+        await asyncio.wait_for(
+            asyncio.to_thread(qdrant_client.get_collections), timeout=5
+        )
         return {"status": "healthy"}
     except Exception:
         raise HTTPException(
