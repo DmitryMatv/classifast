@@ -4,16 +4,11 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
+import httpx
 import tenacity
 from fastapi import HTTPException
-from openai import (
-    APIConnectionError,
-    APIStatusError,
-    APITimeoutError,
-    InternalServerError,
-    OpenAI,
-    RateLimitError,
-)
+from huggingface_hub import InferenceClient
+from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
 from qdrant_client import QdrantClient, models
 from zeroentropy import ZeroEntropy
 
@@ -41,7 +36,7 @@ DIGIT_PATTERN = re.compile(r"\d")
 ALLOWED_QUERY_PATTERN = re.compile(
     r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
 )
-TRANSIENT_EMBEDDING_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 
 # ===== Input Sanitization =====
@@ -138,13 +133,13 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
     return query.strip()
 
 
-def _is_transient_embedding_error(error: BaseException) -> bool:
-    if isinstance(error, (APIConnectionError, APITimeoutError)):
+def _is_transient_hf_error(error: BaseException) -> bool:
+    if isinstance(error, (InferenceTimeoutError, httpx.TransportError)):
         return True
-    if isinstance(error, (InternalServerError, RateLimitError)):
-        return True
-    if isinstance(error, APIStatusError):
-        return error.status_code in TRANSIENT_EMBEDDING_STATUS_CODES
+    if isinstance(error, HfHubHTTPError):
+        response = getattr(error, "response", None)
+        status_code = getattr(response, "status_code", None)
+        return status_code in TRANSIENT_HF_STATUS_CODES
     return False
 
 
@@ -189,22 +184,22 @@ def _build_embedding_retry() -> tenacity.Retrying:
     return tenacity.Retrying(
         stop=tenacity.stop_after_attempt(3),
         wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
-        retry=tenacity.retry_if_exception(_is_transient_embedding_error),
+        retry=tenacity.retry_if_exception(_is_transient_hf_error),
         reraise=True,
     )
 
 
 def get_embedding(
-    embed_client: OpenAI,
+    embed_client: InferenceClient,
     model_name: str,
     text: str,
     embed_dims: Optional[int] = None,
 ) -> List[float]:
     """
-    Generate a single embedding for text using OpenRouter's OpenAI-compatible API.
+    Generate a single embedding for text using Hugging Face Inference.
 
     Args:
-        embed_client: The OpenAI SDK client configured for OpenRouter
+        embed_client: The Hugging Face Inference client
         model_name: The embedding model name
         text: Text to embed
         embed_dims: Expected embedding dimensions
@@ -226,26 +221,23 @@ def get_embedding(
 
         api_start = time.time()
         retry = _build_embedding_retry()
-        embedding_args: Dict[str, Any] = {
-            "model": model_name,
-            "input": text,
-            "encoding_format": "float",
-        }
         if embed_dims is None:
-            response = retry(embed_client.embeddings.create, **embedding_args)
-        else:
-            embedding_args["dimensions"] = embed_dims
             response = retry(
-                embed_client.embeddings.create,
-                **embedding_args,
+                embed_client.feature_extraction,
+                text,
+                model=model_name,
+            )
+        else:
+            response = retry(
+                embed_client.feature_extraction,
+                text,
+                model=model_name,
+                dimensions=embed_dims,
             )
         api_duration = time.time() - api_start
-        logger.debug("OpenRouter embedding call: %.3fs", api_duration)
+        logger.debug("Hugging Face embedding call: %.3fs", api_duration)
 
-        if not response.data:
-            raise RuntimeError("OpenRouter embedding response contained no data")
-
-        embedding_vector = _normalize_embedding_response(response.data[0].embedding)
+        embedding_vector = _normalize_embedding_response(response)
 
         if _embedding_dimension_mismatch(embedding_vector, embed_dims):
             raise RuntimeError(
@@ -682,7 +674,7 @@ def validate_and_prepare_classification(
 
 
 def _prepare_classification_context(
-    embed_client: OpenAI,
+    embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -797,7 +789,7 @@ def _prepare_exact_id_shortcut_results(
 
 
 def _run_semantic_classification_search(
-    embed_client: OpenAI,
+    embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     context: _ClassificationContext,
     top_k: int,
@@ -872,7 +864,7 @@ def _merge_classification_results(
 
 
 def perform_classification(
-    embed_client: OpenAI,
+    embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -885,7 +877,7 @@ def perform_classification(
     Classify a single query using hybrid search (exact text + semantic) with optional ZeroEntropy reranking.
 
     Args:
-        embed_client: The OpenAI SDK client configured for OpenRouter
+        embed_client: The Hugging Face Inference client
         qdrant_client: The Qdrant client
         query: The product/service description to classify
         classifier_type: The classification standard (e.g., 'unspsc', 'etim')

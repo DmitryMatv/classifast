@@ -125,7 +125,7 @@ class RapidApiHealthTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["services"]["embedding"], "configured")
         self.assertEqual(payload["services"]["database"], "healthy")
-        embed_client.embeddings.create.assert_not_called()
+        embed_client.feature_extraction.assert_not_called()
         qdrant_client.get_collections.assert_called_once_with()
 
     async def test_ping_returns_503_when_embedding_client_missing(self):

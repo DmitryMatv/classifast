@@ -2,10 +2,10 @@ import os
 from typing import NotRequired, TypedDict
 
 DEFAULT_EMBEDDING_MODEL = os.getenv(
-    "EMBEDDING_MODEL",
-    "qwen/qwen3-embedding-8b",
+    "HF_EMBEDDING_MODEL",
+    "Qwen/Qwen3-Embedding-8B",
 )
-DEFAULT_EMBEDDING_DIMS = int(os.getenv("EMBEDDING_DIMS", "2048"))
+DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "2048"))
 
 # 'Given a web search query, retrieve relevant passages that answer the query'
 DEFAULT_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant entry from the target classification taxonomy."

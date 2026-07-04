@@ -32,13 +32,11 @@ class MainStartupClientTests(unittest.TestCase):
             client = main.initialize_embed_client()
 
         self.assertIsNone(client)
-        self.assertTrue(
-            any("OPENROUTER_API_KEY not found" in message for message in logs.output)
-        )
+        self.assertTrue(any("HF_TOKEN not found" in message for message in logs.output))
 
-    @patch.dict(main.os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=True)
-    @patch.object(main, "OpenAI")
-    def test_initialize_embed_client_builds_client_with_default_base_url(
+    @patch.dict(main.os.environ, {"HF_TOKEN": "test-key"}, clear=True)
+    @patch.object(main, "InferenceClient")
+    def test_initialize_embed_client_builds_client_with_default_provider(
         self,
         client_class,
     ):
@@ -49,19 +47,17 @@ class MainStartupClientTests(unittest.TestCase):
 
         self.assertIs(result, embed_client)
         client_class.assert_called_once_with(
-            base_url="https://openrouter.ai/api/v1",
+            provider="auto",
             api_key="test-key",
-            max_retries=0,
-            timeout=60,
         )
 
     @patch.dict(
         main.os.environ,
-        {"OPENROUTER_API_KEY": "test-key", "OPENROUTER_BASE_URL": "  "},
+        {"HF_TOKEN": "test-key", "HF_INFERENCE_PROVIDER": "  "},
         clear=True,
     )
-    @patch.object(main, "OpenAI")
-    def test_initialize_embed_client_defaults_blank_base_url_to_openrouter(
+    @patch.object(main, "InferenceClient")
+    def test_initialize_embed_client_defaults_blank_provider_to_auto(
         self,
         client_class,
     ):
@@ -72,22 +68,17 @@ class MainStartupClientTests(unittest.TestCase):
 
         self.assertIs(result, embed_client)
         client_class.assert_called_once_with(
-            base_url="https://openrouter.ai/api/v1",
+            provider="auto",
             api_key="test-key",
-            max_retries=0,
-            timeout=60,
         )
 
     @patch.dict(
         main.os.environ,
-        {
-            "OPENROUTER_API_KEY": "test-key",
-            "OPENROUTER_BASE_URL": "https://example.test/api/v1",
-        },
+        {"HF_TOKEN": "test-key", "HF_INFERENCE_PROVIDER": "custom-provider"},
         clear=True,
     )
-    @patch.object(main, "OpenAI")
-    def test_initialize_embed_client_uses_configured_base_url(self, client_class):
+    @patch.object(main, "InferenceClient")
+    def test_initialize_embed_client_uses_configured_provider(self, client_class):
         embed_client = MagicMock()
         client_class.return_value = embed_client
 
@@ -95,10 +86,8 @@ class MainStartupClientTests(unittest.TestCase):
 
         self.assertIs(result, embed_client)
         client_class.assert_called_once_with(
-            base_url="https://example.test/api/v1",
+            provider="custom-provider",
             api_key="test-key",
-            max_retries=0,
-            timeout=60,
         )
 
     @patch.object(main, "validate_qdrant_collections", side_effect=Exception("boom"))

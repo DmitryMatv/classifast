@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
+from huggingface_hub import InferenceClient
 from qdrant_client import QdrantClient, models
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -172,30 +172,22 @@ def provision_payload_indexes(
 
 
 def initialize_embed_client() -> Any | None:
-    """Initialize the OpenRouter embedding client if credentials are present."""
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-    if not openrouter_api_key:
-        logger.error("Error: OPENROUTER_API_KEY not found in environment variables.")
+    """Initialize the Hugging Face embedding client if credentials are present."""
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        logger.error("Error: HF_TOKEN not found in environment variables.")
         return None
 
     try:
-        base_url = (
-            os.getenv("OPENROUTER_BASE_URL", "").strip()
-            or "https://openrouter.ai/api/v1"
-        )
-        embed_client = OpenAI(
-            base_url=base_url,
-            api_key=openrouter_api_key,
-            max_retries=0,
-            timeout=60,  # tune to your SLA; avoids multi-minute hangs per attempt
-        )
+        provider: Any = os.getenv("HF_INFERENCE_PROVIDER", "").strip() or "auto"
+        embed_client = InferenceClient(provider=provider, api_key=hf_token)
         logger.info(
-            "OpenRouter embedding client initialized successfully with base_url=%s.",
-            base_url,
+            "Hugging Face Inference client initialized successfully with provider=%s.",
+            provider,
         )
         return embed_client
     except Exception as e:
-        logger.error("Error initializing OpenRouter embedding client: %s", e)
+        logger.error("Error initializing Hugging Face Inference client: %s", e)
         return None
 
 

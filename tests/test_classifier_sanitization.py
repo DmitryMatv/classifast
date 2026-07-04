@@ -2,9 +2,10 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import httpx
 from fastapi import HTTPException
-from httpx import Request, Response
-from openai import APIStatusError, APITimeoutError
+from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
+from requests import Response
 
 from app.classifier import (
     build_query_embedding_text,
@@ -17,11 +18,7 @@ from app.classifier import (
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.id_lookup import normalize_original_id_for_lookup
 
-EMBED_MODEL = "qwen/qwen3-embedding-8b"
-
-
-def _embedding_response(vector):
-    return SimpleNamespace(data=[SimpleNamespace(embedding=vector)])
+EMBED_MODEL = "Qwen/Qwen3-Embedding-8B"
 
 
 def _first_classifier_with_version() -> tuple[str, str]:
@@ -245,7 +242,7 @@ class ClassificationContractTests(unittest.TestCase):
 class EmbeddingAndCacheHeaderTests(unittest.TestCase):
     def test_embedding_failure_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.embeddings.create.side_effect = RuntimeError("boom")
+        client.feature_extraction.side_effect = RuntimeError("boom")
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(client, EMBED_MODEL, "industrial pump")
@@ -258,7 +255,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_flat_embedding_response_is_returned_as_floats(self) -> None:
         client = Mock()
-        client.embeddings.create.return_value = _embedding_response([1, 2.5, "3.0"])
+        client.feature_extraction.return_value = [1, 2.5, "3.0"]
 
         result = get_embedding(
             client,
@@ -268,29 +265,27 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
         )
 
         self.assertEqual(result, [1.0, 2.5, 3.0])
-        client.embeddings.create.assert_called_once_with(
+        client.feature_extraction.assert_called_once_with(
+            "industrial pump",
             model=EMBED_MODEL,
-            input="industrial pump",
             dimensions=3,
-            encoding_format="float",
         )
 
     def test_embedding_without_dimensions_omits_dimensions_parameter(self) -> None:
         client = Mock()
-        client.embeddings.create.return_value = _embedding_response([1, 2.5, "3.0"])
+        client.feature_extraction.return_value = [1, 2.5, "3.0"]
 
         result = get_embedding(client, EMBED_MODEL, "industrial pump")
 
         self.assertEqual(result, [1.0, 2.5, 3.0])
-        client.embeddings.create.assert_called_once_with(
+        client.feature_extraction.assert_called_once_with(
+            "industrial pump",
             model=EMBED_MODEL,
-            input="industrial pump",
-            encoding_format="float",
         )
 
     def test_nested_single_embedding_response_is_flattened(self) -> None:
         client = Mock()
-        client.embeddings.create.return_value = _embedding_response([[0.1, 0.2, 0.3]])
+        client.feature_extraction.return_value = [[0.1, 0.2, 0.3]]
 
         result = get_embedding(
             client,
@@ -307,7 +302,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
                 return [[0.1, 0.2, 0.3]]
 
         client = Mock()
-        client.embeddings.create.return_value = _embedding_response(ArrayLike())
+        client.feature_extraction.return_value = ArrayLike()
 
         result = get_embedding(
             client,
@@ -320,20 +315,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_empty_embedding_response_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.embeddings.create.return_value = _embedding_response([])
-
-        with self.assertRaises(HTTPException) as ctx:
-            get_embedding(client, EMBED_MODEL, "industrial pump")
-
-        self.assertEqual(ctx.exception.status_code, 500)
-        self.assertEqual(
-            ctx.exception.detail,
-            "Failed to generate embedding for classification",
-        )
-
-    def test_empty_openrouter_data_returns_stable_http_exception(self) -> None:
-        client = Mock()
-        client.embeddings.create.return_value = SimpleNamespace(data=[])
+        client.feature_extraction.return_value = []
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(client, EMBED_MODEL, "industrial pump")
@@ -346,9 +328,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_token_level_embedding_response_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.embeddings.create.return_value = _embedding_response(
-            [[0.1, 0.2], [0.3, 0.4]]
-        )
+        client.feature_extraction.return_value = [[0.1, 0.2], [0.3, 0.4]]
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(client, EMBED_MODEL, "industrial pump")
@@ -361,7 +341,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
 
     def test_embedding_dimension_mismatch_returns_stable_http_exception(self) -> None:
         client = Mock()
-        client.embeddings.create.return_value = _embedding_response([0.1, 0.2])
+        client.feature_extraction.return_value = [0.1, 0.2]
 
         with self.assertRaises(HTTPException) as ctx:
             get_embedding(
@@ -377,11 +357,11 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
             "Failed to generate embedding for classification",
         )
 
-    def test_transient_openai_timeout_error_is_retried(self) -> None:
+    def test_transient_hf_error_is_retried(self) -> None:
         client = Mock()
-        client.embeddings.create.side_effect = [
-            APITimeoutError(Request("POST", "https://openrouter.ai/api/v1/embeddings")),
-            _embedding_response([0.1, 0.2, 0.3]),
+        client.feature_extraction.side_effect = [
+            InferenceTimeoutError("temporary failure"),
+            [0.1, 0.2, 0.3],
         ]
 
         result = get_embedding(
@@ -392,15 +372,14 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
         )
 
         self.assertEqual(result, [0.1, 0.2, 0.3])
-        self.assertEqual(client.embeddings.create.call_count, 2)
+        self.assertEqual(client.feature_extraction.call_count, 2)
 
-    def test_transient_openai_status_error_is_retried(self) -> None:
-        request = Request("POST", "https://openrouter.ai/api/v1/embeddings")
-        response = Response(503, request=request)
+    def test_transient_hf_transport_error_is_retried(self) -> None:
+        request = httpx.Request("POST", "https://router.huggingface.co")
         client = Mock()
-        client.embeddings.create.side_effect = [
-            APIStatusError("temporary failure", response=response, body=None),
-            _embedding_response([0.1, 0.2, 0.3]),
+        client.feature_extraction.side_effect = [
+            httpx.ConnectError("temporary failure", request=request),
+            [0.1, 0.2, 0.3],
         ]
 
         result = get_embedding(
@@ -411,7 +390,26 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
         )
 
         self.assertEqual(result, [0.1, 0.2, 0.3])
-        self.assertEqual(client.embeddings.create.call_count, 2)
+        self.assertEqual(client.feature_extraction.call_count, 2)
+
+    def test_transient_hf_http_error_is_retried(self) -> None:
+        response = Response()
+        response.status_code = 503
+        client = Mock()
+        client.feature_extraction.side_effect = [
+            HfHubHTTPError("temporary failure", response=response),
+            [0.1, 0.2, 0.3],
+        ]
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            embed_dims=3,
+        )
+
+        self.assertEqual(result, [0.1, 0.2, 0.3])
+        self.assertEqual(client.feature_extraction.call_count, 2)
 
     def test_cache_headers_match_cloudflare_policy(self) -> None:
         headers = get_classification_cache_headers()
