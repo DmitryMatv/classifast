@@ -27,10 +27,23 @@ from qdrant_client import QdrantClient, models
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.classifier_config import CLASSIFIER_CONFIG
+from app.id_lookup import (
+    ORIGINAL_ID_FIELD,
+    ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    normalize_original_id_for_lookup,
+    reverse_normalized_id,
+)
 
 load_dotenv()
 
-PAYLOAD_INDEX_FIELDS = ("original_id", "original_id_normalized", "class_name")
+PAYLOAD_INDEX_FIELDS = (
+    ORIGINAL_ID_FIELD,
+    ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    "class_name",
+)
+BACKFILL_BATCH_SIZE = 100
 
 
 def build_original_id_index_params() -> models.KeywordIndexParams:
@@ -49,12 +62,28 @@ def build_text_index_params() -> models.TextIndexParams:
     )
 
 
+def build_normalized_original_id_text_index_params() -> models.TextIndexParams:
+    """Return prefix text-search settings for normalized classification IDs."""
+    return models.TextIndexParams(
+        type=models.TextIndexType.TEXT,
+        tokenizer=models.TokenizerType.PREFIX,
+        min_token_len=1,
+        max_token_len=64,
+        lowercase=True,
+    )
+
+
 def get_payload_index_schema(
     field_name: str,
 ) -> models.KeywordIndexParams | models.TextIndexParams:
     """Return the expected payload index schema for a classifier field."""
-    if field_name in {"original_id", "original_id_normalized"}:
+    if field_name == ORIGINAL_ID_FIELD:
         return build_original_id_index_params()
+    if field_name in {
+        ORIGINAL_ID_NORMALIZED_FIELD,
+        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    }:
+        return build_normalized_original_id_text_index_params()
     if field_name == "class_name":
         return build_text_index_params()
     raise KeyError(f"Unsupported payload index field: {field_name}")
@@ -113,8 +142,23 @@ def is_expected_payload_index(
     index_info: models.PayloadIndexInfo,
 ) -> bool:
     """Return whether the existing payload index matches the field contract."""
-    if field_name in {"original_id", "original_id_normalized"}:
+    if field_name == ORIGINAL_ID_FIELD:
         return index_info.data_type == models.PayloadSchemaType.KEYWORD
+
+    if field_name in {
+        ORIGINAL_ID_NORMALIZED_FIELD,
+        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    }:
+        if index_info.data_type != models.PayloadSchemaType.TEXT:
+            return False
+
+        params = index_info.params
+        if params is not None and not isinstance(params, models.TextIndexParams):
+            return False
+
+        return normalize_text_index_params(params) == normalize_text_index_params(
+            build_normalized_original_id_text_index_params()
+        )
 
     if field_name == "class_name":
         if index_info.data_type != models.PayloadSchemaType.TEXT:
@@ -235,6 +279,132 @@ def restore_previous_index(
         return False
 
 
+def build_normalized_id_payload(original_id: object) -> dict[str, str]:
+    normalized = normalize_original_id_for_lookup(original_id)
+    return {
+        ORIGINAL_ID_NORMALIZED_FIELD: normalized,
+        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: reverse_normalized_id(normalized),
+    }
+
+
+def flush_payload_backfill_batch(
+    client: QdrantClient,
+    collection_name: str,
+    operations: list[models.SetPayloadOperation],
+) -> bool:
+    if not operations:
+        return True
+
+    try:
+        client.batch_update_points(
+            collection_name=collection_name,
+            update_operations=operations,
+            wait=True,
+        )
+        return True
+    except Exception as e:
+        print(f"  ! Failed to backfill normalized ID payloads: {e}")
+        return False
+
+
+def _scroll_backfill_points(
+    client: QdrantClient,
+    collection_name: str,
+    offset: object,
+    batch_size: int,
+) -> tuple[list[Any], object]:
+    scroll_result = client.scroll(
+        collection_name=collection_name,
+        offset=offset,
+        limit=batch_size,
+        with_payload=[
+            ORIGINAL_ID_FIELD,
+            ORIGINAL_ID_NORMALIZED_FIELD,
+            ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+        ],
+        with_vectors=False,
+    )
+    if isinstance(scroll_result, tuple):
+        return list(scroll_result[0]), scroll_result[1]
+    raise TypeError(f"Unexpected scroll() response type: {type(scroll_result)!r}")
+
+
+def backfill_normalized_id_payloads(
+    client: QdrantClient,
+    collection_name: str,
+    batch_size: int = BACKFILL_BATCH_SIZE,
+) -> bool:
+    """Populate normalized ID payload fields used by partial ID lookup."""
+    scanned = 0
+    updated = 0
+    skipped = 0
+    missing_original_id = 0
+    offset = None
+    operations: list[models.SetPayloadOperation] = []
+    success = True
+
+    try:
+        while True:
+            points, offset = _scroll_backfill_points(
+                client, collection_name, offset, batch_size
+            )
+
+            for point in points:
+                scanned += 1
+                payload = point.payload or {}
+                original_id = payload.get(ORIGINAL_ID_FIELD)
+                if original_id is None:
+                    missing_original_id += 1
+                    continue
+
+                expected_payload = build_normalized_id_payload(original_id)
+                if all(
+                    payload.get(field_name) == expected_value
+                    for field_name, expected_value in expected_payload.items()
+                ):
+                    skipped += 1
+                    continue
+
+                operations.append(
+                    models.SetPayloadOperation(
+                        set_payload=models.SetPayload(
+                            payload=expected_payload,
+                            points=[point.id],
+                        )
+                    )
+                )
+                updated += 1
+
+                if len(operations) >= batch_size:
+                    success = (
+                        flush_payload_backfill_batch(
+                            client, collection_name, operations
+                        )
+                        and success
+                    )
+                    operations = []
+
+            if offset is None:
+                break
+
+        success = (
+            flush_payload_backfill_batch(client, collection_name, operations)
+            and success
+        )
+    except Exception as e:
+        print(f"  ! Error scanning collection for normalized ID backfill: {e}")
+        if operations:
+            flush_payload_backfill_batch(client, collection_name, operations)
+            operations = []
+        success = False
+
+    print(
+        "  * Normalized ID payload backfill: "
+        f"scanned={scanned} updated={updated} skipped={skipped} missing_original_id={missing_original_id}"
+    )
+    return success
+
+
 def migrate_collection_payload_indexes(
     client: QdrantClient,
     collection_name: str,
@@ -249,6 +419,9 @@ def migrate_collection_payload_indexes(
     except Exception as e:
         print(f"  ! Collection not found or unavailable: {e}")
         return False
+
+    if not backfill_normalized_id_payloads(client, collection_name):
+        collection_success = False
 
     for field_name in fields:
         existing_index = get_existing_payload_index(collection_info, field_name)

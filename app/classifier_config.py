@@ -40,7 +40,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "ETIM version 10.0 (2024-12-10)": {
-                "collection_name": "ETIM_10_eng_new001_v4",
+                "collection_name": "ETIM_10_1_Qwen3-8B_v1",
                 "base_url": "https://viewer.etim-international.com/class/",
             },
         },
@@ -55,7 +55,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": UNSPSC_QUERY_INSTRUCTION,
         "versions": {
             "UNSPSC UNv260801.1 (18 March 2025)": {
-                "collection_name": "UNSPSC_UNv260801-1-eng_new001-3072_v1",
+                "collection_name": "UNSPSC_UNv260801-1__OR_Qwen3-8B__v2",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
         },
@@ -70,14 +70,14 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "2022 NAICS": {
-                "collection_name": "NAICS_2022_eng_new001_v1",
+                "collection_name": "NAICS_2022_eng_qwen3_8b_2048_v1",
                 "base_url": "https://www.naics.com/code-search/?trms=",
                 # "tooltip": "T = Canadian, Mexican, and United States industries are comparable",
             },
-            "2022 NAICS (only 6-digit codes)": {
-                "collection_name": "NAICS_2022_SIXdigits_new001_v3",
-                "base_url": "https://www.naics.com/code-search/?trms=",
-            },
+            # "2022 NAICS (only 6-digit codes)": {
+            #    "collection_name": "NAICS_2022_SIXdigits_new001_v3",
+            #    "base_url": "https://www.naics.com/code-search/?trms=",
+            # },
         },
     },
     "ISIC": {
@@ -109,7 +109,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "HS6 2022": {
-                "collection_name": "H6-HS_2022_new001_v4",
+                "collection_name": "HS6_2022_Qwen3-8B_v1",
                 "base_url": "https://www.tariffnumber.com/2026/",
             },
         },
@@ -123,9 +123,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
-            "CN 2025": {
-                "collection_name": "CN2025_v2",
-                "base_url": "https://www.tariffnumber.com/2025/",
+            "CN 2026": {
+                "collection_name": "CN2026_Qwen3-8B_v4",
+                "base_url": "https://www.tariffnumber.com/2026/",
             },
         },
     },
@@ -139,7 +139,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "NACE Rev. 2.1": {
-                "collection_name": "NACErev2-1_v2",
+                "collection_name": "NACE_Rev2_1_Qwen3-8B_v2",
                 "base_url": "https://showvoc.op.europa.eu/#/datasets/ESTAT_Statistical_Classification_of_Economic_Activities_in_the_European_Community_Rev._2.1._%28NACE_2.1%29/data?resId=http:%2F%2Fdata.europa.eu%2Fux2%2Fnace2.1%2F",
             },
         },
@@ -154,10 +154,10 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "CPV 2008 (ver. 2013)": {
-                "collection_name": "cpv_2008_ver_2013_v3",
+                "collection_name": "cpv_2008_qwen3_8b_v1",
             },
             "CPV 2008 Supplementary codes": {
-                "collection_name": "cpv_2008_ver_2013_Supplementary_codes_v2",
+                "collection_name": "cpv_2008_supplementary_qwen3_8b_v1",
             },
         },
     },
@@ -171,7 +171,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "versions": {
             "NSN extract (February 22, 2023)": {
-                "collection_name": "nsn-extract-2-21-23_v3",
+                "collection_name": "NSN_Qwen3-8B_v1",
             },
         },
     },
