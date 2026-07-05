@@ -8,8 +8,15 @@ DEFAULT_EMBEDDING_MODEL = os.getenv(
 DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "2048"))
 
 # 'Given a web search query, retrieve relevant passages that answer the query'
-DEFAULT_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant entry from the target classification taxonomy."
-UNSPSC_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant specific entry from the UNSPSC taxonomy that corresponds to that description."
+DEFAULT_QUERY_INSTRUCTION = (
+    "Given a text description, retrieve the most relevant taxonomy entry that directly and specifically classifies it. "
+    "Prefer exact functional, industry, material, or use-case matches over broad parent categories, and do not infer unsupported details."
+)
+
+UNSPSC_QUERY_INSTRUCTION = (
+    "Given a product or service description, retrieve the most relevant UNSPSC entry that directly and specifically classifies it. "
+    "Prefer commodity-level matches when available, avoid broad segment or family matches unless they are the best supported fit, and do not infer unsupported details."
+)
 
 
 class VersionConfig(TypedDict):

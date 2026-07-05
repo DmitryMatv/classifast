@@ -9,7 +9,7 @@ from app.id_lookup import (
     ORIGINAL_ID_NORMALIZED_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
 )
-from utilities import create_text_indexes
+from utilities import sync_payload_indexes as create_text_indexes
 
 
 class QdrantStartupIndexTests(unittest.TestCase):

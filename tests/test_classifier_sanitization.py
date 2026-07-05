@@ -8,7 +8,9 @@ from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
 from requests import Response
 
 from app.classifier import (
+    DEFAULT_RERANK_CANDIDATE_LIMIT,
     build_query_embedding_text,
+    build_rerank_query_text,
     get_classification_cache_headers,
     get_embedding,
     perform_classification,
@@ -185,9 +187,62 @@ class ClassificationContractTests(unittest.TestCase):
             expected_embedding_text,
         )
         self.assertEqual(result["results"][0]["score"], 0.91)
-        self.assertEqual(semantic_mock.call_args.kwargs["top_k"], 2)
+        self.assertEqual(
+            semantic_mock.call_args.kwargs["top_k"],
+            DEFAULT_RERANK_CANDIDATE_LIMIT,
+        )
         rerank_mock.assert_called_once()
-        self.assertEqual(rerank_mock.call_args.kwargs["rerank_top_n"], 2)
+        self.assertEqual(rerank_mock.call_args.kwargs["top_k"], 2)
+        self.assertEqual(
+            rerank_mock.call_args.kwargs["rerank_top_n"],
+            DEFAULT_RERANK_CANDIDATE_LIMIT,
+        )
+        self.assertEqual(
+            rerank_mock.call_args.kwargs["query_instruction"],
+            CLASSIFIER_CONFIG[self.classifier_type]["query_instruction"],
+        )
+
+    def test_semantic_search_uses_display_top_k_without_zeroentropy(self) -> None:
+        semantic_results = [
+            {
+                "id": "semantic-1",
+                "score": 0.41,
+                "payload": {"original_id": "1234", "class_name": "Pump body"},
+            },
+            {
+                "id": "semantic-2",
+                "score": 0.39,
+                "payload": {"original_id": "5678", "class_name": "Pump casing"},
+            },
+        ]
+
+        with (
+            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_partial_id_search", return_value=[]),
+            patch("app.classifier.get_embedding", return_value=[0.1, 0.2, 0.3]),
+            patch(
+                "app.classifier.perform_semantic_search",
+                return_value=semantic_results,
+            ) as semantic_mock,
+            patch("app.classifier.rerank_with_zeroentropy") as rerank_mock,
+        ):
+            result = perform_classification(
+                embed_client=object(),
+                qdrant_client=object(),
+                query="industrial pump",
+                classifier_type=self.classifier_type,
+                version=self.version,
+                top_k=2,
+                quantization_cache={},
+                zclient=None,
+            )
+
+        self.assertEqual(
+            [item["id"] for item in result["results"]],
+            ["semantic-1", "semantic-2"],
+        )
+        self.assertEqual(semantic_mock.call_args.kwargs["top_k"], 2)
+        rerank_mock.assert_not_called()
 
     def test_build_query_embedding_text_adds_instruction(self) -> None:
         result = build_query_embedding_text("industrial pump", "Find matching codes.")
@@ -204,6 +259,24 @@ class ClassificationContractTests(unittest.TestCase):
         )
         self.assertEqual(
             build_query_embedding_text("industrial pump", ""),
+            "industrial pump",
+        )
+
+    def test_build_rerank_query_text_adds_instruction(self) -> None:
+        result = build_rerank_query_text("industrial pump", "Find matching codes.")
+
+        self.assertEqual(
+            result,
+            "Query: industrial pump\nInstructions: Find matching codes.",
+        )
+
+    def test_build_rerank_query_text_returns_query_without_instruction(self) -> None:
+        self.assertEqual(
+            build_rerank_query_text("industrial pump", None),
+            "industrial pump",
+        )
+        self.assertEqual(
+            build_rerank_query_text("industrial pump", ""),
             "industrial pump",
         )
 
@@ -236,6 +309,52 @@ class ClassificationContractTests(unittest.TestCase):
         self.assertTrue(all(item["score"] != 0.0 for item in result))
         self.assertTrue(
             all("zeroentropy_relevance_score" not in item for item in result)
+        )
+
+    def test_rerank_wraps_query_instruction_and_limits_response(self) -> None:
+        semantic_results = [
+            {
+                "id": f"semantic-{index}",
+                "score": 0.5,
+                "payload": {
+                    "original_id": str(index),
+                    "class_name": f"Pump part {index}",
+                },
+            }
+            for index in range(DEFAULT_RERANK_CANDIDATE_LIMIT)
+        ]
+        response = SimpleNamespace(
+            results=[
+                SimpleNamespace(index=1, relevance_score=0.91),
+                SimpleNamespace(index=0, relevance_score=0.52),
+            ]
+        )
+        rerank_mock = Mock(return_value=response)
+        zclient = SimpleNamespace(models=SimpleNamespace(rerank=rerank_mock))
+
+        result = rerank_with_zeroentropy(
+            zclient=zclient,
+            query="industrial pump",
+            candidates=semantic_results,
+            top_k=2,
+            rerank_top_n=DEFAULT_RERANK_CANDIDATE_LIMIT,
+            query_instruction="Find matching codes.",
+        )
+
+        rerank_mock.assert_called_once()
+        call_kwargs = rerank_mock.call_args.kwargs
+        self.assertEqual(
+            call_kwargs["query"],
+            "Query: industrial pump\nInstructions: Find matching codes.",
+        )
+        self.assertEqual(call_kwargs["top_n"], 2)
+        self.assertEqual(
+            len(call_kwargs["documents"]),
+            DEFAULT_RERANK_CANDIDATE_LIMIT,
+        )
+        self.assertEqual(
+            [item["id"] for item in result],
+            ["semantic-1", "semantic-0"],
         )
 
 

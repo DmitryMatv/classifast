@@ -56,7 +56,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         params = {
             "product_description": "trash removal",
             "version": self.version,
-            "top_k": 30,
+            "top_k": 10,
         }
         params.update(extra_params)
         transport = httpx.ASGITransport(app=self.app)

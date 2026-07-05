@@ -37,6 +37,7 @@ ALLOWED_QUERY_PATTERN = re.compile(
     r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
 )
 TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+DEFAULT_RERANK_CANDIDATE_LIMIT = 100
 
 
 # ===== Input Sanitization =====
@@ -178,6 +179,13 @@ def build_query_embedding_text(query: str, instruction: Optional[str]) -> str:
     if not instruction:
         return query
     return f"Instruct: {instruction.strip()}\nQuery: {query}"
+
+
+def build_rerank_query_text(query: str, instruction: Optional[str]) -> str:
+    """Format reranker query text with ZeroEntropy instruction context."""
+    if not instruction:
+        return query
+    return f"Query: {query}\nInstructions: {instruction.strip()}"
 
 
 def _build_embedding_retry() -> tenacity.Retrying:
@@ -558,6 +566,7 @@ def rerank_with_zeroentropy(
     top_k: int = 5,
     rerank_top_n: int = 15,
     document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
+    query_instruction: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Rerank semantic search results using ZeroEntropy rerank API.
 
@@ -570,6 +579,7 @@ def rerank_with_zeroentropy(
         document_builder: Optional callback to build document text from a candidate.
             Receives the full candidate dict and returns a string.
             If None, uses class_name + definition from payload.
+        query_instruction: Optional reranker instruction to wrap around the query.
 
     Returns:
         List of reranked candidates with zeroentropy_relevance_score field.
@@ -582,6 +592,7 @@ def rerank_with_zeroentropy(
         candidates, rerank_top_n
     )
     documents = _build_zeroentropy_documents(candidates_to_rerank, document_builder)
+    rerank_query = build_rerank_query_text(query, query_instruction)
 
     try:
         logger.info(
@@ -593,8 +604,9 @@ def rerank_with_zeroentropy(
         # Call ZeroEntropy rerank API
         response = zclient.models.rerank(
             model="zerank-2",
-            query=query,
+            query=rerank_query,
             documents=documents,
+            top_n=top_k,
         )
 
         reranked_candidates = _apply_zeroentropy_response(
@@ -823,12 +835,20 @@ def _exclude_id_match_results(
     return [r for r in semantic_results if r.get("id") not in match_ids]
 
 
+def _semantic_retrieve_limit(top_k: int, reranking_enabled: bool) -> int:
+    if not reranking_enabled:
+        return top_k
+    return max(top_k, DEFAULT_RERANK_CANDIDATE_LIMIT)
+
+
 def _rank_semantic_results(
     zclient: Optional[ZeroEntropy],
     normalized_query: str,
     filtered_semantic: List[Dict[str, Any]],
     id_match_results: List[Dict[str, Any]],
     top_k: int,
+    rerank_top_n: int,
+    query_instruction: Optional[str],
 ) -> List[Dict[str, Any]]:
     if zclient is not None and not id_match_results and filtered_semantic:
         logger.info(
@@ -840,7 +860,8 @@ def _rank_semantic_results(
             query=normalized_query,
             candidates=filtered_semantic,
             top_k=top_k,
-            rerank_top_n=top_k,
+            rerank_top_n=rerank_top_n,
+            query_instruction=query_instruction,
         )
         for result in reranked_semantic:
             if "zeroentropy_relevance_score" in result:
@@ -935,17 +956,20 @@ def perform_classification(
             partial_ms,
         )
 
+        reranking_enabled = zclient is not None and not partial_results
+        semantic_retrieve_limit = _semantic_retrieve_limit(top_k, reranking_enabled)
+
         logger.info(
             "SEMANTIC_SEARCH: Fetching top %d candidates (reranking=%s, id_matches=%d)",
-            top_k,
-            "enabled" if zclient is not None and not partial_results else "disabled",
+            semantic_retrieve_limit,
+            "enabled" if reranking_enabled else "disabled",
             len(partial_results),
         )
         semantic_results = _run_semantic_classification_search(
             embed_client=embed_client,
             qdrant_client=qdrant_client,
             context=context,
-            top_k=top_k,
+            top_k=semantic_retrieve_limit,
             has_quantization=has_quantization,
         )
         filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
@@ -955,6 +979,8 @@ def perform_classification(
             filtered_semantic,
             partial_results,
             top_k,
+            semantic_retrieve_limit,
+            context.config.get("query_instruction"),
         )
         classification_results = _merge_classification_results(
             partial_results, ranked_semantic, top_k

@@ -57,8 +57,12 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = _build_test_app()
-        cls.classifier_type = "NAICS"
-        versions = list(CLASSIFIER_CONFIG["NAICS"]["versions"])
+        cls.classifier_type, config = next(
+            (name, config)
+            for name, config in CLASSIFIER_CONFIG.items()
+            if len(config["versions"]) >= 2
+        )
+        versions = list(config["versions"])
         cls.default_version = versions[0]
         cls.non_default_version = versions[1]
 
@@ -109,7 +113,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            "/NAICS/industrial_pump",
+            f"/{self.classifier_type}/industrial_pump",
         )
 
     @patch("app.web.perform_classification")
@@ -128,7 +132,8 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/NAICS/industrial_pump?{urlencode({'version': self.non_default_version})}",
+            f"/{self.classifier_type}/industrial_pump?"
+            f"{urlencode({'version': self.non_default_version})}",
         )
 
     @patch("app.web.perform_classification")
@@ -141,13 +146,13 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(
             push_url="true",
             track_usage="false",
-            top_k="10",
+            top_k="30",
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/NAICS/industrial_pump?{urlencode({'top_k': 10})}",
+            f"/{self.classifier_type}/industrial_pump?{urlencode({'top_k': 30})}",
         )
 
     @patch("app.web.perform_classification")
@@ -161,14 +166,14 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             push_url="true",
             track_usage="false",
             version=self.non_default_version,
-            top_k="10",
+            top_k="30",
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            "/NAICS/industrial_pump?"
-            + urlencode({"version": self.non_default_version, "top_k": 10}),
+            f"/{self.classifier_type}/industrial_pump?"
+            + urlencode({"version": self.non_default_version, "top_k": 30}),
         )
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
@@ -200,7 +205,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("stale-while-revalidate", response.headers["Cache-Control"])
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            "/NAICS/industrial_pump",
+            f"/{self.classifier_type}/industrial_pump",
         )
         perform_classification_mock.assert_not_called()
         increment_usage_mock.assert_not_awaited()
@@ -237,7 +242,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(top_k=None, track_usage="false")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
 
     @patch("app.web.perform_classification")
     async def test_fragment_uses_default_version_when_omitted(
@@ -268,32 +273,32 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             return await client.get(path)
 
-    async def test_unspsc_page_defaults_to_top_30(self) -> None:
+    async def test_unspsc_page_defaults_to_top_10(self) -> None:
         response = await self._request("/UNSPSC/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="30" selected', response.text)
+        self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
-    async def test_naics_page_defaults_to_top_30(self) -> None:
+    async def test_naics_page_defaults_to_top_10(self) -> None:
         response = await self._request("/NAICS/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="30" selected', response.text)
+        self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
-    async def test_unspsc_invalid_top_k_falls_back_to_30(self) -> None:
+    async def test_unspsc_invalid_top_k_falls_back_to_10(self) -> None:
         response = await self._request("/UNSPSC/?top_k=999")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="30" selected', response.text)
+        self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
-    async def test_naics_invalid_top_k_falls_back_to_30(self) -> None:
+    async def test_naics_invalid_top_k_falls_back_to_10(self) -> None:
         response = await self._request("/NAICS/?top_k=999")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('option value="30" selected', response.text)
+        self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
 
@@ -354,7 +359,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             perform_classification_mock.call_args.kwargs["version"], self.unspsc_version
         )
-        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
         check_usage_mock.assert_not_awaited()
         increment_usage_mock.assert_not_awaited()
 
@@ -376,7 +381,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             perform_classification_mock.call_args.kwargs["version"], self.naics_version
         )
-        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
 
     @patch("app.web.perform_classification")
     async def test_base_page_primes_score_bar_animation_before_page_scripts(
@@ -493,7 +498,7 @@ class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 30)
+        self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
 
 
 if __name__ == "__main__":

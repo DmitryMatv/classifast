@@ -109,14 +109,14 @@ describe("classifier.ts", () => {
         data-initial-query-present="false"
         data-initial-track-usage="false"
         data-autoload-enabled="false"
-        data-default-top-k="30"
+        data-default-top-k="10"
         data-default-version="v1"
       >
         <textarea id="product_description_area" name="product_description"></textarea>
         <select id="show_top_k_categories" name="top_k">
           <option value="5">5</option>
-          <option value="10">10</option>
-          <option value="30" selected>30</option>
+          <option value="10" selected>10</option>
+          <option value="30">30</option>
         </select>
         <select id="version_selector" name="version">
           <option value="v1" selected>v1</option>
@@ -214,7 +214,7 @@ describe("classifier.ts", () => {
       "show_top_k_categories",
     ) as HTMLSelectElement;
     textarea.value = "industrial pump";
-    topK.value = "10";
+    topK.value = "30";
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
@@ -223,7 +223,7 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["top_k"]).toBe("10");
+    expect(detail.parameters["top_k"]).toBe("30");
     expect(detail.parameters["version"]).toBeUndefined();
   });
 
