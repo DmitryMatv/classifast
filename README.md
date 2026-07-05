@@ -1,4 +1,4 @@
-# Classifast
+# [Classifast.com](https://classifast.com)
 
 ## Accurate classifier of UNSPSC, NAICS, HS/CN codes, and more
 
