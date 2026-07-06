@@ -281,6 +281,7 @@ def perform_semantic_search(
     query_embedding: List[float],
     top_k: int = 10,
     has_quantization: bool = False,
+    search_exact: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Perform semantic search using embedding vector.
@@ -291,6 +292,7 @@ def perform_semantic_search(
         query_embedding: Query embedding vector
         top_k: Maximum number of results to return
         has_quantization: Whether collection has quantization enabled
+        search_exact: Whether to search without approximation
 
     Returns:
         List of semantic search results with confidence scores
@@ -301,7 +303,7 @@ def perform_semantic_search(
         # Prepare search parameters
         search_params = models.SearchParams(
             hnsw_ef=256,  # Default is 128, higher ef improves recall
-            exact=False,
+            exact=search_exact,
         )
 
         # For quantized collections, add quantization search params
@@ -324,10 +326,11 @@ def perform_semantic_search(
         )
         query_duration = time.time() - query_start
         logger.debug(
-            "Qdrant semantic search: %.3fs, collection=%s, top_k=%d, found=%d results",
+            "Qdrant semantic search: %.3fs, collection=%s, top_k=%d, exact=%s, found=%d results",
             query_duration,
             collection_name,
             top_k,
+            search_exact,
             len(search_result.points),
         )
 
@@ -566,7 +569,7 @@ def rerank_with_zeroentropy(
     top_k: int = 5,
     rerank_top_n: int = 15,
     document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
-    query_instruction: Optional[str] = None,
+    rerank_instruction: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Rerank semantic search results using ZeroEntropy rerank API.
 
@@ -579,7 +582,7 @@ def rerank_with_zeroentropy(
         document_builder: Optional callback to build document text from a candidate.
             Receives the full candidate dict and returns a string.
             If None, uses class_name + definition from payload.
-        query_instruction: Optional reranker instruction to wrap around the query.
+        rerank_instruction: Optional reranker instruction to wrap around the query.
 
     Returns:
         List of reranked candidates with zeroentropy_relevance_score field.
@@ -592,7 +595,7 @@ def rerank_with_zeroentropy(
         candidates, rerank_top_n
     )
     documents = _build_zeroentropy_documents(candidates_to_rerank, document_builder)
-    rerank_query = build_rerank_query_text(query, query_instruction)
+    rerank_query = build_rerank_query_text(query, rerank_instruction)
 
     try:
         logger.info(
@@ -756,6 +759,10 @@ def _collection_has_quantization(
     return quantization_cache.get(collection_name, False)
 
 
+def _should_use_exact_qdrant_search(classifier_type: str) -> bool:
+    return classifier_type.upper() != "UNSPSC"
+
+
 def _timed_exact_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
@@ -806,6 +813,7 @@ def _run_semantic_classification_search(
     context: _ClassificationContext,
     top_k: int,
     has_quantization: bool,
+    search_exact: bool,
 ) -> List[Dict[str, Any]]:
     embedding_text = build_query_embedding_text(
         context.normalized_query,
@@ -824,6 +832,7 @@ def _run_semantic_classification_search(
         query_embedding=query_embedding,
         top_k=top_k,
         has_quantization=has_quantization,
+        search_exact=search_exact,
     )
 
 
@@ -848,7 +857,7 @@ def _rank_semantic_results(
     id_match_results: List[Dict[str, Any]],
     top_k: int,
     rerank_top_n: int,
-    query_instruction: Optional[str],
+    rerank_instruction: Optional[str],
 ) -> List[Dict[str, Any]]:
     if zclient is not None and not id_match_results and filtered_semantic:
         logger.info(
@@ -861,7 +870,7 @@ def _rank_semantic_results(
             candidates=filtered_semantic,
             top_k=top_k,
             rerank_top_n=rerank_top_n,
-            query_instruction=query_instruction,
+            rerank_instruction=rerank_instruction,
         )
         for result in reranked_semantic:
             if "zeroentropy_relevance_score" in result:
@@ -922,6 +931,7 @@ def perform_classification(
         has_quantization = _collection_has_quantization(
             context.collection_name, quantization_cache
         )
+        search_exact = _should_use_exact_qdrant_search(context.classifier_type)
         exact_results, exact_ms = _timed_exact_id_search(
             qdrant_client, context.collection_name, context.normalized_query
         )
@@ -971,6 +981,7 @@ def perform_classification(
             context=context,
             top_k=semantic_retrieve_limit,
             has_quantization=has_quantization,
+            search_exact=search_exact,
         )
         filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
         ranked_semantic = _rank_semantic_results(
@@ -980,7 +991,10 @@ def perform_classification(
             partial_results,
             top_k,
             semantic_retrieve_limit,
-            context.config.get("query_instruction"),
+            context.config.get(
+                "rerank_instruction",
+                context.config.get("query_instruction"),
+            ),
         )
         classification_results = _merge_classification_results(
             partial_results, ranked_semantic, top_k

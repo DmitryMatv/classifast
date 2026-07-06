@@ -766,6 +766,29 @@
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% endif %}
             </div>
+            {% if classifier_type == 'UNSPSC' %}
+            <div class="mt-2 mb-4 text-gray-800" aria-label="UNSPSC resources">
+                <span class="block">UNSPSC resources:</span>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <a href="https://www.undp.org/unspsc"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNDP</a>
+                    <a href="https://www.ungm.org/public/unspsc"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNGM Search</a>
+                    <a href="https://help.ungm.org/hc/en-us/articles/360012816160-What-are-UNSPSC-codes"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNGM Help</a>
+                    <a href="https://developer.ungm.org/Article/UNSPSC"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNGM API</a>
+                    <a href="https://en.wikipedia.org/wiki/UNSPSC"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki</a>
+                </div>
+            </div>
+            {% endif %}
+            {% if classifier_type != 'UNSPSC' %}
             <button id="description-toggle" type="button" aria-expanded="false"
                 class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none hover:underline decoration-sky-700 underline-offset-2"
                 aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button"
@@ -779,6 +802,7 @@
                     {{ description | e }}
                 </div>
             </div>
+            {% endif %}
 
             <form id="classifier-form"
                 hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"

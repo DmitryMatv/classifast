@@ -8,14 +8,23 @@ DEFAULT_EMBEDDING_MODEL = os.getenv(
 DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "2048"))
 
 # 'Given a web search query, retrieve relevant passages that answer the query'
-DEFAULT_QUERY_INSTRUCTION = (
-    "Given a text description, retrieve the most relevant taxonomy entry that directly and specifically classifies it. "
-    "Prefer exact functional, industry, material, or use-case matches over broad parent categories, and do not infer unsupported details."
-)
+DEFAULT_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant taxonomy entry that directly and specifically classifies it. Prefer exact functional, industry, material, or use-case matches over broad parent categories, and do not infer unsupported details."
 
 UNSPSC_QUERY_INSTRUCTION = (
-    "Given a product or service description, retrieve the most relevant UNSPSC entry that directly and specifically classifies it. "
-    "Prefer commodity-level matches when available, avoid broad segment or family matches unless they are the best supported fit, and do not infer unsupported details."
+    "Retrieve the most relevant UNSPSC entry that directly and specifically classifies the given product or service description. "
+    "Prefer commodity-level matches when available; avoid broad segment or family matches. Do not infer unsupported details."
+)
+
+DEFAULT_RERANK_INSTRUCTION = (
+    "Determine if the candidate taxonomy entry directly and specifically classifies the text description. "
+    "Score higher for exact functional, industry, material, or use-case matches. Penalize broad parent categories if a more specific match is possible. "
+    "Do not reward inferences of unsupported details."
+)
+
+UNSPSC_RERANK_INSTRUCTION = (
+    "Evaluate the match between the product/service description and the UNSPSC entry. "
+    "Assign the highest scores to commodity-level matches. Strictly penalize broad segment or family matches unless no specific commodity match is supported. "
+    "Do not infer unsupported details."
 )
 
 
@@ -33,6 +42,7 @@ class ClassifierConfig(TypedDict):
     embed_model_name: str
     embed_dims: int
     query_instruction: str
+    rerank_instruction: NotRequired[str]
     versions: dict[str, VersionConfig]
 
 
@@ -45,6 +55,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "ETIM version 10.0 (2024-12-10)": {
                 "collection_name": "ETIM_10_1_Qwen3-8B_v1",
@@ -60,6 +71,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": UNSPSC_QUERY_INSTRUCTION,
+        "rerank_instruction": UNSPSC_RERANK_INSTRUCTION,
         "versions": {
             "UNSPSC UNv260801.1 (18 March 2025)": {
                 "collection_name": "UNSPSC_UNv260801-1__OR_Qwen3-8B__v2",
@@ -75,6 +87,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "2022 NAICS": {
                 "collection_name": "NAICS_2022_eng_qwen3_8b_2048_v1",
@@ -95,6 +108,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "ISIC Rev. 4": {
                 "collection_name": "ISIC_4_new001_3corr",
@@ -114,6 +128,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "HS6 2022": {
                 "collection_name": "HS6_2022_Qwen3-8B_v1",
@@ -129,6 +144,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "CN 2026": {
                 "collection_name": "CN2026_Qwen3-8B_v4",
@@ -144,6 +160,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "NACE Rev. 2.1": {
                 "collection_name": "NACE_Rev2_1_Qwen3-8B_v2",
@@ -159,6 +176,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "CPV 2008 (ver. 2013)": {
                 "collection_name": "cpv_2008_qwen3_8b_v1",
@@ -176,6 +194,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "NSN extract (February 22, 2023)": {
                 "collection_name": "NSN_Qwen3-8B_v1",
@@ -190,6 +209,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "HTS 2024": {
                 "collection_name": "HTS_v4",

@@ -14,6 +14,7 @@ from app.classifier import (
     get_classification_cache_headers,
     get_embedding,
     perform_classification,
+    perform_semantic_search,
     rerank_with_zeroentropy,
     sanitize_query_text,
 )
@@ -29,6 +30,10 @@ def _first_classifier_with_version() -> tuple[str, str]:
     )
     version = next(iter(config["versions"]))
     return classifier_type, version
+
+
+def _version_for_classifier(classifier_type: str) -> str:
+    return next(iter(CLASSIFIER_CONFIG[classifier_type]["versions"]))
 
 
 class SanitizeQueryTextTests(unittest.TestCase):
@@ -198,8 +203,8 @@ class ClassificationContractTests(unittest.TestCase):
             DEFAULT_RERANK_CANDIDATE_LIMIT,
         )
         self.assertEqual(
-            rerank_mock.call_args.kwargs["query_instruction"],
-            CLASSIFIER_CONFIG[self.classifier_type]["query_instruction"],
+            rerank_mock.call_args.kwargs["rerank_instruction"],
+            CLASSIFIER_CONFIG[self.classifier_type]["rerank_instruction"],
         )
 
     def test_semantic_search_uses_display_top_k_without_zeroentropy(self) -> None:
@@ -243,6 +248,68 @@ class ClassificationContractTests(unittest.TestCase):
         )
         self.assertEqual(semantic_mock.call_args.kwargs["top_k"], 2)
         rerank_mock.assert_not_called()
+
+    def test_non_unspsc_classifiers_use_exact_qdrant_search(self) -> None:
+        semantic_results = [
+            {
+                "id": "semantic-1",
+                "score": 0.41,
+                "payload": {"original_id": "1234", "class_name": "Pump body"},
+            }
+        ]
+
+        with (
+            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_partial_id_search", return_value=[]),
+            patch("app.classifier.get_embedding", return_value=[0.1, 0.2, 0.3]),
+            patch(
+                "app.classifier.perform_semantic_search",
+                return_value=semantic_results,
+            ) as semantic_mock,
+        ):
+            perform_classification(
+                embed_client=object(),
+                qdrant_client=object(),
+                query="industrial pump",
+                classifier_type="ETIM",
+                version=_version_for_classifier("ETIM"),
+                top_k=1,
+                quantization_cache={},
+                zclient=None,
+            )
+
+        self.assertTrue(semantic_mock.call_args.kwargs["search_exact"])
+
+    def test_unspsc_classifier_keeps_approximate_qdrant_search(self) -> None:
+        semantic_results = [
+            {
+                "id": "semantic-1",
+                "score": 0.41,
+                "payload": {"original_id": "1234", "class_name": "Pump body"},
+            }
+        ]
+
+        with (
+            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_partial_id_search", return_value=[]),
+            patch("app.classifier.get_embedding", return_value=[0.1, 0.2, 0.3]),
+            patch(
+                "app.classifier.perform_semantic_search",
+                return_value=semantic_results,
+            ) as semantic_mock,
+        ):
+            perform_classification(
+                embed_client=object(),
+                qdrant_client=object(),
+                query="laptop computer",
+                classifier_type="UNSPSC",
+                version=_version_for_classifier("UNSPSC"),
+                top_k=1,
+                quantization_cache={},
+                zclient=None,
+            )
+
+        self.assertFalse(semantic_mock.call_args.kwargs["search_exact"])
 
     def test_build_query_embedding_text_adds_instruction(self) -> None:
         result = build_query_embedding_text("industrial pump", "Find matching codes.")
@@ -338,7 +405,7 @@ class ClassificationContractTests(unittest.TestCase):
             candidates=semantic_results,
             top_k=2,
             rerank_top_n=DEFAULT_RERANK_CANDIDATE_LIMIT,
-            query_instruction="Find matching codes.",
+            rerank_instruction="Find matching codes.",
         )
 
         rerank_mock.assert_called_once()
@@ -356,6 +423,44 @@ class ClassificationContractTests(unittest.TestCase):
             [item["id"] for item in result],
             ["semantic-1", "semantic-0"],
         )
+
+
+class QdrantSemanticSearchTests(unittest.TestCase):
+    def test_semantic_search_passes_exact_search_param(self) -> None:
+        captured = {}
+
+        def query_points(**kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(points=[])
+
+        client = SimpleNamespace(query_points=query_points)
+
+        results = perform_semantic_search(
+            qdrant_client=client,
+            collection_name="products",
+            query_embedding=[0.1, 0.2, 0.3],
+            search_exact=True,
+        )
+
+        self.assertEqual(results, [])
+        self.assertTrue(captured["search_params"].exact)
+
+    def test_semantic_search_defaults_to_approximate(self) -> None:
+        captured = {}
+
+        def query_points(**kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(points=[])
+
+        client = SimpleNamespace(query_points=query_points)
+
+        perform_semantic_search(
+            qdrant_client=client,
+            collection_name="products",
+            query_embedding=[0.1, 0.2, 0.3],
+        )
+
+        self.assertFalse(captured["search_params"].exact)
 
 
 class EmbeddingAndCacheHeaderTests(unittest.TestCase):
