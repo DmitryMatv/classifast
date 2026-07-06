@@ -6,6 +6,8 @@
 
 Classifast is a web application that provides easy classification of any text input according to international product and service standards like UNSPSC, NAICS, ISIC, ETIM, HS, CN. Built with FastAPI and modern web technologies, it offers fast, accurate semantic search capabilities for automated yet intelligent categorization.
 
+<a href="https://www.producthunt.com/products/classifast-com?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-classifast-com-2-0" target="_blank" rel="noopener noreferrer"><img alt="Classifast.com 2.0 - Introducing Mappings + More accurate results (re-ranking) | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1189360&amp;theme=light&amp;t=1783342139980"></a>
+
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/DmitryMatv/classifast?utm_source=oss&utm_medium=github&utm_campaign=DmitryMatv%2Fclassifast&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 ## Features
