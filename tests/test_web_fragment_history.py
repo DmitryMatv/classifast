@@ -69,7 +69,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_push_url_true_returns_hx_push_url(
+    async def test_push_url_true_metered_request_redirects_to_cacheable_fragment(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
@@ -86,18 +86,27 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
         response = await self._request_fragment(push_url="true", track_usage="true")
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
         self.assertEqual(
-            response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/trash_removal",
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
         )
+        self.assertEqual(
+            response.headers["Location"],
+            f"/{self.classifier_type}/fragment?"
+            + "product_description=trash+removal&top_k=10&track_usage=false",
+        )
+        self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
+        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
+        perform_classification_mock.assert_not_called()
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_push_url_false_omits_hx_push_url(
+    async def test_push_url_false_metered_redirect_preserves_suppressed_push_url(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
@@ -114,10 +123,17 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
         response = await self._request_fragment(push_url="false", track_usage="true")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn("HX-Push-Url", response.headers)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["Location"],
+            f"/{self.classifier_type}/fragment?"
+            + "product_description=trash+removal&top_k=10&track_usage=false&push_url=false",
+        )
+        self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
+        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
+        perform_classification_mock.assert_not_called()
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
@@ -156,10 +172,15 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
         response = await self._request_fragment(push_url="false", track_usage="true")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn("HX-Push-Url", response.headers)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["Location"],
+            f"/{self.classifier_type}/fragment?"
+            + "product_description=trash+removal&top_k=10&track_usage=false&push_url=false",
+        )
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
+        perform_classification_mock.assert_not_called()
 
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)

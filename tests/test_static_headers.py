@@ -22,6 +22,7 @@ class StaticHeaderTests(unittest.TestCase):
             response_headers["Cloudflare-CDN-Cache-Control"],
             "max-age=43200, stale-while-revalidate=86400",
         )
+        self.assertNotIn("Expires", response_headers)
 
     def test_media_assets_use_static_media_profile_without_immutable(self) -> None:
         response_headers = build_cache_headers(
@@ -39,6 +40,7 @@ class StaticHeaderTests(unittest.TestCase):
             response_headers["Cloudflare-CDN-Cache-Control"],
             "max-age=604800, stale-while-revalidate=86400",
         )
+        self.assertNotIn("Expires", response_headers)
         self.assertNotIn("immutable", response_headers["Cache-Control"])
 
     def test_favicon_uses_static_media_profile(self) -> None:
@@ -54,6 +56,7 @@ class StaticHeaderTests(unittest.TestCase):
             response.headers["Cloudflare-CDN-Cache-Control"],
             "max-age=604800, stale-while-revalidate=86400",
         )
+        self.assertNotIn("Expires", response.headers)
         self.assertEqual(response.headers["Cache-Tag"], "static-files")
 
     def test_root_static_text_files_use_static_text_profile(self) -> None:
@@ -68,6 +71,7 @@ class StaticHeaderTests(unittest.TestCase):
                 response.headers["Cloudflare-CDN-Cache-Control"],
                 "max-age=7200, stale-while-revalidate=86400",
             )
+            self.assertNotIn("Expires", response.headers)
             self.assertEqual(response.headers["Cache-Tag"], "static-files")
 
     def test_csv_downloads_use_static_text_profile(self) -> None:

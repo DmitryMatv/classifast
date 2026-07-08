@@ -204,7 +204,6 @@ def _build_fragment_push_url(
     version: str,
     default_version: str,
     top_k: int,
-    default_top_k: int,
 ) -> str:
     slug = slugify(normalized_description.replace("/", " "))
     new_url = f"/{upper_type}"
@@ -214,12 +213,31 @@ def _build_fragment_push_url(
     params: dict[str, str | int] = {}
     if version and version != default_version:
         params["version"] = version
-    if top_k != default_top_k:
-        params["top_k"] = top_k
+    params["top_k"] = top_k
     if params:
         new_url += f"?{urlencode(params)}"
 
     return new_url
+
+
+def _build_fragment_fetch_url(
+    upper_type: str,
+    normalized_description: str,
+    version: str,
+    default_version: str,
+    top_k: int,
+    push_url: bool,
+) -> str:
+    params: dict[str, str | int] = {
+        "product_description": normalized_description,
+        "top_k": top_k,
+        "track_usage": "false",
+    }
+    if version and version != default_version:
+        params["version"] = version
+    if not push_url:
+        params["push_url"] = "false"
+    return f"/{upper_type}/fragment?{urlencode(params)}"
 
 
 def _build_unmetered_usage_status() -> UsageStatus:
@@ -230,6 +248,20 @@ def _build_unmetered_usage_status() -> UsageStatus:
         is_authenticated=False,
         is_pro=False,
         tracking_id=None,
+    )
+
+
+def _build_metered_redirect_usage_status(usage_status: UsageStatus) -> UsageStatus:
+    if usage_status.remaining < 0 or usage_status.is_pro:
+        return usage_status
+
+    return UsageStatus(
+        allowed=usage_status.allowed,
+        remaining=max(0, usage_status.remaining - 1),
+        limit=usage_status.limit,
+        is_authenticated=usage_status.is_authenticated,
+        is_pro=usage_status.is_pro,
+        tracking_id=usage_status.tracking_id,
     )
 
 
@@ -294,6 +326,15 @@ def _render_classification_results_fragment(
     response.headers.update(get_classification_cache_headers())
     if push_url:
         response.headers["HX-Push-Url"] = new_url
+    add_quota_headers(response, usage_status)
+    return response
+
+
+def _render_metering_redirect(
+    location: str, usage_status: UsageStatus
+) -> RedirectResponse:
+    response = RedirectResponse(url=location, status_code=303)
+    response.headers.update(build_cache_headers(NO_STORE))
     add_quota_headers(response, usage_status)
     return response
 
@@ -641,7 +682,7 @@ async def get_classification_fragment(
     """
     normalized_description = _normalize_product_description(product_description)
     upper_type, config = _get_classifier_config_or_404(classifier_type)
-    version, top_k, default_version, default_top_k = _resolve_classifier_options(
+    version, top_k, default_version, _ = _resolve_classifier_options(
         upper_type, config, version, top_k
     )
 
@@ -664,20 +705,32 @@ async def get_classification_fragment(
         version,
         default_version,
         top_k,
-        default_top_k,
     )
+
+    if not normalized_description:
+        return _render_empty_results_fragment(
+            request, normalized_description, _build_unmetered_usage_status()
+        )
 
     if track_usage:
         usage_status = await check_usage(request, redis_client)
         if not usage_status.allowed:
             return _render_paywall_fragment(request, usage_status, push_url, new_url)
-    else:
-        usage_status = _build_unmetered_usage_status()
 
-    if not normalized_description:
-        return _render_empty_results_fragment(
-            request, normalized_description, usage_status
+        await increment_usage(request, redis_client, usage_status)
+        return _render_metering_redirect(
+            _build_fragment_fetch_url(
+                upper_type,
+                normalized_description,
+                version,
+                default_version,
+                top_k,
+                push_url,
+            ),
+            _build_metered_redirect_usage_status(usage_status),
         )
+
+    usage_status = _build_unmetered_usage_status()
 
     try:
         results_context = build_classification_results_context(
@@ -704,8 +757,6 @@ async def get_classification_fragment(
     response = _render_classification_results_fragment(
         request, results_context, page_title, push_url, new_url, usage_status
     )
-    if track_usage:
-        await increment_usage(request, redis_client, usage_status)
 
     return response
 

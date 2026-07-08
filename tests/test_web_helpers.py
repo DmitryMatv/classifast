@@ -84,7 +84,9 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-    async def _request_fragment(self, **extra_params: str) -> httpx.Response:
+    async def _request_fragment(
+        self, follow_redirects: bool = False, **extra_params: str
+    ) -> httpx.Response:
         params = {
             "product_description": "industrial pump",
             "version": self.default_version,
@@ -99,7 +101,11 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             transport=transport,
             base_url="http://testserver",
         ) as client:
-            return await client.get(f"/{self.classifier_type}/fragment", params=params)
+            return await client.get(
+                f"/{self.classifier_type}/fragment",
+                params=params,
+                follow_redirects=follow_redirects,
+            )
 
     @patch("app.web.perform_classification")
     async def test_default_version_omits_version_query_from_hx_push_url(
@@ -113,7 +119,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/industrial_pump",
+            f"/{self.classifier_type}/industrial_pump?top_k=10",
         )
 
     @patch("app.web.perform_classification")
@@ -133,7 +139,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
             f"/{self.classifier_type}/industrial_pump?"
-            f"{urlencode({'version': self.non_default_version})}",
+            f"{urlencode({'version': self.non_default_version, 'top_k': 10})}",
         )
 
     @patch("app.web.perform_classification")
@@ -205,10 +211,105 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("stale-while-revalidate", response.headers["Cache-Control"])
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/industrial_pump",
+            f"/{self.classifier_type}/industrial_pump?top_k=10",
         )
         perform_classification_mock.assert_not_called()
         increment_usage_mock.assert_not_awaited()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_allowed_metered_fragment_redirects_to_cacheable_fetch_url(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        check_usage_mock.return_value = UsageStatus(
+            allowed=True,
+            remaining=9,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id="track-123",
+        )
+
+        response = await self._request_fragment(push_url="true", track_usage="true")
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertEqual(
+            response.headers["Location"],
+            f"/{self.classifier_type}/fragment?"
+            + urlencode(
+                {
+                    "product_description": "industrial pump",
+                    "top_k": 10,
+                    "track_usage": "false",
+                }
+            ),
+        )
+        self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
+        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
+        perform_classification_mock.assert_not_called()
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_allowed_metered_fragment_follow_redirect_returns_cacheable_results(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = UsageStatus(
+            allowed=True,
+            remaining=9,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id="track-123",
+        )
+
+        response = await self._request_fragment(
+            follow_redirects=True,
+            push_url="true",
+            track_usage="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.history), 1)
+        self.assertEqual(response.history[0].status_code, 303)
+        self.assertEqual(
+            response.history[0].headers["Cache-Control"],
+            "no-store, max-age=0",
+        )
+        self.assertEqual(response.history[0].headers["X-RateLimit-Remaining"], "8")
+        self.assertEqual(response.history[0].headers["X-RateLimit-Limit"], "10")
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=86400, stale-while-revalidate=604800",
+        )
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "max-age=604800, stale-while-revalidate=604800",
+        )
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            f"/{self.classifier_type}/industrial_pump?top_k=10",
+        )
+        self.assertNotIn("X-RateLimit-Remaining", response.headers)
+        self.assertNotIn("X-RateLimit-Limit", response.headers)
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
+        perform_classification_mock.assert_called_once()
 
     @patch("app.web.perform_classification")
     async def test_empty_query_fragment_returns_cacheable_empty_results(
@@ -231,6 +332,32 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             "max-age=604800, stale-while-revalidate=604800",
         )
         perform_classification_mock.assert_not_called()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_empty_metered_query_does_not_consume_quota(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        response = await self._request_fragment(
+            product_description="   ",
+            push_url="true",
+            track_usage="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=86400, stale-while-revalidate=604800",
+        )
+        self.assertNotIn("X-RateLimit-Remaining", response.headers)
+        self.assertNotIn("X-RateLimit-Limit", response.headers)
+        perform_classification_mock.assert_not_called()
+        check_usage_mock.assert_not_awaited()
+        increment_usage_mock.assert_not_awaited()
 
     @patch("app.web.perform_classification")
     async def test_fragment_uses_default_top_k_when_omitted(

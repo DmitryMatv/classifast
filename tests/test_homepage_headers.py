@@ -38,12 +38,13 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["Cache-Control"],
-            "public, max-age=86400, stale-while-revalidate=604800",
+            "public, max-age=600, stale-while-revalidate=3600",
         )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=604800, stale-while-revalidate=604800",
+            "max-age=3600, stale-while-revalidate=86400",
         )
+        self.assertNotIn("Expires", response.headers)
         self.assertEqual(
             response.headers["Link"],
             '<https://classifast.com/>; rel="canonical"',
@@ -56,12 +57,13 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["Cache-Control"],
-            "public, max-age=86400, stale-while-revalidate=604800",
+            "public, max-age=600, stale-while-revalidate=3600",
         )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=604800, stale-while-revalidate=604800",
+            "max-age=3600, stale-while-revalidate=86400",
         )
+        self.assertNotIn("Expires", response.headers)
         self.assertEqual(
             response.headers["Link"],
             '<https://classifast.com/>; rel="canonical"',

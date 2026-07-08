@@ -182,7 +182,7 @@ describe("classifier.ts", () => {
     expect(trigger).toHaveBeenCalled();
   });
 
-  it("omits default top-k and version on manual requests", async () => {
+  it("keeps default top-k and omits default version on manual requests", async () => {
     await import("./classifier");
     const form = getClassifierForm();
     const textarea = document.getElementById(
@@ -198,7 +198,7 @@ describe("classifier.ts", () => {
     );
 
     expect(detail.parameters["product_description"]).toBe("industrial pump");
-    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["top_k"]).toBe("10");
     expect(detail.parameters["version"]).toBeUndefined();
     expect(detail.parameters["push_url"]).toBeUndefined();
     expect(detail.parameters["track_usage"]).toBeUndefined();
@@ -246,7 +246,7 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["top_k"]).toBe("10");
     expect(detail.parameters["version"]).toBe("v2");
   });
 
@@ -532,7 +532,7 @@ describe("classifier.ts", () => {
 
     expect(detail.parameters["push_url"]).toBeUndefined();
     expect(detail.parameters["track_usage"]).toBeUndefined();
-    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["top_k"]).toBe("10");
     expect(detail.parameters["version"]).toBeUndefined();
   });
 
@@ -722,7 +722,7 @@ describe("classifier.ts", () => {
     expect(detail.parameters["push_url"]).toBe("false");
     expect(detail.parameters["track_usage"]).toBe("false");
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
-    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["top_k"]).toBe("10");
     expect(detail.parameters["version"]).toBeUndefined();
   });
 
@@ -788,7 +788,7 @@ describe("classifier.ts", () => {
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
     expect(detail.parameters["push_url"]).toBe("false");
     expect(detail.parameters["track_usage"]).toBe("false");
-    expect(detail.parameters["top_k"]).toBeUndefined();
+    expect(detail.parameters["top_k"]).toBe("10");
     expect(detail.parameters["version"]).toBeUndefined();
   });
 

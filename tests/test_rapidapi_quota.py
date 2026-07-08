@@ -205,14 +205,29 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
                 classifier_type=classifier_type,
                 product_description="test widget",
                 version=version_name,
+                top_k=10,
                 url_change=True,
             )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertEqual(
+            response.headers["Location"],
+            "/UNSPSC/fragment?"
+            + "product_description=test+widget&top_k=10&track_usage=false",
+        )
+        self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
+        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
         check_usage.assert_awaited_once()
         increment_usage.assert_awaited_once()
-        self.assertEqual(response.headers["X-RateLimit-Remaining"], "9")
-        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
+        add_quota_headers.assert_called_once()
+        _, redirect_usage_status = add_quota_headers.call_args.args
+        self.assertEqual(redirect_usage_status.remaining, 8)
+        self.assertEqual(redirect_usage_status.limit, 10)
 
 
 if __name__ == "__main__":

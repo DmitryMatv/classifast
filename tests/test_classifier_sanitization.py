@@ -647,6 +647,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
             "max-age=604800, stale-while-revalidate=604800",
         )
         self.assertEqual(headers["Vary"], "Accept-Encoding")
+        self.assertNotIn("Expires", headers)
 
 
 if __name__ == "__main__":

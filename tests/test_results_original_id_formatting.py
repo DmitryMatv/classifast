@@ -114,6 +114,7 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
                         "push_url": "false",
                         "track_usage": "true",
                     },
+                    follow_redirects=True,
                 )
 
     async def test_unspsc_fragment_renders_three_spacing_markers(self) -> None:
@@ -121,6 +122,7 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
         response = await self._request_fragment("UNSPSC", version, "12345678")
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.history[0].status_code, 303)
         self.assertEqual(response.text.count("code-spacer-halves"), 3)
 
     async def test_copy_button_keeps_raw_original_id(self) -> None:
@@ -128,6 +130,7 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
         response = await self._request_fragment("UNSPSC", version, "12345678")
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.history[0].status_code, 303)
         self.assertIn(
             "onclick=\"window.copyOriginalId('12345678', this)\"",
             response.text,
