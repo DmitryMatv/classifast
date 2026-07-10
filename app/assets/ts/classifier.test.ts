@@ -1026,6 +1026,42 @@ describe("classifier.ts", () => {
     expect(detail.parameters["track_usage"]).toBeUndefined();
   });
 
+  it("swaps quota-unavailable 503 responses into the results container", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["autoloadEnabled"] = "true";
+    form.dataset["initialQueryPresent"] = "true";
+    form.dataset["initialTrackUsage"] = "true";
+    const resultsContainer = document.getElementById(
+      "results-container",
+    ) as HTMLElement;
+
+    await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:responseError", {
+        detail: {
+          xhr: {
+            status: 503,
+            response: "<div>Usage tracking is temporarily unavailable</div>",
+          },
+          target: resultsContainer,
+          elt: form,
+        },
+      } as CustomEventInit),
+    );
+
+    expect(resultsContainer.innerHTML).toContain(
+      "Usage tracking is temporarily unavailable",
+    );
+  });
+
   it("clears autoload override state after request completion", async () => {
     window.__authReady = true;
     vi.doMock("./common", () => ({

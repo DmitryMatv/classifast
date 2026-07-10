@@ -4,12 +4,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException
 from polar_sdk._webhooks import WebhookVerificationError
 
 from app import payments
 from app.clerk_auth import ClerkAuthenticationError, ClerkInfrastructureError
 from app.mapping_store import MAPPING_PRODUCTS
+from app.usage_tracker import TIER_CACHE_TTL
 
 
 def _build_test_app() -> FastAPI:
@@ -399,6 +401,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         handler_mock.assert_awaited_once()
         _, kwargs = handler_mock.await_args
         self.assertEqual(kwargs["tier"], "pro")
+        self.assertIs(kwargs["redis_client"], self.app.state.redis_client)
 
     async def test_subscription_update_matches_configured_product_in_nested_items(
         self,
@@ -728,6 +731,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
         handler_mock.assert_awaited_once()
         _, kwargs = handler_mock.await_args
         self.assertEqual(kwargs["tier"], "free")
+        self.assertIs(kwargs["redis_client"], self.app.state.redis_client)
 
     async def test_non_allowlisted_terminal_subscription_update_is_ignored(
         self,
@@ -765,6 +769,72 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         handler_mock.assert_not_awaited()
+
+
+class SubscriptionUpdateTierCacheTests(unittest.IsolatedAsyncioTestCase):
+    async def test_handle_subscription_update_syncs_redis_after_clerk_success(
+        self,
+    ) -> None:
+        redis_client = AsyncMock()
+        subscription = SimpleNamespace(metadata={"user_id": "user_123"})
+
+        with patch(
+            "app.payments.update_clerk_user_metadata",
+            new=AsyncMock(return_value=True),
+        ) as clerk_mock:
+            await payments.handle_subscription_update(
+                subscription,
+                tier="pro",
+                redis_client=redis_client,
+            )
+
+        clerk_mock.assert_awaited_once_with("user_123", {"tier": "pro"})
+        redis_client.setex.assert_awaited_once_with(
+            "user_tier:user_123",
+            TIER_CACHE_TTL,
+            "pro",
+        )
+
+    async def test_handle_subscription_update_does_not_sync_redis_if_clerk_fails(
+        self,
+    ) -> None:
+        redis_client = AsyncMock()
+        subscription = SimpleNamespace(metadata={"user_id": "user_123"})
+
+        with (
+            patch(
+                "app.payments.update_clerk_user_metadata",
+                new=AsyncMock(return_value=False),
+            ),
+            self.assertRaises(HTTPException) as ctx,
+        ):
+            await payments.handle_subscription_update(
+                subscription,
+                tier="pro",
+                redis_client=redis_client,
+            )
+
+        self.assertEqual(ctx.exception.status_code, 502)
+        redis_client.setex.assert_not_awaited()
+
+    async def test_handle_subscription_update_ignores_redis_sync_failure(
+        self,
+    ) -> None:
+        redis_client = AsyncMock()
+        redis_client.setex.side_effect = redis.RedisError("redis unavailable")
+        subscription = SimpleNamespace(metadata={"user_id": "user_123"})
+
+        with patch(
+            "app.payments.update_clerk_user_metadata",
+            new=AsyncMock(return_value=True),
+        ):
+            await payments.handle_subscription_update(
+                subscription,
+                tier="pro",
+                redis_client=redis_client,
+            )
+
+        redis_client.setex.assert_awaited_once()
 
 
 if __name__ == "__main__":

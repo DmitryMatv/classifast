@@ -79,6 +79,21 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
             },
         },
     },
+    "GPC": {
+        "title": "GPC Classifier",
+        "heading": "Classify products by essential characteristics.",
+        "description": "GS1 Global Product Classification (GPC) is a product taxonomy used to group trade items by their essential characteristics. It organizes products from broad segments down to detailed bricks, helping retailers, suppliers, marketplaces, and data teams standardize product classification across catalog, procurement, analytics, and data synchronization workflows.",
+        "example": "Oil spill absorbent pads",
+        "embed_model_name": DEFAULT_EMBEDDING_MODEL,
+        "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
+        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "versions": {
+            "GPC as of May 2026 (v20260520)": {
+                "collection_name": "GPC_20260520_v1",
+            },
+        },
+    },
     "NAICS": {
         "title": "NAICS Code Finder",
         "heading": "Get the right NAICS codes for your business.",
@@ -111,11 +126,11 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
             "ISIC Rev. 4": {
-                "collection_name": "ISIC_4_new001_3corr",
+                "collection_name": "ISIC_Rev4_Qwen3-8B_v1",
                 "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/27/",
             },
             "ISIC Rev. 5": {
-                "collection_name": "ISIC_5_new001_v3corr",
+                "collection_name": "ISIC_Rev5_Qwen3-8B_v1",
                 "base_url": "https://unstats.un.org/unsd/classifications/Econ/Structure/Detail/EN/2029/",
             },
         },
@@ -211,8 +226,8 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "query_instruction": DEFAULT_QUERY_INSTRUCTION,
         "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
         "versions": {
-            "HTS 2024": {
-                "collection_name": "HTS_v4",
+            "2026 HTS Revision 11 (July 1, 2026)": {
+                "collection_name": "HTS_2026_Qwen3-8B_v1",
                 "base_url": "https://hts.usitc.gov/search?query=",
             },
         },

@@ -29,6 +29,7 @@ from .mapping_store import (
 )
 from .usage_tracker import (
     FREE_USER_LIMIT,
+    QuotaUnavailableError,
     UsageStatus,
     add_quota_headers,
     check_usage,
@@ -336,6 +337,22 @@ def _render_metering_redirect(
     response = RedirectResponse(url=location, status_code=303)
     response.headers.update(build_cache_headers(NO_STORE))
     add_quota_headers(response, usage_status)
+    return response
+
+
+def _render_status_fragment(
+    message: str,
+    status_code: int,
+) -> HTMLResponse:
+    response = HTMLResponse(
+        content=(
+            '<div class="bg-white border border-amber-200 rounded-lg p-6 shadow">'
+            f'<p class="text-gray-700">{message}</p>'
+            "</div>"
+        ),
+        status_code=status_code,
+    )
+    response.headers.update(build_cache_headers(NO_STORE))
     return response
 
 
@@ -713,22 +730,31 @@ async def get_classification_fragment(
         )
 
     if track_usage:
-        usage_status = await check_usage(request, redis_client)
-        if not usage_status.allowed:
-            return _render_paywall_fragment(request, usage_status, push_url, new_url)
+        try:
+            usage_status = await check_usage(request, redis_client)
+            if not usage_status.allowed:
+                return _render_paywall_fragment(
+                    request, usage_status, push_url, new_url
+                )
 
-        await increment_usage(request, redis_client, usage_status)
-        return _render_metering_redirect(
-            _build_fragment_fetch_url(
-                upper_type,
-                normalized_description,
-                version,
-                default_version,
-                top_k,
-                push_url,
-            ),
-            _build_metered_redirect_usage_status(usage_status),
-        )
+            await increment_usage(request, redis_client, usage_status)
+            return _render_metering_redirect(
+                _build_fragment_fetch_url(
+                    upper_type,
+                    normalized_description,
+                    version,
+                    default_version,
+                    top_k,
+                    push_url,
+                ),
+                _build_metered_redirect_usage_status(usage_status),
+            )
+        except QuotaUnavailableError as e:
+            logger.warning("Quota unavailable for '%s' fragment: %s", upper_type, e)
+            return _render_status_fragment(
+                str(e),
+                status_code=503,
+            )
 
     usage_status = _build_unmetered_usage_status()
 

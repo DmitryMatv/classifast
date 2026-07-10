@@ -29,13 +29,6 @@ REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
-QUOTA_FAIL_OPEN = os.getenv("QUOTA_FAIL_OPEN", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
-
 # Constants
 TRACKING_COOKIE_NAME = "cf_track"
 ANON_USAGE_TTL = 365 * 24 * 60 * 60  # 1 year
@@ -70,6 +63,10 @@ TierResolutionStatus = Literal[
 class TierResolution:
     status: TierResolutionStatus
     tier: str | None = None
+
+
+class QuotaUnavailableError(RuntimeError):
+    """Raised when usage quota cannot be checked or updated reliably."""
 
 
 TIER_CACHE_SENTINEL_NON_PRO = "__sentinel:non_pro"
@@ -176,10 +173,6 @@ def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
     new_id = str(uuid.uuid4())
     logger.info(f"Created new tracking ID: {new_id}")
     return new_id, True
-
-
-def quota_fail_open_enabled() -> bool:
-    return QUOTA_FAIL_OPEN
 
 
 async def extract_user_info_from_token(
@@ -429,6 +422,24 @@ async def get_cached_user_tier(
     return resolution
 
 
+async def set_cached_user_tier(
+    user_id: str,
+    tier: str,
+    redis_client: redis.Redis | None,
+) -> None:
+    """Best-effort sync of a user's Clerk tier into the Redis tier cache."""
+    if not user_id or not redis_client:
+        return
+
+    cache_key = f"user_tier:{user_id}"
+    cache_value = "pro" if tier == "pro" else "free"
+    try:
+        await redis_client.setex(cache_key, TIER_CACHE_TTL, cache_value)
+        logger.info("Synced tier cache for user_id=%s tier=%s", user_id, cache_value)
+    except redis.RedisError as e:
+        logger.warning("Failed to sync tier cache for user_id=%s: %s", user_id, e)
+
+
 def _log_anonymous_auth_diagnostics(request: Request, user_id: str | None) -> None:
     if user_id:
         return
@@ -478,36 +489,8 @@ def _unlimited_pro_usage(user_id: str) -> UsageStatus:
 def _redis_unavailable_usage_status(
     request: Request, user_id: str | None
 ) -> UsageStatus:
-    if quota_fail_open_enabled():
-        logger.warning(
-            "Redis not available, allowing request because QUOTA_FAIL_OPEN is enabled"
-        )
-        return _usage_status(
-            allowed=True,
-            remaining=-1,
-            limit=-1,
-            is_authenticated=bool(user_id),
-            tracking_id=user_id,
-        )
-
     logger.warning("Redis not available, denying metered request")
-    if user_id:
-        return _usage_status(
-            allowed=False,
-            remaining=0,
-            limit=FREE_USER_LIMIT,
-            is_authenticated=True,
-            tracking_id=user_id,
-        )
-
-    tracking_id, _ = get_or_create_tracking_id(request)
-    return _usage_status(
-        allowed=False,
-        remaining=0,
-        limit=ANON_LIMIT,
-        is_authenticated=False,
-        tracking_id=tracking_id,
-    )
+    raise QuotaUnavailableError("Usage tracking is temporarily unavailable")
 
 
 async def _resolve_authenticated_pro_status(
@@ -584,21 +567,7 @@ async def _check_anonymous_usage(
         )
     except redis.RedisError as e:
         logger.error(f"Redis error checking anonymous usage: {e}")
-        if quota_fail_open_enabled():
-            return _usage_status(
-                allowed=True,
-                remaining=-1,
-                limit=-1,
-                is_authenticated=False,
-                tracking_id=tracking_id,
-            )
-        return _usage_status(
-            allowed=False,
-            remaining=0,
-            limit=limit,
-            is_authenticated=False,
-            tracking_id=tracking_id,
-        )
+        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
 
 
 async def _check_authenticated_free_usage(
@@ -626,21 +595,7 @@ async def _check_authenticated_free_usage(
         )
     except redis.RedisError as e:
         logger.error(f"Redis error checking user usage: {e}")
-        if quota_fail_open_enabled():
-            return _usage_status(
-                allowed=True,
-                remaining=-1,
-                limit=-1,
-                is_authenticated=True,
-                tracking_id=user_id,
-            )
-        return _usage_status(
-            allowed=False,
-            remaining=0,
-            limit=limit,
-            is_authenticated=True,
-            tracking_id=user_id,
-        )
+        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
 
 
 async def check_usage(
@@ -673,6 +628,8 @@ async def increment_usage(
 ) -> None:
     """Increment usage counter after successful classification."""
     if not redis_client or usage_status.is_pro:
+        if not redis_client and not usage_status.is_pro:
+            raise QuotaUnavailableError("Usage tracking is temporarily unavailable")
         return
 
     try:
@@ -709,6 +666,7 @@ async def increment_usage(
 
     except redis.RedisError as e:
         logger.error(f"Redis error incrementing usage: {e}")
+        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
 
 
 def set_tracking_cookie(response: Response, tracking_id: str) -> None:

@@ -495,6 +495,19 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
             dimensions=3,
         )
 
+    def test_embedding_response_is_not_l2_normalized(self) -> None:
+        client = Mock()
+        client.feature_extraction.return_value = [3, 4]
+
+        result = get_embedding(
+            client,
+            EMBED_MODEL,
+            "industrial pump",
+            embed_dims=2,
+        )
+
+        self.assertEqual(result, [3.0, 4.0])
+
     def test_embedding_without_dimensions_omits_dimensions_parameter(self) -> None:
         client = Mock()
         client.feature_extraction.return_value = [1, 2.5, "3.0"]

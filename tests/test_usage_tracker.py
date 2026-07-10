@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import redis.asyncio as redis
 
+from app import usage_tracker
 from app.clerk_auth import ClerkAuthenticationError, ClerkInfrastructureError
 from app.usage_tracker import (
     ANON_USAGE_TTL,
@@ -14,6 +15,7 @@ from app.usage_tracker import (
     TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
     TIER_CACHE_TTL,
     USAGE_TTL,
+    QuotaUnavailableError,
     TierResolution,
     UsageStatus,
     check_usage,
@@ -22,6 +24,7 @@ from app.usage_tracker import (
     get_or_create_tracking_id,
     hash_ip,
     increment_usage,
+    set_cached_user_tier,
 )
 
 
@@ -38,6 +41,10 @@ def _build_request(
 
 
 class UsageTrackerHelperTests(unittest.TestCase):
+    def test_quota_fail_open_is_not_available(self) -> None:
+        self.assertFalse(hasattr(usage_tracker, "QUOTA_FAIL_OPEN"))
+        self.assertFalse(hasattr(usage_tracker, "quota_fail_open_enabled"))
+
     def test_cloudflare_ip_takes_precedence(self) -> None:
         request = _build_request(
             headers={
@@ -132,6 +139,39 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             "user_tier:user-123",
             NEGATIVE_TIER_CACHE_TTL,
             TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
+        )
+
+    async def test_set_cached_user_tier_stores_pro_tier(self) -> None:
+        redis_client = AsyncMock()
+
+        await set_cached_user_tier("user-123", "pro", redis_client)
+
+        redis_client.setex.assert_awaited_once_with(
+            "user_tier:user-123",
+            TIER_CACHE_TTL,
+            "pro",
+        )
+
+    async def test_set_cached_user_tier_stores_non_pro_as_free(self) -> None:
+        redis_client = AsyncMock()
+
+        await set_cached_user_tier("user-123", "starter", redis_client)
+
+        redis_client.setex.assert_awaited_once_with(
+            "user_tier:user-123",
+            TIER_CACHE_TTL,
+            "free",
+        )
+
+    async def test_set_cached_user_tier_is_best_effort_on_redis_error(self) -> None:
+        redis_client = AsyncMock()
+        redis_client.setex.side_effect = redis.RedisError("boom")
+
+        with self.assertLogs("app.usage_tracker", level="WARNING") as logs:
+            await set_cached_user_tier("user-123", "pro", redis_client)
+
+        self.assertTrue(
+            any("Failed to sync tier cache" in line for line in logs.output)
         )
 
     async def test_stale_jwt_pro_hint_is_not_treated_as_unlimited(self) -> None:
@@ -501,40 +541,11 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         auth_mock.assert_awaited_once_with("session-token", validate_azp=False)
         verify_mock.assert_not_called()
 
-    async def test_redis_unavailable_fails_open_by_default(self) -> None:
+    async def test_redis_unavailable_raises_quota_unavailable(self) -> None:
         request = _build_request()
 
-        with patch("app.usage_tracker.QUOTA_FAIL_OPEN", True):
-            usage_status = await check_usage(request, None)
-
-        self.assertTrue(usage_status.allowed)
-        self.assertEqual(usage_status.remaining, -1)
-        self.assertFalse(usage_status.is_authenticated)
-
-    async def test_redis_unavailable_is_denied_when_fail_open_disabled(self) -> None:
-        request = _build_request()
-
-        with (
-            patch("app.usage_tracker.QUOTA_FAIL_OPEN", False),
-            patch(
-                "app.usage_tracker.get_or_create_tracking_id",
-                return_value=("track-123", False),
-            ),
-        ):
-            usage_status = await check_usage(request, None)
-
-        self.assertFalse(usage_status.allowed)
-        self.assertEqual(usage_status.remaining, 0)
-        self.assertEqual(usage_status.tracking_id, "track-123")
-
-    async def test_redis_unavailable_can_fail_open_when_enabled(self) -> None:
-        request = _build_request()
-
-        with patch("app.usage_tracker.QUOTA_FAIL_OPEN", True):
-            usage_status = await check_usage(request, None)
-
-        self.assertTrue(usage_status.allowed)
-        self.assertEqual(usage_status.remaining, -1)
+        with self.assertRaises(QuotaUnavailableError):
+            await check_usage(request, None)
 
     async def test_redis_unavailable_short_circuits_before_tier_or_grace_checks(
         self,
@@ -542,7 +553,6 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         request = _build_request(headers={"authorization": "Bearer token"})
 
         with (
-            patch("app.usage_tracker.QUOTA_FAIL_OPEN", True),
             patch(
                 "app.usage_tracker.authenticate_clerk_token_local",
                 new=AsyncMock(return_value=("user-123", "pro")),
@@ -556,41 +566,9 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=AssertionError("should not resolve tier")),
             ) as tier_mock,
         ):
-            usage_status = await check_usage(request, None)
+            with self.assertRaises(QuotaUnavailableError):
+                await check_usage(request, None)
 
-        self.assertTrue(usage_status.allowed)
-        self.assertTrue(usage_status.is_authenticated)
-        self.assertFalse(usage_status.is_pro)
-        self.assertEqual(usage_status.tracking_id, "user-123")
-        grace_mock.assert_not_called()
-        tier_mock.assert_not_called()
-
-    async def test_redis_unavailable_denied_short_circuits_before_tier_or_grace_checks(
-        self,
-    ) -> None:
-        request = _build_request(headers={"authorization": "Bearer token"})
-
-        with (
-            patch("app.usage_tracker.QUOTA_FAIL_OPEN", False),
-            patch(
-                "app.usage_tracker.authenticate_clerk_token_local",
-                new=AsyncMock(return_value=("user-123", "pro")),
-            ),
-            patch(
-                "app.usage_tracker.has_active_grace",
-                new=AsyncMock(side_effect=AssertionError("should not check grace")),
-            ) as grace_mock,
-            patch(
-                "app.usage_tracker.get_cached_user_tier",
-                new=AsyncMock(side_effect=AssertionError("should not resolve tier")),
-            ) as tier_mock,
-        ):
-            usage_status = await check_usage(request, None)
-
-        self.assertFalse(usage_status.allowed)
-        self.assertTrue(usage_status.is_authenticated)
-        self.assertFalse(usage_status.is_pro)
-        self.assertEqual(usage_status.tracking_id, "user-123")
         grace_mock.assert_not_called()
         tier_mock.assert_not_called()
 
@@ -646,18 +624,8 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         redis_client = AsyncMock()
         redis_client.get.side_effect = redis.RedisError("boom")
 
-        with (
-            patch("app.usage_tracker.QUOTA_FAIL_OPEN", False),
-            patch(
-                "app.usage_tracker.get_or_create_tracking_id",
-                return_value=("track-123", False),
-            ),
-        ):
-            usage_status = await check_usage(request, redis_client)
-
-        self.assertFalse(usage_status.allowed)
-        self.assertEqual(usage_status.tracking_id, "track-123")
-        self.assertEqual(usage_status.remaining, 0)
+        with self.assertRaises(QuotaUnavailableError):
+            await check_usage(request, redis_client)
 
     async def test_check_usage_handles_redis_errors_for_authenticated_users(
         self,
@@ -684,13 +652,23 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                     )
                 ),
             ),
-            patch("app.usage_tracker.QUOTA_FAIL_OPEN", False),
         ):
-            usage_status = await check_usage(request, redis_client)
+            with self.assertRaises(QuotaUnavailableError):
+                await check_usage(request, redis_client)
 
-        self.assertFalse(usage_status.allowed)
-        self.assertTrue(usage_status.is_authenticated)
-        self.assertEqual(usage_status.tracking_id, "user-123")
+    async def test_increment_usage_raises_when_redis_unavailable(self) -> None:
+        request = _build_request()
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=5,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id="track-123",
+        )
+
+        with self.assertRaises(QuotaUnavailableError):
+            await increment_usage(request, None, usage_status)
 
     async def test_increment_usage_uses_resolved_user_id_for_authenticated_user(
         self,
@@ -763,6 +741,22 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             "anon:track-123:usage_count", ANON_USAGE_TTL
         )
         redis_client.expire.assert_any_await(ip_key, ANON_USAGE_TTL)
+
+    async def test_increment_usage_raises_on_redis_write_error(self) -> None:
+        request = _build_request(headers={"cf-connecting-ip": "203.0.113.10"})
+        redis_client = AsyncMock()
+        redis_client.incr.side_effect = redis.RedisError("boom")
+        usage_status = UsageStatus(
+            allowed=True,
+            remaining=5,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id="track-123",
+        )
+
+        with self.assertRaises(QuotaUnavailableError):
+            await increment_usage(request, redis_client, usage_status)
 
     async def test_increment_usage_skips_pro_user(self) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})

@@ -165,7 +165,6 @@ class QueryNormalizationMiddlewareTests(unittest.IsolatedAsyncioTestCase):
                 params={
                     "product_description": "pump",
                     "push_url": "false",
-                    "track_usage": "false",
                     "top_k": "30",
                 },
             )
@@ -173,7 +172,7 @@ class QueryNormalizationMiddlewareTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json()["query"],
-            "product_description=pump&push_url=false&track_usage=false&top_k=30",
+            "product_description=pump&push_url=false&top_k=30",
         )
 
 

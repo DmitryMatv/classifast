@@ -112,7 +112,6 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
                         "version": version,
                         "top_k": 10,
                         "push_url": "false",
-                        "track_usage": "true",
                     },
                     follow_redirects=True,
                 )

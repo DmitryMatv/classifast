@@ -144,7 +144,7 @@ def _is_transient_hf_error(error: BaseException) -> bool:
     return False
 
 
-def _normalize_embedding_response(response: Any) -> List[float]:
+def _coerce_embedding_response(response: Any) -> List[float]:
     if hasattr(response, "tolist"):
         response = response.tolist()
 
@@ -245,7 +245,7 @@ def get_embedding(
         api_duration = time.time() - api_start
         logger.debug("Hugging Face embedding call: %.3fs", api_duration)
 
-        embedding_vector = _normalize_embedding_response(response)
+        embedding_vector = _coerce_embedding_response(response)
 
         if _embedding_dimension_mismatch(embedding_vector, embed_dims):
             raise RuntimeError(

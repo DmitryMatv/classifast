@@ -533,11 +533,14 @@ class ClassifierPage {
       }
     });
 
-    // Handle rate limit responses (429)
+    // Handle quota and rate limit responses
     document.body.addEventListener("htmx:responseError", (evt: Event) => {
       const htmxEvent = evt as HtmxResponseErrorEvent;
 
-      if (htmxEvent.detail.xhr.status === 429) {
+      if (
+        htmxEvent.detail.xhr.status === 429 ||
+        htmxEvent.detail.xhr.status === 503
+      ) {
         if (this.isResultsTarget(htmxEvent.detail.target)) {
           // Display the paywall/error content returned by the server
           htmxEvent.detail.target.innerHTML = htmxEvent.detail.xhr.response;

@@ -25,6 +25,7 @@ from .clerk_auth import (
 )
 from .dependencies import CLERK_SECRET_KEY
 from .mapping_store import get_mapping_product
+from .usage_tracker import set_cached_user_tier
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -304,7 +305,11 @@ async def polar_webhook(request: Request):
         event, (WebhookSubscriptionCreatedPayload, WebhookSubscriptionActivePayload)
     ):
         if subscription_matches_pro_entitlement(event.data):
-            await handle_subscription_update(event.data, tier="pro")
+            await handle_subscription_update(
+                event.data,
+                tier="pro",
+                redis_client=getattr(request.app.state, "redis_client", None),
+            )
     elif isinstance(
         event, (WebhookSubscriptionCanceledPayload, WebhookSubscriptionRevokedPayload)
     ):
@@ -323,11 +328,19 @@ async def polar_webhook(request: Request):
         status = getattr(event.data, "status", None)
         if status in ("active", "trialing"):
             # Active and trialing subscriptions get Pro tier
-            await handle_subscription_update(event.data, tier="pro")
+            await handle_subscription_update(
+                event.data,
+                tier="pro",
+                redis_client=getattr(request.app.state, "redis_client", None),
+            )
         elif status in ("canceled", "unpaid", "past_due", "incomplete_expired"):
             # These statuses indicate subscription is not usable
             # Note: 'canceled' status here means trial has ended (not just user cancelled)
-            await handle_subscription_update(event.data, tier="free")
+            await handle_subscription_update(
+                event.data,
+                tier="free",
+                redis_client=getattr(request.app.state, "redis_client", None),
+            )
         elif status in ("incomplete", "pending"):
             # Incomplete/pending: waiting for payment, don't change tier yet
             logger.info(f"Subscription in pending state: {status}")
@@ -337,7 +350,11 @@ async def polar_webhook(request: Request):
     return {"status": "received"}
 
 
-async def handle_subscription_update(subscription: Subscription, tier: str):
+async def handle_subscription_update(
+    subscription: Subscription,
+    tier: str,
+    redis_client: redis.Redis | None = None,
+):
     """Update user tier based on subscription metadata."""
     metadata = subscription.metadata or {}
     user_id = metadata.get("user_id")
@@ -352,6 +369,7 @@ async def handle_subscription_update(subscription: Subscription, tier: str):
             raise HTTPException(
                 status_code=502, detail="Failed to update user metadata"
             )
+        await set_cached_user_tier(user_id, tier, redis_client)
     elif user_id:
         logger.warning(
             "Ignoring non-string user_id in subscription metadata: %r", user_id

@@ -206,6 +206,8 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
                 product_description="test widget",
                 version=version_name,
                 top_k=10,
+                push_url=None,
+                track_usage=True,
                 url_change=True,
             )
 

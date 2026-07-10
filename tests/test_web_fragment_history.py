@@ -84,7 +84,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             is_pro=False,
         )
 
-        response = await self._request_fragment(push_url="true", track_usage="true")
+        response = await self._request_fragment(push_url="true")
 
         self.assertEqual(response.status_code, 303)
         self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
@@ -121,7 +121,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             is_pro=False,
         )
 
-        response = await self._request_fragment(push_url="false", track_usage="true")
+        response = await self._request_fragment(push_url="false")
 
         self.assertEqual(response.status_code, 303)
         self.assertEqual(

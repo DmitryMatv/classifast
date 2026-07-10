@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
-from app.usage_tracker import UsageStatus
+from app.usage_tracker import QuotaUnavailableError, UsageStatus
 from app.web import router, slugify
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -200,7 +200,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             tracking_id="track-123",
         )
 
-        response = await self._request_fragment(push_url="true", track_usage="true")
+        response = await self._request_fragment(push_url="true")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
@@ -234,7 +234,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             tracking_id="track-123",
         )
 
-        response = await self._request_fragment(push_url="true", track_usage="true")
+        response = await self._request_fragment(push_url="true")
 
         self.assertEqual(response.status_code, 303)
         self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
@@ -245,13 +245,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             response.headers["Location"],
             f"/{self.classifier_type}/fragment?"
-            + urlencode(
-                {
-                    "product_description": "industrial pump",
-                    "top_k": 10,
-                    "track_usage": "false",
-                }
-            ),
+            + "product_description=industrial+pump&top_k=10&track_usage=false",
         )
         self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
         self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
@@ -281,7 +275,6 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(
             follow_redirects=True,
             push_url="true",
-            track_usage="true",
         )
 
         self.assertEqual(response.status_code, 200)
@@ -311,6 +304,66 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         increment_usage_mock.assert_awaited_once()
         perform_classification_mock.assert_called_once()
 
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_quota_unavailable_during_check_returns_no_store_503(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        check_usage_mock.side_effect = QuotaUnavailableError(
+            "Usage tracking is temporarily unavailable"
+        )
+
+        response = await self._request_fragment(push_url="true")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertIn("Usage tracking is temporarily unavailable", response.text)
+        perform_classification_mock.assert_not_called()
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_not_awaited()
+
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_quota_unavailable_during_increment_returns_no_store_503(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+    ) -> None:
+        check_usage_mock.return_value = UsageStatus(
+            allowed=True,
+            remaining=9,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id="track-123",
+        )
+        increment_usage_mock.side_effect = QuotaUnavailableError(
+            "Usage tracking is temporarily unavailable"
+        )
+
+        response = await self._request_fragment(push_url="true")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertIn("Usage tracking is temporarily unavailable", response.text)
+        perform_classification_mock.assert_not_called()
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
+
     @patch("app.web.perform_classification")
     async def test_empty_query_fragment_returns_cacheable_empty_results(
         self,
@@ -319,7 +372,6 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(
             product_description="   ",
             push_url="false",
-            track_usage="false",
         )
 
         self.assertEqual(response.status_code, 200)
@@ -345,7 +397,6 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         response = await self._request_fragment(
             product_description="   ",
             push_url="true",
-            track_usage="true",
         )
 
         self.assertEqual(response.status_code, 200)

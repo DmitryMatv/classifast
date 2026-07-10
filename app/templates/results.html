@@ -92,7 +92,9 @@
                         </span>
                     </div>
 
+                    {% if result.payload.class_name and result.payload.class_name.strip() %}
                     <h3 class="text-gray-800 text-lg font-semibold ">{{ result.payload.class_name | e }}</h3>
+                    {% endif %}
                     <p class="text-gray-600">{{ result.payload.definition | e }}</p>
                 </div>
             </div>
