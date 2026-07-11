@@ -304,6 +304,94 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         increment_usage_mock.assert_awaited_once()
         perform_classification_mock.assert_called_once()
 
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_verified_google_crawler_redirects_to_cacheable_fetch_url(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        crawler_check_mock.return_value = True
+
+        response = await self._request_fragment(push_url="true")
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "no-store, max-age=0",
+        )
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertEqual(
+            response.headers["Location"],
+            f"/{self.classifier_type}/fragment?"
+            + "product_description=industrial+pump&top_k=10&track_usage=false",
+        )
+        self.assertNotIn("X-RateLimit-Remaining", response.headers)
+        self.assertNotIn("X-RateLimit-Limit", response.headers)
+        crawler_check_mock.assert_awaited_once()
+        check_usage_mock.assert_not_awaited()
+        increment_usage_mock.assert_not_awaited()
+        perform_classification_mock.assert_not_called()
+
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_verified_google_crawler_follow_redirect_gets_cacheable_results(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        crawler_check_mock.return_value = True
+
+        response = await self._request_fragment(
+            follow_redirects=True,
+            push_url="true",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.history), 1)
+        self.assertEqual(response.history[0].status_code, 303)
+        self.assertEqual(
+            response.history[0].headers["Cache-Control"],
+            "no-store, max-age=0",
+        )
+        self.assertEqual(
+            response.history[0].headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertNotIn("X-RateLimit-Remaining", response.history[0].headers)
+        self.assertNotIn("X-RateLimit-Limit", response.history[0].headers)
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=86400, stale-while-revalidate=604800",
+        )
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "max-age=604800, stale-while-revalidate=604800",
+        )
+        self.assertEqual(
+            response.headers.get("HX-Push-Url"),
+            f"/{self.classifier_type}/industrial_pump?top_k=10",
+        )
+        self.assertNotIn("X-RateLimit-Remaining", response.headers)
+        self.assertNotIn("X-RateLimit-Limit", response.headers)
+        crawler_check_mock.assert_awaited_once()
+        check_usage_mock.assert_not_awaited()
+        increment_usage_mock.assert_not_awaited()
+        perform_classification_mock.assert_called_once()
+
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")

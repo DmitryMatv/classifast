@@ -22,6 +22,7 @@ from .cache_profiles import (
 from .classifier import get_classification_cache_headers, perform_classification
 from .classifier_config import CLASSIFIER_CONFIG, ClassifierConfig
 from .dependencies import templates
+from .google_crawlers import is_verified_google_search_crawler_request
 from .mapping_store import (
     MappingProduct,
     get_mapping_product,
@@ -727,6 +728,20 @@ async def get_classification_fragment(
     if not normalized_description:
         return _render_empty_results_fragment(
             request, normalized_description, _build_unmetered_usage_status()
+        )
+
+    if track_usage and await is_verified_google_search_crawler_request(request):
+        logger.info("Bypassing quota for verified Google search crawler")
+        return _render_metering_redirect(
+            _build_fragment_fetch_url(
+                upper_type,
+                normalized_description,
+                version,
+                default_version,
+                top_k,
+                push_url,
+            ),
+            _build_unmetered_usage_status(),
         )
 
     if track_usage:

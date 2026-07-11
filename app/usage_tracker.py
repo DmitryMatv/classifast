@@ -645,8 +645,7 @@ async def increment_usage(
 
         if usage_status.is_authenticated:
             key = f"user:{tracking_id}:usage_count"
-            await redis_client.incr(key)
-            await redis_client.expire(key, USAGE_TTL)
+            await _increment_usage_counters(redis_client, ((key, USAGE_TTL),))
             logger.info(f"Incremented authenticated user usage: {key}")
         else:
             # Anonymous user - always increment BOTH counters
@@ -655,10 +654,13 @@ async def increment_usage(
             cookie_key = f"anon:{tracking_id}:usage_count"
             ip_key = f"anon:ip:{ip_hash}:usage_count"
 
-            await redis_client.incr(cookie_key)
-            await redis_client.incr(ip_key)
-            await redis_client.expire(cookie_key, ANON_USAGE_TTL)
-            await redis_client.expire(ip_key, ANON_USAGE_TTL)
+            await _increment_usage_counters(
+                redis_client,
+                (
+                    (cookie_key, ANON_USAGE_TTL),
+                    (ip_key, ANON_USAGE_TTL),
+                ),
+            )
 
             logger.info(
                 f"Incremented anonymous user usage: tracking_id={tracking_id}, ip_hash={ip_hash}, cookie_key={cookie_key}, ip_key={ip_key}"
@@ -667,6 +669,18 @@ async def increment_usage(
     except redis.RedisError as e:
         logger.error(f"Redis error incrementing usage: {e}")
         raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
+
+
+async def _increment_usage_counters(
+    redis_client: redis.Redis,
+    counters: tuple[tuple[str, int], ...],
+) -> None:
+    """Increment quota counters and refresh their TTLs in one transaction."""
+    pipeline = redis_client.pipeline(transaction=True)
+    for key, ttl in counters:
+        pipeline.incr(key)
+        pipeline.expire(key, ttl)
+    await pipeline.execute()
 
 
 def set_tracking_cookie(response: Response, tracking_id: str) -> None:

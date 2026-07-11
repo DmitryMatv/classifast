@@ -40,6 +40,14 @@ def _build_request(
     return request
 
 
+def _build_redis_client_with_pipeline() -> tuple[AsyncMock, Mock]:
+    redis_client = AsyncMock()
+    pipeline = Mock()
+    pipeline.execute = AsyncMock()
+    redis_client.pipeline = Mock(return_value=pipeline)
+    return redis_client, pipeline
+
+
 class UsageTrackerHelperTests(unittest.TestCase):
     def test_quota_fail_open_is_not_available(self) -> None:
         self.assertFalse(hasattr(usage_tracker, "QUOTA_FAIL_OPEN"))
@@ -674,7 +682,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self,
     ) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})
-        redis_client = AsyncMock()
+        redis_client, pipeline = _build_redis_client_with_pipeline()
         usage_status = UsageStatus(
             allowed=True,
             remaining=10,
@@ -686,17 +694,16 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         await increment_usage(request, redis_client, usage_status)
 
-        redis_client.incr.assert_awaited_once_with("user:user-123:usage_count")
-        redis_client.expire.assert_awaited_once_with(
-            "user:user-123:usage_count",
-            USAGE_TTL,
-        )
+        redis_client.pipeline.assert_called_once_with(transaction=True)
+        pipeline.incr.assert_called_once_with("user:user-123:usage_count")
+        pipeline.expire.assert_called_once_with("user:user-123:usage_count", USAGE_TTL)
+        pipeline.execute.assert_awaited_once_with()
 
     async def test_increment_usage_does_not_reauthenticate_authenticated_user(
         self,
     ) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})
-        redis_client = AsyncMock()
+        redis_client, pipeline = _build_redis_client_with_pipeline()
         usage_status = UsageStatus(
             allowed=True,
             remaining=10,
@@ -713,14 +720,14 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             await increment_usage(request, redis_client, usage_status)
 
         extract_mock.assert_not_called()
-        redis_client.incr.assert_awaited_once_with("user:user-123:usage_count")
+        pipeline.execute.assert_awaited_once_with()
 
     async def test_increment_usage_updates_both_anonymous_counters(self) -> None:
         request = _build_request(
             headers={"cf-connecting-ip": "203.0.113.10"},
             client_host="198.51.100.8",
         )
-        redis_client = AsyncMock()
+        redis_client, pipeline = _build_redis_client_with_pipeline()
         usage_status = UsageStatus(
             allowed=True,
             remaining=5,
@@ -733,19 +740,22 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         await increment_usage(request, redis_client, usage_status)
 
         ip_key = f"anon:ip:{hash_ip('203.0.113.10')}:usage_count"
-        self.assertEqual(redis_client.incr.await_count, 2)
-        redis_client.incr.assert_any_await("anon:track-123:usage_count")
-        redis_client.incr.assert_any_await(ip_key)
-        self.assertEqual(redis_client.expire.await_count, 2)
-        redis_client.expire.assert_any_await(
-            "anon:track-123:usage_count", ANON_USAGE_TTL
+        redis_client.pipeline.assert_called_once_with(transaction=True)
+        self.assertEqual(
+            pipeline.method_calls,
+            [
+                unittest.mock.call.incr("anon:track-123:usage_count"),
+                unittest.mock.call.expire("anon:track-123:usage_count", ANON_USAGE_TTL),
+                unittest.mock.call.incr(ip_key),
+                unittest.mock.call.expire(ip_key, ANON_USAGE_TTL),
+                unittest.mock.call.execute(),
+            ],
         )
-        redis_client.expire.assert_any_await(ip_key, ANON_USAGE_TTL)
 
     async def test_increment_usage_raises_on_redis_write_error(self) -> None:
         request = _build_request(headers={"cf-connecting-ip": "203.0.113.10"})
-        redis_client = AsyncMock()
-        redis_client.incr.side_effect = redis.RedisError("boom")
+        redis_client, pipeline = _build_redis_client_with_pipeline()
+        pipeline.execute.side_effect = redis.RedisError("boom")
         usage_status = UsageStatus(
             allowed=True,
             remaining=5,
@@ -772,8 +782,9 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         await increment_usage(request, redis_client, usage_status)
 
-        redis_client.incr.assert_not_called()
-        redis_client.expire.assert_not_called()
+        redis_client.pipeline.assert_not_called()
+        redis_client.incr.assert_not_awaited()
+        redis_client.expire.assert_not_awaited()
 
     async def test_increment_usage_skips_missing_tracking_id_for_authenticated_user(
         self,
@@ -792,8 +803,9 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs("app.usage_tracker", level="WARNING") as logs:
             await increment_usage(request, redis_client, usage_status)
 
-        redis_client.incr.assert_not_called()
-        redis_client.expire.assert_not_called()
+        redis_client.pipeline.assert_not_called()
+        redis_client.incr.assert_not_awaited()
+        redis_client.expire.assert_not_awaited()
         self.assertTrue(
             any("tracking_id is missing" in message for message in logs.output)
         )
