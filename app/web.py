@@ -172,21 +172,15 @@ def _resolve_classifier_options(
     return resolved_version, resolved_top_k, default_version, default_top_k
 
 
-def _resolve_fragment_flags(
-    request: Request,
+def _resolve_fragment_push_url(
     push_url: bool | None,
-    track_usage: bool,
     url_change: bool | None,
-) -> tuple[bool, bool]:
-    resolved_push_url = True if push_url is None and url_change is None else push_url
-    if resolved_push_url is None:
-        resolved_push_url = url_change
-
-    resolved_track_usage = track_usage
-    if "track_usage" not in request.query_params and url_change is not None:
-        resolved_track_usage = url_change
-
-    return bool(resolved_push_url), resolved_track_usage
+) -> bool:
+    if push_url is not None:
+        return push_url
+    if url_change is not None:
+        return url_change
+    return True
 
 
 def _get_redis_client(request: Request):
@@ -222,51 +216,6 @@ def _build_fragment_push_url(
     return new_url
 
 
-def _build_fragment_fetch_url(
-    upper_type: str,
-    normalized_description: str,
-    version: str,
-    default_version: str,
-    top_k: int,
-    push_url: bool,
-) -> str:
-    params: dict[str, str | int] = {
-        "product_description": normalized_description,
-        "top_k": top_k,
-        "track_usage": "false",
-    }
-    if version and version != default_version:
-        params["version"] = version
-    if not push_url:
-        params["push_url"] = "false"
-    return f"/{upper_type}/fragment?{urlencode(params)}"
-
-
-def _build_unmetered_usage_status() -> UsageStatus:
-    return UsageStatus(
-        allowed=True,
-        remaining=-1,
-        limit=-1,
-        is_authenticated=False,
-        is_pro=False,
-        tracking_id=None,
-    )
-
-
-def _build_metered_redirect_usage_status(usage_status: UsageStatus) -> UsageStatus:
-    if usage_status.remaining < 0 or usage_status.is_pro:
-        return usage_status
-
-    return UsageStatus(
-        allowed=usage_status.allowed,
-        remaining=max(0, usage_status.remaining - 1),
-        limit=usage_status.limit,
-        is_authenticated=usage_status.is_authenticated,
-        is_pro=usage_status.is_pro,
-        tracking_id=usage_status.tracking_id,
-    )
-
-
 def _render_paywall_fragment(
     request: Request,
     usage_status: UsageStatus,
@@ -293,7 +242,6 @@ def _render_paywall_fragment(
 def _render_empty_results_fragment(
     request: Request,
     normalized_description: str,
-    usage_status: UsageStatus,
 ) -> _TemplateResponse:
     response = templates.TemplateResponse(
         request,
@@ -305,7 +253,6 @@ def _render_empty_results_fragment(
     )
     response.headers.update(build_cache_headers(CLASSIFICATION_RESULT))
     response.headers["Vary"] = "Accept-Encoding"
-    add_quota_headers(response, usage_status)
     return response
 
 
@@ -315,7 +262,6 @@ def _render_classification_results_fragment(
     page_title: str | None,
     push_url: bool,
     new_url: str,
-    usage_status: UsageStatus,
 ) -> _TemplateResponse:
     response = templates.TemplateResponse(
         request,
@@ -326,18 +272,9 @@ def _render_classification_results_fragment(
         },
     )
     response.headers.update(get_classification_cache_headers())
+    response.headers["Cache-Tag"] = "classification-results"
     if push_url:
         response.headers["HX-Push-Url"] = new_url
-    add_quota_headers(response, usage_status)
-    return response
-
-
-def _render_metering_redirect(
-    location: str, usage_status: UsageStatus
-) -> RedirectResponse:
-    response = RedirectResponse(url=location, status_code=303)
-    response.headers.update(build_cache_headers(NO_STORE))
-    add_quota_headers(response, usage_status)
     return response
 
 
@@ -691,7 +628,6 @@ async def get_classification_fragment(
     top_k: int | None = Query(None, ge=1, le=100),
     version: str | None = Query(None),
     push_url: bool | None = Query(None),
-    track_usage: bool = Query(True),
     url_change: bool | None = Query(None),
 ):
     """
@@ -705,16 +641,13 @@ async def get_classification_fragment(
     )
 
     logger.info(
-        "WEB received GET fragment request for '%s' with version '%s'. Push URL: %s. Track usage: %s",
+        "WEB received GET fragment request for '%s' with version '%s'. Push URL: %s",
         upper_type,
         version,
         push_url,
-        track_usage,
     )
 
-    push_url, track_usage = _resolve_fragment_flags(
-        request, push_url, track_usage, url_change
-    )
+    push_url = _resolve_fragment_push_url(push_url, url_change)
     redis_client = _get_redis_client(request)
     await _maybe_verify_checkout_return(request, redis_client)
     new_url = _build_fragment_push_url(
@@ -726,25 +659,12 @@ async def get_classification_fragment(
     )
 
     if not normalized_description:
-        return _render_empty_results_fragment(
-            request, normalized_description, _build_unmetered_usage_status()
-        )
+        return _render_empty_results_fragment(request, normalized_description)
 
-    if track_usage and await is_verified_google_search_crawler_request(request):
+    is_verified_crawler = await is_verified_google_search_crawler_request(request)
+    if is_verified_crawler:
         logger.info("Bypassing quota for verified Google search crawler")
-        return _render_metering_redirect(
-            _build_fragment_fetch_url(
-                upper_type,
-                normalized_description,
-                version,
-                default_version,
-                top_k,
-                push_url,
-            ),
-            _build_unmetered_usage_status(),
-        )
-
-    if track_usage:
+    else:
         try:
             usage_status = await check_usage(request, redis_client)
             if not usage_status.allowed:
@@ -753,25 +673,12 @@ async def get_classification_fragment(
                 )
 
             await increment_usage(request, redis_client, usage_status)
-            return _render_metering_redirect(
-                _build_fragment_fetch_url(
-                    upper_type,
-                    normalized_description,
-                    version,
-                    default_version,
-                    top_k,
-                    push_url,
-                ),
-                _build_metered_redirect_usage_status(usage_status),
-            )
         except QuotaUnavailableError as e:
             logger.warning("Quota unavailable for '%s' fragment: %s", upper_type, e)
             return _render_status_fragment(
                 str(e),
                 status_code=503,
             )
-
-    usage_status = _build_unmetered_usage_status()
 
     try:
         results_context = build_classification_results_context(
@@ -781,13 +688,18 @@ async def get_classification_fragment(
             version=version,
             top_k=top_k,
         )
-    except HTTPException:
-        # Let HTTP exceptions propagate
+    except HTTPException as exc:
+        exc.headers = {
+            **(exc.headers or {}),
+            **build_cache_headers(NO_STORE),
+        }
         raise
     except Exception as e:
         logger.error("Error during '%s' fragment classification: %s", upper_type, e)
         raise HTTPException(
-            status_code=500, detail=f"Error processing request: {str(e)}"
+            status_code=500,
+            detail=f"Error processing request: {str(e)}",
+            headers=build_cache_headers(NO_STORE),
         )
 
     page_title = (
@@ -796,7 +708,7 @@ async def get_classification_fragment(
         else None
     )
     response = _render_classification_results_fragment(
-        request, results_context, page_title, push_url, new_url, usage_status
+        request, results_context, page_title, push_url, new_url
     )
 
     return response

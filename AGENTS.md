@@ -4,7 +4,12 @@ The role of this file is to describe common mistakes and confusion points that a
 
 Always use `npm test` or `npm run test:watch` for frontend tests.
 
-Never use `pytest` for backend testing. Always use Python's built-in `unittest` module instead.
+Always use `pytest` for backend tests. The suite retains `unittest`-compatible
+test classes and standard-library mocks, but pytest is the official runner.
+
+Keep pytest collection scoped to `tests/`. The `utilities/test_*.py` files are
+manual live/debug helpers, and the ignored `embedders/tests/` tree contains
+separate experimental tests that are not part of the maintained backend suite.
 
 Use Virtual Environment `source .venv/bin/activate` because all dependencies are installed there already.
 
@@ -30,6 +35,16 @@ Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full
 - Paywalls must use `no-store` - prevents serving cached paywall to allowed users
 - Full pages can set cookies - but prefer client-side JavaScript to prevent CDN cache pollution
 - Generate per-user state client-side when possible (e.g., tracking IDs via `crypto.randomUUID()`) instead of server-side templating - keeps HTML cacheable across all users
+- `Cloudflare-CDN-Cache-Control` controls Cloudflare independently of browser
+  `Cache-Control`. Responses that may be requested with `Authorization` must
+  explicitly include `public` (or another authorization-compatible shared-cache
+  directive) in the Cloudflare-specific header.
+
+## Cloudflare Tunnel Access Logs
+
+Uvicorn's `fddf:...` client address is the Cloudflare Tunnel peer, not the end
+visitor. Do not correlate adjacent access-log entries as one user without using
+`CF-Connecting-IP`, a Cloudflare Ray ID, or equivalent structured request data.
 
 ## Rapid API (API.py)
 

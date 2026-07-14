@@ -808,9 +808,8 @@
 
             <form id="classifier-form"
                 hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" hx-sync="this:drop"
                 data-initial-query-present="{% if url_params.search %}true{% else %}false{% endif %}"
-                data-initial-track-usage="{% if url_params.search %}true{% else %}false{% endif %}"
                 data-default-example-prefill="{% if default_example_prefill %}true{% else %}false{% endif %}"
                 data-autoload-enabled="{% if trigger_search_on_load and versions %}true{% else %}false{% endif %}"
                 data-default-top-k="{{ default_top_k }}" data-default-version="{{ first_version }}">

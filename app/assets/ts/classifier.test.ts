@@ -105,9 +105,9 @@ describe("classifier.ts", () => {
       <form
         id="classifier-form"
         hx-get="/NAICS/fragment"
+        hx-sync="this:drop"
         data-default-example-prefill="false"
         data-initial-query-present="false"
-        data-initial-track-usage="false"
         data-autoload-enabled="false"
         data-default-top-k="10"
         data-default-version="v1"
@@ -180,6 +180,33 @@ describe("classifier.ts", () => {
     textarea.value = "industrial pump";
     topK.dispatchEvent(new Event("change", { bubbles: true }));
     expect(trigger).toHaveBeenCalled();
+  });
+
+  it("waits for auth readiness before sending a manual form submission", async () => {
+    window.__authReady = false;
+    await import("./classifier");
+    const form = getClassifierForm();
+    const firstSubmit = new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    });
+    const duplicateSubmit = new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    form.dispatchEvent(firstSubmit);
+    form.dispatchEvent(duplicateSubmit);
+
+    expect(firstSubmit.defaultPrevented).toBe(true);
+    expect(duplicateSubmit.defaultPrevented).toBe(true);
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(form, "submit");
+
+    window.__authReady = true;
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+
+    expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
   });
 
   it("keeps default top-k and omits default version on manual requests", async () => {
@@ -515,7 +542,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     window.__authReady = true;
 
     await import("./classifier");
@@ -546,7 +572,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
@@ -568,7 +593,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     window.__authReady = true;
 
     window.history.replaceState({}, "", "/NAICS/industrial_pump?version=v2");
@@ -594,7 +618,7 @@ describe("classifier.ts", () => {
     );
   });
 
-  it("does not use history suppression fallback for base example autoload", async () => {
+  it("suppresses history changes for base example autoload", async () => {
     vi.doMock("./common", () => ({
       ShareLink: {
         copyShareableLink: vi.fn(),
@@ -604,11 +628,12 @@ describe("classifier.ts", () => {
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["defaultExamplePrefill"] = "true";
     form.dataset["initialQueryPresent"] = "false";
-    form.dataset["initialTrackUsage"] = "false";
+    window.__authReady = true;
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
     textarea.value = "Industrial pump";
+    window.history.replaceState({}, "", "/NAICS/");
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
@@ -625,8 +650,8 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(historyDetail.history.type).toBe("push");
-    expect(historyDetail.history.path).toBe("/NAICS/industrial_pump");
+    expect(historyDetail.history.type).toBe("replace");
+    expect(historyDetail.history.path).toBe("/NAICS/");
   });
 
   it("cancels auth-gated autoload when a manual results request starts before authReady", async () => {
@@ -639,7 +664,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
 
@@ -667,7 +691,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
 
@@ -689,7 +712,7 @@ describe("classifier.ts", () => {
     expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
   });
 
-  it("autoloads the base example query immediately without tracking usage", async () => {
+  it("waits for auth before autoloading the base example query", async () => {
     window.__authReady = false;
     vi.doMock("./common", () => ({
       ShareLink: {
@@ -699,7 +722,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "false";
-    form.dataset["initialTrackUsage"] = "false";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -707,6 +729,11 @@ describe("classifier.ts", () => {
     textarea.value = "Industrial pump";
 
     await import("./classifier");
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalledWith(form, "submit");
+
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
     vi.advanceTimersByTime(0);
 
     expect(window.htmx?.trigger).toHaveBeenCalledWith(form, "submit");
@@ -719,15 +746,15 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["push_url"]).toBe("false");
-    expect(detail.parameters["track_usage"]).toBe("false");
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
     expect(detail.parameters["top_k"]).toBe("10");
     expect(detail.parameters["version"]).toBeUndefined();
   });
 
   it("keeps the default example query active for top-k changes after timer clear", async () => {
-    window.__authReady = false;
+    window.__authReady = true;
     vi.doMock("./common", () => ({
       ShareLink: {
         copyShareableLink: vi.fn(),
@@ -737,7 +764,6 @@ describe("classifier.ts", () => {
     form.dataset["defaultExamplePrefill"] = "true";
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "false";
-    form.dataset["initialTrackUsage"] = "false";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -757,7 +783,7 @@ describe("classifier.ts", () => {
   });
 
   it("uses the stored default example query when configRequest runs after timer clear", async () => {
-    window.__authReady = false;
+    window.__authReady = true;
     vi.doMock("./common", () => ({
       ShareLink: {
         copyShareableLink: vi.fn(),
@@ -767,7 +793,6 @@ describe("classifier.ts", () => {
     form.dataset["defaultExamplePrefill"] = "true";
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "false";
-    form.dataset["initialTrackUsage"] = "false";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -786,8 +811,8 @@ describe("classifier.ts", () => {
     );
 
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
-    expect(detail.parameters["push_url"]).toBe("false");
-    expect(detail.parameters["track_usage"]).toBe("false");
+    expect(detail.parameters["push_url"]).toBeUndefined();
+    expect(detail.parameters["track_usage"]).toBeUndefined();
     expect(detail.parameters["top_k"]).toBe("10");
     expect(detail.parameters["version"]).toBeUndefined();
   });
@@ -803,7 +828,6 @@ describe("classifier.ts", () => {
     form.dataset["defaultExamplePrefill"] = "true";
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "false";
-    form.dataset["initialTrackUsage"] = "false";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -835,7 +859,6 @@ describe("classifier.ts", () => {
     form.dataset["defaultExamplePrefill"] = "true";
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "false";
-    form.dataset["initialTrackUsage"] = "false";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -875,7 +898,6 @@ describe("classifier.ts", () => {
     form.dataset["defaultExamplePrefill"] = "false";
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -906,7 +928,6 @@ describe("classifier.ts", () => {
     form.dataset["defaultExamplePrefill"] = "true";
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "false";
-    form.dataset["initialTrackUsage"] = "false";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -932,7 +953,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     const textarea = document.getElementById(
       "product_description_area",
     ) as HTMLTextAreaElement;
@@ -955,7 +975,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
@@ -990,7 +1009,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     const resultsContainer = document.getElementById(
       "results-container",
     ) as HTMLElement;
@@ -1036,7 +1054,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     const resultsContainer = document.getElementById(
       "results-container",
     ) as HTMLElement;
@@ -1072,7 +1089,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
@@ -1112,7 +1128,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
     vi.advanceTimersByTime(0);
@@ -1133,7 +1148,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
 
     await import("./classifier");
 
@@ -1159,7 +1173,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     const indicator = document.getElementById(
       "loading-indicator",
     ) as HTMLElement;
@@ -1180,7 +1193,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     window.setTimeout(() => {
       window.__authReady = true;
       document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
@@ -1208,7 +1220,6 @@ describe("classifier.ts", () => {
     const form = getClassifierForm();
     form.dataset["autoloadEnabled"] = "true";
     form.dataset["initialQueryPresent"] = "true";
-    form.dataset["initialTrackUsage"] = "true";
     const indicator = document.getElementById(
       "loading-indicator",
     ) as HTMLElement;

@@ -182,6 +182,10 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
+                "app.web.is_verified_google_search_crawler_request",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
                 "app.web.check_usage", new=AsyncMock(return_value=usage_status)
             ) as check_usage,
             patch("app.web.increment_usage", new=AsyncMock()) as increment_usage,
@@ -207,29 +211,23 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
                 version=version_name,
                 top_k=10,
                 push_url=None,
-                track_usage=True,
                 url_change=True,
             )
 
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=86400, stale-while-revalidate=604800",
+        )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "no-store",
+            "public, max-age=604800, stale-while-revalidate=604800",
         )
-        self.assertEqual(
-            response.headers["Location"],
-            "/UNSPSC/fragment?"
-            + "product_description=test+widget&top_k=10&track_usage=false",
-        )
-        self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
-        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
+        self.assertNotIn("X-RateLimit-Remaining", response.headers)
+        self.assertNotIn("X-RateLimit-Limit", response.headers)
         check_usage.assert_awaited_once()
         increment_usage.assert_awaited_once()
-        add_quota_headers.assert_called_once()
-        _, redirect_usage_status = add_quota_headers.call_args.args
-        self.assertEqual(redirect_usage_status.remaining, 8)
-        self.assertEqual(redirect_usage_status.limit, 10)
+        add_quota_headers.assert_not_called()
 
 
 if __name__ == "__main__":

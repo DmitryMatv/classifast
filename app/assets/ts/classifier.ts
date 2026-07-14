@@ -23,11 +23,11 @@ class ClassifierPage {
     | "cancelled"
     | "completed" = "idle";
   private pendingAutoloadRequestConfig: {
-    trackUsage: boolean;
     suppressUrlChange: boolean;
   } | null = null;
   private autoloadRequestInFlight = false;
   private suppressNextHistoryUpdate = false;
+  private pendingAuthReadySubmission = false;
   private activeQuery: string | null = null;
   private defaultExampleQuery: string | null = null;
 
@@ -38,6 +38,7 @@ class ClassifierPage {
   private init(): void {
     document.documentElement.classList.add("js-score-animations");
     this.initializeQueryState();
+    this.setupAuthReadySubmissionGate();
     this.setupInitialResultsAutoload();
     this.setupTopKAutosubmit();
     this.setupHTMXListeners();
@@ -70,8 +71,6 @@ class ClassifierPage {
 
   private getAutoloadConfig(): {
     enabled: boolean;
-    requiresAuthReady: boolean;
-    trackUsage: boolean;
     suppressUrlChange: boolean;
   } | null {
     const form = this.getClassifierForm();
@@ -81,8 +80,6 @@ class ClassifierPage {
 
     return {
       enabled: form.dataset["autoloadEnabled"] === "true",
-      requiresAuthReady: form.dataset["initialQueryPresent"] === "true",
-      trackUsage: form.dataset["initialTrackUsage"] === "true",
       suppressUrlChange: true,
     };
   }
@@ -211,10 +208,7 @@ class ClassifierPage {
     this.suppressNextHistoryUpdate = false;
   }
 
-  private submitInitialResultsAutoload(
-    trackUsage: boolean,
-    suppressUrlChange: boolean,
-  ): void {
+  private submitInitialResultsAutoload(suppressUrlChange: boolean): void {
     const form = this.getClassifierForm();
 
     if (
@@ -228,9 +222,9 @@ class ClassifierPage {
     }
 
     this.autoloadStatus = "triggered";
-    this.pendingAutoloadRequestConfig = { trackUsage, suppressUrlChange };
+    this.pendingAutoloadRequestConfig = { suppressUrlChange };
     this.autoloadRequestInFlight = true;
-    this.suppressNextHistoryUpdate = trackUsage && suppressUrlChange;
+    this.suppressNextHistoryUpdate = suppressUrlChange;
     window.htmx.trigger(form, "submit");
   }
 
@@ -249,10 +243,7 @@ class ClassifierPage {
         return;
       }
 
-      this.submitInitialResultsAutoload(
-        config.trackUsage,
-        config.suppressUrlChange,
-      );
+      this.submitInitialResultsAutoload(config.suppressUrlChange);
     };
 
     const scheduleInitialResultsLoad = () => {
@@ -264,11 +255,6 @@ class ClassifierPage {
     };
 
     this.autoloadStatus = "pending";
-
-    if (!config.requiresAuthReady) {
-      scheduleInitialResultsLoad();
-      return;
-    }
 
     if (window.__authReady) {
       scheduleInitialResultsLoad();
@@ -289,6 +275,41 @@ class ClassifierPage {
       },
       { once: true },
     );
+  }
+
+  private setupAuthReadySubmissionGate(): void {
+    const form = this.getClassifierForm();
+    if (!form) {
+      return;
+    }
+
+    form.addEventListener("submit", (event) => {
+      if (window.__authReady) {
+        return;
+      }
+
+      event.preventDefault();
+      if (this.pendingAuthReadySubmission) {
+        return;
+      }
+
+      this.cancelInitialResultsAutoload();
+      this.pendingAuthReadySubmission = true;
+      this.showLoadingIndicator();
+
+      document.body.addEventListener(
+        "htmx:authReady",
+        () => {
+          if (!this.pendingAuthReadySubmission) {
+            return;
+          }
+
+          this.pendingAuthReadySubmission = false;
+          window.htmx?.trigger(form, "submit");
+        },
+        { once: true },
+      );
+    });
   }
 
   private ensureResultsSectionVisible(): void {
@@ -480,20 +501,8 @@ class ClassifierPage {
         return;
       }
 
-      if (!this.pendingAutoloadRequestConfig.trackUsage) {
-        htmxEvent.detail.parameters["track_usage"] = "false";
-      } else {
-        delete htmxEvent.detail.parameters["track_usage"];
-      }
-
-      if (
-        this.pendingAutoloadRequestConfig.suppressUrlChange &&
-        !this.pendingAutoloadRequestConfig.trackUsage
-      ) {
-        htmxEvent.detail.parameters["push_url"] = "false";
-      } else {
-        delete htmxEvent.detail.parameters["push_url"];
-      }
+      delete htmxEvent.detail.parameters["track_usage"];
+      delete htmxEvent.detail.parameters["push_url"];
       this.pendingAutoloadRequestConfig = null;
     });
 

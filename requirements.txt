@@ -1,3 +1,6 @@
+mypy
+pytest
+pyrefly
 python-dotenv
 python-multipart
 fastapi>=0.122.0

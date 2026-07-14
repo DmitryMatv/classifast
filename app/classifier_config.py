@@ -91,6 +91,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "versions": {
             "GPC as of May 2026 (v20260520)": {
                 "collection_name": "GPC_20260520_v1",
+                "base_url": "https://gpc-browser.gs1.org/browser/#/search?query=",
             },
         },
     },

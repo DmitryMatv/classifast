@@ -14,7 +14,7 @@ HTML_PAGE = CacheProfile(
 
 CLASSIFICATION_RESULT = CacheProfile(
     browser_cache_control="public, max-age=86400, stale-while-revalidate=604800",
-    cloudflare_cache_control="max-age=604800, stale-while-revalidate=604800",
+    cloudflare_cache_control=("public, max-age=604800, stale-while-revalidate=604800"),
 )
 
 STATIC_CODE = CacheProfile(

@@ -96,9 +96,10 @@ For Coolify, use:
 
 ## Testing
 
-Automated backend tests live under `tests/` and use Python's standard-library `unittest` framework.
+Automated backend tests live under `tests/` and use pytest as the test runner.
+The existing tests retain their `unittest.TestCase`-compatible structure.
 
-- Run the backend suite: `python -m unittest discover -s tests -v`
+- Run the backend suite: `pytest`
 - Run the frontend typecheck: `npm run typecheck`
 - Run the Python typecheck: `python -m mypy`
 

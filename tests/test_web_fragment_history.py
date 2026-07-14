@@ -66,139 +66,145 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             return await client.get(f"/{self.classifier_type}/fragment", params=params)
 
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
-    async def test_push_url_true_metered_request_redirects_to_cacheable_fragment(
-        self,
-        perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
-    ) -> None:
-        perform_classification_mock.return_value = self._classification_result()
-        check_usage_mock.return_value = UsageStatus(
+    def _allowed_usage(self) -> UsageStatus:
+        return UsageStatus(
             allowed=True,
             remaining=9,
             limit=10,
             is_authenticated=False,
             is_pro=False,
+            tracking_id="track-123",
         )
+
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_push_url_true_returns_one_cacheable_metered_response(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = self._allowed_usage()
+        crawler_check_mock.return_value = False
 
         response = await self._request_fragment(push_url="true")
 
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "public, max-age=86400, stale-while-revalidate=604800",
+        )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "no-store",
+            "public, max-age=604800, stale-while-revalidate=604800",
         )
         self.assertEqual(
-            response.headers["Location"],
-            f"/{self.classifier_type}/fragment?"
-            + "product_description=trash+removal&top_k=10&track_usage=false",
+            response.headers["HX-Push-Url"],
+            f"/{self.classifier_type}/trash_removal?top_k=10",
         )
-        self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
-        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
+        self.assertNotIn("X-RateLimit-Remaining", response.headers)
+        self.assertNotIn("X-RateLimit-Limit", response.headers)
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
-        perform_classification_mock.assert_not_called()
+        perform_classification_mock.assert_called_once()
 
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_push_url_false_metered_redirect_preserves_suppressed_push_url(
+    async def test_push_url_false_suppresses_history_but_still_tracks(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
         increment_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
     ) -> None:
         perform_classification_mock.return_value = self._classification_result()
-        check_usage_mock.return_value = UsageStatus(
-            allowed=True,
-            remaining=9,
-            limit=10,
-            is_authenticated=False,
-            is_pro=False,
-        )
+        check_usage_mock.return_value = self._allowed_usage()
+        crawler_check_mock.return_value = False
 
         response = await self._request_fragment(push_url="false")
 
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(
-            response.headers["Location"],
-            f"/{self.classifier_type}/fragment?"
-            + "product_description=trash+removal&top_k=10&track_usage=false&push_url=false",
-        )
-        self.assertEqual(response.headers["X-RateLimit-Remaining"], "8")
-        self.assertEqual(response.headers["X-RateLimit-Limit"], "10")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Push-Url", response.headers)
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
-        perform_classification_mock.assert_not_called()
+        perform_classification_mock.assert_called_once()
 
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_track_usage_false_bypasses_quota_logic(
+    async def test_legacy_track_usage_false_no_longer_bypasses_quota(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
         increment_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
     ) -> None:
         perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = self._allowed_usage()
+        crawler_check_mock.return_value = False
 
         response = await self._request_fragment(push_url="false", track_usage="false")
 
         self.assertEqual(response.status_code, 200)
-        check_usage_mock.assert_not_awaited()
-        increment_usage_mock.assert_not_awaited()
-
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
-    async def test_track_usage_true_still_tracks_when_push_url_false(
-        self,
-        perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
-    ) -> None:
-        perform_classification_mock.return_value = self._classification_result()
-        check_usage_mock.return_value = UsageStatus(
-            allowed=True,
-            remaining=4,
-            limit=10,
-            is_authenticated=False,
-            is_pro=False,
-        )
-
-        response = await self._request_fragment(push_url="false", track_usage="true")
-
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(
-            response.headers["Location"],
-            f"/{self.classifier_type}/fragment?"
-            + "product_description=trash+removal&top_k=10&track_usage=false&push_url=false",
-        )
         check_usage_mock.assert_awaited_once()
         increment_usage_mock.assert_awaited_once()
-        perform_classification_mock.assert_not_called()
+        perform_classification_mock.assert_called_once()
 
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.increment_usage", new_callable=AsyncMock)
     @patch("app.web.check_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_legacy_url_change_false_preserves_old_no_tracking_behavior(
+    async def test_legacy_url_change_false_only_suppresses_history(
         self,
         perform_classification_mock: Mock,
         check_usage_mock: AsyncMock,
         increment_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
     ) -> None:
         perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = self._allowed_usage()
+        crawler_check_mock.return_value = False
 
         response = await self._request_fragment(url_change="false")
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("HX-Push-Url", response.headers)
-        check_usage_mock.assert_not_awaited()
-        increment_usage_mock.assert_not_awaited()
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
+        perform_classification_mock.assert_called_once()
+
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
+    @patch("app.web.increment_usage", new_callable=AsyncMock)
+    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.perform_classification")
+    async def test_explicit_push_url_wins_over_legacy_url_change(
+        self,
+        perform_classification_mock: Mock,
+        check_usage_mock: AsyncMock,
+        increment_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        check_usage_mock.return_value = self._allowed_usage()
+        crawler_check_mock.return_value = False
+
+        response = await self._request_fragment(
+            push_url="true",
+            url_change="false",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("HX-Push-Url", response.headers)
+        check_usage_mock.assert_awaited_once()
+        increment_usage_mock.assert_awaited_once()
+        perform_classification_mock.assert_called_once()
 
 
 if __name__ == "__main__":
