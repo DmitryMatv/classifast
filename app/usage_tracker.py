@@ -530,7 +530,7 @@ async def _resolve_authenticated_pro_status(
     return False
 
 
-async def _check_anonymous_usage(
+async def _reserve_anonymous_usage(
     request: Request, redis_client: redis.Redis
 ) -> UsageStatus:
     tracking_id, _ = get_or_create_tracking_id(request)
@@ -538,73 +538,91 @@ async def _check_anonymous_usage(
     limit = ANON_LIMIT
 
     logger.info(
-        f"Checking usage for anonymous user: tracking_id={tracking_id}, ip_hash={ip_hash}"
+        "Reserving usage for anonymous user: tracking_id=%s, ip_hash=%s",
+        tracking_id,
+        ip_hash,
     )
 
     cookie_key = f"anon:{tracking_id}:usage_count"
     ip_key = f"anon:ip:{ip_hash}:usage_count"
 
     try:
-        cookie_count = await redis_client.get(cookie_key)
-        cookie_count = int(cookie_count) if cookie_count else 0
+        pipeline = redis_client.pipeline(transaction=True)
+        pipeline.incr(cookie_key)
+        pipeline.expire(cookie_key, ANON_USAGE_TTL)
+        pipeline.incr(ip_key)
+        pipeline.expire(ip_key, ANON_USAGE_TTL)
+        results = await pipeline.execute()
 
-        ip_count = await redis_client.get(ip_key)
-        ip_count = int(ip_count) if ip_count else 0
+        cookie_count = int(results[0])
+        ip_count = int(results[2])
 
         current_count = max(cookie_count, ip_count)
         remaining = max(0, limit - current_count)
 
         logger.info(
-            f"Anonymous usage counts: cookie={cookie_count}, ip={ip_count}, current={current_count}, remaining={remaining}"
+            "Anonymous usage reserved: cookie=%s, ip=%s, current=%s, remaining=%s",
+            cookie_count,
+            ip_count,
+            current_count,
+            remaining,
         )
 
         return _usage_status(
-            allowed=current_count < limit,
+            allowed=current_count <= limit,
             remaining=remaining,
             limit=limit,
             is_authenticated=False,
             tracking_id=tracking_id,
         )
     except redis.RedisError as e:
-        logger.error(f"Redis error checking anonymous usage: {e}")
+        logger.error(f"Redis error reserving anonymous usage: {e}")
         raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
 
 
-async def _check_authenticated_free_usage(
+async def _reserve_authenticated_free_usage(
     user_id: str, redis_client: redis.Redis
 ) -> UsageStatus:
     key = f"user:{user_id}:usage_count"
     limit = FREE_USER_LIMIT
-    logger.info(f"Checking usage for authenticated free user: {user_id}")
+    logger.info(f"Reserving usage for authenticated free user: {user_id}")
 
     try:
-        current_count = await redis_client.get(key)
-        current_count = int(current_count) if current_count else 0
+        pipeline = redis_client.pipeline(transaction=True)
+        pipeline.incr(key)
+        pipeline.expire(key, USAGE_TTL)
+        results = await pipeline.execute()
+
+        current_count = int(results[0])
         remaining = max(0, limit - current_count)
 
         logger.info(
-            f"Authenticated free user usage: {key}, current={current_count}, remaining={remaining}"
+            "Authenticated free user usage reserved: %s, current=%s, remaining=%s",
+            key,
+            current_count,
+            remaining,
         )
 
         return _usage_status(
-            allowed=current_count < limit,
+            allowed=current_count <= limit,
             remaining=remaining,
             limit=limit,
             is_authenticated=True,
             tracking_id=user_id,
         )
     except redis.RedisError as e:
-        logger.error(f"Redis error checking user usage: {e}")
+        logger.error(f"Redis error reserving user usage: {e}")
         raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
 
 
-async def check_usage(
+async def reserve_usage(
     request: Request,
     redis_client: redis.Redis | None,
 ) -> UsageStatus:
     """
-    Check if the user/anonymous visitor can make a classification request.
-    Returns UsageStatus with allowed flag and remaining quota.
+    Atomically reserve quota for a classification request.
+
+    Returns UsageStatus with the admission result and post-reservation quota.
     """
     user_id, tier = await extract_user_info_from_token(request)
     _log_anonymous_auth_diagnostics(request, user_id)
@@ -616,71 +634,9 @@ async def check_usage(
         return _unlimited_pro_usage(user_id)
 
     if not user_id:
-        return await _check_anonymous_usage(request, redis_client)
+        return await _reserve_anonymous_usage(request, redis_client)
 
-    return await _check_authenticated_free_usage(user_id, redis_client)
-
-
-async def increment_usage(
-    request: Request,
-    redis_client: redis.Redis | None,
-    usage_status: UsageStatus,
-) -> None:
-    """Increment usage counter after successful classification."""
-    if not redis_client or usage_status.is_pro:
-        if not redis_client and not usage_status.is_pro:
-            raise QuotaUnavailableError("Usage tracking is temporarily unavailable")
-        return
-
-    try:
-        # tracking_id carries the post-check identity:
-        # authenticated user_id for signed-in users, cookie id for anonymous users.
-        tracking_id = usage_status.tracking_id
-        if not tracking_id:
-            logger.warning(
-                "Skipping usage increment because tracking_id is missing: authenticated=%s",
-                usage_status.is_authenticated,
-            )
-            return
-
-        if usage_status.is_authenticated:
-            key = f"user:{tracking_id}:usage_count"
-            await _increment_usage_counters(redis_client, ((key, USAGE_TTL),))
-            logger.info(f"Incremented authenticated user usage: {key}")
-        else:
-            # Anonymous user - always increment BOTH counters
-            ip_hash = hash_ip(get_client_ip(request))
-
-            cookie_key = f"anon:{tracking_id}:usage_count"
-            ip_key = f"anon:ip:{ip_hash}:usage_count"
-
-            await _increment_usage_counters(
-                redis_client,
-                (
-                    (cookie_key, ANON_USAGE_TTL),
-                    (ip_key, ANON_USAGE_TTL),
-                ),
-            )
-
-            logger.info(
-                f"Incremented anonymous user usage: tracking_id={tracking_id}, ip_hash={ip_hash}, cookie_key={cookie_key}, ip_key={ip_key}"
-            )
-
-    except redis.RedisError as e:
-        logger.error(f"Redis error incrementing usage: {e}")
-        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
-
-
-async def _increment_usage_counters(
-    redis_client: redis.Redis,
-    counters: tuple[tuple[str, int], ...],
-) -> None:
-    """Increment quota counters and refresh their TTLs in one transaction."""
-    pipeline = redis_client.pipeline(transaction=True)
-    for key, ttl in counters:
-        pipeline.incr(key)
-        pipeline.expire(key, ttl)
-    await pipeline.execute()
+    return await _reserve_authenticated_free_usage(user_id, redis_client)
 
 
 def set_tracking_cookie(response: Response, tracking_id: str) -> None:

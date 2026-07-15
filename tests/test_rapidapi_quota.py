@@ -78,10 +78,7 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
                 "app.api.perform_classification",
                 return_value=build_classification_result("2025"),
             ),
-            patch("app.usage_tracker.check_usage", new=AsyncMock()) as check_usage,
-            patch(
-                "app.usage_tracker.increment_usage", new=AsyncMock()
-            ) as increment_usage,
+            patch("app.usage_tracker.reserve_usage", new=AsyncMock()) as reserve_usage,
         ):
             self.assertTrue(api.verify_rapidapi_auth(request))
             response = await api.rapid_classify(
@@ -99,8 +96,7 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["standard"], "unspsc")
         self.assertNotIn("X-RateLimit-Remaining", response.headers)
         self.assertNotIn("X-RateLimit-Limit", response.headers)
-        check_usage.assert_not_awaited()
-        increment_usage.assert_not_awaited()
+        reserve_usage.assert_not_awaited()
 
 
 class RapidApiHealthTests(unittest.IsolatedAsyncioTestCase):
@@ -186,9 +182,8 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(return_value=False),
             ),
             patch(
-                "app.web.check_usage", new=AsyncMock(return_value=usage_status)
-            ) as check_usage,
-            patch("app.web.increment_usage", new=AsyncMock()) as increment_usage,
+                "app.web.reserve_usage", new=AsyncMock(return_value=usage_status)
+            ) as reserve_usage,
             patch(
                 "app.web.perform_classification",
                 return_value=build_classification_result(version_name),
@@ -225,8 +220,7 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("X-RateLimit-Remaining", response.headers)
         self.assertNotIn("X-RateLimit-Limit", response.headers)
-        check_usage.assert_awaited_once()
-        increment_usage.assert_awaited_once()
+        reserve_usage.assert_awaited_once()
         add_quota_headers.assert_not_called()
 
 

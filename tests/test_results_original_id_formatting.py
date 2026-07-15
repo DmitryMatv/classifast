@@ -92,7 +92,7 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
             with (
                 patch("app.web.perform_classification", return_value=result),
                 patch(
-                    "app.web.check_usage",
+                    "app.web.reserve_usage",
                     new=AsyncMock(
                         return_value=UsageStatus(
                             allowed=True,
@@ -103,7 +103,6 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
                         )
                     ),
                 ),
-                patch("app.web.increment_usage", new=AsyncMock()),
             ):
                 return await client.get(
                     f"/{classifier_type}/fragment",

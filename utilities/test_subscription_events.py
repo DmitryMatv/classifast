@@ -138,7 +138,7 @@ async def test_usage_tracking_after_downgrade():
     logger.info("TEST 3: Usage Limits After Downgrade")
     logger.info("=" * 80)
 
-    from app.usage_tracker import check_usage
+    from app.usage_tracker import TierResolution, reserve_usage
 
     # Create mock request with JWT for Pro user
     logger.info("\n[3.1] Testing usage check for Pro user (unlimited)...")
@@ -146,52 +146,74 @@ async def test_usage_tracking_after_downgrade():
     mock_request.headers = {"authorization": "Bearer pro_user_token"}
 
     # Mock the JWT extraction to return pro tier
-    with patch(
-        "app.usage_tracker.extract_user_info_from_token",
-        return_value=("user_pro_001", "pro"),
+    mock_redis = AsyncMock()
+    with (
+        patch(
+            "app.usage_tracker.extract_user_info_from_token",
+            return_value=("user_pro_001", "pro"),
+        ),
+        patch("app.usage_tracker.has_active_grace", return_value=False),
+        patch(
+            "app.usage_tracker.get_cached_user_tier",
+            return_value=TierResolution(status="confirmed_pro", tier="pro"),
+        ),
     ):
-        status = await check_usage(mock_request, None)
+        status = await reserve_usage(mock_request, mock_redis)
         assert status.is_pro, "Should be recognized as Pro user from JWT"
         assert status.remaining == -1, "Pro user should have unlimited usage"
         logger.info("✓ Pro user has unlimited usage")
 
     # Same user but JWT now shows Free tier (post-downgrade)
     logger.info("\n[3.2] Testing usage check after downgrade (JWT updated)...")
-    with patch(
-        "app.usage_tracker.extract_user_info_from_token",
-        return_value=("user_pro_001", "free"),
+    with (
+        patch(
+            "app.usage_tracker.extract_user_info_from_token",
+            return_value=("user_pro_001", "free"),
+        ),
+        patch("app.usage_tracker.has_active_grace", return_value=False),
+        patch(
+            "app.usage_tracker.get_cached_user_tier",
+            return_value=TierResolution(status="confirmed_non_pro", tier="free"),
+        ),
     ):
-        # Mock Redis for free user limit checking
+        # Mock Redis for the first free-user reservation.
         mock_redis = AsyncMock()
-        mock_redis.get.return_value = None  # No usage yet
-        mock_redis.exists.return_value = 0  # No grace period
+        pipeline = MagicMock()
+        pipeline.execute = AsyncMock(return_value=[1, True])
+        mock_redis.pipeline = MagicMock(return_value=pipeline)
 
-        status = await check_usage(mock_request, mock_redis)
+        status = await reserve_usage(mock_request, mock_redis)
         assert not status.is_pro, "Should now be Free tier user"
         assert status.limit == 30, (
             f"Should have free user limit of 30, got {status.limit}"
         )
-        assert status.remaining == 30, "Should have 30 requests remaining"
-        logger.info("✓ Downgraded user now has limited usage (30 remaining)")
+        assert status.remaining == 29, "Should have 29 requests remaining"
+        logger.info("✓ Downgraded user now has limited usage (29 remaining)")
 
     logger.info("\n[3.3] Testing usage limit enforcement...")
-    with patch(
-        "app.usage_tracker.extract_user_info_from_token",
-        return_value=("user_pro_001", "free"),
+    with (
+        patch(
+            "app.usage_tracker.extract_user_info_from_token",
+            return_value=("user_pro_001", "free"),
+        ),
+        patch("app.usage_tracker.has_active_grace", return_value=False),
+        patch(
+            "app.usage_tracker.get_cached_user_tier",
+            return_value=TierResolution(status="confirmed_non_pro", tier="free"),
+        ),
     ):
         mock_redis = AsyncMock()
-        # Simulate user has already used 29 requests
-        mock_redis.get.return_value = b"29"
-        mock_redis.exists.return_value = 0  # No grace period
+        pipeline = MagicMock()
+        pipeline.execute = AsyncMock(return_value=[30, True])
+        mock_redis.pipeline = MagicMock(return_value=pipeline)
 
-        status = await check_usage(mock_request, mock_redis)
-        assert status.allowed, "Should still be allowed (1 remaining)"
-        assert status.remaining == 1, "Should have 1 request remaining"
-        logger.info("✓ User with 1 remaining is still allowed")
+        status = await reserve_usage(mock_request, mock_redis)
+        assert status.allowed, "Reservation reaching the limit should be allowed"
+        assert status.remaining == 0, "Should have 0 requests remaining"
+        logger.info("✓ Reservation reaching the limit is still allowed")
 
-        # Now simulate hitting the limit
-        mock_redis.get.return_value = b"30"
-        status = await check_usage(mock_request, mock_redis)
+        pipeline.execute.return_value = [31, True]
+        status = await reserve_usage(mock_request, mock_redis)
         assert not status.allowed, "Should be blocked (limit reached)"
         assert status.remaining == 0, "Should have 0 requests remaining"
         logger.info("✓ User at limit is properly blocked")

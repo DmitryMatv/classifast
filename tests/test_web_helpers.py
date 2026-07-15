@@ -75,13 +75,9 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             is_pro=False,
             tracking_id="track-default",
         )
-        self.default_check_usage = patch(
-            "app.web.check_usage",
+        self.default_reserve_usage = patch(
+            "app.web.reserve_usage",
             new=AsyncMock(return_value=usage_status),
-        ).start()
-        self.default_increment_usage = patch(
-            "app.web.increment_usage",
-            new=AsyncMock(),
         ).start()
         self.default_crawler_check = patch(
             "app.web.is_verified_google_search_crawler_request",
@@ -202,16 +198,14 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             + urlencode({"version": self.non_default_version, "top_k": 30}),
         )
 
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
     async def test_paywall_response_uses_no_store_cache_headers(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
     ) -> None:
-        check_usage_mock.return_value = UsageStatus(
+        reserve_usage_mock.return_value = UsageStatus(
             allowed=False,
             remaining=0,
             limit=10,
@@ -234,18 +228,16 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             f"/{self.classifier_type}/industrial_pump?top_k=10",
         )
         perform_classification_mock.assert_not_called()
-        increment_usage_mock.assert_not_awaited()
+        reserve_usage_mock.assert_awaited_once()
 
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
     async def test_allowed_cold_fragment_returns_cacheable_results(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
     ) -> None:
-        check_usage_mock.return_value = UsageStatus(
+        reserve_usage_mock.return_value = UsageStatus(
             allowed=True,
             remaining=9,
             limit=10,
@@ -271,18 +263,15 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("X-RateLimit-Remaining", response.headers)
         self.assertNotIn("X-RateLimit-Limit", response.headers)
         perform_classification_mock.assert_called_once()
-        check_usage_mock.assert_awaited_once()
-        increment_usage_mock.assert_awaited_once()
+        reserve_usage_mock.assert_awaited_once()
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
     async def test_verified_google_crawler_returns_cacheable_results(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
         crawler_check_mock: AsyncMock,
     ) -> None:
         perform_classification_mock.return_value = self._classification_result()
@@ -302,20 +291,17 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("X-RateLimit-Remaining", response.headers)
         self.assertNotIn("X-RateLimit-Limit", response.headers)
         crawler_check_mock.assert_awaited_once()
-        check_usage_mock.assert_not_awaited()
-        increment_usage_mock.assert_not_awaited()
+        reserve_usage_mock.assert_not_awaited()
         perform_classification_mock.assert_called_once()
 
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
-    async def test_quota_unavailable_during_check_returns_no_store_503(
+    async def test_quota_unavailable_during_reservation_returns_no_store_503(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
     ) -> None:
-        check_usage_mock.side_effect = QuotaUnavailableError(
+        reserve_usage_mock.side_effect = QuotaUnavailableError(
             "Usage tracking is temporarily unavailable"
         )
 
@@ -329,42 +315,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Usage tracking is temporarily unavailable", response.text)
         perform_classification_mock.assert_not_called()
-        check_usage_mock.assert_awaited_once()
-        increment_usage_mock.assert_not_awaited()
-
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
-    async def test_quota_unavailable_during_increment_returns_no_store_503(
-        self,
-        perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
-    ) -> None:
-        check_usage_mock.return_value = UsageStatus(
-            allowed=True,
-            remaining=9,
-            limit=10,
-            is_authenticated=False,
-            is_pro=False,
-            tracking_id="track-123",
-        )
-        increment_usage_mock.side_effect = QuotaUnavailableError(
-            "Usage tracking is temporarily unavailable"
-        )
-
-        response = await self._request_fragment(push_url="true")
-
-        self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
-        self.assertEqual(
-            response.headers["Cloudflare-CDN-Cache-Control"],
-            "no-store",
-        )
-        self.assertIn("Usage tracking is temporarily unavailable", response.text)
-        perform_classification_mock.assert_not_called()
-        check_usage_mock.assert_awaited_once()
-        increment_usage_mock.assert_awaited_once()
+        reserve_usage_mock.assert_awaited_once()
 
     @patch("app.web.perform_classification", side_effect=RuntimeError("qdrant down"))
     async def test_classification_error_returns_no_store_500(
@@ -402,14 +353,12 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         )
         perform_classification_mock.assert_not_called()
 
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
     async def test_empty_metered_query_does_not_consume_quota(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
     ) -> None:
         response = await self._request_fragment(
             product_description="   ",
@@ -424,8 +373,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("X-RateLimit-Remaining", response.headers)
         self.assertNotIn("X-RateLimit-Limit", response.headers)
         perform_classification_mock.assert_not_called()
-        check_usage_mock.assert_not_awaited()
-        increment_usage_mock.assert_not_awaited()
+        reserve_usage_mock.assert_not_awaited()
 
     @patch("app.web.perform_classification")
     async def test_fragment_uses_default_top_k_when_omitted(
@@ -530,14 +478,12 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             return await client.get(path)
 
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
     async def test_unspsc_base_page_inlines_ssr_results(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
     ) -> None:
         perform_classification_mock.return_value = self._classification_result(
             "43211503", "Laptop computers"
@@ -555,8 +501,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
             perform_classification_mock.call_args.kwargs["version"], self.unspsc_version
         )
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
-        check_usage_mock.assert_not_awaited()
-        increment_usage_mock.assert_not_awaited()
+        reserve_usage_mock.assert_not_awaited()
 
     @patch("app.web.perform_classification")
     async def test_naics_base_page_inlines_ssr_results(
@@ -635,14 +580,12 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Laptop computers", response.text)
         perform_classification_mock.assert_not_called()
 
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification", side_effect=RuntimeError("qdrant down"))
     async def test_base_page_ssr_failure_falls_back_to_loader(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
     ) -> None:
         response = await self._request("/UNSPSC/")
         expected_example = CLASSIFIER_CONFIG["UNSPSC"]["example"].strip()
@@ -653,8 +596,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(expected_example, response.text)
         self.assertNotIn("Set-Cookie", response.headers)
         perform_classification_mock.assert_called_once()
-        check_usage_mock.assert_not_awaited()
-        increment_usage_mock.assert_not_awaited()
+        reserve_usage_mock.assert_not_awaited()
 
 
 class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
@@ -673,18 +615,16 @@ class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         }
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
-    @patch("app.web.increment_usage", new_callable=AsyncMock)
-    @patch("app.web.check_usage", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
     @patch("app.web.perform_classification")
     async def test_unspsc_fragment_uses_default_top_k_when_omitted(
         self,
         perform_classification_mock: Mock,
-        check_usage_mock: AsyncMock,
-        increment_usage_mock: AsyncMock,
+        reserve_usage_mock: AsyncMock,
         crawler_check_mock: AsyncMock,
     ) -> None:
         perform_classification_mock.return_value = self._classification_result()
-        check_usage_mock.return_value = UsageStatus(
+        reserve_usage_mock.return_value = UsageStatus(
             allowed=True,
             remaining=9,
             limit=10,
@@ -710,8 +650,7 @@ class UnspscFragmentDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
-        check_usage_mock.assert_awaited_once()
-        increment_usage_mock.assert_awaited_once()
+        reserve_usage_mock.assert_awaited_once()
 
 
 if __name__ == "__main__":

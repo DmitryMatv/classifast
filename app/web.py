@@ -33,8 +33,7 @@ from .usage_tracker import (
     QuotaUnavailableError,
     UsageStatus,
     add_quota_headers,
-    check_usage,
-    increment_usage,
+    reserve_usage,
     verify_checkout_token,
 )
 
@@ -666,13 +665,11 @@ async def get_classification_fragment(
         logger.info("Bypassing quota for verified Google search crawler")
     else:
         try:
-            usage_status = await check_usage(request, redis_client)
+            usage_status = await reserve_usage(request, redis_client)
             if not usage_status.allowed:
                 return _render_paywall_fragment(
                     request, usage_status, push_url, new_url
                 )
-
-            await increment_usage(request, redis_client, usage_status)
         except QuotaUnavailableError as e:
             logger.warning("Quota unavailable for '%s' fragment: %s", upper_type, e)
             return _render_status_fragment(
