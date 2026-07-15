@@ -66,6 +66,8 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
         classifier_type: str,
         version: str,
         original_id: str,
+        base_url: str = "",
+        append_code_to_url: bool = True,
     ) -> httpx.Response:
         result = {
             "results": [
@@ -79,7 +81,8 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
                 }
             ],
             "version_config": {
-                "base_url": "",
+                "base_url": base_url,
+                "append_code_to_url": append_code_to_url,
                 "tooltip": "",
             },
         }
@@ -133,6 +136,20 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
             "onclick=\"window.copyOriginalId('12345678', this)\"",
             response.text,
         )
+
+    async def test_gpc_code_link_opens_browser_homepage_without_code(self) -> None:
+        version = next(iter(CLASSIFIER_CONFIG["GPC"]["versions"]))
+        response = await self._request_fragment(
+            "GPC",
+            version,
+            "10000123",
+            base_url="https://gpc-browser.gs1.org/",
+            append_code_to_url=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('href="https://gpc-browser.gs1.org/"', response.text)
+        self.assertNotIn("https://gpc-browser.gs1.org/10000123", response.text)
 
 
 if __name__ == "__main__":

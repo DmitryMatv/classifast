@@ -430,6 +430,13 @@ class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('option value="10" selected', response.text)
         self.assertIn('id="classifier-form"', response.text)
 
+    async def test_gpc_page_displays_gs1_logo(self) -> None:
+        response = await self._request("/GPC/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('src="http://testserver/static/images/GS1.png"', response.text)
+        self.assertIn('alt="GS1 GPC classification standard logo"', response.text)
+
     async def test_unspsc_invalid_top_k_falls_back_to_10(self) -> None:
         response = await self._request("/UNSPSC/?top_k=999")
 

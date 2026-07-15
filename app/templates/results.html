@@ -39,7 +39,8 @@
                         {% if base_url and base_url.strip() %}
                         {% set code_for_url = result.payload.original_id.replace('.', '') if 'NACE' in request.url.path
                         else result.payload.original_id %}
-                        <a href="{{ base_url }}{{ code_for_url | e }}" target="_blank"
+                        {% set detail_url = base_url ~ (code_for_url if append_code_to_url else '') %}
+                        <a href="{{ detail_url | e }}" target="_blank"
                             class="text-gray-600 text-2xl font-bold font-mono hover:text-sky-600 hover:underline hover:decoration-sky-600"
                             rel="noopener"
                             aria-label="View details for {{ result.payload.original_id | e }} (opens in new tab)">

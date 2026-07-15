@@ -106,6 +106,7 @@ def build_classification_results_context(
             "query": normalized_query,
             "results_for_query": [],
             "base_url": "",
+            "append_code_to_url": True,
             "tooltip": "",
             "total_request_time": 0,
         }
@@ -129,6 +130,7 @@ def build_classification_results_context(
         "query": normalized_query,
         "results_for_query": result["results"],
         "base_url": result["version_config"].get("base_url", ""),
+        "append_code_to_url": result["version_config"].get("append_code_to_url", True),
         "tooltip": result["version_config"].get("tooltip", ""),
         "total_request_time": total_request_time,
         "classifier_type": upper_type,

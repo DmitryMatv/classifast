@@ -133,13 +133,18 @@ async def rapid_classify(
         for r in classification_results:
             payload = r.get("payload", {})
             base_url = result["version_config"].get("base_url", "")
+            append_code_to_url = result["version_config"].get(
+                "append_code_to_url", True
+            )
             code = payload.get("original_id", "")
 
             formatted_result = ClassificationResult(
                 code=code,
                 name=payload.get("class_name", ""),
                 score=r.get("score", 0.0),
-                url=f"{base_url}{code}" if base_url and code else None,
+                url=(f"{base_url}{code}" if append_code_to_url else base_url)
+                if base_url and code
+                else None,
             )
             formatted_results.append(formatted_result)
 

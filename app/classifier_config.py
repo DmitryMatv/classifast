@@ -31,6 +31,7 @@ UNSPSC_RERANK_INSTRUCTION = (
 class VersionConfig(TypedDict):
     collection_name: str
     base_url: NotRequired[str]
+    append_code_to_url: NotRequired[bool]
     tooltip: NotRequired[str]
 
 
@@ -80,7 +81,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         },
     },
     "GPC": {
-        "title": "GPC Classifier",
+        "title": "GS1 GPC Classifier",
         "heading": "Classify products by essential characteristics.",
         "description": "GS1 Global Product Classification (GPC) is a product taxonomy used to group trade items by their essential characteristics. It organizes products from broad segments down to detailed bricks, helping retailers, suppliers, marketplaces, and data teams standardize product classification across catalog, procurement, analytics, and data synchronization workflows.",
         "example": "Oil spill absorbent pads",
@@ -91,7 +92,8 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "versions": {
             "GPC as of May 2026 (v20260520)": {
                 "collection_name": "GPC_20260520_v1",
-                "base_url": "https://gpc-browser.gs1.org/browser/#/search?query=",
+                "base_url": "https://gpc-browser.gs1.org/",
+                "append_code_to_url": False,
             },
         },
     },
