@@ -68,7 +68,7 @@
                                 {%- endif -%}
                                 {# Insert a small visual-only separator after every 2 digits within a contiguous
                                 digit run. The copy button still uses the raw original_id passed into JS. #}
-                                {%- set exclude_spacer_classifications = ['ETIM', 'HTS', 'NSN'] -%}
+                                {%- set exclude_spacer_classifications = ['ETIM', 'GMDN', 'HTS', 'NSN'] -%}
                                 {%- if token.gap_after and classifier_type not in exclude_spacer_classifications -%}
                                 <span aria-hidden="true" class="code-spacer-halves"></span>
                                 {%- endif -%}
@@ -88,13 +88,13 @@
                         {% if result.payload.id_level %}
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}
+                        {% if classifier_type == 'GMDN' and result.payload.status == 'Obsolete' %}
+                        <span class="text-gray-600 text-lg">Obsolete</span>
+                        {% endif %}
                         {% if classifier_type == 'GMDN' and result.payload.implantable is defined %}
-                        <span class="text-gray-600 text-lg">
+                        <span class="text-gray-600 text-lg{% if result.payload.status == 'Obsolete' %} ml-2{% endif %}">
                             {{- 'Implantable' if result.payload.implantable else 'Non-implantable' -}}
                         </span>
-                        {% endif %}
-                        {% if classifier_type == 'GMDN' and result.payload.status %}
-                        <span class="text-gray-600 text-lg">{{ result.payload.status | e }}</span>
                         {% endif %}
                         <span class="ml-auto text-gray-600">
                             {{ "%.1f"|format(score_pct) }}%

@@ -747,7 +747,7 @@
                 {% if classifier_type == 'NACE' %}
                 <img src="{{ url_for('static', path='images/Eurostat_Newlogo.png') }}"
                     alt="NACE classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-21.5 w-auto"
+                    class="hidden lg:block pointer-events-none absolute right-8 -top-4 h-28 w-auto"
                     fetchpriority="high">
                 {% elif classifier_type == 'CN' %}
                 <img src="{{ url_for('static', path='images/logo_en_brand.png') }}"
@@ -760,7 +760,8 @@
                 {% elif classifier_type == 'NAICS' %}
                 <img src="{{ url_for('static', path='images/naics-logo.png') }}"
                     alt="NAICS classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
+                    class="hidden lg:block pointer-events-none absolute right-8 -top-4 h-32 w-auto"
+                    fetchpriority="high">
                 {% elif classifier_type == 'UNSPSC' %}
                 <img src="{{ url_for('static', path='images/unspsc-logo.gif') }}"
                     alt="UNSPSC classification standard logo" data-classifier-logo="true"
@@ -769,6 +770,15 @@
                 <img src="{{ url_for('static', path='images/GS1.png') }}" alt="GS1 GPC classification standard logo"
                     data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
+                {% elif classifier_type == 'ETIM' %}
+                <img src="{{ url_for('static', path='images/ETIM-International_logo.svg') }}"
+                    alt="ETIM International classification standard logo" data-classifier-logo="true"
+                    class="hidden lg:block pointer-events-none absolute right-8 -top-2 h-20 w-auto"
+                    fetchpriority="high">
+                {% elif classifier_type == 'GMDN' %}
+                <img src="{{ url_for('static', path='images/gmdn-logo.png') }}" alt="GMDN classification standard logo"
+                    data-classifier-logo="true"
+                    class="hidden lg:block pointer-events-none absolute right-8 top-1 h-16 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'HTS' %}
                 <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="HTS classification standard logo"
                     data-classifier-logo="true"

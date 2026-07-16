@@ -229,8 +229,11 @@ async def test_gmdn_fragment_renders_separate_metadata_labels() -> None:
     assert response.status_code == 200
     assert "Implantable" in response.text
     assert "Non-implantable" in response.text
-    assert "Active" in response.text
     assert "Obsolete" in response.text
+    assert "Active" not in response.text
+    assert response.text.index("Obsolete") < response.text.index("Non-implantable")
+    assert "text-gray-600 text-lg ml-2" in response.text
+    assert "code-spacer-halves" not in response.text
 
 
 @pytest.mark.anyio
