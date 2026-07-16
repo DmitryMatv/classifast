@@ -699,7 +699,10 @@
                     <div class="menu-chip-grid">
                         <a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
                             class="menu-chip">UNSPSC</a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='GPC') }}" class="menu-chip">GS1 GPC</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='GPC') }}" class="menu-chip">
+                            GS1 GPC</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='GMDN') }}"
+                            class="menu-chip">GMDN</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                             class="menu-chip">NAICS</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='CN') }}" class="menu-chip">CN</a>
@@ -748,6 +751,10 @@
                             <a href="{{ url_for('show_classifier_page', classifier_type='GPC') }}"
                                 class="hero-code-pill hero-code-pill--soft">
                                 GS1 GPC
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='GMDN') }}"
+                                class="hero-code-pill hero-code-pill--quiet">
+                                GMDN
                             </a>
                             <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                                 class="hero-code-pill hero-code-pill--soft">

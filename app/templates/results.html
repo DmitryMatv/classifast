@@ -22,7 +22,7 @@
                 data-score-width="{{ '%.2f'|format(score_pct) }}"></div>
             <div class="relative p-3">
                 <div class="flex-1">
-                    <div class="flex items-baseline gap-2">
+                    <div class="flex items-baseline gap-2{% if classifier_type == 'GMDN' %} flex-wrap{% endif %}">
                         <button type="button"
                             onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
                             title="Copy ID to clipboard"
@@ -87,6 +87,14 @@
                         {% endif %}
                         {% if result.payload.id_level %}
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
+                        {% endif %}
+                        {% if classifier_type == 'GMDN' and result.payload.implantable is defined %}
+                        <span class="text-gray-600 text-lg">
+                            {{- 'Implantable' if result.payload.implantable else 'Non-implantable' -}}
+                        </span>
+                        {% endif %}
+                        {% if classifier_type == 'GMDN' and result.payload.status %}
+                        <span class="text-gray-600 text-lg">{{ result.payload.status | e }}</span>
                         {% endif %}
                         <span class="ml-auto text-gray-600">
                             {{ "%.1f"|format(score_pct) }}%

@@ -27,6 +27,17 @@ UNSPSC_RERANK_INSTRUCTION = (
     "Do not infer unsupported details."
 )
 
+GMDN_QUERY_INSTRUCTION = (
+    "Retrieve the most relevant GMDN term that directly and specifically describes the given medical device. "
+    "Match its intended use, design, materials, and clinical application. Do not infer unsupported characteristics."
+)
+
+GMDN_RERANK_INSTRUCTION = (
+    "Evaluate whether the GMDN term directly and specifically describes the medical device. "
+    "Score exact intended-use, design, material, and clinical-application matches highest. "
+    "Do not infer unsupported characteristics."
+)
+
 
 class VersionConfig(TypedDict):
     collection_name: str
@@ -94,6 +105,21 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
                 "collection_name": "GPC_20260520_v1",
                 "base_url": "https://gpc-browser.gs1.org/",
                 "append_code_to_url": False,
+            },
+        },
+    },
+    "GMDN": {
+        "title": "GMDN Code Finder",
+        "heading": "Find the right GMDN code for a medical device.",
+        "description": "The Global Medical Device Nomenclature (GMDN) is a standardized system for naming and defining medical devices. This classifier is derived from the FDA AccessGUDID full release dated July 6, 2026 and includes every GMDN code represented in that release, rather than the complete licensed GMDN master vocabulary.",
+        "example": "Sterile single-use vascular microcatheter for controlled infusion and embolization device delivery",
+        "embed_model_name": DEFAULT_EMBEDDING_MODEL,
+        "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": GMDN_QUERY_INSTRUCTION,
+        "rerank_instruction": GMDN_RERANK_INSTRUCTION,
+        "versions": {
+            "AccessGUDID Full Release (July 6, 2026)": {
+                "collection_name": "GMDN_GUDID_20260706_Qwen3-8B_v1",
             },
         },
     },
