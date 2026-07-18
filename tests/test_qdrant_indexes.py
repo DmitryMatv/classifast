@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from qdrant_client import models
 
-from app import main
+from app import qdrant_schema
 from app.id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
@@ -12,77 +12,9 @@ from app.id_lookup import (
 from utilities import sync_payload_indexes as create_text_indexes
 
 
-class QdrantStartupIndexTests(unittest.TestCase):
-    def test_startup_provisions_expected_payload_indexes(self):
-        client = MagicMock()
-
-        main.provision_payload_indexes(client, "products")
-
-        self.assertEqual(client.create_payload_index.call_count, 4)
-
-        created_fields = {
-            call.kwargs["field_name"]: call.kwargs["field_schema"]
-            for call in client.create_payload_index.call_args_list
-        }
-        self.assertEqual(
-            set(created_fields),
-            {
-                ORIGINAL_ID_FIELD,
-                ORIGINAL_ID_NORMALIZED_FIELD,
-                ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-                "class_name",
-            },
-        )
-
-        original_id_schema = created_fields[ORIGINAL_ID_FIELD]
-        self.assertIsInstance(original_id_schema, models.KeywordIndexParams)
-        self.assertEqual(original_id_schema.type, "keyword")
-
-        for field_name in (
-            ORIGINAL_ID_NORMALIZED_FIELD,
-            ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-        ):
-            normalized_schema = created_fields[field_name]
-            self.assertIsInstance(normalized_schema, models.TextIndexParams)
-            self.assertEqual(normalized_schema.type, "text")
-            self.assertEqual(normalized_schema.tokenizer, models.TokenizerType.PREFIX)
-            self.assertEqual(normalized_schema.min_token_len, 1)
-            self.assertEqual(normalized_schema.max_token_len, 64)
-            self.assertTrue(normalized_schema.lowercase)
-
-        class_name_schema = created_fields["class_name"]
-        self.assertIsInstance(class_name_schema, models.TextIndexParams)
-        self.assertEqual(class_name_schema.type, "text")
-        self.assertEqual(class_name_schema.tokenizer, models.TokenizerType.WORD)
-        self.assertEqual(class_name_schema.min_token_len, 1)
-        self.assertEqual(class_name_schema.max_token_len, 30)
-        self.assertTrue(class_name_schema.lowercase)
-
-    def test_existing_index_warning_mentions_text_remediation(self):
-        client = MagicMock()
-        client.create_payload_index.side_effect = [
-            Exception("payload index already exists"),
-            None,
-            None,
-            None,
-        ]
-
-        with self.assertLogs(main.logger, level="WARNING") as logs:
-            main.provision_payload_indexes(client, "products")
-
-        self.assertTrue(
-            any(
-                "utilities/create_text_indexes.py" in message
-                or "utilities/sync_payload_indexes.py" in message
-                for message in logs.output
-            )
-        )
-        self.assertTrue(any("payload indexes" in message for message in logs.output))
-
-
 class QdrantIndexContractTests(unittest.TestCase):
     def test_original_id_schema_is_keyword_for_exact_and_partial_contract(self):
-        schema = main.get_payload_index_schema(ORIGINAL_ID_FIELD)
+        schema = qdrant_schema.get_payload_index_schema(ORIGINAL_ID_FIELD)
 
         self.assertIsInstance(schema, models.KeywordIndexParams)
         self.assertEqual(schema.type, "keyword")
@@ -92,7 +24,7 @@ class QdrantIndexContractTests(unittest.TestCase):
             ORIGINAL_ID_NORMALIZED_FIELD,
             ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
         ):
-            schema = main.get_payload_index_schema(field_name)
+            schema = qdrant_schema.get_payload_index_schema(field_name)
 
             self.assertIsInstance(schema, models.TextIndexParams)
             self.assertEqual(schema.type, "text")
@@ -133,7 +65,7 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
     def make_normalized_id_index(self):
         return models.PayloadIndexInfo(
             data_type=models.PayloadSchemaType.TEXT,
-            params=create_text_indexes.build_normalized_original_id_text_index_params(),
+            params=qdrant_schema.build_normalized_original_id_text_index_params(),
             points=10,
         )
 
@@ -456,30 +388,53 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         self.assertEqual(processed, ["collection_a", "collection_b", "collection_c"])
 
     def test_main_returns_zero_when_no_errors(self):
+        client = MagicMock()
+        valid_report = qdrant_schema.QdrantValidationReport({"collection_a": False}, ())
         with (
             patch.object(
-                create_text_indexes, "create_qdrant_client", return_value=MagicMock()
+                create_text_indexes, "create_qdrant_client", return_value=client
             ),
             patch.object(
                 create_text_indexes,
                 "migrate_configured_collections",
                 return_value=(2, 0),
             ),
+            patch.object(
+                create_text_indexes,
+                "inspect_configured_collections",
+                return_value=valid_report,
+            ),
         ):
-            self.assertEqual(create_text_indexes.main(), 0)
+            self.assertEqual(create_text_indexes.main(["apply"]), 0)
+        client.close.assert_called_once_with()
 
     def test_main_returns_one_when_errors_present(self):
+        client = MagicMock()
+        invalid_report = qdrant_schema.QdrantValidationReport(
+            {},
+            (
+                qdrant_schema.QdrantValidationIssue(
+                    "collection_a", "missing_collection", "missing"
+                ),
+            ),
+        )
         with (
             patch.object(
-                create_text_indexes, "create_qdrant_client", return_value=MagicMock()
+                create_text_indexes, "create_qdrant_client", return_value=client
             ),
             patch.object(
                 create_text_indexes,
                 "migrate_configured_collections",
                 return_value=(1, 1),
             ),
+            patch.object(
+                create_text_indexes,
+                "inspect_configured_collections",
+                return_value=invalid_report,
+            ),
         ):
-            self.assertEqual(create_text_indexes.main(), 1)
+            self.assertEqual(create_text_indexes.main(["apply"]), 1)
+        client.close.assert_called_once_with()
 
 
 if __name__ == "__main__":

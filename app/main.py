@@ -6,7 +6,7 @@ import os
 import re
 import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, quote_from_bytes, urlencode, urlparse, urlunparse
@@ -18,7 +18,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from huggingface_hub import InferenceClient
-from qdrant_client import QdrantClient, models
+from qdrant_client import QdrantClient
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 from zeroentropy import ZeroEntropy
@@ -31,16 +31,13 @@ from .cache_profiles import (
     CacheProfile,
     build_cache_headers,
 )
-from .classifier_config import CLASSIFIER_CONFIG
-from .id_lookup import (
-    ORIGINAL_ID_FIELD,
-    ORIGINAL_ID_NORMALIZED_FIELD,
-    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+from .classification_executor import ClassificationExecutor
+from .qdrant_connection import create_qdrant_client, resolve_qdrant_url
+from .qdrant_schema import (
+    QdrantSchemaValidationError,
+    validate_configured_collections,
 )
 from .usage_tracker import (
-    QDRANT_API_KEY,
-    QDRANT_HOST,
-    QDRANT_PORT,
     REDIS_HOST,
     REDIS_PASSWORD,
     REDIS_PORT,
@@ -74,101 +71,11 @@ load_dotenv()
 
 @dataclass
 class StartupClients:
-    embed_client: Any | None
-    qdrant_client: QdrantClient | None
-    collection_quantization_cache: dict[str, bool]
-    redis_client: redis.Redis | None
-    zclient: ZeroEntropy | None
-
-
-def build_original_id_index_params() -> models.KeywordIndexParams:
-    """Return the exact-match payload index settings for classification IDs."""
-    return models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD)
-
-
-def build_class_name_text_index_params() -> models.TextIndexParams:
-    """Return the text-search payload index settings for class names."""
-    return models.TextIndexParams(
-        type=models.TextIndexType.TEXT,
-        tokenizer=models.TokenizerType.WORD,
-        min_token_len=1,
-        max_token_len=30,
-        lowercase=True,
-    )
-
-
-def build_normalized_original_id_text_index_params() -> models.TextIndexParams:
-    """Return prefix text-search settings for normalized classification IDs."""
-    return models.TextIndexParams(
-        type=models.TextIndexType.TEXT,
-        tokenizer=models.TokenizerType.PREFIX,
-        min_token_len=1,
-        max_token_len=64,
-        lowercase=True,
-    )
-
-
-def get_payload_index_schema(
-    field_name: str,
-) -> models.KeywordIndexParams | models.TextIndexParams:
-    """Return the expected payload index schema for a classifier field."""
-    if field_name == ORIGINAL_ID_FIELD:
-        return build_original_id_index_params()
-    if field_name in {
-        ORIGINAL_ID_NORMALIZED_FIELD,
-        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-    }:
-        return build_normalized_original_id_text_index_params()
-    if field_name == "class_name":
-        return build_class_name_text_index_params()
-    raise KeyError(f"Unsupported payload index field: {field_name}")
-
-
-def provision_payload_indexes(
-    qdrant_client: QdrantClient,
-    collection_name: str,
-) -> None:
-    """
-    Provision Qdrant payload indexes required by classifier lookups.
-
-    Args:
-        qdrant_client: The Qdrant client instance
-        collection_name: The name of the collection to index
-    """
-    for field_name in (
-        ORIGINAL_ID_FIELD,
-        ORIGINAL_ID_NORMALIZED_FIELD,
-        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-        "class_name",
-    ):
-        try:
-            qdrant_client.create_payload_index(
-                collection_name=collection_name,
-                field_name=field_name,
-                field_schema=get_payload_index_schema(field_name),
-                wait=True,
-            )
-            logger.info(
-                "Created payload index for field '%s' in collection '%s'",
-                field_name,
-                collection_name,
-            )
-        except Exception as e:
-            error_message = str(e).lower()
-            if "already exists" in error_message:
-                logger.warning(
-                    "Payload index for field '%s' in collection '%s' already exists. Existing collections may need utilities/sync_payload_indexes.py if payload indexes or normalized ID payload fields are out of date.",
-                    field_name,
-                    collection_name,
-                )
-                continue
-
-            logger.warning(
-                "Could not create payload index for field '%s' in collection '%s': %s",
-                field_name,
-                collection_name,
-                e,
-            )
+    embed_client: Any | None = None
+    qdrant_client: QdrantClient | None = None
+    collection_quantization_cache: dict[str, bool] = field(default_factory=dict)
+    redis_client: redis.Redis | None = None
+    zclient: ZeroEntropy | None = None
 
 
 def initialize_embed_client() -> Any | None:
@@ -191,84 +98,37 @@ def initialize_embed_client() -> Any | None:
         return None
 
 
-def get_existing_qdrant_collections(qdrant_client: QdrantClient) -> set[str]:
-    """Return collection names visible to Qdrant, or an empty set on list failure."""
+def _close_qdrant_client_after_startup_failure(client: QdrantClient) -> None:
+    """Close Qdrant without allowing cleanup to hide a startup failure."""
     try:
-        collections_result = qdrant_client.get_collections()
-        existing_collections = {col.name for col in collections_result.collections}
-        collection_names = sorted(list(existing_collections))
-        logger.info(
-            "Qdrant client initialized. Found collections: %s",
-            collection_names,
-        )
-        return existing_collections
-    except Exception as e:
-        logger.error(
-            "Qdrant client initialized, but could not list collections: %s",
-            e,
-        )
-        return set()
-
-
-def validate_qdrant_collections(
-    qdrant_client: QdrantClient,
-    existing_collections: set[str],
-) -> dict[str, bool]:
-    """Validate configured Qdrant collections and provision required payload indexes."""
-    collection_quantization_cache = {}
-
-    for classifier_type, config in CLASSIFIER_CONFIG.items():
-        embed_dims = config.get("embed_dims")
-        for version, version_config in config["versions"].items():
-            collection_name = version_config.get("collection_name")
-            if not collection_name:
-                continue
-
-            if collection_name not in existing_collections:
-                logger.warning(
-                    "Warning: Collection %s for %s version %s does not exist.",
-                    collection_name,
-                    classifier_type,
-                    version,
-                )
-                continue
-
-            collection_info = qdrant_client.get_collection(collection_name)
-            vector_params = collection_info.config.params.vectors
-
-            if isinstance(vector_params, dict) and "size" in vector_params:
-                vector_size = vector_params["size"]
-                if vector_size != embed_dims:
-                    logger.warning(
-                        "Warning: Collection %s has vector size %d but config specifies %d",
-                        collection_name,
-                        vector_size,
-                        embed_dims,
-                    )
-
-            has_quantization = collection_info.config.quantization_config is not None
-            collection_quantization_cache[collection_name] = has_quantization
-            provision_payload_indexes(qdrant_client, collection_name)
-
-    return collection_quantization_cache
+        client.close()
+    except Exception:
+        logger.exception("Error closing Qdrant client after startup failure.")
 
 
 def initialize_qdrant_client() -> tuple[QdrantClient, dict[str, bool]]:
-    """Initialize Qdrant and validate configured collections."""
+    """Initialize Qdrant and validate configured collections without mutation."""
+    qdrant_client: QdrantClient | None = None
     try:
-        logger.info("Connecting to Qdrant at %s:%d...", QDRANT_HOST, QDRANT_PORT)
-        qdrant_client = QdrantClient(
-            url=f"http://{QDRANT_HOST}:{QDRANT_PORT}",
-            api_key=QDRANT_API_KEY or None,
-            timeout=30,
-        )
-        existing_collections = get_existing_qdrant_collections(qdrant_client)
-        collection_quantization_cache = validate_qdrant_collections(
-            qdrant_client,
-            existing_collections,
+        logger.info("Connecting to Qdrant at %s...", resolve_qdrant_url())
+        qdrant_client = create_qdrant_client(timeout=30)
+        collection_quantization_cache = validate_configured_collections(qdrant_client)
+        logger.info(
+            "Qdrant schema validation succeeded for %d configured collections.",
+            len(collection_quantization_cache),
         )
         return qdrant_client, collection_quantization_cache
+    except QdrantSchemaValidationError as exc:
+        for issue in exc.issues:
+            logger.error("Qdrant contract violation: %s", issue)
+        if qdrant_client is not None:
+            _close_qdrant_client_after_startup_failure(qdrant_client)
+        raise RuntimeError(
+            "Failed to initialize Qdrant client: invalid schema"
+        ) from exc
     except Exception as e:
+        if qdrant_client is not None:
+            _close_qdrant_client_after_startup_failure(qdrant_client)
         logger.error("Error initializing Qdrant client: %s", e)
         raise RuntimeError(f"Failed to initialize Qdrant client: {e}") from e
 
@@ -292,6 +152,15 @@ async def initialize_redis_client() -> redis.Redis | None:
             await ping_result
         logger.info("Redis client initialized successfully.")
         return redis_client
+    except asyncio.CancelledError:
+        if redis_client:
+            try:
+                await redis_client.close()
+            except Exception:
+                logger.exception(
+                    "Error closing Redis client after startup cancellation."
+                )
+        raise
     except Exception as e:
         logger.warning("Redis not available, usage tracking disabled: %s", e)
         if redis_client:
@@ -320,26 +189,33 @@ def initialize_zeroentropy_client() -> ZeroEntropy | None:
 
 async def initialize_startup_clients() -> StartupClients:
     """Initialize all startup clients using the existing fatal/non-fatal semantics."""
-    embed_client = initialize_embed_client()
-    qdrant_client, collection_quantization_cache = initialize_qdrant_client()
-    redis_client = await initialize_redis_client()
-    zclient = initialize_zeroentropy_client()
-    return StartupClients(
-        embed_client=embed_client,
-        qdrant_client=qdrant_client,
-        collection_quantization_cache=collection_quantization_cache,
-        redis_client=redis_client,
-        zclient=zclient,
-    )
+    clients = StartupClients()
+    try:
+        clients.embed_client = initialize_embed_client()
+        (
+            clients.qdrant_client,
+            clients.collection_quantization_cache,
+        ) = initialize_qdrant_client()
+        clients.redis_client = await initialize_redis_client()
+        clients.zclient = initialize_zeroentropy_client()
+        return clients
+    except BaseException:
+        await close_startup_clients(clients)
+        raise
 
 
-def assign_startup_clients(app: FastAPI, clients: StartupClients) -> None:
+def assign_startup_clients(
+    app: FastAPI,
+    clients: StartupClients,
+    classification_executor: ClassificationExecutor,
+) -> None:
     """Store initialized clients and caches on FastAPI app state."""
     app.state.embed_client = clients.embed_client
     app.state.zclient = clients.zclient
     app.state.qdrant_client = clients.qdrant_client
     app.state.collection_quantization_cache = clients.collection_quantization_cache
     app.state.redis_client = clients.redis_client
+    app.state.classification_executor = classification_executor
 
 
 async def close_startup_clients(clients: StartupClients) -> None:
@@ -361,13 +237,19 @@ async def close_startup_clients(clients: StartupClients) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("FastAPI application startup...")
-    clients = await initialize_startup_clients()
-    assign_startup_clients(app, clients)
-
-    yield
-
-    logger.info("FastAPI application shutdown...")
-    await close_startup_clients(clients)
+    classification_executor = ClassificationExecutor()
+    clients: StartupClients | None = None
+    try:
+        clients = await initialize_startup_clients()
+        assign_startup_clients(app, clients, classification_executor)
+        yield
+    finally:
+        logger.info("FastAPI application shutdown...")
+        try:
+            await classification_executor.close()
+        finally:
+            if clients is not None:
+                await close_startup_clients(clients)
 
 
 app = FastAPI(lifespan=lifespan)

@@ -15,6 +15,14 @@ Use Virtual Environment `source .venv/bin/activate` because all dependencies are
 
 `utilities/qdrant_config.py` is an executable migration-style script, not passive configuration. Importing or running it updates a hardcoded Qdrant collection, so review it carefully before execution.
 
+`utilities/sync_payload_indexes.py check` is read-only.
+`utilities/sync_payload_indexes.py apply` is a migration-style command that
+backfills payloads and creates or replaces indexes in configured Qdrant
+collections. Runtime startup must validate Qdrant without creating, replacing,
+or deleting indexes.
+
+`QDRANT_URL` takes precedence over `QDRANT_HOST`/`QDRANT_PORT` for both runtime and maintenance commands.
+
 ## Project Snapshot
 
 Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.

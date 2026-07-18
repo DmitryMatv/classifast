@@ -5,7 +5,8 @@ Run this after deploying the payload-index contract fix to reconcile existing
 collections with the classifier lookup logic.
 
 Usage:
-    python utilities/sync_payload_indexes.py
+    python utilities/sync_payload_indexes.py check
+    python utilities/sync_payload_indexes.py apply
 
 This utility manages both keyword and text payload indexes.
 
@@ -16,9 +17,10 @@ The script will:
 4. Create or replace indexes only when they do not match the expected schema
 """
 
+import argparse
 import os
 import sys
-from typing import Any
+from typing import Any, Sequence
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
@@ -26,7 +28,6 @@ from qdrant_client import QdrantClient, models
 # Add parent directory to path so we can import from app
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.classifier_config import CLASSIFIER_CONFIG
 from app.id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
@@ -34,180 +35,26 @@ from app.id_lookup import (
     normalize_original_id_for_lookup,
     reverse_normalized_id,
 )
-
-load_dotenv()
-
-PAYLOAD_INDEX_FIELDS = (
-    ORIGINAL_ID_FIELD,
-    ORIGINAL_ID_NORMALIZED_FIELD,
-    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-    "class_name",
+from app.qdrant_connection import create_qdrant_client as create_shared_qdrant_client
+from app.qdrant_schema import (
+    PAYLOAD_INDEX_FIELDS,
+    QdrantValidationReport,
+    build_class_name_text_index_params,
+    get_all_collection_names,
+    get_existing_payload_index,
+    get_payload_index_schema,
+    inspect_configured_collections,
+    is_expected_payload_index,
 )
+
 BACKFILL_BATCH_SIZE = 100
 
-
-def build_original_id_index_params() -> models.KeywordIndexParams:
-    """Return the exact-match payload index settings for classification IDs."""
-    return models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD)
-
-
-def build_text_index_params() -> models.TextIndexParams:
-    """Return the text-search payload index settings for class names."""
-    return models.TextIndexParams(
-        type=models.TextIndexType.TEXT,
-        tokenizer=models.TokenizerType.WORD,
-        min_token_len=1,
-        max_token_len=30,
-        lowercase=True,
-    )
-
-
-def build_normalized_original_id_text_index_params() -> models.TextIndexParams:
-    """Return prefix text-search settings for normalized classification IDs."""
-    return models.TextIndexParams(
-        type=models.TextIndexType.TEXT,
-        tokenizer=models.TokenizerType.PREFIX,
-        min_token_len=1,
-        max_token_len=64,
-        lowercase=True,
-    )
-
-
-def get_payload_index_schema(
-    field_name: str,
-) -> models.KeywordIndexParams | models.TextIndexParams:
-    """Return the expected payload index schema for a classifier field."""
-    if field_name == ORIGINAL_ID_FIELD:
-        return build_original_id_index_params()
-    if field_name in {
-        ORIGINAL_ID_NORMALIZED_FIELD,
-        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-    }:
-        return build_normalized_original_id_text_index_params()
-    if field_name == "class_name":
-        return build_text_index_params()
-    raise KeyError(f"Unsupported payload index field: {field_name}")
-
-
-def get_existing_payload_index(
-    collection_info: Any,
-    field_name: str,
-) -> models.PayloadIndexInfo | None:
-    """Return the payload index metadata for a field, if Qdrant reports one."""
-    payload_schema = getattr(collection_info, "payload_schema", None) or {}
-    return payload_schema.get(field_name)
-
-
-def normalize_text_index_params(
-    params: models.TextIndexParams | None,
-) -> dict[str, object]:
-    """Normalize optional Qdrant defaults before comparing text index settings."""
-    return {
-        "type": "text",
-        "tokenizer": (
-            params.tokenizer
-            if params and params.tokenizer is not None
-            else models.TokenizerType.WORD
-        ),
-        "min_token_len": (
-            params.min_token_len if params and params.min_token_len is not None else 1
-        ),
-        "max_token_len": (
-            params.max_token_len if params and params.max_token_len is not None else 30
-        ),
-        "lowercase": params.lowercase
-        if params and params.lowercase is not None
-        else True,
-        "ascii_folding": (
-            params.ascii_folding
-            if params and params.ascii_folding is not None
-            else False
-        ),
-        "phrase_matching": (
-            params.phrase_matching
-            if params and params.phrase_matching is not None
-            else False
-        ),
-        "stopwords": params.stopwords if params else None,
-        "on_disk": params.on_disk if params and params.on_disk is not None else False,
-        "stemmer": params.stemmer if params else None,
-        "enable_hnsw": (
-            params.enable_hnsw if params and params.enable_hnsw is not None else True
-        ),
-    }
-
-
-def is_expected_payload_index(
-    field_name: str,
-    index_info: models.PayloadIndexInfo,
-) -> bool:
-    """Return whether the existing payload index matches the field contract."""
-    if field_name == ORIGINAL_ID_FIELD:
-        return index_info.data_type == models.PayloadSchemaType.KEYWORD
-
-    if field_name in {
-        ORIGINAL_ID_NORMALIZED_FIELD,
-        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-    }:
-        if index_info.data_type != models.PayloadSchemaType.TEXT:
-            return False
-
-        params = index_info.params
-        if params is not None and not isinstance(params, models.TextIndexParams):
-            return False
-
-        return normalize_text_index_params(params) == normalize_text_index_params(
-            build_normalized_original_id_text_index_params()
-        )
-
-    if field_name == "class_name":
-        if index_info.data_type != models.PayloadSchemaType.TEXT:
-            return False
-
-        params = index_info.params
-        if params is not None and not isinstance(params, models.TextIndexParams):
-            return False
-
-        return normalize_text_index_params(params) == normalize_text_index_params(
-            build_text_index_params()
-        )
-
-    raise KeyError(f"Unsupported payload index field: {field_name}")
+build_text_index_params = build_class_name_text_index_params
 
 
 def create_qdrant_client() -> QdrantClient:
-    """Create a Qdrant client for the manual payload-index remediation flow."""
-    qdrant_remote_url = os.getenv("QDRANT_URL")
-    qdrant_remote_api_key = os.getenv("QDRANT_API_KEY")
-
-    if not qdrant_remote_url:
-        raise ValueError("QDRANT_URL environment variable is required")
-    if not qdrant_remote_api_key:
-        raise ValueError("QDRANT_API_KEY environment variable is required")
-
-    return QdrantClient(
-        host=qdrant_remote_url,
-        port=443,
-        api_key=qdrant_remote_api_key,
-        https=True,
-        prefer_grpc=False,
-        timeout=120,
-    )
-
-
-def get_all_collection_names(classifier_config: dict | None = None) -> list[str]:
-    """Extract all unique collection names from CLASSIFIER_CONFIG."""
-    config_source = (
-        CLASSIFIER_CONFIG if classifier_config is None else classifier_config
-    )
-    collection_names = set()
-    for config in config_source.values():
-        versions = config.get("versions", {})
-        for version_config in versions.values():
-            collection_name = version_config.get("collection_name")
-            if collection_name:
-                collection_names.add(collection_name)
-    return sorted(collection_names)
+    """Create a Qdrant client for explicit maintenance operations."""
+    return create_shared_qdrant_client(timeout=120)
 
 
 def delete_existing_index(
@@ -310,9 +157,9 @@ def flush_payload_backfill_batch(
 def _scroll_backfill_points(
     client: QdrantClient,
     collection_name: str,
-    offset: object,
+    offset: models.ExtendedPointId | None,
     batch_size: int,
-) -> tuple[list[Any], object]:
+) -> tuple[list[Any], models.ExtendedPointId | None]:
     scroll_result = client.scroll(
         collection_name=collection_name,
         offset=offset,
@@ -339,7 +186,7 @@ def backfill_normalized_id_payloads(
     updated = 0
     skipped = 0
     missing_original_id = 0
-    offset = None
+    offset: models.ExtendedPointId | None = None
     operations: list[models.SetPayloadOperation] = []
     success = True
 
@@ -460,15 +307,19 @@ def migrate_collection_payload_indexes(
 def migrate_configured_collections(
     client: QdrantClient,
     classifier_config: dict | None = None,
+    collection_names: set[str] | None = None,
 ) -> tuple[int, int]:
     """Run the manual payload-index remediation for every configured collection."""
-    collection_names = get_all_collection_names(classifier_config)
+    configured_names = get_all_collection_names(classifier_config)
+    names_to_process = (
+        sorted(collection_names) if collection_names is not None else configured_names
+    )
     success_count = 0
     error_count = 0
 
-    print(f"\nFound {len(collection_names)} configured collections to process:\n")
+    print(f"\nFound {len(names_to_process)} configured collections to process:\n")
 
-    for collection_name in collection_names:
+    for collection_name in names_to_process:
         print(f"\nProcessing remediation for: {collection_name}")
 
         if migrate_collection_payload_indexes(client, collection_name):
@@ -479,23 +330,106 @@ def migrate_configured_collections(
     return success_count, error_count
 
 
-def main() -> int:
-    print("=" * 60)
-    print("Qdrant Payload Index Sync")
-    print("=" * 60)
-    print(
-        "This syncs both keyword and text payload indexes with classifier exact and partial ID lookup behavior."
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Validate or reconcile configured Qdrant payload indexes."
     )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for command in ("check", "apply"):
+        command_parser = subparsers.add_parser(command)
+        command_parser.add_argument(
+            "--collection",
+            action="append",
+            dest="collections",
+            help="Limit the operation to a configured collection (repeatable).",
+        )
+    return parser
 
-    client = create_qdrant_client()
-    success_count, error_count = migrate_configured_collections(client)
+
+def validate_requested_collections(
+    requested: Sequence[str] | None,
+    classifier_config: dict | None = None,
+) -> set[str] | None:
+    if not requested:
+        return None
+    configured = set(get_all_collection_names(classifier_config))
+    selected = set(requested)
+    unknown = sorted(selected - configured)
+    if unknown:
+        raise ValueError(f"Unknown configured collection(s): {', '.join(unknown)}")
+    return selected
+
+
+def print_validation_report(report: QdrantValidationReport) -> None:
+    if report.valid:
+        print(f"Validated {len(report.quantization_cache)} configured collection(s).")
+        return
+    print("Qdrant schema validation failed:")
+    for issue in report.issues:
+        print(f"  ! {issue}")
+
+
+def run_check(client: QdrantClient, collection_names: set[str] | None) -> int:
+    report = inspect_configured_collections(
+        client,
+        collection_names=collection_names,
+    )
+    print_validation_report(report)
+    return 0 if report.valid else 1
+
+
+def run_apply(client: QdrantClient, collection_names: set[str] | None) -> int:
+    success_count, error_count = migrate_configured_collections(
+        client,
+        collection_names=collection_names,
+    )
+    report = inspect_configured_collections(
+        client,
+        collection_names=collection_names,
+    )
 
     print("\n" + "=" * 60)
     print(f"Completed: {success_count} collections remediated successfully")
     if error_count:
-        print(f"Errors: {error_count} collections had issues")
+        print(f"Errors: {error_count} collections had migration issues")
+    print_validation_report(report)
     print("=" * 60)
-    return 0 if error_count == 0 else 1
+    return 0 if error_count == 0 and report.valid else 1
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        collection_names = validate_requested_collections(args.collections)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    load_dotenv()
+
+    print("=" * 60)
+    print("Qdrant Payload Index Sync")
+    print("=" * 60)
+    print(f"Mode: {args.command}")
+
+    client: QdrantClient | None = None
+    exit_code = 1
+    try:
+        client = create_qdrant_client()
+        if args.command == "check":
+            exit_code = run_check(client, collection_names)
+        else:
+            exit_code = run_apply(client, collection_names)
+    except Exception as exc:
+        print(f"Qdrant operation failed: {exc}")
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except Exception as exc:
+                print(f"Qdrant client cleanup failed: {exc}")
+                exit_code = 1
+    return exit_code
 
 
 if __name__ == "__main__":

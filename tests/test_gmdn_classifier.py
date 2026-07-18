@@ -10,6 +10,7 @@ from app.classifier import perform_classification, validate_and_prepare_classifi
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from app.web import router
+from tests.helpers import InlineClassificationExecutor
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 GMDN_VERSION = "AccessGUDID Full Release (July 6, 2026)"
@@ -25,6 +26,7 @@ def build_test_app() -> FastAPI:
     app.include_router(router)
     app.state.embed_client = object()
     app.state.qdrant_client = object()
+    app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
     app.state.zclient = None
     app.state.redis_client = object()
@@ -167,7 +169,7 @@ async def test_gmdn_page_and_navigation_are_available() -> None:
 
 
 @pytest.mark.anyio
-async def test_gmdn_fragment_renders_separate_metadata_labels() -> None:
+async def test_gmdn_fragment_renders_metadata_next_to_class_name() -> None:
     app = build_test_app()
     result = {
         "results": [
@@ -230,9 +232,12 @@ async def test_gmdn_fragment_renders_separate_metadata_labels() -> None:
     assert "Implantable" in response.text
     assert "Non-implantable" in response.text
     assert "Obsolete" in response.text
-    assert "Active" not in response.text
+    assert "Active" in response.text
+    assert response.text.index("Spinal fixation plate") < response.text.index("Active")
+    assert response.text.index("Active") < response.text.index("Implantable")
+    assert response.text.index("Abdominal binder") < response.text.index("Obsolete")
     assert response.text.index("Obsolete") < response.text.index("Non-implantable")
-    assert "text-gray-600 text-lg ml-2" in response.text
+    assert response.text.count('class="text-gray-600 text-lg font-semibold"') == 4
     assert "code-spacer-halves" not in response.text
 
 

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from app.web import router
+from tests.helpers import InlineClassificationExecutor
 
 
 def _build_test_app() -> FastAPI:
@@ -14,6 +15,7 @@ def _build_test_app() -> FastAPI:
     app.include_router(router)
     app.state.embed_client = object()
     app.state.qdrant_client = object()
+    app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
     app.state.zclient = None
     app.state.redis_client = object()

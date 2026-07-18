@@ -22,7 +22,7 @@
                 data-score-width="{{ '%.2f'|format(score_pct) }}"></div>
             <div class="relative p-3">
                 <div class="flex-1">
-                    <div class="flex items-baseline gap-2{% if classifier_type == 'GMDN' %} flex-wrap{% endif %}">
+                    <div class="flex items-baseline gap-2">
                         <button type="button"
                             onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
                             title="Copy ID to clipboard"
@@ -88,21 +88,23 @@
                         {% if result.payload.id_level %}
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}
-                        {% if classifier_type == 'GMDN' and result.payload.status == 'Obsolete' %}
-                        <span class="text-gray-600 text-lg">Obsolete</span>
-                        {% endif %}
-                        {% if classifier_type == 'GMDN' and result.payload.implantable is defined %}
-                        <span class="text-gray-600 text-lg{% if result.payload.status == 'Obsolete' %} ml-2{% endif %}">
-                            {{- 'Implantable' if result.payload.implantable else 'Non-implantable' -}}
-                        </span>
-                        {% endif %}
                         <span class="ml-auto text-gray-600">
                             {{ "%.1f"|format(score_pct) }}%
                         </span>
                     </div>
 
                     {% if result.payload.class_name and result.payload.class_name.strip() %}
-                    <h3 class="text-gray-800 text-lg font-semibold ">{{ result.payload.class_name | e }}</h3>
+                    <div class="flex items-baseline gap-x-2 flex-wrap">
+                        <h3 class="text-gray-800 text-lg font-semibold">{{ result.payload.class_name | e }}</h3>
+                        {% if classifier_type == 'GMDN' and result.payload.status is defined %}
+                        <span class="text-gray-600 text-lg font-semibold">{{ result.payload.status | e }}</span>
+                        {% endif %}
+                        {% if classifier_type == 'GMDN' and result.payload.implantable is defined %}
+                        <span class="text-gray-600 text-lg font-semibold">
+                            {{- 'Implantable' if result.payload.implantable else 'Non-implantable' -}}
+                        </span>
+                        {% endif %}
+                    </div>
                     {% endif %}
                     <p class="text-gray-600">{{ result.payload.definition | e }}</p>
                 </div>

@@ -64,6 +64,14 @@ Relevant embedding environment variables:
 - `HF_EMBEDDING_MODEL` defaults to `Qwen/Qwen3-Embedding-8B`
 - `HF_EMBEDDING_DIMS` defaults to `2048`
 
+Relevant Qdrant environment variables:
+
+- `QDRANT_URL` is preferred when set. Full HTTP(S) URLs are preserved; a bare
+  hostname is treated as HTTPS.
+- `QDRANT_HOST` and `QDRANT_PORT` (default `localhost:6333`) are the fallback
+  when `QDRANT_URL` is unset.
+- `QDRANT_API_KEY` is optional for unprotected local Qdrant deployments.
+
 Relevant payment and quota environment variables:
 
 - `POLAR_ACCESS_TOKEN`
@@ -86,6 +94,31 @@ For Coolify, use:
 - Include Source Commit in Build: disabled
 
 `docker-compose.yaml` can still be used for local or manual container runs, but the recommended Coolify production path is the Dockerfile build directly.
+
+Application startup validates every configured Qdrant collection, vector size,
+and required payload index without modifying Qdrant. Startup fails when the
+schema contract is invalid. Prepare and verify Qdrant explicitly before a
+deployment:
+
+```bash
+source .venv/bin/activate
+python utilities/sync_payload_indexes.py apply
+python utilities/sync_payload_indexes.py check
+```
+
+`apply` is a live migration operation: it backfills normalized ID payloads and
+creates or replaces payload indexes. `check` is read-only. Run `apply` from a
+controlled maintenance environment, verify the resolved Qdrant target before
+confirming the operation, then deploy only after `check` succeeds. The utility
+loads the repository `.env`; values already exported by the shell or supplied
+by the container take precedence. A Qdrant client cleanup failure is reported
+as an operational failure and makes the command exit nonzero.
+
+Classification itself remains synchronous and is executed by one dedicated
+background worker per application process. Each process admits one active and
+up to four waiting classifications; requests above that fixed capacity receive
+HTTP 503. This serializes vendor calls while bounding queued work and allowing
+health checks, webhooks, and cached-page handling to remain responsive.
 
 ## API
 

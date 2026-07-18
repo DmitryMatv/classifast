@@ -10,7 +10,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.main import QueryNormalizationMiddleware, URLEncodingValidationMiddleware
-from app.web import get_default_top_k, router
+from app.web import router
+from tests.helpers import InlineClassificationExecutor
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -57,6 +58,7 @@ def _build_web_test_app() -> FastAPI:
     app.state.collection_quantization_cache = {}
     app.state.zclient = None
     app.state.redis_client = object()
+    app.state.classification_executor = InlineClassificationExecutor()
     return app
 
 

@@ -115,7 +115,8 @@ async def rapid_classify(
         )
         # Use shared classification service with ZeroEntropy reranking
         zclient = getattr(request.app.state, "zclient", None)
-        result = perform_classification(
+        result = await request.app.state.classification_executor.run(
+            perform_classification,
             embed_client=request.app.state.embed_client,
             qdrant_client=request.app.state.qdrant_client,
             query=normalized_query,

@@ -1,8 +1,8 @@
 import logging
 import re
-import time
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from urllib.parse import quote, unquote_plus, urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -96,6 +96,7 @@ def build_classification_results_context(
     query: str,
     version: str,
     top_k: int,
+    executor_submitted_at: float | None = None,
 ) -> dict[str, object]:
     """Build the template context used to render classification results."""
     normalized_query = re.sub(r"\s+", " ", query).strip()
@@ -111,7 +112,9 @@ def build_classification_results_context(
             "total_request_time": 0,
         }
 
-    start_total_time = time.perf_counter()
+    start_total_time = (
+        perf_counter() if executor_submitted_at is None else executor_submitted_at
+    )
     quantization_cache = getattr(request.app.state, "collection_quantization_cache", {})
     zclient = getattr(request.app.state, "zclient", None)
     result = perform_classification(
@@ -124,7 +127,7 @@ def build_classification_results_context(
         quantization_cache=quantization_cache,
         zclient=zclient,
     )
-    total_request_time = time.perf_counter() - start_total_time
+    total_request_time = perf_counter() - start_total_time
 
     return {
         "query": normalized_query,
@@ -377,12 +380,14 @@ async def _maybe_seed_base_page_results(
 
     results_data["query"] = example_query
     try:
-        seeded_results = build_classification_results_context(
+        seeded_results = await request.app.state.classification_executor.run(
+            build_classification_results_context,
             request=request,
             classifier_type=classifier_type,
             query=example_query,
             version=version,
             top_k=top_k,
+            executor_submitted_at=perf_counter(),
         )
         return seeded_results, True, False
     except Exception as e:
@@ -680,12 +685,14 @@ async def get_classification_fragment(
             )
 
     try:
-        results_context = build_classification_results_context(
+        results_context = await request.app.state.classification_executor.run(
+            build_classification_results_context,
             request=request,
             classifier_type=upper_type,
             query=normalized_description,
             version=version,
             top_k=top_k,
+            executor_submitted_at=perf_counter(),
         )
     except HTTPException as exc:
         exc.headers = {

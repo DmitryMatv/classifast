@@ -26,9 +26,6 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
-QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
-QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 # Constants
 TRACKING_COOKIE_NAME = "cf_track"
 ANON_USAGE_TTL = 365 * 24 * 60 * 60  # 1 year

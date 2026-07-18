@@ -1,6 +1,10 @@
 import os
 from typing import NotRequired, TypedDict
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DEFAULT_EMBEDDING_MODEL = os.getenv(
     "HF_EMBEDDING_MODEL",
     "Qwen/Qwen3-Embedding-8B",

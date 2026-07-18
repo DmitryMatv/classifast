@@ -141,7 +141,7 @@ describe("classifier.ts", () => {
     vi.useRealTimers();
   });
 
-  it("animates initial score bars with a shared base delay and stagger", async () => {
+  it("staggers score bar animations starting with the second result", async () => {
     const animationFrameController = createAnimationFrameController();
     setResultsMarkup(createScoreBarsMarkup());
 
@@ -158,10 +158,27 @@ describe("classifier.ts", () => {
     ).toBe("0ms");
     expect(
       scoreBars[1]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("0ms");
+    ).toBe("100ms");
     expect(
       scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
-    ).toBe("0ms");
+    ).toBe("200ms");
+  });
+
+  it("caps the score bar animation stagger at one second", async () => {
+    const animationFrameController = createAnimationFrameController();
+    setResultsMarkup(createScoreBarsMarkup(12));
+
+    await import("./classifier");
+    animationFrameController.flush();
+
+    const scoreBars = getScoreBars();
+    expect(scoreBars).toHaveLength(12);
+    expect(
+      scoreBars[10]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("1000ms");
+    expect(
+      scoreBars[11]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("1000ms");
   });
 
   it("auto-submits on top-k change only when textarea has content", async () => {
@@ -338,6 +355,12 @@ describe("classifier.ts", () => {
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
     ).toBe("0ms");
+    expect(
+      scoreBars[1]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("100ms");
+    expect(
+      scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("200ms");
   });
 
   it("injects rate limit responses into the results container", async () => {
@@ -445,6 +468,12 @@ describe("classifier.ts", () => {
     expect(
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
     ).toBe("0ms");
+    expect(
+      scoreBars[1]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("100ms");
+    expect(
+      scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
+    ).toBe("200ms");
     expect(resultsContainer.innerHTML).toContain("score-bar");
   });
 

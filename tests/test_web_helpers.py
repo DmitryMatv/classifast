@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from urllib.parse import urlencode
 
 import httpx
@@ -9,7 +9,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import QuotaUnavailableError, UsageStatus
-from app.web import router, slugify
+from app.web import build_classification_results_context, router, slugify
+from tests.helpers import InlineClassificationExecutor
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -22,10 +23,40 @@ def _build_test_app() -> FastAPI:
     app.include_router(router)
     app.state.embed_client = object()
     app.state.qdrant_client = object()
+    app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
     app.state.zclient = None
     app.state.redis_client = object()
     return app
+
+
+class ClassificationResultsContextTests(unittest.TestCase):
+    @patch("app.web.perform_classification")
+    def test_timing_includes_time_since_executor_submission(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = {
+            "results": [],
+            "version_config": {},
+        }
+        request = MagicMock()
+        request.app.state.embed_client = object()
+        request.app.state.qdrant_client = object()
+        request.app.state.collection_quantization_cache = {}
+        request.app.state.zclient = None
+
+        with patch("app.web.perf_counter", return_value=13.5):
+            context = build_classification_results_context(
+                request=request,
+                classifier_type="UNSPSC",
+                query="industrial pump",
+                version="v1",
+                top_k=10,
+                executor_submitted_at=10.0,
+            )
+
+        self.assertEqual(context["total_request_time"], 3.5)
 
 
 class SlugifyTests(unittest.TestCase):
@@ -246,6 +277,17 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             tracking_id="track-123",
         )
         perform_classification_mock.return_value = self._classification_result()
+        executor = MagicMock()
+        executor.run = AsyncMock(
+            side_effect=lambda callable_, *args, **kwargs: callable_(*args, **kwargs)
+        )
+        self.app.state.classification_executor = executor
+        self.addCleanup(
+            setattr,
+            self.app.state,
+            "classification_executor",
+            InlineClassificationExecutor(),
+        )
 
         response = await self._request_fragment(push_url="true")
 
@@ -263,7 +305,66 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("X-RateLimit-Remaining", response.headers)
         self.assertNotIn("X-RateLimit-Limit", response.headers)
         perform_classification_mock.assert_called_once()
+        executor.run.assert_awaited_once()
+        self.assertIs(
+            executor.run.await_args.args[0],
+            build_classification_results_context,
+        )
+        submitted = executor.run.await_args.kwargs
+        self.assertIs(submitted["request"].app, self.app)
+        self.assertEqual(submitted["classifier_type"], self.classifier_type)
+        self.assertEqual(submitted["query"], "industrial pump")
+        self.assertEqual(submitted["version"], self.default_version)
+        self.assertEqual(submitted["top_k"], 10)
+        self.assertIsInstance(submitted["executor_submitted_at"], float)
         reserve_usage_mock.assert_awaited_once()
+
+    @patch("app.web.perform_classification")
+    async def test_fragment_renders_queue_inclusive_timing(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        with patch("app.web.perf_counter", side_effect=[10.0, 13.5]):
+            response = await self._request_fragment(push_url="true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Finished in 3.50 seconds.", response.text)
+
+    async def test_fragment_never_invokes_sync_builder_directly(self) -> None:
+        results_context = {
+            "query": "industrial pump",
+            "results_for_query": self._classification_result()["results"],
+            "base_url": "",
+            "append_code_to_url": True,
+            "tooltip": "",
+            "total_request_time": 0.1,
+            "classifier_type": self.classifier_type,
+        }
+        executor = MagicMock()
+        executor.run = AsyncMock(return_value=results_context)
+        self.app.state.classification_executor = executor
+        self.addCleanup(
+            setattr,
+            self.app.state,
+            "classification_executor",
+            InlineClassificationExecutor(),
+        )
+
+        with patch("app.web.build_classification_results_context") as sync_builder:
+            response = await self._request_fragment(push_url="true")
+
+        self.assertEqual(response.status_code, 200)
+        sync_builder.assert_not_called()
+        executor.run.assert_awaited_once()
+        self.assertIs(executor.run.await_args.args[0], sync_builder)
+        submitted = executor.run.await_args.kwargs
+        self.assertIs(submitted["request"].app, self.app)
+        self.assertEqual(submitted["classifier_type"], self.classifier_type)
+        self.assertEqual(submitted["query"], "industrial pump")
+        self.assertEqual(submitted["version"], self.default_version)
+        self.assertEqual(submitted["top_k"], 10)
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
@@ -495,6 +596,17 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         perform_classification_mock.return_value = self._classification_result(
             "43211503", "Laptop computers"
         )
+        executor = MagicMock()
+        executor.run = AsyncMock(
+            side_effect=lambda callable_, *args, **kwargs: callable_(*args, **kwargs)
+        )
+        self.app.state.classification_executor = executor
+        self.addCleanup(
+            setattr,
+            self.app.state,
+            "classification_executor",
+            InlineClassificationExecutor(),
+        )
 
         response = await self._request("/UNSPSC/")
 
@@ -508,7 +620,58 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
             perform_classification_mock.call_args.kwargs["version"], self.unspsc_version
         )
         self.assertEqual(perform_classification_mock.call_args.kwargs["top_k"], 10)
+        executor.run.assert_awaited_once()
+        self.assertIs(
+            executor.run.await_args.args[0], build_classification_results_context
+        )
+        submitted = executor.run.await_args.kwargs
+        self.assertIs(submitted["request"].app, self.app)
+        self.assertEqual(submitted["classifier_type"], "UNSPSC")
+        self.assertEqual(
+            submitted["query"], CLASSIFIER_CONFIG["UNSPSC"]["example"].strip()
+        )
+        self.assertEqual(submitted["version"], self.unspsc_version)
+        self.assertEqual(submitted["top_k"], 10)
+        self.assertIsInstance(submitted["executor_submitted_at"], float)
         reserve_usage_mock.assert_not_awaited()
+
+    async def test_ssr_seed_never_invokes_sync_builder_directly(self) -> None:
+        example_query = CLASSIFIER_CONFIG["UNSPSC"]["example"].strip()
+        results_context = {
+            "query": example_query,
+            "results_for_query": self._classification_result(
+                "43211503", "Laptop computers"
+            )["results"],
+            "base_url": "",
+            "append_code_to_url": True,
+            "tooltip": "",
+            "total_request_time": 0.1,
+            "classifier_type": "UNSPSC",
+        }
+        executor = MagicMock()
+        executor.run = AsyncMock(return_value=results_context)
+        self.app.state.classification_executor = executor
+        self.addCleanup(
+            setattr,
+            self.app.state,
+            "classification_executor",
+            InlineClassificationExecutor(),
+        )
+
+        with patch("app.web.build_classification_results_context") as sync_builder:
+            response = await self._request("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Laptop computers", response.text)
+        sync_builder.assert_not_called()
+        executor.run.assert_awaited_once()
+        self.assertIs(executor.run.await_args.args[0], sync_builder)
+        submitted = executor.run.await_args.kwargs
+        self.assertIs(submitted["request"].app, self.app)
+        self.assertEqual(submitted["classifier_type"], "UNSPSC")
+        self.assertEqual(submitted["query"], example_query)
+        self.assertEqual(submitted["version"], self.unspsc_version)
+        self.assertEqual(submitted["top_k"], 10)
 
     @patch("app.web.perform_classification")
     async def test_naics_base_page_inlines_ssr_results(

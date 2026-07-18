@@ -1,8 +1,8 @@
 import { ShareLink } from "./common";
 
 const BASE_SCORE_BAR_DELAY_MS = 0;
-const SCORE_BAR_STAGGER_MS = 0; // 100 before
-const MAX_SCORE_BAR_STAGGER_MS = 0; // 1000 before
+const SCORE_BAR_STAGGER_MS = 100;
+const MAX_SCORE_BAR_STAGGER_MS = 1000;
 
 type DescriptionToggleElements = {
   toggleButton: HTMLButtonElement;
