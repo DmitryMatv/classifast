@@ -232,12 +232,38 @@ async def test_gmdn_fragment_renders_metadata_next_to_class_name() -> None:
     assert "Implantable" in response.text
     assert "Non-implantable" in response.text
     assert "Obsolete" in response.text
-    assert "Active" in response.text
-    assert response.text.index("Spinal fixation plate") < response.text.index("Active")
-    assert response.text.index("Active") < response.text.index("Implantable")
-    assert response.text.index("Abdominal binder") < response.text.index("Obsolete")
-    assert response.text.index("Obsolete") < response.text.index("Non-implantable")
-    assert response.text.count('class="text-gray-600 text-lg font-semibold"') == 4
+    assert "Active" not in response.text
+    assert response.text.index("Spinal fixation plate") < response.text.index(
+        "Implantable"
+    )
+    assert response.text.index("Obsolete") < response.text.index("Abdominal binder")
+    assert response.text.index("Abdominal binder") < response.text.index(
+        "Non-implantable"
+    )
+    assert response.text.count('class="text-gray-600 text-lg font-normal"') == 3
+    assert response.text.count('class="text-gray-800 text-lg font-semibold"') == 2
+
+    active_class_row = response.text.index(
+        '<div class="flex items-baseline gap-x-2 flex-wrap">'
+    )
+    active_class_row_end = response.text.index("</div>", active_class_row)
+    obsolete_class_row = response.text.index(
+        '<div class="flex items-baseline gap-x-2 flex-wrap">',
+        active_class_row_end,
+    )
+    obsolete_class_row_end = response.text.index("</div>", obsolete_class_row)
+    active_class_row_html = response.text[active_class_row:active_class_row_end]
+    obsolete_class_row_html = response.text[obsolete_class_row:obsolete_class_row_end]
+    assert active_class_row_html.index("Spinal fixation plate") < (
+        active_class_row_html.index("Implantable")
+    )
+    assert "Active" not in active_class_row_html
+    assert obsolete_class_row_html.index("Obsolete") < (
+        obsolete_class_row_html.index("Abdominal binder")
+    )
+    assert obsolete_class_row_html.index("Abdominal binder") < (
+        obsolete_class_row_html.index("Non-implantable")
+    )
     assert "code-spacer-halves" not in response.text
 
 

@@ -97,7 +97,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
     },
     "GPC": {
         "title": "GS1 GPC Classifier",
-        "heading": "Classify products by essential characteristics.",
+        "heading": "Classify products by essential characteristics. Find the right GPC brick code.",
         "description": "GS1 Global Product Classification (GPC) is a product taxonomy used to group trade items by their essential characteristics. It organizes products from broad segments down to detailed bricks, helping retailers, suppliers, marketplaces, and data teams standardize product classification across catalog, procurement, analytics, and data synchronization workflows.",
         "example": "Oil spill absorbent pads",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,

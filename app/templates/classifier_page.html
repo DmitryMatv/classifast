@@ -786,9 +786,9 @@
                 {% endif %}
             </div>
             {% if classifier_type == 'UNSPSC' %}
-            <div class="mb-4 text-gray-800" aria-label="UNSPSC resources">
-                <span class="block">UNSPSC resources:</span>
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div class=" text-gray-800" aria-label="UNSPSC resources">
+                <div class="flex flex-wrap items-center gap-x-2">
+                    Links:
                     <a href="https://www.undp.org/unspsc"
                         class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
                         target="_blank" rel="noopener noreferrer">UNDP</a>
@@ -806,22 +806,58 @@
                         target="_blank" rel="noopener noreferrer">Wiki</a>
                 </div>
             </div>
+            {% elif classifier_type == 'NAICS' %}
+            <div class=" text-gray-800" aria-label="NAICS resources">
+                <div class="flex flex-wrap items-center gap-x-2">
+                    Links:
+                    <a href="https://www.census.gov/naics/"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">U.S. Census Bureau</a>
+                    <a href="https://www.naics.com/search/"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">NAICS Search</a>
+                    <a href="https://en.wikipedia.org/wiki/North_American_Industry_Classification_System"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'NACE' %}
+            <div class=" text-gray-800" aria-label="NACE resources">
+                <div class="flex flex-wrap items-center gap-x-2">
+                    Links:
+                    <a href="https://ec.europa.eu/eurostat/web/nace"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Eurostat</a>
+                    <a href="https://en.wikipedia.org/wiki/Statistical_Classification_of_Economic_Activities_in_the_European_Community"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'ETIM' %}
+            <div class=" text-gray-800" aria-label="ETIM resources">
+                <div class="flex flex-wrap items-center gap-x-2">
+                    Links:
+                    <a href="https://www.etim-international.com/"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">ETIM International</a>
+                    <a href="https://en.wikipedia.org/wiki/ETIM_(standard)"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki</a>
+                </div>
+            </div>
             {% endif %}
-            {% if classifier_type != 'UNSPSC' %}
             <button id="description-toggle" type="button" aria-expanded="false"
                 class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none hover:underline decoration-sky-700 underline-offset-2"
                 aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button"
                 data-classifier-type="{{ classifier_type.upper() }}">
                 Learn more about {{ classifier_type.upper() }}
             </button>
-
             <!-- Description is completely hidden by default and shown when the button is pressed -->
-            <div id="description-container" class="mb-6">
+            <div id="description-container" class="mb-6" aria-live="polite">
                 <div id="description-content" style="display: none;" aria-hidden="true">
                     {{ description | e }}
                 </div>
             </div>
-            {% endif %}
 
             <form id="classifier-form"
                 hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
@@ -1228,7 +1264,7 @@
                             href="{{ url_for('show_classifier_page', classifier_type='GPC') }}"
                             class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
                             role="link" aria-label="GS1 GPC Classification Tool">GS1 GPC</a></h3>
-                    <p class="text-gray-600">Classify products by essential characteristics.</p>
+                    <p class="text-gray-600">Find the right GPC brick code by essential characteristics.</p>
                 </article>
                 {% endif %}
 

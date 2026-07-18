@@ -95,12 +95,12 @@
 
                     {% if result.payload.class_name and result.payload.class_name.strip() %}
                     <div class="flex items-baseline gap-x-2 flex-wrap">
-                        <h3 class="text-gray-800 text-lg font-semibold">{{ result.payload.class_name | e }}</h3>
-                        {% if classifier_type == 'GMDN' and result.payload.status is defined %}
-                        <span class="text-gray-600 text-lg font-semibold">{{ result.payload.status | e }}</span>
+                        {% if classifier_type == 'GMDN' and result.payload.status == 'Obsolete' %}
+                        <span class="text-gray-600 text-lg font-normal">Obsolete</span>
                         {% endif %}
+                        <h3 class="text-gray-800 text-lg font-semibold">{{ result.payload.class_name | e }}</h3>
                         {% if classifier_type == 'GMDN' and result.payload.implantable is defined %}
-                        <span class="text-gray-600 text-lg font-semibold">
+                        <span class="text-gray-600 text-lg font-normal">
                             {{- 'Implantable' if result.payload.implantable else 'Non-implantable' -}}
                         </span>
                         {% endif %}
