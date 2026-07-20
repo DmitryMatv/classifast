@@ -706,7 +706,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         animation_bootstrap = (
-            "<script>\n"
+            '<script data-cfasync="false">\n'
             '        document.documentElement.classList.add("js-score-animations");\n'
             "    </script>"
         )

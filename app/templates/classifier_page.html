@@ -38,7 +38,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <script>
+    <script data-cfasync="false">
         document.documentElement.classList.add("js-score-animations");
     </script>
 
@@ -747,12 +747,11 @@
                 {% if classifier_type == 'NACE' %}
                 <img src="{{ url_for('static', path='images/Eurostat_Newlogo.png') }}"
                     alt="NACE classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 -top-4 h-28 w-auto"
-                    fetchpriority="high">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-2 h-28 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'CN' %}
                 <img src="{{ url_for('static', path='images/logo_en_brand.png') }}"
                     alt="CN classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-10 top-2 w-auto" fetchpriority="high">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-2 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'HS' %}
                 <img src="{{ url_for('static', path='images/cl09nx0ml001578c25z5411if.png') }}"
                     alt="HS classification standard logo" data-classifier-logo="true"
@@ -765,16 +764,15 @@
                 {% elif classifier_type == 'UNSPSC' %}
                 <img src="{{ url_for('static', path='images/unspsc-logo.gif') }}"
                     alt="UNSPSC classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-1 h-24 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'GPC' %}
                 <img src="{{ url_for('static', path='images/GS1.png') }}" alt="GS1 GPC classification standard logo"
                     data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-1 h-24 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'ETIM' %}
                 <img src="{{ url_for('static', path='images/ETIM-International_logo.svg') }}"
                     alt="ETIM International classification standard logo" data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 -top-2 h-20 w-auto"
-                    fetchpriority="high">
+                    class="hidden lg:block pointer-events-none absolute right-8 top-4 h-20 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'GMDN' %}
                 <img src="{{ url_for('static', path='images/gmdn-logo.png') }}" alt="GMDN classification standard logo"
                     data-classifier-logo="true"
@@ -785,79 +783,118 @@
                     class="hidden lg:block pointer-events-none absolute right-8 top-0 h-24 w-auto" fetchpriority="high">
                 {% endif %}
             </div>
-            {% if classifier_type == 'UNSPSC' %}
-            <div class=" text-gray-800" aria-label="UNSPSC resources">
-                <div class="flex flex-wrap items-center gap-x-2">
-                    Links:
-                    <a href="https://www.undp.org/unspsc"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">UNDP</a>
-                    <a href="https://www.ungm.org/public/unspsc"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">UNGM Search</a>
-                    <a href="https://help.ungm.org/hc/en-us/articles/360012816160-What-are-UNSPSC-codes"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">UNGM Help</a>
-                    <a href="https://developer.ungm.org/Article/UNSPSC"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">UNGM API</a>
-                    <a href="https://en.wikipedia.org/wiki/UNSPSC"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">Wiki</a>
-                </div>
-            </div>
-            {% elif classifier_type == 'NAICS' %}
-            <div class=" text-gray-800" aria-label="NAICS resources">
-                <div class="flex flex-wrap items-center gap-x-2">
-                    Links:
-                    <a href="https://www.census.gov/naics/"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">U.S. Census Bureau</a>
-                    <a href="https://www.naics.com/search/"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">NAICS Search</a>
-                    <a href="https://en.wikipedia.org/wiki/North_American_Industry_Classification_System"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">Wiki</a>
-                </div>
-            </div>
-            {% elif classifier_type == 'NACE' %}
-            <div class=" text-gray-800" aria-label="NACE resources">
-                <div class="flex flex-wrap items-center gap-x-2">
-                    Links:
-                    <a href="https://ec.europa.eu/eurostat/web/nace"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">Eurostat</a>
-                    <a href="https://en.wikipedia.org/wiki/Statistical_Classification_of_Economic_Activities_in_the_European_Community"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">Wiki</a>
-                </div>
-            </div>
-            {% elif classifier_type == 'ETIM' %}
-            <div class=" text-gray-800" aria-label="ETIM resources">
-                <div class="flex flex-wrap items-center gap-x-2">
-                    Links:
-                    <a href="https://www.etim-international.com/"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">ETIM International</a>
-                    <a href="https://en.wikipedia.org/wiki/ETIM_(standard)"
-                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
-                        target="_blank" rel="noopener noreferrer">Wiki</a>
-                </div>
-            </div>
-            {% endif %}
+
             <button id="description-toggle" type="button" aria-expanded="false"
                 class="cursor-pointer bg-transparent text-sky-700 hover:text-sky-800 focus:outline-none hover:underline decoration-sky-700 underline-offset-2"
                 aria-controls="description-content" aria-label="Learn more about {{ classifier_type.upper() }} button"
                 data-classifier-type="{{ classifier_type.upper() }}">
-                Learn more about {{ classifier_type.upper() }}
+                Learn more
             </button>
             <!-- Description is completely hidden by default and shown when the button is pressed -->
-            <div id="description-container" class="mb-6" aria-live="polite">
+            <div id="description-container" aria-live="polite">
                 <div id="description-content" style="display: none;" aria-hidden="true">
                     {{ description | e }}
                 </div>
             </div>
+
+            {% macro external_link_icon() -%}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                focusable="false"
+                class="inline align-text-top ml-1 lucide lucide-external-link-icon lucide-external-link">
+                <path d="M15 3h6v6" />
+                <path d="M10 14 21 3" />
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            </svg><span class="sr-only"> (opens in new tab)</span>
+            {%- endmacro %}
+            {% if classifier_type == 'UNSPSC' %}
+            <div class=" text-gray-800" aria-label="UNSPSC resources">
+                <div class="flex flex-wrap items-center gap-x-3 mb-6">
+                    <a href="https://www.undp.org/unspsc"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNDP{{ external_link_icon() }}</a>
+                    <a href="https://www.ungm.org/public/unspsc"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNGM Search{{ external_link_icon() }}</a>
+                    <a href="https://help.ungm.org/hc/en-us/articles/360012816160-What-are-UNSPSC-codes"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNGM Help{{ external_link_icon() }}</a>
+                    <a href="https://developer.ungm.org/Article/UNSPSC"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UNGM API{{ external_link_icon() }}</a>
+                    <a href="https://en.wikipedia.org/wiki/UNSPSC"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki{{ external_link_icon() }}</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'NAICS' %}
+            <div class=" text-gray-800" aria-label="NAICS resources">
+                <div class="flex flex-wrap items-center gap-x-3">
+                    <a href="https://www.census.gov/naics/"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">U.S. Census Bureau{{ external_link_icon() }}</a>
+                    <a href="https://www.naics.com/search/"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">NAICS Search{{ external_link_icon() }}</a>
+                    <a href="https://en.wikipedia.org/wiki/North_American_Industry_Classification_System"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki{{ external_link_icon() }}</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'NACE' %}
+            <div class=" text-gray-800" aria-label="NACE resources">
+                <div class="flex flex-wrap items-center gap-x-3">
+                    <a href="https://ec.europa.eu/eurostat/web/nace"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Eurostat{{ external_link_icon() }}</a>
+                    <a href="https://en.wikipedia.org/wiki/Statistical_Classification_of_Economic_Activities_in_the_European_Community"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki{{ external_link_icon() }}</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'ETIM' %}
+            <div class=" text-gray-800" aria-label="ETIM resources">
+                <div class="flex flex-wrap items-center gap-x-3">
+                    <a href="https://www.etim-international.com/"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">ETIM International{{ external_link_icon() }}</a>
+                    <a href="https://en.wikipedia.org/wiki/ETIM_(standard)"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki{{ external_link_icon() }}</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'ISIC' %}
+            <div class=" text-gray-800" aria-label="ISIC resources">
+                <div class="flex flex-wrap items-center gap-x-3">
+                    <a href="https://unstats.un.org/unsd/classifications/Econ"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">UN Statistics Division{{ external_link_icon() }}</a>
+                    <a href="https://en.wikipedia.org/wiki/International_Standard_Industrial_Classification"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki{{ external_link_icon() }}</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'CN' %}
+            <div class=" text-gray-800" aria-label="CN resources">
+                <div class="flex flex-wrap items-center gap-x-3">
+                    <a href="https://taxation-customs.ec.europa.eu/customs/common-customs-tariff-cct/tariff-classification-goods/combined-nomenclature_en"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">EU Combined Nomenclature{{ external_link_icon() }}</a>
+                    <a href="https://trade.ec.europa.eu/access-to-markets/en/content/combined-nomenclature-0"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Access2Markets{{ external_link_icon() }}</a>
+                    <a href="https://taxation-customs.ec.europa.eu/customs/common-customs-tariff-cct/tariff-classification-goods/eu-customs-tariff-taric_en"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">EU TARIC{{ external_link_icon() }}</a>
+                    <a href="https://www.tariffnumber.com/"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Tariffnumber{{ external_link_icon() }}</a>
+                    <a href="https://en.wikipedia.org/wiki/Combined_Nomenclature"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Wiki{{ external_link_icon() }}</a>
+                </div>
+            </div>
+            {% endif %}
 
             <form id="classifier-form"
                 hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
@@ -868,7 +905,7 @@
                 data-default-top-k="{{ default_top_k }}" data-default-version="{{ first_version }}">
 
                 {% if versions %}
-                <div class="flex items-center justify-start mb-1">
+                <div class="flex items-center justify-start mb-1 mt-6">
                     <select name="version" id="version_selector" role="combobox" aria-label="Classification version"
                         aria-expanded="false" aria-haspopup="listbox"
                         class="border border-gray-400 rounded text-left px-1 py-1 mb-1">
