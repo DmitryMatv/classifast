@@ -108,6 +108,7 @@ def build_classification_results_context(
             "results_for_query": [],
             "base_url": "",
             "append_code_to_url": True,
+            "code_url_suffix": "",
             "tooltip": "",
             "total_request_time": 0,
         }
@@ -134,6 +135,7 @@ def build_classification_results_context(
         "results_for_query": result["results"],
         "base_url": result["version_config"].get("base_url", ""),
         "append_code_to_url": result["version_config"].get("append_code_to_url", True),
+        "code_url_suffix": result["version_config"].get("code_url_suffix", ""),
         "tooltip": result["version_config"].get("tooltip", ""),
         "total_request_time": total_request_time,
         "classifier_type": upper_type,
@@ -358,6 +360,7 @@ def _build_empty_classifier_results(decoded_query: str) -> dict[str, object]:
         "results_for_query": [],
         "query": decoded_query,
         "base_url": "",
+        "code_url_suffix": "",
         "tooltip": "",
         "total_request_time": 0,
     }

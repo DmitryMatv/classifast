@@ -706,6 +706,8 @@
                             GS1 GPC</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='GMDN') }}"
                             class="menu-chip">GMDN</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='EMDN') }}"
+                            class="menu-chip">EMDN</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                             class="menu-chip">NAICS</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='CN') }}" class="menu-chip">CN</a>
@@ -825,6 +827,23 @@
                     <a href="https://en.wikipedia.org/wiki/UNSPSC"
                         class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
                         target="_blank" rel="noopener noreferrer">Wiki{{ external_link_icon() }}</a>
+                </div>
+            </div>
+            {% elif classifier_type == 'EMDN' %}
+            <div class="text-gray-800" aria-label="EMDN resources">
+                <div class="flex flex-wrap items-center gap-x-3">
+                    <a href="https://health.ec.europa.eu/medical-devices-topics-interest/european-medical-devices-nomenclature-emdn_en"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">European Commission EMDN{{ external_link_icon() }}</a>
+                    <a href="https://webgate.ec.europa.eu/dyna2/emdn/build/EMDN%20v2026_EN.xlsx"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Download EMDN{{ external_link_icon() }}</a>
+                    <a href="https://ec.europa.eu/tools/eudamed/eudamed"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">EUDAMED{{ external_link_icon() }}</a>
+                    <a href="https://webgate.ec.europa.eu/eudamed"
+                        class="text-sky-700 hover:text-sky-800 hover:underline decoration-sky-700 underline-offset-2"
+                        target="_blank" rel="noopener noreferrer">Sign in to EUDAMED{{ external_link_icon() }}</a>
                 </div>
             </div>
             {% elif classifier_type == 'NAICS' %}
@@ -1312,6 +1331,17 @@
                             class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
                             role="link" aria-label="GMDN Classification Tool">GMDN</a></h3>
                     <p class="text-gray-600">Global nomenclature for identifying and describing medical devices.</p>
+                </article>
+                {% endif %}
+
+                {% if classifier_type != 'EMDN' %}
+                <article class="border border-gray-200 rounded p-3 shadow" role="article">
+                    <h3 class="font-semibold text-gray-800 mb-2"><a
+                            href="{{ url_for('show_classifier_page', classifier_type='EMDN') }}"
+                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
+                            role="link" aria-label="EMDN Classification Tool">EMDN</a></h3>
+                    <p class="text-gray-600">European nomenclature for assigning medical device codes
+                        used with EUDAMED.</p>
                 </article>
                 {% endif %}
 

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
 
-    <title>Instant classification of goods and services | Classifast</title>
+    <title>Classify any description to UNSPSC, HS/CN codes, NAICS, etc.</title>
     <meta name="description"
         content="Code finder for UNSPSC, NAICS, HS, CN, and other standard codes. Accurate category search, lookup, mapping, classification of products and services.">
     <meta name="keywords"
@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Instant classification of goods and services | Classifast">
+    <meta property="og:title" content="Classify any description to UNSPSC, HS/CN code, NAICS, etc.">
     <meta property="og:description"
         content="Simple finder for UNSPSC, NAICS, HS, CN, and other standard codes. Accurate category search, lookup, mapping, classification of products and services.">
     <meta property="og:url" content="https://classifast.com/">
@@ -466,7 +466,7 @@
         .hero-codes-rail {
             position: relative;
             margin: 0 auto;
-            max-width: 40rem;
+            max-width: 44rem;
             padding: 1rem;
             border: 1px solid rgba(148, 163, 184, 0.3);
             border-radius: 1.6rem;
@@ -703,6 +703,8 @@
                             GS1 GPC</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='GMDN') }}"
                             class="menu-chip">GMDN</a>
+                        <a href="{{ url_for('show_classifier_page', classifier_type='EMDN') }}"
+                            class="menu-chip">EMDN</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                             class="menu-chip">NAICS</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='CN') }}" class="menu-chip">CN</a>
@@ -755,6 +757,10 @@
                             <a href="{{ url_for('show_classifier_page', classifier_type='GMDN') }}"
                                 class="hero-code-pill hero-code-pill--quiet">
                                 GMDN
+                            </a>
+                            <a href="{{ url_for('show_classifier_page', classifier_type='EMDN') }}"
+                                class="hero-code-pill hero-code-pill--solid">
+                                EMDN
                             </a>
                             <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
                                 class="hero-code-pill hero-code-pill--soft">

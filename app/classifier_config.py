@@ -14,15 +14,16 @@ DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "2048"))
 # 'Given a web search query, retrieve relevant passages that answer the query'
 DEFAULT_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant taxonomy entry that directly and specifically classifies it. Prefer exact functional, industry, material, or use-case matches over broad parent categories, and do not infer unsupported details."
 
-UNSPSC_QUERY_INSTRUCTION = (
-    "Retrieve the most relevant UNSPSC entry that directly and specifically classifies the given product or service description. "
-    "Prefer commodity-level matches when available; avoid broad segment or family matches. Do not infer unsupported details."
-)
 
 DEFAULT_RERANK_INSTRUCTION = (
     "Determine if the candidate taxonomy entry directly and specifically classifies the text description. "
     "Score higher for exact functional, industry, material, or use-case matches. Penalize broad parent categories if a more specific match is possible. "
     "Do not reward inferences of unsupported details."
+)
+
+UNSPSC_QUERY_INSTRUCTION = (
+    "Retrieve the most relevant UNSPSC entry that directly and specifically classifies the given product or service description. "
+    "Prefer commodity-level matches when available; avoid broad segment or family matches. Do not infer unsupported details."
 )
 
 UNSPSC_RERANK_INSTRUCTION = (
@@ -42,11 +43,24 @@ GMDN_RERANK_INSTRUCTION = (
     "Do not infer unsupported characteristics."
 )
 
+EMDN_QUERY_INSTRUCTION = (
+    "Retrieve the most relevant terminal EMDN term that directly and specifically describes the given medical device. "
+    "Match its intended purpose, device type, design, materials, and clinical application, using hierarchy context to distinguish similar terms. "
+    "Do not infer unsupported characteristics."
+)
+
+EMDN_RERANK_INSTRUCTION = (
+    "Evaluate whether the terminal EMDN term directly and specifically describes the medical device, considering both its title and ancestor hierarchy. "
+    "Score exact intended-purpose, device-type, design, material, and clinical-application matches highest. "
+    "Penalize candidates that require unsupported inferences."
+)
+
 
 class VersionConfig(TypedDict):
     collection_name: str
     base_url: NotRequired[str]
     append_code_to_url: NotRequired[bool]
+    code_url_suffix: NotRequired[str]
     tooltip: NotRequired[str]
 
 
@@ -124,6 +138,23 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "versions": {
             "AccessGUDID Full Release (July 6, 2026)": {
                 "collection_name": "GMDN_GUDID_20260706_Qwen3-8B_v1",
+            },
+        },
+    },
+    "EMDN": {
+        "title": "EMDN Code Finder",
+        "heading": "Find the right EMDN code for a medical device.",
+        "description": "The European Medical Device Nomenclature (EMDN) is used by manufacturers when registering medical devices in EUDAMED. This classifier uses the official English EMDN v2026 release and searches its 6 773 terminal terms that are the most granular assignable entries in the seven-level hierarchy.",
+        "example": "Sterile single-use hypodermic syringe needle with an integrated safety mechanism",
+        "embed_model_name": DEFAULT_EMBEDDING_MODEL,
+        "embed_dims": DEFAULT_EMBEDDING_DIMS,
+        "query_instruction": EMDN_QUERY_INSTRUCTION,
+        "rerank_instruction": EMDN_RERANK_INSTRUCTION,
+        "versions": {
+            "EMDN v2026 (English)": {
+                "collection_name": "EMDN_2026_EN_Qwen3-8B_v1",
+                "base_url": "https://webgate.ec.europa.eu/dyna2/emdn/",
+                "code_url_suffix": "#title",
             },
         },
     },

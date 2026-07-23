@@ -193,6 +193,15 @@ async def test_gmdn_fragment_renders_metadata_next_to_class_name() -> None:
                     "implantable": False,
                 },
             },
+            {
+                "score": 0.75,
+                "payload": {
+                    "original_id": "30000",
+                    "class_name": "Surgical instrument",
+                    "definition": "A reusable surgical instrument.",
+                    "status": "Active",
+                },
+            },
         ],
         "version_config": {"base_url": "", "tooltip": ""},
     }
@@ -229,19 +238,16 @@ async def test_gmdn_fragment_renders_metadata_next_to_class_name() -> None:
             )
 
     assert response.status_code == 200
-    assert "Implantable" in response.text
-    assert "Non-implantable" in response.text
-    assert "Obsolete" in response.text
+    assert response.text.count("(Implantable)") == 1
+    assert response.text.count("(Obsolete)") == 1
+    assert "Non-implantable" not in response.text
     assert "Active" not in response.text
     assert response.text.index("Spinal fixation plate") < response.text.index(
-        "Implantable"
+        "(Implantable)"
     )
-    assert response.text.index("Obsolete") < response.text.index("Abdominal binder")
-    assert response.text.index("Abdominal binder") < response.text.index(
-        "Non-implantable"
-    )
-    assert response.text.count('class="text-gray-600 text-lg font-normal"') == 3
-    assert response.text.count('class="text-gray-800 text-lg font-semibold"') == 2
+    assert response.text.index("(Obsolete)") < response.text.index("Abdominal binder")
+    assert response.text.count('class="text-gray-600 text-lg font-normal"') == 2
+    assert response.text.count('class="text-gray-800 text-lg font-semibold"') == 3
 
     active_class_row = response.text.index(
         '<div class="flex items-baseline gap-x-2 flex-wrap">'
@@ -252,17 +258,36 @@ async def test_gmdn_fragment_renders_metadata_next_to_class_name() -> None:
         active_class_row_end,
     )
     obsolete_class_row_end = response.text.index("</div>", obsolete_class_row)
+    missing_class_row = response.text.index(
+        '<div class="flex items-baseline gap-x-2 flex-wrap">',
+        obsolete_class_row_end,
+    )
+    missing_class_row_end = response.text.index("</div>", missing_class_row)
     active_class_row_html = response.text[active_class_row:active_class_row_end]
     obsolete_class_row_html = response.text[obsolete_class_row:obsolete_class_row_end]
+    missing_class_row_html = response.text[missing_class_row:missing_class_row_end]
     assert active_class_row_html.index("Spinal fixation plate") < (
-        active_class_row_html.index("Implantable")
+        active_class_row_html.index("(Implantable)")
     )
     assert "Active" not in active_class_row_html
-    assert obsolete_class_row_html.index("Obsolete") < (
-        obsolete_class_row_html.index("Abdominal binder")
+    assert "Implantable" not in obsolete_class_row_html
+    assert "Implantable" not in missing_class_row_html
+
+    active_header_row = response.text.index('<div class="flex items-baseline gap-2">')
+    active_header_row_end = response.text.index("</div>", active_header_row)
+    obsolete_header_row = response.text.index(
+        '<div class="flex items-baseline gap-2">',
+        active_header_row_end,
     )
-    assert obsolete_class_row_html.index("Abdominal binder") < (
-        obsolete_class_row_html.index("Non-implantable")
+    obsolete_header_row_end = response.text.index("</div>", obsolete_header_row)
+    active_header_row_html = response.text[active_header_row:active_header_row_end]
+    obsolete_header_row_html = response.text[
+        obsolete_header_row:obsolete_header_row_end
+    ]
+    assert "Obsolete" not in active_header_row_html
+    assert "(Obsolete)" in obsolete_header_row_html
+    assert obsolete_header_row_html.index("</button>") < (
+        obsolete_header_row_html.index("(Obsolete)")
     )
     assert "code-spacer-halves" not in response.text
 

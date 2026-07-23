@@ -39,7 +39,8 @@
                         {% if base_url and base_url.strip() %}
                         {% set code_for_url = result.payload.original_id.replace('.', '') if 'NACE' in request.url.path
                         else result.payload.original_id %}
-                        {% set detail_url = base_url ~ (code_for_url if append_code_to_url else '') %}
+                        {% set detail_url = base_url ~ (code_for_url if append_code_to_url else '') ~
+                        (code_url_suffix | default('')) %}
                         <a href="{{ detail_url | e }}" target="_blank"
                             class="text-gray-600 text-2xl font-bold font-mono hover:text-sky-600 hover:underline hover:decoration-sky-600"
                             rel="noopener"
@@ -66,10 +67,10 @@
                                 {%- else -%}
                                 <span class="text-gray-600">{{ token.char }}</span>
                                 {%- endif -%}
-                                {# Insert a small visual-only separator after every 2 digits within a contiguous
-                                digit run. The copy button still uses the raw original_id passed into JS. #}
-                                {%- set exclude_spacer_classifications = ['ETIM', 'GMDN', 'HTS', 'NSN'] -%}
-                                {%- if token.gap_after and classifier_type not in exclude_spacer_classifications -%}
+                                {# Insert a small visual-only separator at a letter-to-digit boundary and between
+                                numeric groups. The copy button and links still use the raw original_id. #}
+                                {%- set exclude_spacers = ['ETIM', 'GMDN', 'HTS', 'NSN'] -%}
+                                {%- if token.gap_after and classifier_type not in exclude_spacers -%}
                                 <span aria-hidden="true" class="code-spacer-halves"></span>
                                 {%- endif -%}
                                 {%- endfor -%}
@@ -85,6 +86,9 @@
                         {% else %}
                         </span>
                         {% endif %}
+                        {% if classifier_type == 'GMDN' and result.payload.status == 'Obsolete' %}
+                        <span class="text-gray-600 text-lg font-normal">(Obsolete)</span>
+                        {% endif %}
                         {% if result.payload.id_level %}
                         <span class="text-gray-600 text-lg">{{ result.payload.id_level | e }}</span>
                         {% endif %}
@@ -95,14 +99,9 @@
 
                     {% if result.payload.class_name and result.payload.class_name.strip() %}
                     <div class="flex items-baseline gap-x-2 flex-wrap">
-                        {% if classifier_type == 'GMDN' and result.payload.status == 'Obsolete' %}
-                        <span class="text-gray-600 text-lg font-normal">Obsolete</span>
-                        {% endif %}
                         <h3 class="text-gray-800 text-lg font-semibold">{{ result.payload.class_name | e }}</h3>
-                        {% if classifier_type == 'GMDN' and result.payload.implantable is defined %}
-                        <span class="text-gray-600 text-lg font-normal">
-                            {{- 'Implantable' if result.payload.implantable else 'Non-implantable' -}}
-                        </span>
+                        {% if classifier_type == 'GMDN' and result.payload.implantable %}
+                        <span class="text-gray-600 text-lg font-normal">(Implantable)</span>
                         {% endif %}
                     </div>
                     {% endif %}

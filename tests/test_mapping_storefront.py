@@ -5,6 +5,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.classifier_config import CLASSIFIER_CONFIG
 from app.mapping_store import MAPPING_PRODUCTS
 from app.web import download_mapping_sample, router
 
@@ -139,6 +140,15 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
 
 
 class MappingSitemapTests(unittest.TestCase):
+    def test_sitemap_includes_all_classifier_homepages(self) -> None:
+        sitemap = (BASE_DIR / "app" / "static" / "sitemap.xml").read_text()
+
+        for classifier_type in CLASSIFIER_CONFIG:
+            self.assertIn(
+                f"https://classifast.com/{classifier_type}/",
+                sitemap,
+            )
+
     def test_sitemap_includes_mapping_storefront_urls(self) -> None:
         sitemap = (BASE_DIR / "app" / "static" / "sitemap.xml").read_text()
 
