@@ -15,7 +15,7 @@ from app.classifier import (
     get_embedding,
     perform_classification,
     perform_semantic_search,
-    rerank_with_huggingface,
+    rerank_candidates,
     sanitize_query_text,
 )
 from app.classifier_config import CLASSIFIER_CONFIG
@@ -163,7 +163,7 @@ class ClassificationContractTests(unittest.TestCase):
                 return_value=semantic_results,
             ) as semantic_mock,
             patch(
-                "app.classifier.rerank_with_huggingface",
+                "app.classifier.rerank_candidates",
                 return_value=reranked_results,
             ) as rerank_mock,
         ):
@@ -229,7 +229,7 @@ class ClassificationContractTests(unittest.TestCase):
                 "app.classifier.perform_semantic_search",
                 return_value=semantic_results,
             ) as semantic_mock,
-            patch("app.classifier.rerank_with_huggingface") as rerank_mock,
+            patch("app.classifier.rerank_candidates") as rerank_mock,
         ):
             result = perform_classification(
                 embed_client=object(),
@@ -363,7 +363,7 @@ class ClassificationContractTests(unittest.TestCase):
         reranker = Mock()
         reranker.rerank.side_effect = RuntimeError("down")
 
-        result = rerank_with_huggingface(
+        result = rerank_candidates(
             reranker=reranker,
             query="industrial pump",
             candidates=semantic_results,
@@ -394,7 +394,7 @@ class ClassificationContractTests(unittest.TestCase):
             *([0.1] * (DEFAULT_RERANK_CANDIDATE_LIMIT - 2)),
         ]
 
-        result = rerank_with_huggingface(
+        result = rerank_candidates(
             reranker=reranker,
             query="industrial pump",
             candidates=semantic_results,

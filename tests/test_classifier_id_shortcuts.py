@@ -100,7 +100,7 @@ class PerformClassificationShortcutTests(unittest.TestCase):
                 "app.classifier.perform_semantic_search",
                 return_value=semantic_results,
             ) as semantic_mock,
-            patch("app.classifier.rerank_with_huggingface") as rerank_mock,
+            patch("app.classifier.rerank_candidates") as rerank_mock,
         ):
             result = perform_classification(
                 embed_client=object(),

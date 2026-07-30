@@ -113,7 +113,7 @@ async def rapid_classify(
         quantization_cache = getattr(
             request.app.state, "collection_quantization_cache", {}
         )
-        # Use shared classification service with Hugging Face reranking.
+        # Use shared classification service with reranking.
         reranker = getattr(request.app.state, "reranker", None)
         result = await request.app.state.classification_executor.run(
             perform_classification,

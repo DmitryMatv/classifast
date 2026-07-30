@@ -63,11 +63,15 @@ Relevant embedding environment variables:
 - `HF_INFERENCE_PROVIDER` defaults to `auto`
 - `HF_EMBEDDING_MODEL` defaults to `Qwen/Qwen3-Embedding-8B`
 - `HF_EMBEDDING_DIMS` defaults to `2048`
-- `HF_RERANK_MODEL` defaults to `BAAI/bge-reranker-v2-m3`
-- `HF_RERANK_TIMEOUT_SECONDS` defaults to `30`
+
+Reranking is served by OpenRouter and uses its own API key and model:
+
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_RERANK_MODEL` defaults to `nvidia/llama-nemotron-rerank-vl-1b-v2:free`
+- `OPENROUTER_RERANK_TIMEOUT_SECONDS` defaults to `30`
 
 Embedding inference uses the configured `HF_INFERENCE_PROVIDER`. Reranking is
-always sent to Hugging Face's `hf-inference` provider with the same `HF_TOKEN`.
+sent to OpenRouter's `/api/v1/rerank` endpoint with the `OPENROUTER_API_KEY`.
 
 Relevant Qdrant environment variables:
 

@@ -1,4 +1,4 @@
-"""Hugging Face Inference API adapter for cross-encoder reranking."""
+"""OpenRouter reranking API adapter for cross-encoder reranking."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from typing import Any, Sequence
 import httpx
 import tenacity
 
-HF_INFERENCE_MODELS_URL = "https://router.huggingface.co/hf-inference/models"
+OPENROUTER_RERANK_URL = "https://openrouter.ai/api/v1/rerank"
 TRANSIENT_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 
 class RerankerResponseError(RuntimeError):
-    """Raised when Hugging Face returns an unusable reranking response."""
+    """Raised when OpenRouter returns an unusable reranking response."""
 
 
 def _is_transient_rerank_error(error: BaseException) -> bool:
@@ -23,8 +23,8 @@ def _is_transient_rerank_error(error: BaseException) -> bool:
     return False
 
 
-class HuggingFaceReranker:
-    """Batch query-document pairs through Hugging Face's hf-inference provider."""
+class OpenRouterReranker:
+    """Batch query-document pairs through OpenRouter's /rerank endpoint."""
 
     def __init__(
         self,
@@ -35,7 +35,6 @@ class HuggingFaceReranker:
     ) -> None:
         self.model_name = model_name
         self._client = client or httpx.Client(
-            base_url=HF_INFERENCE_MODELS_URL,
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -47,18 +46,22 @@ class HuggingFaceReranker:
         self._client.close()
 
     def rerank(self, query: str, documents: Sequence[str]) -> list[float]:
-        """Return sigmoid-normalized relevance scores matching ``documents`` order."""
+        """Return relevance scores in [0, 1] matching ``documents`` order.
+
+        ``top_n`` is set to ``len(documents)`` so every submitted document
+        receives a score and the caller can compare ordering directly.
+        """
         if not documents:
             return []
 
         payload = {
-            "inputs": [
-                {"text": query, "text_pair": document} for document in documents
-            ],
-            "parameters": {"function_to_apply": "sigmoid", "top_k": 1},
+            "model": self.model_name,
+            "query": query,
+            "documents": list(documents),
+            "top_n": len(documents),
         }
         response_payload = self._post_with_retry(payload)
-        return self._parse_scores(response_payload, expected_count=len(documents))
+        return self._parse_scores(response_payload, n_documents=len(documents))
 
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(3),
@@ -67,42 +70,46 @@ class HuggingFaceReranker:
         reraise=True,
     )
     def _post_with_retry(self, payload: dict[str, Any]) -> Any:
-        response = self._client.post(self.model_name, json=payload)
+        response = self._client.post(OPENROUTER_RERANK_URL, json=payload)
         response.raise_for_status()
         return response.json()
 
     @staticmethod
-    def _parse_scores(response_payload: Any, expected_count: int) -> list[float]:
-        if (
-            not isinstance(response_payload, list)
-            or len(response_payload) != expected_count
-        ):
+    def _parse_scores(response_payload: Any, *, n_documents: int) -> list[float]:
+        if not isinstance(response_payload, dict) or "results" not in response_payload:
+            raise RerankerResponseError(
+                "Reranking response is missing a 'results' array"
+            )
+        results = response_payload["results"]
+        if not isinstance(results, list) or len(results) != n_documents:
             raise RerankerResponseError(
                 "Reranking response count does not match requested document count"
             )
 
-        scores: list[float] = []
-        for result in response_payload:
-            prediction: Any
-            if isinstance(result, dict):
-                prediction = result
-            elif (
-                isinstance(result, list)
-                and len(result) == 1
-                and isinstance(result[0], dict)
-            ):
-                prediction = result[0]
-            else:
+        scores_by_index: dict[int, float] = {}
+        for entry in results:
+            if not isinstance(entry, dict):
                 raise RerankerResponseError("Reranking response item is malformed")
 
-            score = prediction.get("score")
+            index = entry.get("index")
+            score = entry.get("relevance_score")
+            if isinstance(index, bool) or not isinstance(index, int):
+                raise RerankerResponseError(
+                    "Reranking response index is not an integer"
+                )
             if isinstance(score, bool) or not isinstance(score, (int, float)):
                 raise RerankerResponseError("Reranking response score is not numeric")
+
             numeric_score = float(score)
             if not 0.0 <= numeric_score <= 1.0:
                 raise RerankerResponseError(
                     "Reranking response score is outside [0, 1]"
                 )
-            scores.append(numeric_score)
+            scores_by_index[index] = numeric_score
 
-        return scores
+        if len(scores_by_index) != n_documents:
+            raise RerankerResponseError(
+                "Reranking response indices are not unique or do not cover every document"
+            )
+
+        return [scores_by_index[i] for i in range(n_documents)]

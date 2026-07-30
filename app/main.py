@@ -36,7 +36,7 @@ from .qdrant_schema import (
     QdrantSchemaValidationError,
     validate_configured_collections,
 )
-from .reranker import HuggingFaceReranker
+from .reranker import OpenRouterReranker
 from .usage_tracker import (
     REDIS_HOST,
     REDIS_PASSWORD,
@@ -75,7 +75,7 @@ class StartupClients:
     qdrant_client: QdrantClient | None = None
     collection_quantization_cache: dict[str, bool] = field(default_factory=dict)
     redis_client: redis.Redis | None = None
-    reranker: HuggingFaceReranker | None = None
+    reranker: OpenRouterReranker | None = None
 
 
 def initialize_embed_client() -> Any | None:
@@ -171,32 +171,35 @@ async def initialize_redis_client() -> redis.Redis | None:
         return None
 
 
-def initialize_huggingface_reranker() -> HuggingFaceReranker | None:
-    """Initialize Hugging Face reranking when shared credentials are present."""
-    hf_token = os.getenv("HF_TOKEN")
-    if not hf_token:
-        logger.warning("HF_TOKEN not found - reranking disabled")
+def initialize_openrouter_reranker() -> OpenRouterReranker | None:
+    """Initialize OpenRouter reranking when an API key is present."""
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        logger.warning("OPENROUTER_API_KEY not found - reranking disabled")
         return None
 
     try:
         model_name = (
-            os.getenv("HF_RERANK_MODEL", "").strip() or "BAAI/bge-reranker-v2-m3"
+            os.getenv("OPENROUTER_RERANK_MODEL", "").strip()
+            or "nvidia/llama-nemotron-rerank-vl-1b-v2:free"
         )
-        timeout_seconds = float(os.getenv("HF_RERANK_TIMEOUT_SECONDS", "30"))
+        timeout_seconds = float(os.getenv("OPENROUTER_RERANK_TIMEOUT_SECONDS", "30"))
         if timeout_seconds <= 0:
-            raise ValueError("HF_RERANK_TIMEOUT_SECONDS must be greater than zero")
-        reranker = HuggingFaceReranker(
-            api_key=hf_token,
+            raise ValueError(
+                "OPENROUTER_RERANK_TIMEOUT_SECONDS must be greater than zero"
+            )
+        reranker = OpenRouterReranker(
+            api_key=api_key,
             model_name=model_name,
             timeout_seconds=timeout_seconds,
         )
         logger.info(
-            "Hugging Face reranker initialized successfully with model=%s provider=hf-inference.",
+            "OpenRouter reranker initialized successfully with model=%s provider=openrouter.",
             model_name,
         )
         return reranker
     except Exception as e:
-        logger.error("Error initializing Hugging Face reranker: %s", e)
+        logger.error("Error initializing OpenRouter reranker: %s", e)
         return None
 
 
@@ -210,7 +213,7 @@ async def initialize_startup_clients() -> StartupClients:
             clients.collection_quantization_cache,
         ) = initialize_qdrant_client()
         clients.redis_client = await initialize_redis_client()
-        clients.reranker = initialize_huggingface_reranker()
+        clients.reranker = initialize_openrouter_reranker()
         return clients
     except BaseException:
         await close_startup_clients(clients)
@@ -236,9 +239,9 @@ async def close_startup_clients(clients: StartupClients) -> None:
     if clients.reranker:
         try:
             clients.reranker.close()
-            logger.info("Hugging Face reranker closed.")
+            logger.info("OpenRouter reranker closed.")
         except Exception as e:
-            logger.error("Error closing Hugging Face reranker: %s", e)
+            logger.error("Error closing OpenRouter reranker: %s", e)
     if clients.qdrant_client:
         try:
             clients.qdrant_client.close()

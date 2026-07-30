@@ -20,7 +20,7 @@ from .id_lookup import (
     normalize_original_id_for_lookup,
     reverse_normalized_id,
 )
-from .reranker import HuggingFaceReranker
+from .reranker import OpenRouterReranker
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ ALLOWED_QUERY_PATTERN = re.compile(
     r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
 )
 TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
-DEFAULT_RERANK_CANDIDATE_LIMIT = 50
+DEFAULT_RERANK_CANDIDATE_LIMIT = 100
 
 
 # ===== Input Sanitization =====
@@ -550,8 +550,8 @@ def _log_rerank_complete(
     )
 
 
-def rerank_with_huggingface(
-    reranker: HuggingFaceReranker,
+def rerank_candidates(
+    reranker: OpenRouterReranker,
     query: str,
     candidates: List[Dict[str, Any]],
     top_k: int = 5,
@@ -559,14 +559,14 @@ def rerank_with_huggingface(
     document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
     rerank_instruction: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Rerank semantic search results using Hugging Face Inference.
+    """Rerank semantic search results using OpenRouter reranking.
 
     Args:
-        reranker: Initialized Hugging Face reranker
+        reranker: Initialized OpenRouter reranker
         query: The search query text
         candidates: List of candidate matches from semantic search
         top_k: Number of top results to return after reranking
-        rerank_top_n: Number of candidates to send to Hugging Face
+        rerank_top_n: Number of candidates to send to OpenRouter
         document_builder: Optional callback to build document text from a candidate.
             Receives the full candidate dict and returns a string.
             If None, uses class_name + definition from payload.
@@ -587,7 +587,7 @@ def rerank_with_huggingface(
 
     try:
         logger.info(
-            "RERANK: Hugging Face reranking %d candidates for query='%s'",
+            "RERANK: OpenRouter reranking %d candidates for query='%s'",
             len(documents),
             query[:50],
         )
@@ -601,7 +601,7 @@ def rerank_with_huggingface(
 
     except Exception as e:
         logger.warning(
-            "RERANK_FAILED: Hugging Face reranking failed: %s, using semantic search scores",
+            "RERANK_FAILED: OpenRouter reranking failed: %s, using semantic search scores",
             e,
         )
         return _copy_candidates(candidates[:top_k])
@@ -833,7 +833,7 @@ def _semantic_retrieve_limit(top_k: int, reranking_enabled: bool) -> int:
 
 
 def _rank_semantic_results(
-    reranker: Optional[HuggingFaceReranker],
+    reranker: Optional[OpenRouterReranker],
     normalized_query: str,
     filtered_semantic: List[Dict[str, Any]],
     id_match_results: List[Dict[str, Any]],
@@ -843,10 +843,10 @@ def _rank_semantic_results(
 ) -> List[Dict[str, Any]]:
     if reranker is not None and not id_match_results and filtered_semantic:
         logger.info(
-            "RERANK_STATUS: Using Hugging Face for %d semantic candidates",
+            "RERANK_STATUS: Using OpenRouter for %d semantic candidates",
             len(filtered_semantic),
         )
-        reranked_semantic = rerank_with_huggingface(
+        reranked_semantic = rerank_candidates(
             reranker=reranker,
             query=normalized_query,
             candidates=filtered_semantic,
@@ -862,7 +862,7 @@ def _rank_semantic_results(
     if id_match_results:
         logger.info("RERANK_STATUS: Skipped - ID matches present")
     elif not reranker:
-        logger.info("RERANK_STATUS: Skipped - Hugging Face reranker not available")
+        logger.info("RERANK_STATUS: Skipped - OpenRouter reranker not available")
 
     return _zero_score_candidates(filtered_semantic[:top_k])
 
@@ -883,7 +883,7 @@ def perform_classification(
     version: Optional[str] = None,
     top_k: int = 3,
     quantization_cache: Optional[Dict[str, bool]] = None,
-    reranker: Optional[HuggingFaceReranker] = None,
+    reranker: Optional[OpenRouterReranker] = None,
 ) -> Dict[str, Any]:
     """
     Classify a single query using hybrid search (exact text + semantic) with optional reranking.
@@ -896,7 +896,7 @@ def perform_classification(
         version: Optional specific version to use
         top_k: Number of results to return
         quantization_cache: Optional cache mapping collection names to quantization status
-        reranker: Optional Hugging Face reranker for semantic results
+        reranker: Optional OpenRouter reranker for semantic results
 
     Returns:
         Dict containing classification results and metadata

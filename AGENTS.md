@@ -31,7 +31,7 @@ Classifast is a classification service web application that uses embeddings and 
 
 - Backend: Python FastAPI
 - Frontend: TypeScript with Tailwind CSS (built with Node/npm and Vite, served via FastAPI)
-- Infrastructure: Redis (usage tracking), Qdrant (vector database), Hugging Face Inference (embeddings and deployed-service reranking), Clerk (authentication), Polar (payments)
+- Infrastructure: Redis (usage tracking), Qdrant (vector database), Hugging Face Inference (embeddings), OpenRouter (deployed-service reranking), Clerk (authentication), Polar (payments)
 
 ## Hardware, Deployment, Cache
 

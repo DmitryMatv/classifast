@@ -92,40 +92,42 @@ class MainStartupClientTests(unittest.TestCase):
         )
 
     @patch.dict(main.os.environ, {}, clear=True)
-    def test_initialize_huggingface_reranker_returns_none_without_token(self):
+    def test_initialize_openrouter_reranker_returns_none_without_api_key(self):
         with self.assertLogs(main.logger, level="WARNING") as logs:
-            reranker = main.initialize_huggingface_reranker()
+            reranker = main.initialize_openrouter_reranker()
 
         self.assertIsNone(reranker)
-        self.assertTrue(any("HF_TOKEN not found" in message for message in logs.output))
+        self.assertTrue(
+            any("OPENROUTER_API_KEY not found" in message for message in logs.output)
+        )
 
-    @patch.dict(main.os.environ, {"HF_TOKEN": "test-key"}, clear=True)
-    @patch.object(main, "HuggingFaceReranker")
-    def test_initialize_huggingface_reranker_uses_defaults(self, reranker_class):
+    @patch.dict(main.os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=True)
+    @patch.object(main, "OpenRouterReranker")
+    def test_initialize_openrouter_reranker_uses_defaults(self, reranker_class):
         reranker = MagicMock()
         reranker_class.return_value = reranker
 
-        result = main.initialize_huggingface_reranker()
+        result = main.initialize_openrouter_reranker()
 
         self.assertIs(result, reranker)
         reranker_class.assert_called_once_with(
             api_key="test-key",
-            model_name="BAAI/bge-reranker-v2-m3",
+            model_name="nvidia/llama-nemotron-rerank-vl-1b-v2:free",
             timeout_seconds=30.0,
         )
 
     @patch.dict(
         main.os.environ,
         {
-            "HF_TOKEN": "test-key",
-            "HF_RERANK_MODEL": "custom/reranker",
-            "HF_RERANK_TIMEOUT_SECONDS": "12.5",
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_RERANK_MODEL": "custom/reranker",
+            "OPENROUTER_RERANK_TIMEOUT_SECONDS": "12.5",
         },
         clear=True,
     )
-    @patch.object(main, "HuggingFaceReranker")
-    def test_initialize_huggingface_reranker_uses_configuration(self, reranker_class):
-        main.initialize_huggingface_reranker()
+    @patch.object(main, "OpenRouterReranker")
+    def test_initialize_openrouter_reranker_uses_configuration(self, reranker_class):
+        main.initialize_openrouter_reranker()
 
         reranker_class.assert_called_once_with(
             api_key="test-key",
@@ -345,7 +347,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
 
     @patch.object(
         main,
-        "initialize_huggingface_reranker",
+        "initialize_openrouter_reranker",
         side_effect=RuntimeError("reranker init failed"),
     )
     @patch.object(main, "initialize_redis_client", new_callable=AsyncMock)
@@ -440,7 +442,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         qdrant_client.close.assert_called_once_with()
         redis_client.close.assert_awaited_once_with()
         self.assertTrue(
-            any("Hugging Face reranker closed" in message for message in logs.output)
+            any("OpenRouter reranker closed" in message for message in logs.output)
         )
         self.assertTrue(
             any("Qdrant client closed" in message for message in logs.output)
