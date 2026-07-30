@@ -55,7 +55,7 @@ class PerformClassificationShortcutTests(unittest.TestCase):
                 version=self.version,
                 top_k=10,
                 quantization_cache={},
-                zclient=None,
+                reranker=None,
             )
 
         self.assertEqual(result["results"], exact_results)
@@ -100,7 +100,7 @@ class PerformClassificationShortcutTests(unittest.TestCase):
                 "app.classifier.perform_semantic_search",
                 return_value=semantic_results,
             ) as semantic_mock,
-            patch("app.classifier.rerank_with_zeroentropy") as rerank_mock,
+            patch("app.classifier.rerank_with_huggingface") as rerank_mock,
         ):
             result = perform_classification(
                 embed_client=object(),
@@ -110,7 +110,7 @@ class PerformClassificationShortcutTests(unittest.TestCase):
                 version=self.version,
                 top_k=10,
                 quantization_cache={},
-                zclient=object(),
+                reranker=object(),
             )
 
         self.assertEqual(

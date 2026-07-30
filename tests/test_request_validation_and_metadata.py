@@ -56,7 +56,7 @@ def _build_web_test_app() -> FastAPI:
     app.state.embed_client = object()
     app.state.qdrant_client = object()
     app.state.collection_quantization_cache = {}
-    app.state.zclient = None
+    app.state.reranker = None
     app.state.redis_client = object()
     app.state.classification_executor = InlineClassificationExecutor()
     return app

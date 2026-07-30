@@ -37,7 +37,7 @@ def build_test_app() -> FastAPI:
     app.state.qdrant_client = object()
     app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
-    app.state.zclient = None
+    app.state.reranker = None
     app.state.redis_client = object()
     return app
 
@@ -99,7 +99,7 @@ def test_emdn_exact_code_lookup_shortcuts_embedding() -> None:
             version=EMDN_VERSION,
             top_k=10,
             quantization_cache={},
-            zclient=None,
+            reranker=None,
         )
 
     assert result["results"][0]["payload"]["original_id"] == "A0101010101"
@@ -138,7 +138,7 @@ def test_emdn_semantic_search_does_not_add_terminal_or_level_filter() -> None:
             version=EMDN_VERSION,
             top_k=10,
             quantization_cache={},
-            zclient=None,
+            reranker=None,
         )
 
     assert result["results"][0]["id"] == "semantic-point"

@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from huggingface_hub import InferenceClient
 from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
 from qdrant_client import QdrantClient, models
-from zeroentropy import ZeroEntropy
 
 from .cache_profiles import CLASSIFICATION_RESULT, add_vary, build_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG
@@ -21,6 +20,7 @@ from .id_lookup import (
     normalize_original_id_for_lookup,
     reverse_normalized_id,
 )
+from .reranker import HuggingFaceReranker
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ ALLOWED_QUERY_PATTERN = re.compile(
     r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
 )
 TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
-DEFAULT_RERANK_CANDIDATE_LIMIT = 100
+DEFAULT_RERANK_CANDIDATE_LIMIT = 50
 
 
 # ===== Input Sanitization =====
@@ -182,7 +182,7 @@ def build_query_embedding_text(query: str, instruction: Optional[str]) -> str:
 
 
 def build_rerank_query_text(query: str, instruction: Optional[str]) -> str:
-    """Format reranker query text with ZeroEntropy instruction context."""
+    """Format reranker query text with classifier-specific instruction context."""
     if not instruction:
         return query
     return f"Query: {query}\nInstructions: {instruction.strip()}"
@@ -477,7 +477,7 @@ def _split_rerank_candidates(
     return candidates_to_rerank, remaining_candidates
 
 
-def _default_zeroentropy_document(candidate: Dict[str, Any]) -> str:
+def _default_rerank_document(candidate: Dict[str, Any]) -> str:
     payload = candidate.get("payload", {})
     class_name = payload.get("class_name", "")
     definition = payload.get("definition", "")
@@ -489,27 +489,27 @@ def _default_zeroentropy_document(candidate: Dict[str, Any]) -> str:
     return class_name or ""
 
 
-def _build_zeroentropy_documents(
+def _build_rerank_documents(
     candidates: List[Dict[str, Any]],
     document_builder: Optional[Callable[[Dict[str, Any]], str]],
 ) -> List[str]:
-    builder = document_builder or _default_zeroentropy_document
+    builder = document_builder or _default_rerank_document
     return [builder(candidate) for candidate in candidates]
 
 
-def _copy_with_zeroentropy_score(
+def _copy_with_rerank_score(
     candidate: Dict[str, Any],
     score: float,
 ) -> Dict[str, Any]:
     candidate_copy = candidate.copy()
-    candidate_copy["zeroentropy_relevance_score"] = score
+    candidate_copy["rerank_relevance_score"] = score
     return candidate_copy
 
 
 def _zero_score_candidates(
     candidates: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    return [_copy_with_zeroentropy_score(candidate, 0.0) for candidate in candidates]
+    return [_copy_with_rerank_score(candidate, 0.0) for candidate in candidates]
 
 
 def _copy_candidates(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -523,28 +523,16 @@ def _sort_by_score_desc(
     return sorted(results, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
 
 
-def _apply_zeroentropy_response(
+def _apply_rerank_scores(
     candidates: List[Dict[str, Any]],
-    response: Any,
+    scores: List[float],
 ) -> List[Dict[str, Any]]:
-    reranked_candidates = []
-    seen_indices = set()
-
-    for result in response.results:
-        original_index = result.index
-        seen_indices.add(original_index)
-        reranked_candidates.append(
-            _copy_with_zeroentropy_score(
-                candidates[original_index],
-                round(result.relevance_score, 4),
-            )
-        )
-
-    missing_candidates = [
-        candidate for i, candidate in enumerate(candidates) if i not in seen_indices
+    if len(scores) != len(candidates):
+        raise RuntimeError("Reranker score count does not match candidate count")
+    return [
+        _copy_with_rerank_score(candidate, round(score, 4))
+        for candidate, score in zip(candidates, scores)
     ]
-    reranked_candidates.extend(_zero_score_candidates(missing_candidates))
-    return reranked_candidates
 
 
 def _log_rerank_complete(
@@ -557,13 +545,13 @@ def _log_rerank_complete(
     logger.info(
         "RERANK_COMPLETE: Top result=%s score=%.2f (reranked %d docs)",
         reranked_candidates[0].get("payload", {}).get("original_id", "N/A"),
-        reranked_candidates[0].get("zeroentropy_relevance_score", 0) * 100,
+        reranked_candidates[0].get("rerank_relevance_score", 0) * 100,
         document_count,
     )
 
 
-def rerank_with_zeroentropy(
-    zclient: ZeroEntropy,
+def rerank_with_huggingface(
+    reranker: HuggingFaceReranker,
     query: str,
     candidates: List[Dict[str, Any]],
     top_k: int = 5,
@@ -571,55 +559,49 @@ def rerank_with_zeroentropy(
     document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
     rerank_instruction: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Rerank semantic search results using ZeroEntropy rerank API.
+    """Rerank semantic search results using Hugging Face Inference.
 
     Args:
-        zclient: Initialized ZeroEntropy client
+        reranker: Initialized Hugging Face reranker
         query: The search query text
         candidates: List of candidate matches from semantic search
         top_k: Number of top results to return after reranking
-        rerank_top_n: Number of candidates to send to ZeroEntropy
+        rerank_top_n: Number of candidates to send to Hugging Face
         document_builder: Optional callback to build document text from a candidate.
             Receives the full candidate dict and returns a string.
             If None, uses class_name + definition from payload.
         rerank_instruction: Optional reranker instruction to wrap around the query.
 
     Returns:
-        List of reranked candidates with zeroentropy_relevance_score field.
+        List of reranked candidates with rerank_relevance_score field.
         Falls back to original candidates if API fails.
     """
-    if not candidates or not zclient:
+    if not candidates or not reranker:
         return candidates
 
     candidates_to_rerank, remaining_candidates = _split_rerank_candidates(
         candidates, rerank_top_n
     )
-    documents = _build_zeroentropy_documents(candidates_to_rerank, document_builder)
+    documents = _build_rerank_documents(candidates_to_rerank, document_builder)
     rerank_query = build_rerank_query_text(query, rerank_instruction)
 
     try:
         logger.info(
-            "RERANK: ZeroEntropy reranking %d candidates for query='%s'",
+            "RERANK: Hugging Face reranking %d candidates for query='%s'",
             len(documents),
             query[:50],
         )
 
-        # Call ZeroEntropy rerank API
-        response = zclient.models.rerank(
-            model="zerank-2",
-            query=rerank_query,
-            documents=documents,
-            top_n=top_k,
-        )
-
-        reranked_candidates = _apply_zeroentropy_response(
-            candidates_to_rerank, response
+        scores = reranker.rerank(rerank_query, documents)
+        reranked_candidates = _apply_rerank_scores(candidates_to_rerank, scores)
+        reranked_candidates.sort(
+            key=lambda candidate: candidate["rerank_relevance_score"], reverse=True
         )
         _log_rerank_complete(reranked_candidates, len(documents))
 
     except Exception as e:
         logger.warning(
-            "RERANK_FAILED: ZeroEntropy reranking failed: %s, using semantic search scores",
+            "RERANK_FAILED: Hugging Face reranking failed: %s, using semantic search scores",
             e,
         )
         return _copy_candidates(candidates[:top_k])
@@ -803,7 +785,7 @@ def _prepare_exact_id_shortcut_results(
 ) -> List[Dict[str, Any]]:
     classification_results = _sort_by_score_desc(exact_results, top_k)
     for result in classification_results:
-        result["zeroentropy_relevance_score"] = 0.0
+        result["rerank_relevance_score"] = 0.0
     return classification_results
 
 
@@ -851,7 +833,7 @@ def _semantic_retrieve_limit(top_k: int, reranking_enabled: bool) -> int:
 
 
 def _rank_semantic_results(
-    zclient: Optional[ZeroEntropy],
+    reranker: Optional[HuggingFaceReranker],
     normalized_query: str,
     filtered_semantic: List[Dict[str, Any]],
     id_match_results: List[Dict[str, Any]],
@@ -859,13 +841,13 @@ def _rank_semantic_results(
     rerank_top_n: int,
     rerank_instruction: Optional[str],
 ) -> List[Dict[str, Any]]:
-    if zclient is not None and not id_match_results and filtered_semantic:
+    if reranker is not None and not id_match_results and filtered_semantic:
         logger.info(
-            "RERANK_STATUS: Using ZeroEntropy for %d semantic candidates",
+            "RERANK_STATUS: Using Hugging Face for %d semantic candidates",
             len(filtered_semantic),
         )
-        reranked_semantic = rerank_with_zeroentropy(
-            zclient=zclient,
+        reranked_semantic = rerank_with_huggingface(
+            reranker=reranker,
             query=normalized_query,
             candidates=filtered_semantic,
             top_k=top_k,
@@ -873,14 +855,14 @@ def _rank_semantic_results(
             rerank_instruction=rerank_instruction,
         )
         for result in reranked_semantic:
-            if "zeroentropy_relevance_score" in result:
-                result["score"] = result["zeroentropy_relevance_score"]
+            if "rerank_relevance_score" in result:
+                result["score"] = result["rerank_relevance_score"]
         return reranked_semantic
 
     if id_match_results:
         logger.info("RERANK_STATUS: Skipped - ID matches present")
-    elif not zclient:
-        logger.info("RERANK_STATUS: Skipped - ZeroEntropy not available")
+    elif not reranker:
+        logger.info("RERANK_STATUS: Skipped - Hugging Face reranker not available")
 
     return _zero_score_candidates(filtered_semantic[:top_k])
 
@@ -901,10 +883,10 @@ def perform_classification(
     version: Optional[str] = None,
     top_k: int = 3,
     quantization_cache: Optional[Dict[str, bool]] = None,
-    zclient: Optional[ZeroEntropy] = None,
+    reranker: Optional[HuggingFaceReranker] = None,
 ) -> Dict[str, Any]:
     """
-    Classify a single query using hybrid search (exact text + semantic) with optional ZeroEntropy reranking.
+    Classify a single query using hybrid search (exact text + semantic) with optional reranking.
 
     Args:
         embed_client: The Hugging Face Inference client
@@ -914,7 +896,7 @@ def perform_classification(
         version: Optional specific version to use
         top_k: Number of results to return
         quantization_cache: Optional cache mapping collection names to quantization status
-        zclient: Optional ZeroEntropy client for reranking results
+        reranker: Optional Hugging Face reranker for semantic results
 
     Returns:
         Dict containing classification results and metadata
@@ -966,7 +948,7 @@ def perform_classification(
             partial_ms,
         )
 
-        reranking_enabled = zclient is not None and not partial_results
+        reranking_enabled = reranker is not None and not partial_results
         semantic_retrieve_limit = _semantic_retrieve_limit(top_k, reranking_enabled)
 
         logger.info(
@@ -985,7 +967,7 @@ def perform_classification(
         )
         filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
         ranked_semantic = _rank_semantic_results(
-            zclient,
+            reranker,
             context.normalized_query,
             filtered_semantic,
             partial_results,

@@ -21,7 +21,6 @@ from huggingface_hub import InferenceClient
 from qdrant_client import QdrantClient
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
-from zeroentropy import ZeroEntropy
 
 from . import api, payments, web
 from .cache_profiles import (
@@ -37,6 +36,7 @@ from .qdrant_schema import (
     QdrantSchemaValidationError,
     validate_configured_collections,
 )
+from .reranker import HuggingFaceReranker
 from .usage_tracker import (
     REDIS_HOST,
     REDIS_PASSWORD,
@@ -75,7 +75,7 @@ class StartupClients:
     qdrant_client: QdrantClient | None = None
     collection_quantization_cache: dict[str, bool] = field(default_factory=dict)
     redis_client: redis.Redis | None = None
-    zclient: ZeroEntropy | None = None
+    reranker: HuggingFaceReranker | None = None
 
 
 def initialize_embed_client() -> Any | None:
@@ -171,19 +171,32 @@ async def initialize_redis_client() -> redis.Redis | None:
         return None
 
 
-def initialize_zeroentropy_client() -> ZeroEntropy | None:
-    """Initialize ZeroEntropy reranking when credentials are present."""
-    zeroentropy_api_key = os.getenv("ZEROENTROPY_API_KEY")
-    if not zeroentropy_api_key:
-        logger.warning("ZEROENTROPY_API_KEY not found - reranking disabled")
+def initialize_huggingface_reranker() -> HuggingFaceReranker | None:
+    """Initialize Hugging Face reranking when shared credentials are present."""
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        logger.warning("HF_TOKEN not found - reranking disabled")
         return None
 
     try:
-        zclient = ZeroEntropy()
-        logger.info("ZeroEntropy client initialized successfully.")
-        return zclient
+        model_name = (
+            os.getenv("HF_RERANK_MODEL", "").strip() or "BAAI/bge-reranker-v2-m3"
+        )
+        timeout_seconds = float(os.getenv("HF_RERANK_TIMEOUT_SECONDS", "30"))
+        if timeout_seconds <= 0:
+            raise ValueError("HF_RERANK_TIMEOUT_SECONDS must be greater than zero")
+        reranker = HuggingFaceReranker(
+            api_key=hf_token,
+            model_name=model_name,
+            timeout_seconds=timeout_seconds,
+        )
+        logger.info(
+            "Hugging Face reranker initialized successfully with model=%s provider=hf-inference.",
+            model_name,
+        )
+        return reranker
     except Exception as e:
-        logger.error("Error initializing ZeroEntropy client: %s", e)
+        logger.error("Error initializing Hugging Face reranker: %s", e)
         return None
 
 
@@ -197,7 +210,7 @@ async def initialize_startup_clients() -> StartupClients:
             clients.collection_quantization_cache,
         ) = initialize_qdrant_client()
         clients.redis_client = await initialize_redis_client()
-        clients.zclient = initialize_zeroentropy_client()
+        clients.reranker = initialize_huggingface_reranker()
         return clients
     except BaseException:
         await close_startup_clients(clients)
@@ -211,7 +224,7 @@ def assign_startup_clients(
 ) -> None:
     """Store initialized clients and caches on FastAPI app state."""
     app.state.embed_client = clients.embed_client
-    app.state.zclient = clients.zclient
+    app.state.reranker = clients.reranker
     app.state.qdrant_client = clients.qdrant_client
     app.state.collection_quantization_cache = clients.collection_quantization_cache
     app.state.redis_client = clients.redis_client
@@ -220,6 +233,12 @@ def assign_startup_clients(
 
 async def close_startup_clients(clients: StartupClients) -> None:
     """Close startup clients that expose shutdown hooks."""
+    if clients.reranker:
+        try:
+            clients.reranker.close()
+            logger.info("Hugging Face reranker closed.")
+        except Exception as e:
+            logger.error("Error closing Hugging Face reranker: %s", e)
     if clients.qdrant_client:
         try:
             clients.qdrant_client.close()

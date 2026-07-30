@@ -17,7 +17,7 @@ def _build_test_app() -> FastAPI:
     app.state.qdrant_client = object()
     app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
-    app.state.zclient = None
+    app.state.reranker = None
     app.state.redis_client = object()
     return app
 

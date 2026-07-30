@@ -91,6 +91,48 @@ class MainStartupClientTests(unittest.TestCase):
             api_key="test-key",
         )
 
+    @patch.dict(main.os.environ, {}, clear=True)
+    def test_initialize_huggingface_reranker_returns_none_without_token(self):
+        with self.assertLogs(main.logger, level="WARNING") as logs:
+            reranker = main.initialize_huggingface_reranker()
+
+        self.assertIsNone(reranker)
+        self.assertTrue(any("HF_TOKEN not found" in message for message in logs.output))
+
+    @patch.dict(main.os.environ, {"HF_TOKEN": "test-key"}, clear=True)
+    @patch.object(main, "HuggingFaceReranker")
+    def test_initialize_huggingface_reranker_uses_defaults(self, reranker_class):
+        reranker = MagicMock()
+        reranker_class.return_value = reranker
+
+        result = main.initialize_huggingface_reranker()
+
+        self.assertIs(result, reranker)
+        reranker_class.assert_called_once_with(
+            api_key="test-key",
+            model_name="BAAI/bge-reranker-v2-m3",
+            timeout_seconds=30.0,
+        )
+
+    @patch.dict(
+        main.os.environ,
+        {
+            "HF_TOKEN": "test-key",
+            "HF_RERANK_MODEL": "custom/reranker",
+            "HF_RERANK_TIMEOUT_SECONDS": "12.5",
+        },
+        clear=True,
+    )
+    @patch.object(main, "HuggingFaceReranker")
+    def test_initialize_huggingface_reranker_uses_configuration(self, reranker_class):
+        main.initialize_huggingface_reranker()
+
+        reranker_class.assert_called_once_with(
+            api_key="test-key",
+            model_name="custom/reranker",
+            timeout_seconds=12.5,
+        )
+
     @patch.object(
         main, "validate_configured_collections", side_effect=Exception("boom")
     )
@@ -200,14 +242,14 @@ class MainStartupClientTests(unittest.TestCase):
             qdrant_client=object(),
             collection_quantization_cache={"products": False},
             redis_client=object(),
-            zclient=object(),
+            reranker=object(),
         )
         executor = MagicMock(spec=ClassificationExecutor)
 
         main.assign_startup_clients(app, clients, executor)
 
         self.assertIs(app.state.embed_client, clients.embed_client)
-        self.assertIs(app.state.zclient, clients.zclient)
+        self.assertIs(app.state.reranker, clients.reranker)
         self.assertIs(app.state.qdrant_client, clients.qdrant_client)
         self.assertEqual(
             app.state.collection_quantization_cache,
@@ -303,8 +345,8 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
 
     @patch.object(
         main,
-        "initialize_zeroentropy_client",
-        side_effect=RuntimeError("zeroentropy init failed"),
+        "initialize_huggingface_reranker",
+        side_effect=RuntimeError("reranker init failed"),
     )
     @patch.object(main, "initialize_redis_client", new_callable=AsyncMock)
     @patch.object(main, "initialize_qdrant_client")
@@ -314,7 +356,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         initialize_embed,
         initialize_qdrant,
         initialize_redis,
-        initialize_zeroentropy,
+        initialize_reranker,
     ):
         qdrant_client = MagicMock()
         redis_client = MagicMock()
@@ -322,7 +364,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         initialize_qdrant.return_value = (qdrant_client, {"products": False})
         initialize_redis.return_value = redis_client
 
-        with self.assertRaisesRegex(RuntimeError, "zeroentropy init failed"):
+        with self.assertRaisesRegex(RuntimeError, "reranker init failed"):
             await main.initialize_startup_clients()
 
         qdrant_client.close.assert_called_once_with()
@@ -378,23 +420,28 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(events, ["executor", "qdrant", "redis"])
 
-    async def test_close_startup_clients_closes_qdrant_and_redis(self):
+    async def test_close_startup_clients_closes_reranker_qdrant_and_redis(self):
+        reranker = MagicMock()
         qdrant_client = MagicMock()
         redis_client = MagicMock()
         redis_client.close = AsyncMock()
         clients = main.StartupClients(
             embed_client=None,
+            reranker=reranker,
             qdrant_client=qdrant_client,
             collection_quantization_cache={},
             redis_client=redis_client,
-            zclient=None,
         )
 
         with self.assertLogs(main.logger, level="INFO") as logs:
             await main.close_startup_clients(clients)
 
+        reranker.close.assert_called_once_with()
         qdrant_client.close.assert_called_once_with()
         redis_client.close.assert_awaited_once_with()
+        self.assertTrue(
+            any("Hugging Face reranker closed" in message for message in logs.output)
+        )
         self.assertTrue(
             any("Qdrant client closed" in message for message in logs.output)
         )

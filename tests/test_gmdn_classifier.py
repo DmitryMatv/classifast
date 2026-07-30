@@ -28,7 +28,7 @@ def build_test_app() -> FastAPI:
     app.state.qdrant_client = object()
     app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
-    app.state.zclient = None
+    app.state.reranker = None
     app.state.redis_client = object()
     return app
 
@@ -84,7 +84,7 @@ def test_gmdn_exact_code_lookup_shortcuts_embedding() -> None:
             version=GMDN_VERSION,
             top_k=10,
             quantization_cache={},
-            zclient=None,
+            reranker=None,
         )
 
     assert result["results"][0]["payload"]["original_id"] == "46653"
@@ -135,7 +135,7 @@ def test_active_and_obsolete_terms_participate_equally_in_semantic_search() -> N
             version=GMDN_VERSION,
             top_k=2,
             quantization_cache={},
-            zclient=None,
+            reranker=None,
         )
 
     assert [item["id"] for item in result["results"]] == ["obsolete", "active"]

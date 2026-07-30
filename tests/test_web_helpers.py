@@ -25,7 +25,7 @@ def _build_test_app() -> FastAPI:
     app.state.qdrant_client = object()
     app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
-    app.state.zclient = None
+    app.state.reranker = None
     app.state.redis_client = object()
     return app
 
@@ -44,7 +44,7 @@ class ClassificationResultsContextTests(unittest.TestCase):
         request.app.state.embed_client = object()
         request.app.state.qdrant_client = object()
         request.app.state.collection_quantization_cache = {}
-        request.app.state.zclient = None
+        request.app.state.reranker = None
 
         with patch("app.web.perf_counter", return_value=13.5):
             context = build_classification_results_context(

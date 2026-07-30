@@ -549,6 +549,27 @@
         }
 
         @media (max-width: 768px) {
+            .desktop-nav {
+                display: none;
+            }
+
+            .mobile-menu {
+                width: 95vw;
+                right: 50%;
+                transform: translateX(50%);
+                border-radius: 1rem;
+            }
+
+            .menu-panel {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                padding: 1rem;
+            }
+
+            .menu-chip-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .hero-section {
                 padding-top: 1.25rem;
                 padding-bottom: 4rem;

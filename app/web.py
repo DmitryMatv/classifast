@@ -117,7 +117,7 @@ def build_classification_results_context(
         perf_counter() if executor_submitted_at is None else executor_submitted_at
     )
     quantization_cache = getattr(request.app.state, "collection_quantization_cache", {})
-    zclient = getattr(request.app.state, "zclient", None)
+    reranker = getattr(request.app.state, "reranker", None)
     result = perform_classification(
         embed_client=request.app.state.embed_client,
         qdrant_client=request.app.state.qdrant_client,
@@ -126,7 +126,7 @@ def build_classification_results_context(
         version=version,
         top_k=top_k,
         quantization_cache=quantization_cache,
-        zclient=zclient,
+        reranker=reranker,
     )
     total_request_time = perf_counter() - start_total_time
 

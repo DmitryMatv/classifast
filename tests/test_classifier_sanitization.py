@@ -15,7 +15,7 @@ from app.classifier import (
     get_embedding,
     perform_classification,
     perform_semantic_search,
-    rerank_with_zeroentropy,
+    rerank_with_huggingface,
     sanitize_query_text,
 )
 from app.classifier_config import CLASSIFIER_CONFIG
@@ -104,7 +104,7 @@ class ClassificationContractTests(unittest.TestCase):
                 classifier_type="DOES_NOT_EXIST",
                 version=None,
                 quantization_cache={},
-                zclient=None,
+                reranker=None,
             )
 
         self.assertEqual(ctx.exception.status_code, 404)
@@ -118,7 +118,7 @@ class ClassificationContractTests(unittest.TestCase):
                 classifier_type=self.classifier_type,
                 version="missing-version",
                 quantization_cache={},
-                zclient=None,
+                reranker=None,
             )
 
         self.assertEqual(ctx.exception.status_code, 404)
@@ -140,13 +140,13 @@ class ClassificationContractTests(unittest.TestCase):
             {
                 "id": "semantic-2",
                 "score": 0.39,
-                "zeroentropy_relevance_score": 0.91,
+                "rerank_relevance_score": 0.91,
                 "payload": {"original_id": "5678", "class_name": "Pump casing"},
             },
             {
                 "id": "semantic-1",
                 "score": 0.41,
-                "zeroentropy_relevance_score": 0.52,
+                "rerank_relevance_score": 0.52,
                 "payload": {"original_id": "1234", "class_name": "Pump body"},
             },
         ]
@@ -163,7 +163,7 @@ class ClassificationContractTests(unittest.TestCase):
                 return_value=semantic_results,
             ) as semantic_mock,
             patch(
-                "app.classifier.rerank_with_zeroentropy",
+                "app.classifier.rerank_with_huggingface",
                 return_value=reranked_results,
             ) as rerank_mock,
         ):
@@ -175,7 +175,7 @@ class ClassificationContractTests(unittest.TestCase):
                 version=self.version,
                 top_k=2,
                 quantization_cache={},
-                zclient=object(),
+                reranker=object(),
             )
 
         self.assertEqual(
@@ -207,7 +207,7 @@ class ClassificationContractTests(unittest.TestCase):
             CLASSIFIER_CONFIG[self.classifier_type]["rerank_instruction"],
         )
 
-    def test_semantic_search_uses_display_top_k_without_zeroentropy(self) -> None:
+    def test_semantic_search_uses_display_top_k_without_reranking(self) -> None:
         semantic_results = [
             {
                 "id": "semantic-1",
@@ -229,7 +229,7 @@ class ClassificationContractTests(unittest.TestCase):
                 "app.classifier.perform_semantic_search",
                 return_value=semantic_results,
             ) as semantic_mock,
-            patch("app.classifier.rerank_with_zeroentropy") as rerank_mock,
+            patch("app.classifier.rerank_with_huggingface") as rerank_mock,
         ):
             result = perform_classification(
                 embed_client=object(),
@@ -239,7 +239,7 @@ class ClassificationContractTests(unittest.TestCase):
                 version=self.version,
                 top_k=2,
                 quantization_cache={},
-                zclient=None,
+                reranker=None,
             )
 
         self.assertEqual(
@@ -275,7 +275,7 @@ class ClassificationContractTests(unittest.TestCase):
                 version=_version_for_classifier("ETIM"),
                 top_k=1,
                 quantization_cache={},
-                zclient=None,
+                reranker=None,
             )
 
         self.assertTrue(semantic_mock.call_args.kwargs["search_exact"])
@@ -306,7 +306,7 @@ class ClassificationContractTests(unittest.TestCase):
                 version=_version_for_classifier("UNSPSC"),
                 top_k=1,
                 quantization_cache={},
-                zclient=None,
+                reranker=None,
             )
 
         self.assertFalse(semantic_mock.call_args.kwargs["search_exact"])
@@ -360,12 +360,11 @@ class ClassificationContractTests(unittest.TestCase):
                 "payload": {"original_id": "5678", "class_name": "Pump casing"},
             },
         ]
-        zclient = SimpleNamespace(
-            models=SimpleNamespace(rerank=Mock(side_effect=RuntimeError("down")))
-        )
+        reranker = Mock()
+        reranker.rerank.side_effect = RuntimeError("down")
 
-        result = rerank_with_zeroentropy(
-            zclient=zclient,
+        result = rerank_with_huggingface(
+            reranker=reranker,
             query="industrial pump",
             candidates=semantic_results,
             top_k=2,
@@ -374,9 +373,7 @@ class ClassificationContractTests(unittest.TestCase):
 
         self.assertEqual([item["score"] for item in result], [0.41, 0.39])
         self.assertTrue(all(item["score"] != 0.0 for item in result))
-        self.assertTrue(
-            all("zeroentropy_relevance_score" not in item for item in result)
-        )
+        self.assertTrue(all("rerank_relevance_score" not in item for item in result))
 
     def test_rerank_wraps_query_instruction_and_limits_response(self) -> None:
         semantic_results = [
@@ -390,17 +387,15 @@ class ClassificationContractTests(unittest.TestCase):
             }
             for index in range(DEFAULT_RERANK_CANDIDATE_LIMIT)
         ]
-        response = SimpleNamespace(
-            results=[
-                SimpleNamespace(index=1, relevance_score=0.91),
-                SimpleNamespace(index=0, relevance_score=0.52),
-            ]
-        )
-        rerank_mock = Mock(return_value=response)
-        zclient = SimpleNamespace(models=SimpleNamespace(rerank=rerank_mock))
+        reranker = Mock()
+        reranker.rerank.return_value = [
+            0.52,
+            0.91,
+            *([0.1] * (DEFAULT_RERANK_CANDIDATE_LIMIT - 2)),
+        ]
 
-        result = rerank_with_zeroentropy(
-            zclient=zclient,
+        result = rerank_with_huggingface(
+            reranker=reranker,
             query="industrial pump",
             candidates=semantic_results,
             top_k=2,
@@ -408,15 +403,14 @@ class ClassificationContractTests(unittest.TestCase):
             rerank_instruction="Find matching codes.",
         )
 
-        rerank_mock.assert_called_once()
-        call_kwargs = rerank_mock.call_args.kwargs
+        reranker.rerank.assert_called_once()
+        call_args = reranker.rerank.call_args.args
         self.assertEqual(
-            call_kwargs["query"],
+            call_args[0],
             "Query: industrial pump\nInstructions: Find matching codes.",
         )
-        self.assertEqual(call_kwargs["top_n"], 2)
         self.assertEqual(
-            len(call_kwargs["documents"]),
+            len(call_args[1]),
             DEFAULT_RERANK_CANDIDATE_LIMIT,
         )
         self.assertEqual(

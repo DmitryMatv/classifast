@@ -19,7 +19,7 @@ def _build_test_app() -> FastAPI:
     app.state.qdrant_client = object()
     app.state.classification_executor = InlineClassificationExecutor()
     app.state.collection_quantization_cache = {}
-    app.state.zclient = None
+    app.state.reranker = None
     app.state.redis_client = object()
     return app
 
@@ -178,12 +178,12 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
         ]
         self.assertEqual(events, ["1", "|", "2", "3", "|", "4", "5"])
 
-    async def test_cpv_code_renders_without_spacing_markers(self) -> None:
+    async def test_cpv_code_renders_with_spacing_markers(self) -> None:
         version = next(iter(CLASSIFIER_CONFIG["CPV"]["versions"]))
         response = await self._request_fragment("CPV", version, "72212910-1")
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("code-spacer-halves", response.text)
+        self.assertEqual(response.text.count("code-spacer-halves"), 3)
         self.assertIn(
             "onclick=\"window.copyOriginalId('72212910-1', this)\"",
             response.text,

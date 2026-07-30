@@ -63,6 +63,11 @@ Relevant embedding environment variables:
 - `HF_INFERENCE_PROVIDER` defaults to `auto`
 - `HF_EMBEDDING_MODEL` defaults to `Qwen/Qwen3-Embedding-8B`
 - `HF_EMBEDDING_DIMS` defaults to `2048`
+- `HF_RERANK_MODEL` defaults to `BAAI/bge-reranker-v2-m3`
+- `HF_RERANK_TIMEOUT_SECONDS` defaults to `30`
+
+Embedding inference uses the configured `HF_INFERENCE_PROVIDER`. Reranking is
+always sent to Hugging Face's `hf-inference` provider with the same `HF_TOKEN`.
 
 Relevant Qdrant environment variables:
 

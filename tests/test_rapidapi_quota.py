@@ -61,7 +61,7 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
         test_app.state.embed_client = object()
         test_app.state.qdrant_client = object()
         test_app.state.collection_quantization_cache = {}
-        test_app.state.zclient = None
+        test_app.state.reranker = None
         test_app.state.redis_client = object()
         test_app.state.classification_executor = InlineClassificationExecutor()
         return test_app
@@ -130,7 +130,7 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
                 "version": None,
                 "top_k": 1,
                 "quantization_cache": {},
-                "zclient": None,
+                "reranker": None,
             },
         )
 
@@ -194,7 +194,7 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
         test_app.state.embed_client = object()
         test_app.state.qdrant_client = object()
         test_app.state.collection_quantization_cache = {}
-        test_app.state.zclient = None
+        test_app.state.reranker = None
         test_app.state.redis_client = object()
         test_app.state.classification_executor = InlineClassificationExecutor()
         return test_app
