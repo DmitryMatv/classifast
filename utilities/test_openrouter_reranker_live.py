@@ -177,8 +177,7 @@ def main() -> int:
         return 1
 
     model_name = (
-        os.getenv("OPENROUTER_RERANK_MODEL", "").strip()
-        or "nvidia/llama-nemotron-rerank-vl-1b-v2:free"
+        os.getenv("OPENROUTER_RERANK_MODEL", "").strip() or "voyageai/rerank-2.5-lite"
     )
     timeout_seconds = float(os.getenv("OPENROUTER_RERANK_TIMEOUT_SECONDS", "60"))
 

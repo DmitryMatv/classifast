@@ -417,6 +417,8 @@ class ClassificationContractTests(unittest.TestCase):
             [item["id"] for item in result],
             ["semantic-1", "semantic-0"],
         )
+        self.assertEqual(result[0]["rerank_relevance_score"], 0.91)
+        self.assertEqual(result[1]["rerank_relevance_score"], 0.52)
 
 
 class QdrantSemanticSearchTests(unittest.TestCase):
