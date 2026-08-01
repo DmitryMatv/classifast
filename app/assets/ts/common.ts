@@ -136,6 +136,16 @@ export class ShareLink {
 }
 
 // Textarea enhanced functionality
+export function focusTextareaAtEnd(textarea: HTMLTextAreaElement | null): void {
+  if (!textarea) {
+    return;
+  }
+
+  textarea.focus();
+  const end = textarea.value.length;
+  textarea.setSelectionRange(end, end);
+}
+
 export class TextareaEnhancer {
   private textarea: HTMLTextAreaElement | null;
   private defaultExampleCleared = false;
@@ -151,6 +161,7 @@ export class TextareaEnhancer {
   }
 
   private init() {
+    focusTextareaAtEnd(this.textarea);
     this.setupDefaultExampleClear();
 
     this.textarea?.addEventListener("keydown", (event) => {

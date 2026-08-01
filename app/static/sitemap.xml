@@ -165,6 +165,10 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/UNSPSC/ball_bearings/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/UNSPSC/hydraulic_hose/</loc>
         <priority>0.64</priority>
     </url>
@@ -245,7 +249,15 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/UNSPSC/steel/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/UNSPSC/copper_wire/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/oil/</loc>
         <priority>0.64</priority>
     </url>
     <url>
@@ -281,6 +293,10 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/unspsc/computer_equipment/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/UNSPSC/computer_monitor/</loc>
         <priority>0.64</priority>
     </url>
@@ -297,7 +313,31 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/UNSPSC/water/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/UNSPSC/laser_printer/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/mobile_phone/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/drone/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/hotel/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/helicopter/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/hotel_furniture/</loc>
         <priority>0.64</priority>
     </url>
     <url>
@@ -333,6 +373,10 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/UNSPSC/antenna/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/UNSPSC/hammer/</loc>
         <priority>0.64</priority>
     </url>
@@ -342,6 +386,10 @@
     </url>
     <url>
         <loc>https://classifast.com/UNSPSC/pliers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/general_supplies/</loc>
         <priority>0.64</priority>
     </url>
     <url>
@@ -398,6 +446,10 @@
     </url>
     <url>
         <loc>https://classifast.com/UNSPSC/work_boots/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/work_clothing/</loc>
         <priority>0.64</priority>
     </url>
     <url>
@@ -509,6 +561,10 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/UNSPSC/aluminum/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/UNSPSC/transportation/</loc>
         <priority>0.64</priority>
     </url>
@@ -522,6 +578,255 @@
     </url>
     <url>
         <loc>https://classifast.com/UNSPSC/air_freight/</loc>
+        <priority>0.64</priority>
+    </url>
+    <!-- UNSPSC transportation and logistics long-tail queries -->
+    <url>
+        <loc>https://classifast.com/UNSPSC/passenger_vehicles/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/commercial_vehicles/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/electric_vehicles/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/electric_buses/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/school_buses/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/public_transit_buses/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/cargo_vans/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/pickup_trucks/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/tractor_trailers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/heavy_duty_truck/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/refrigerated_trucks/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/ambulance/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/fire_trucks/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/motorcycles/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/electric_bicycles/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/vehicle_trailers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/utility_trailers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/cargo_trailers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/flatbed_trailers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/refrigerated_trailers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/vehicle_parts/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/truck_parts/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/automotive_brake_pads/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/truck_tires/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/automotive_batteries/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/electric_vehicle_batteries/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/vehicle_lubricants/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/windshield_wipers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/vehicle_filters/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/fleet_management_software/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/vehicle_tracking_systems/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/gps_fleet_tracking/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/fleet_maintenance_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/vehicle_maintenance_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/automotive_repair_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/public_transportation_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/passenger_transportation_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/school_bus_transportation/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/bus_transportation_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/road_freight_transportation/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/ocean_freight_transportation/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/rail_freight_transportation/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/freight_forwarding_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/international_freight_forwarding/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/less_than_truckload_freight/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/full_truckload_freight/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/intermodal_freight_transportation/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/third_party_logistics_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/warehousing_and_distribution/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/courier_delivery_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/same_day_courier_delivery/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/last_mile_delivery_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/customs_brokerage_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/vehicle_rental_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/car_rental_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/truck_rental_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/charter_bus_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/airport_transportation_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/temperature_controlled_transportation/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/cold_chain_transportation/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/shipping_containers/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/cargo_handling_services/</loc>
         <priority>0.64</priority>
     </url>
     <!-- NAICS common queries -->
@@ -539,6 +844,18 @@
     </url>
     <url>
         <loc>https://classifast.com/NAICS/software_development/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/NAICS/crochet/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/NAICS/Bank/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/NAICS/non_profit/</loc>
         <priority>0.64</priority>
     </url>
     <url>
@@ -1066,6 +1383,10 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/GMDN/nebulizer/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/GMDN/catheter/</loc>
         <priority>0.64</priority>
     </url>
@@ -1112,6 +1433,10 @@
     <!-- EMDN common queries -->
     <url>
         <loc>https://classifast.com/EMDN/syringe/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/EMDN/nebulizer/</loc>
         <priority>0.64</priority>
     </url>
     <url>

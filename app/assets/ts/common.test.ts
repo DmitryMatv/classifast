@@ -152,6 +152,51 @@ describe("common.ts", () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps textarea focus and selection when Enter submits the form", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form>
+        <textarea id="product_description_area">Industrial pump</textarea>
+        <button type="submit">Submit</button>
+      </form>
+    `;
+    const form = document.querySelector("form") as HTMLFormElement;
+    form.addEventListener("submit", (event) => event.preventDefault());
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(10, 10);
+
+    textarea.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.selectionStart).toBe(10);
+    expect(textarea.selectionEnd).toBe(10);
+  });
+
+  it("focuses a prefilled textarea with the cursor at the end", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <textarea id="product_description_area">Industrial pump</textarea>
+    `;
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+    expect(textarea.selectionEnd).toBe(textarea.value.length);
+  });
+
   it("clears the default example text after the configured delay", async () => {
     document.body.dataset["authUi"] = "disabled";
     document.body.innerHTML = `
