@@ -112,7 +112,7 @@ class MainStartupClientTests(unittest.TestCase):
         self.assertIs(result, reranker)
         reranker_class.assert_called_once_with(
             api_key="test-key",
-            model_name="nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+            model_name="voyageai/rerank-2.5",
             timeout_seconds=30.0,
         )
 

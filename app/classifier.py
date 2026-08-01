@@ -175,17 +175,24 @@ def _embedding_dimension_mismatch(
 
 
 def build_query_embedding_text(query: str, instruction: Optional[str]) -> str:
-    """Format query-side text for instruction-aware embedding models."""
-    if not instruction:
+    """Format a Qwen3 embedding query with its task instruction."""
+    instruction_text = instruction.strip() if instruction else ""
+    if not instruction_text:
         return query
-    return f"Instruct: {instruction.strip()}\nQuery: {query}"
+    return f"Instruct: {instruction_text}\nQuery:{query}"
 
 
 def build_rerank_query_text(query: str, instruction: Optional[str]) -> str:
-    """Format reranker query text with classifier-specific instruction context."""
-    if not instruction:
+    """Format an instruction-following reranker query.
+
+    Voyage rerank-2.5 supports natural-language instructions in the query
+    field. Its documented format places the instruction before a labelled
+    query, rather than treating the instruction as a suffix to the query.
+    """
+    instruction_text = instruction.strip() if instruction else ""
+    if not instruction_text:
         return query
-    return f"Query: {query}\nInstructions: {instruction.strip()}"
+    return f"{instruction_text}\nQuery: {query}"
 
 
 def _build_embedding_retry() -> tenacity.Retrying:

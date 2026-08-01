@@ -181,7 +181,7 @@ def initialize_openrouter_reranker() -> OpenRouterReranker | None:
     try:
         model_name = (
             os.getenv("OPENROUTER_RERANK_MODEL", "").strip()
-            or "nvidia/llama-nemotron-rerank-vl-1b-v2:free"
+            or "voyageai/rerank-2.5"
         )
         timeout_seconds = float(os.getenv("OPENROUTER_RERANK_TIMEOUT_SECONDS", "30"))
         if timeout_seconds <= 0:

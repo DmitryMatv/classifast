@@ -16,9 +16,9 @@ DEFAULT_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevan
 
 
 DEFAULT_RERANK_INSTRUCTION = (
-    "Determine if the candidate taxonomy entry directly and specifically classifies the text description. "
-    "Score higher for exact functional, industry, material, or use-case matches. Penalize broad parent categories if a more specific match is possible. "
-    "Do not reward inferences of unsupported details."
+    "Prioritize the taxonomy entry that most directly and specifically classifies the text description. "
+    "Favor exact functional, industry, material, and use-case matches over broad parent categories. "
+    "Penalize candidates that require unsupported inferences."
 )
 
 UNSPSC_QUERY_INSTRUCTION = (
@@ -27,9 +27,9 @@ UNSPSC_QUERY_INSTRUCTION = (
 )
 
 UNSPSC_RERANK_INSTRUCTION = (
-    "Evaluate the match between the product/service description and the UNSPSC entry. "
-    "Assign the highest scores to commodity-level matches. Strictly penalize broad segment or family matches unless no specific commodity match is supported. "
-    "Do not infer unsupported details."
+    "Prioritize the UNSPSC entry that most directly and specifically classifies the product or service description. "
+    "Favor commodity-level matches over broad segment or family matches. "
+    "Penalize candidates that require unsupported inferences."
 )
 
 GMDN_QUERY_INSTRUCTION = (
@@ -38,9 +38,9 @@ GMDN_QUERY_INSTRUCTION = (
 )
 
 GMDN_RERANK_INSTRUCTION = (
-    "Evaluate whether the GMDN term directly and specifically describes the medical device. "
-    "Score exact intended-use, design, material, and clinical-application matches highest. "
-    "Do not infer unsupported characteristics."
+    "Prioritize the GMDN term that most directly and specifically describes the medical device. "
+    "Favor exact intended-use, design, material, and clinical-application matches. "
+    "Penalize candidates that require unsupported inferences."
 )
 
 EMDN_QUERY_INSTRUCTION = (
@@ -50,8 +50,8 @@ EMDN_QUERY_INSTRUCTION = (
 )
 
 EMDN_RERANK_INSTRUCTION = (
-    "Evaluate whether the terminal EMDN term directly and specifically describes the medical device, considering both its title and ancestor hierarchy. "
-    "Score exact intended-purpose, device-type, design, material, and clinical-application matches highest. "
+    "Prioritize the terminal EMDN term that most directly and specifically describes the medical device, using its title and ancestor hierarchy. "
+    "Favor exact intended-purpose, device-type, design, material, and clinical-application matches. "
     "Penalize candidates that require unsupported inferences."
 )
 

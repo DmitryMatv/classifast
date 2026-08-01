@@ -67,7 +67,7 @@ Relevant embedding environment variables:
 Reranking is served by OpenRouter and uses its own API key and model:
 
 - `OPENROUTER_API_KEY`
-- `OPENROUTER_RERANK_MODEL` defaults to `nvidia/llama-nemotron-rerank-vl-1b-v2:free`
+- `OPENROUTER_RERANK_MODEL` defaults to `voyageai/rerank-2.5`
 - `OPENROUTER_RERANK_TIMEOUT_SECONDS` defaults to `30`
 
 Embedding inference uses the configured `HF_INFERENCE_PROVIDER`. Reranking is

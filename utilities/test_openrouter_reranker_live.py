@@ -22,8 +22,7 @@ Verifies:
 Usage: python utilities/test_openrouter_reranker_live.py
 
 Requires OPENROUTER_API_KEY in .env (or the environment). Honors the optional
-variables OPENROUTER_RERANK_MODEL (default
-nvidia/llama-nemotron-rerank-vl-1b-v2:free) and
+variables OPENROUTER_RERANK_MODEL (default voyageai/rerank-2.5) and
 OPENROUTER_RERANK_TIMEOUT_SECONDS (default 60 - the free tier can be slow on
 cold start).
 """
@@ -177,7 +176,7 @@ def main() -> int:
         return 1
 
     model_name = (
-        os.getenv("OPENROUTER_RERANK_MODEL", "").strip() or "voyageai/rerank-2.5-lite"
+        os.getenv("OPENROUTER_RERANK_MODEL", "").strip() or "voyageai/rerank-2.5"
     )
     timeout_seconds = float(os.getenv("OPENROUTER_RERANK_TIMEOUT_SECONDS", "60"))
 

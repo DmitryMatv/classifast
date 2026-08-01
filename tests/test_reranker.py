@@ -22,7 +22,7 @@ class OpenRouterRerankerTests(unittest.TestCase):
     def test_rerank_posts_batched_documents_and_preserves_document_order(self) -> None:
         client = self._client_with_response(
             {
-                "model": "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+                "model": "voyageai/rerank-2.5",
                 "results": [
                     {
                         "index": 0,
@@ -39,7 +39,7 @@ class OpenRouterRerankerTests(unittest.TestCase):
         )
         reranker = OpenRouterReranker(
             api_key="test-token",
-            model_name="nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+            model_name="voyageai/rerank-2.5",
             client=client,
         )
 
@@ -49,7 +49,7 @@ class OpenRouterRerankerTests(unittest.TestCase):
         client.post.assert_called_once_with(
             OPENROUTER_RERANK_URL,
             json={
-                "model": "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+                "model": "voyageai/rerank-2.5",
                 "query": "pump query",
                 "documents": ["first document", "second document"],
                 "top_n": 2,
@@ -63,7 +63,7 @@ class OpenRouterRerankerTests(unittest.TestCase):
 
         reranker = OpenRouterReranker(
             api_key="secret-token",
-            model_name="nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+            model_name="voyageai/rerank-2.5",
             timeout_seconds=12.5,
         )
         reranker.close()

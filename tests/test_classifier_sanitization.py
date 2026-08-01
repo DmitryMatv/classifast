@@ -316,7 +316,7 @@ class ClassificationContractTests(unittest.TestCase):
 
         self.assertEqual(
             result,
-            "Instruct: Find matching codes.\nQuery: industrial pump",
+            "Instruct: Find matching codes.\nQuery:industrial pump",
         )
 
     def test_build_query_embedding_text_returns_query_without_instruction(self) -> None:
@@ -328,13 +328,17 @@ class ClassificationContractTests(unittest.TestCase):
             build_query_embedding_text("industrial pump", ""),
             "industrial pump",
         )
+        self.assertEqual(
+            build_query_embedding_text("industrial pump", "   "),
+            "industrial pump",
+        )
 
     def test_build_rerank_query_text_adds_instruction(self) -> None:
         result = build_rerank_query_text("industrial pump", "Find matching codes.")
 
         self.assertEqual(
             result,
-            "Query: industrial pump\nInstructions: Find matching codes.",
+            "Find matching codes.\nQuery: industrial pump",
         )
 
     def test_build_rerank_query_text_returns_query_without_instruction(self) -> None:
@@ -344,6 +348,10 @@ class ClassificationContractTests(unittest.TestCase):
         )
         self.assertEqual(
             build_rerank_query_text("industrial pump", ""),
+            "industrial pump",
+        )
+        self.assertEqual(
+            build_rerank_query_text("industrial pump", "   "),
             "industrial pump",
         )
 
@@ -407,7 +415,7 @@ class ClassificationContractTests(unittest.TestCase):
         call_args = reranker.rerank.call_args.args
         self.assertEqual(
             call_args[0],
-            "Query: industrial pump\nInstructions: Find matching codes.",
+            "Find matching codes.\nQuery: industrial pump",
         )
         self.assertEqual(
             len(call_args[1]),

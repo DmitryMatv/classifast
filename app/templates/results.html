@@ -133,6 +133,10 @@
             Copy link
         </button>
     </div>
+    {% elif results_loaded | default(false) %}
+    <div>
+        <p class="text-left text-gray-600">No matching classification results found.</p>
+    </div>
     {% else %}
     <div>
         <p class="text-left text-gray-600">Loading...</p>

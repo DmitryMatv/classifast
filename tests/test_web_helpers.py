@@ -84,6 +84,119 @@ class SlugifyTests(unittest.TestCase):
         self.assertEqual(slugify("насос промышленный"), "насос_промышленный")
 
 
+class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _build_test_app()
+
+    def _classification_result(self) -> dict:
+        return {
+            "results": [
+                {
+                    "score": 0.93,
+                    "payload": {
+                        "original_id": "123456",
+                        "class_name": "Pump manufacturing",
+                        "definition": "Industrial pump manufacturing.",
+                    },
+                }
+            ],
+            "version_config": {
+                "base_url": "",
+                "tooltip": "",
+            },
+        }
+
+    async def _request(self, path: str) -> httpx.Response:
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(path)
+
+    @patch("app.web.perform_classification")
+    async def test_sitemap_query_is_server_rendered(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request("/UNSPSC/laptop_computer/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Pump manufacturing", response.text)
+        self.assertIn('data-autoload-enabled="false"', response.text)
+        perform_classification_mock.assert_called_once()
+
+    @patch("app.web.perform_classification")
+    async def test_successful_empty_sitemap_query_is_not_left_loading(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = {
+            "results": [],
+            "version_config": {
+                "base_url": "",
+                "tooltip": "",
+            },
+        }
+
+        response = await self._request("/UNSPSC/laptop_computer/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No matching classification results found.", response.text)
+        self.assertNotIn("Loading...", response.text)
+        self.assertIn('data-autoload-enabled="false"', response.text)
+        perform_classification_mock.assert_called_once()
+
+    @patch("app.web.perform_classification")
+    async def test_non_sitemap_query_keeps_htmx_autoload(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request("/UNSPSC/custom_internal_query/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertIn("Loading...", response.text)
+        perform_classification_mock.assert_not_called()
+
+    @patch("app.web.perform_classification")
+    async def test_sitemap_query_with_parameters_keeps_htmx_autoload(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request("/UNSPSC/laptop_computer/?top_k=30")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        perform_classification_mock.assert_not_called()
+
+    @patch(
+        "app.web.perform_classification",
+        side_effect=RuntimeError("classification unavailable"),
+    )
+    async def test_failed_ssr_falls_back_to_htmx_autoload(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request("/UNSPSC/laptop_computer/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "no-store, max-age=0",
+        )
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertEqual(response.headers["X-Robots-Tag"], "noindex, nofollow")
+        perform_classification_mock.assert_called_once()
+
+
 class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -739,7 +852,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self,
         perform_classification_mock: Mock,
     ) -> None:
-        response = await self._request("/UNSPSC/industrial_pump")
+        response = await self._request("/UNSPSC/custom_internal_query")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('data-autoload-enabled="true"', response.text)
@@ -765,6 +878,15 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('id="initial-results-loader"', response.text)
         self.assertIn(expected_example, response.text)
         self.assertNotIn("Set-Cookie", response.headers)
+        self.assertEqual(
+            response.headers["Cache-Control"],
+            "no-store, max-age=0",
+        )
+        self.assertEqual(
+            response.headers["Cloudflare-CDN-Cache-Control"],
+            "no-store",
+        )
+        self.assertEqual(response.headers["X-Robots-Tag"], "noindex, nofollow")
         perform_classification_mock.assert_called_once()
         reserve_usage_mock.assert_not_awaited()
 

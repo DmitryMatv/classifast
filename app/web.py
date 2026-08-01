@@ -3,7 +3,9 @@ import re
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-from urllib.parse import quote, unquote_plus, urlencode
+from typing import Literal
+from urllib.parse import quote, unquote_plus, urlencode, urlparse
+from xml.etree import ElementTree
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -41,6 +43,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_sitemap_query_paths() -> frozenset[str]:
+    sitemap_path = BASE_DIR / "app" / "static" / "sitemap.xml"
+    try:
+        root = ElementTree.parse(sitemap_path).getroot()
+    except (OSError, ElementTree.ParseError) as exc:
+        logger.warning("Unable to load sitemap SEO query allowlist: %s", exc)
+        return frozenset()
+
+    query_paths: set[str] = set()
+    for loc in root.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
+        if not loc.text:
+            continue
+
+        path = urlparse(loc.text).path
+        path_parts = [part for part in path.split("/") if part]
+        if len(path_parts) == 2 and path_parts[0] in CLASSIFIER_CONFIG:
+            query_paths.add(path)
+
+    return frozenset(query_paths)
+
+
+SITEMAP_QUERY_PATHS = _load_sitemap_query_paths()
+SSRState = Literal["not_attempted", "success", "failure"]
 
 
 def get_default_top_k(classifier_type: str) -> int:
@@ -366,33 +393,35 @@ def _build_empty_classifier_results(decoded_query: str) -> dict[str, object]:
     }
 
 
-async def _maybe_seed_base_page_results(
+async def _maybe_seed_classifier_page_results(
     request: Request,
     classifier_type: str,
     decoded_query: str,
     example_query: str,
     version: str,
     top_k: int,
-) -> tuple[dict[str, object], bool, bool]:
+    allow_query_ssr: bool = False,
+) -> tuple[dict[str, object], bool, bool, SSRState]:
     results_data = _build_empty_classifier_results(decoded_query)
-    if decoded_query:
-        return results_data, False, True
+    if decoded_query and not allow_query_ssr:
+        return results_data, False, True, "not_attempted"
 
-    if not example_query:
-        return results_data, False, False
+    query = decoded_query or example_query
+    if not query:
+        return results_data, False, False, "not_attempted"
 
-    results_data["query"] = example_query
+    results_data["query"] = query
     try:
         seeded_results = await request.app.state.classification_executor.run(
             build_classification_results_context,
             request=request,
             classifier_type=classifier_type,
-            query=example_query,
+            query=query,
             version=version,
             top_k=top_k,
             executor_submitted_at=perf_counter(),
         )
-        return seeded_results, True, False
+        return seeded_results, not decoded_query, False, "success"
     except Exception as e:
         logger.warning(
             "SSR fallback for '%s' page classification due to %s: %s",
@@ -400,7 +429,7 @@ async def _maybe_seed_base_page_results(
             type(e).__name__,
             e,
         )
-        return results_data, True, True
+        return results_data, not decoded_query, True, "failure"
 
 
 def _build_classifier_page_context(
@@ -416,6 +445,7 @@ def _build_classifier_page_context(
     results_data: dict[str, object],
     default_example_prefill: bool,
     trigger_search_on_load: bool,
+    results_loaded: bool,
 ) -> dict[str, object]:
     today = datetime.now()
     return {
@@ -436,6 +466,7 @@ def _build_classifier_page_context(
         },
         "default_example_prefill": default_example_prefill,
         "trigger_search_on_load": trigger_search_on_load,
+        "results_loaded": results_loaded,
         "default_top_k": default_top_k,
         "first_version": first_version,
         "canonical_url": canonical_url,
@@ -760,17 +791,24 @@ async def show_classifier_page_with_query(
     )
     raw_example = config["example"].strip()
     display_example = raw_example if raw_example else ""
+    allow_query_ssr = (
+        bool(decoded_search_query)
+        and not request.query_params
+        and urlparse(canonical_url).path in SITEMAP_QUERY_PATHS
+    )
     (
         results_data,
         default_example_prefill,
         trigger_search_on_load,
-    ) = await _maybe_seed_base_page_results(
+        ssr_state,
+    ) = await _maybe_seed_classifier_page_results(
         request,
         upper_type,
         decoded_search_query,
         raw_example,
         validated_version,
         top_k,
+        allow_query_ssr=allow_query_ssr,
     )
 
     response = templates.TemplateResponse(
@@ -789,8 +827,12 @@ async def show_classifier_page_with_query(
             results_data,
             default_example_prefill,
             trigger_search_on_load,
+            results_loaded=ssr_state == "success",
         ),
     )
     response.headers.update(build_page_headers(canonical_url))
+    if ssr_state == "failure":
+        response.headers.update(build_cache_headers(NO_STORE))
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
 
     return response
