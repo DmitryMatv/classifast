@@ -107,13 +107,59 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
             },
         }
 
-    async def _request(self, path: str) -> httpx.Response:
+    async def _request(
+        self,
+        path: str,
+        follow_redirects: bool = True,
+        method: str = "GET",
+    ) -> httpx.Response:
         transport = httpx.ASGITransport(app=self.app)
         async with httpx.AsyncClient(
             transport=transport,
             base_url="http://testserver",
+            follow_redirects=follow_redirects,
         ) as client:
-            return await client.get(path)
+            return await client.request(method, path)
+
+    async def test_noncanonical_search_path_redirects_to_trailing_slash(self) -> None:
+        response = await self._request(
+            "/UNSPSC/laptop_computer",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/UNSPSC/laptop_computer/")
+
+    async def test_search_redirect_preserves_query_parameters(self) -> None:
+        response = await self._request(
+            "/UNSPSC/laptop_computer?top_k=30&version=v1",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(
+            response.headers["location"],
+            "/UNSPSC/laptop_computer/?top_k=30&version=v1",
+        )
+
+    async def test_lowercase_search_path_redirects_to_canonical_url(self) -> None:
+        response = await self._request(
+            "/unspsc/laptop_computer",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/UNSPSC/laptop_computer/")
+
+    async def test_head_noncanonical_search_path_redirects(self) -> None:
+        response = await self._request(
+            "/UNSPSC/laptop_computer",
+            follow_redirects=False,
+            method="HEAD",
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/UNSPSC/laptop_computer/")
 
     @patch("app.web.perform_classification")
     async def test_sitemap_query_is_server_rendered(
@@ -852,7 +898,7 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
         self,
         perform_classification_mock: Mock,
     ) -> None:
-        response = await self._request("/UNSPSC/custom_internal_query")
+        response = await self._request("/UNSPSC/custom_internal_query/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('data-autoload-enabled="true"', response.text)

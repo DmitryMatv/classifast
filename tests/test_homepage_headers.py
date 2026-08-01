@@ -70,7 +70,7 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_classifier_head_uses_query_specific_canonical_link(self) -> None:
-        response = await self._request("HEAD", "/NAICS/industrial_pump")
+        response = await self._request("HEAD", "/NAICS/industrial_pump/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(

@@ -201,7 +201,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             transport=transport,
             base_url="http://testserver",
         ) as client:
-            response = await client.get(f"/{self.classifier_type}/industrial_pump")
+            response = await client.get(f"/{self.classifier_type}/industrial_pump/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(
@@ -268,7 +268,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             transport=transport,
             base_url="http://testserver",
         ) as client:
-            response = await client.get(f"/{self.classifier_type}/industrial_pump")
+            response = await client.get(f"/{self.classifier_type}/industrial_pump/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('data-autoload-enabled="true"', response.text)
@@ -287,7 +287,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             base_url="http://testserver",
         ) as client:
             response = await client.get(
-                f"/{self.classifier_type}/industrial_pump",
+                f"/{self.classifier_type}/industrial_pump/",
                 params={"version": "missing-version"},
             )
 

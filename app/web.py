@@ -335,6 +335,8 @@ def _build_classifier_redirect_url(
     redirect_url = f"/{upper_type}/"
     if search_query:
         redirect_url += search_query
+        if not search_query.endswith("/"):
+            redirect_url += "/"
     if query_string:
         redirect_url += f"?{query_string}"
     return redirect_url
@@ -770,7 +772,9 @@ async def show_classifier_page_with_query(
     """
     upper_type, config = _get_classifier_or_404(classifier_type)
 
-    if classifier_type != upper_type:
+    if classifier_type != upper_type or (
+        search_query and not search_query.endswith("/")
+    ):
         redirect_url = _build_classifier_redirect_url(
             upper_type, search_query, request.url.query
         )
