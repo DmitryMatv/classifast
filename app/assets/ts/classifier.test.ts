@@ -242,7 +242,7 @@ describe("classifier.ts", () => {
     );
 
     expect(detail.parameters["product_description"]).toBe("industrial pump");
-    expect(detail.parameters["top_k"]).toBe("10");
+    expect(detail.parameters["top_k"]).toBeUndefined();
     expect(detail.parameters["version"]).toBeUndefined();
     expect(detail.parameters["push_url"]).toBeUndefined();
     expect(detail.parameters["track_usage"]).toBeUndefined();
@@ -290,7 +290,7 @@ describe("classifier.ts", () => {
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["top_k"]).toBe("10");
+    expect(detail.parameters["top_k"]).toBeUndefined();
     expect(detail.parameters["version"]).toBe("v2");
   });
 
@@ -587,7 +587,7 @@ describe("classifier.ts", () => {
 
     expect(detail.parameters["push_url"]).toBeUndefined();
     expect(detail.parameters["track_usage"]).toBeUndefined();
-    expect(detail.parameters["top_k"]).toBe("10");
+    expect(detail.parameters["top_k"]).toBeUndefined();
     expect(detail.parameters["version"]).toBeUndefined();
   });
 
@@ -778,7 +778,7 @@ describe("classifier.ts", () => {
     expect(detail.parameters["push_url"]).toBeUndefined();
     expect(detail.parameters["track_usage"]).toBeUndefined();
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
-    expect(detail.parameters["top_k"]).toBe("10");
+    expect(detail.parameters["top_k"]).toBeUndefined();
     expect(detail.parameters["version"]).toBeUndefined();
   });
 
@@ -842,7 +842,7 @@ describe("classifier.ts", () => {
     expect(detail.parameters["product_description"]).toBe("Industrial pump");
     expect(detail.parameters["push_url"]).toBeUndefined();
     expect(detail.parameters["track_usage"]).toBeUndefined();
-    expect(detail.parameters["top_k"]).toBe("10");
+    expect(detail.parameters["top_k"]).toBeUndefined();
     expect(detail.parameters["version"]).toBeUndefined();
   });
 

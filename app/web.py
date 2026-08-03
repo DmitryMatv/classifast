@@ -233,16 +233,18 @@ def _build_fragment_push_url(
     version: str,
     default_version: str,
     top_k: int,
+    default_top_k: int,
 ) -> str:
     slug = slugify(normalized_description.replace("/", " "))
-    new_url = f"/{upper_type}"
+    new_url = f"/{upper_type}/"
     if slug:
-        new_url += f"/{quote(slug, safe='')}"
+        new_url += f"{quote(slug, safe='')}/"
 
     params: dict[str, str | int] = {}
     if version and version != default_version:
         params["version"] = version
-    params["top_k"] = top_k
+    if top_k != default_top_k:
+        params["top_k"] = top_k
     if params:
         new_url += f"?{urlencode(params)}"
 
@@ -333,10 +335,9 @@ def _build_classifier_redirect_url(
     query_string: str,
 ) -> str:
     redirect_url = f"/{upper_type}/"
-    if search_query:
-        redirect_url += search_query
-        if not search_query.endswith("/"):
-            redirect_url += "/"
+    normalized_search_query = search_query.rstrip("/")
+    if normalized_search_query:
+        redirect_url += f"{normalized_search_query}/"
     if query_string:
         redirect_url += f"?{query_string}"
     return redirect_url
@@ -678,7 +679,7 @@ async def get_classification_fragment(
     """
     normalized_description = _normalize_product_description(product_description)
     upper_type, config = _get_classifier_config_or_404(classifier_type)
-    version, top_k, default_version, _ = _resolve_classifier_options(
+    version, top_k, default_version, default_top_k = _resolve_classifier_options(
         upper_type, config, version, top_k
     )
 
@@ -698,6 +699,7 @@ async def get_classification_fragment(
         version,
         default_version,
         top_k,
+        default_top_k,
     )
 
     if not normalized_description:
@@ -772,9 +774,11 @@ async def show_classifier_page_with_query(
     """
     upper_type, config = _get_classifier_or_404(classifier_type)
 
-    if classifier_type != upper_type or (
-        search_query and not search_query.endswith("/")
-    ):
+    normalized_search_query = search_query.rstrip("/")
+    canonical_search_query = (
+        f"{normalized_search_query}/" if normalized_search_query else ""
+    )
+    if classifier_type != upper_type or search_query != canonical_search_query:
         redirect_url = _build_classifier_redirect_url(
             upper_type, search_query, request.url.query
         )

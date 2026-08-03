@@ -130,6 +130,24 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 301)
         self.assertEqual(response.headers["location"], "/UNSPSC/laptop_computer/")
 
+    async def test_repeated_search_path_trailing_slashes_redirect(self) -> None:
+        response = await self._request(
+            "/UNSPSC/laptop_computer//",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/UNSPSC/laptop_computer/")
+
+    async def test_repeated_classifier_path_trailing_slashes_redirect(self) -> None:
+        response = await self._request(
+            "/UNSPSC//",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/UNSPSC/")
+
     async def test_search_redirect_preserves_query_parameters(self) -> None:
         response = await self._request(
             "/UNSPSC/laptop_computer?top_k=30&version=v1",
@@ -317,7 +335,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             )
 
     @patch("app.web.perform_classification")
-    async def test_default_version_omits_version_query_from_hx_push_url(
+    async def test_default_parameters_are_omitted_from_hx_push_url(
         self,
         perform_classification_mock: Mock,
     ) -> None:
@@ -328,7 +346,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/industrial_pump?top_k=10",
+            f"/{self.classifier_type}/industrial_pump/",
         )
 
     @patch("app.web.perform_classification")
@@ -346,8 +364,8 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/industrial_pump?"
-            f"{urlencode({'version': self.non_default_version, 'top_k': 10})}",
+            f"/{self.classifier_type}/industrial_pump/?"
+            f"{urlencode({'version': self.non_default_version})}",
         )
 
     @patch("app.web.perform_classification")
@@ -365,7 +383,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/industrial_pump?{urlencode({'top_k': 30})}",
+            f"/{self.classifier_type}/industrial_pump/?{urlencode({'top_k': 30})}",
         )
 
     @patch("app.web.perform_classification")
@@ -384,7 +402,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/industrial_pump?"
+            f"/{self.classifier_type}/industrial_pump/?"
             + urlencode({"version": self.non_default_version, "top_k": 30}),
         )
 
@@ -415,7 +433,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("stale-while-revalidate", response.headers["Cache-Control"])
         self.assertEqual(
             response.headers.get("HX-Push-Url"),
-            f"/{self.classifier_type}/industrial_pump?top_k=10",
+            f"/{self.classifier_type}/industrial_pump/",
         )
         perform_classification_mock.assert_not_called()
         reserve_usage_mock.assert_awaited_once()

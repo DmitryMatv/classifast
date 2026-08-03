@@ -141,7 +141,12 @@ export function focusTextareaAtEnd(textarea: HTMLTextAreaElement | null): void {
     return;
   }
 
-  textarea.focus();
+  if (
+    document.activeElement === document.body ||
+    document.activeElement === textarea
+  ) {
+    textarea.focus();
+  }
   const end = textarea.value.length;
   textarea.setSelectionRange(end, end);
 }

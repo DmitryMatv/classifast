@@ -108,8 +108,13 @@ class ClassifierPage {
     parameters: Record<string, unknown>,
   ): void {
     const topKSelector = this.getTopKSelector();
+    const defaultTopK = this.getDefaultTopK();
     if (topKSelector) {
-      parameters["top_k"] = topKSelector.value;
+      if (defaultTopK && topKSelector.value === defaultTopK) {
+        delete parameters["top_k"];
+      } else {
+        parameters["top_k"] = topKSelector.value;
+      }
     }
 
     const versionSelector = this.getVersionSelector();

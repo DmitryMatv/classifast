@@ -104,7 +104,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             response.headers["HX-Push-Url"],
-            f"/{self.classifier_type}/trash_removal?top_k=10",
+            f"/{self.classifier_type}/trash_removal/",
         )
         self.assertNotIn("X-RateLimit-Remaining", response.headers)
         self.assertNotIn("X-RateLimit-Limit", response.headers)

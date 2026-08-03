@@ -197,6 +197,28 @@ describe("common.ts", () => {
     expect(textarea.selectionEnd).toBe(textarea.value.length);
   });
 
+  it("does not steal existing focus while placing the cursor at the end", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <button id="existing-focus">Existing focus</button>
+      <textarea id="product_description_area">Industrial pump</textarea>
+    `;
+    const existingFocus = document.getElementById(
+      "existing-focus",
+    ) as HTMLButtonElement;
+    existingFocus.focus();
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+
+    expect(document.activeElement).toBe(existingFocus);
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+    expect(textarea.selectionEnd).toBe(textarea.value.length);
+  });
+
   it("clears the default example text after the configured delay", async () => {
     document.body.dataset["authUi"] = "disabled";
     document.body.innerHTML = `
