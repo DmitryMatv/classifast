@@ -293,7 +293,7 @@
         <priority>0.64</priority>
     </url>
     <url>
-        <loc>https://classifast.com/unspsc/computer_equipment/</loc>
+        <loc>https://classifast.com/UNSPSC/computer_equipment/</loc>
         <priority>0.64</priority>
     </url>
     <url>
@@ -827,6 +827,55 @@
     </url>
     <url>
         <loc>https://classifast.com/UNSPSC/cargo_handling_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/security_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/cybersecurity/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/information_tech/</loc>
+        <priority>0.64</priority>
+    </url>
+    <!-- UNSPSC furniture and decor queries -->
+    <url>
+        <loc>https://classifast.com/UNSPSC/cabinets/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/pillows/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/fabric_curtains/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/wood_fibre/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/synthetic_yarn/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/antiques/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/safe/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/cornices/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/wooden_decorative/</loc>
         <priority>0.64</priority>
     </url>
     <!-- NAICS common queries -->

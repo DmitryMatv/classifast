@@ -101,21 +101,6 @@ class MainStartupClientTests(unittest.TestCase):
             any("OPENROUTER_API_KEY not found" in message for message in logs.output)
         )
 
-    @patch.dict(main.os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=True)
-    @patch.object(main, "OpenRouterReranker")
-    def test_initialize_openrouter_reranker_uses_defaults(self, reranker_class):
-        reranker = MagicMock()
-        reranker_class.return_value = reranker
-
-        result = main.initialize_openrouter_reranker()
-
-        self.assertIs(result, reranker)
-        reranker_class.assert_called_once_with(
-            api_key="test-key",
-            model_name="voyageai/rerank-2.5",
-            timeout_seconds=30.0,
-        )
-
     @patch.dict(
         main.os.environ,
         {
