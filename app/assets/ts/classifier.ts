@@ -337,6 +337,10 @@ class ClassifierPage {
       return;
     }
 
+    const wasFocused = document.activeElement === productDescriptionArea;
+    const selectionStart = productDescriptionArea.selectionStart;
+    const selectionEnd = productDescriptionArea.selectionEnd;
+    const selectionDirection = productDescriptionArea.selectionDirection;
     const syncedValue =
       productDescriptionArea.value ||
       this.activeQuery ||
@@ -344,6 +348,17 @@ class ClassifierPage {
       "";
     productDescriptionArea.defaultValue = syncedValue;
     productDescriptionArea.textContent = syncedValue;
+
+    if (wasFocused) {
+      productDescriptionArea.focus({ preventScroll: true });
+    }
+
+    const maxSelection = productDescriptionArea.value.length;
+    productDescriptionArea.setSelectionRange(
+      Math.min(selectionStart, maxSelection),
+      Math.min(selectionEnd, maxSelection),
+      selectionDirection,
+    );
   }
 
   private syncSelectState(selectId: string): void {

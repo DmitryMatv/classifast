@@ -647,6 +647,31 @@ describe("classifier.ts", () => {
     );
   });
 
+  it("preserves the deep-link textarea caret when saving HTMX history", async () => {
+    vi.doMock("./common", () => ({
+      ShareLink: {
+        copyShareableLink: vi.fn(),
+      },
+    }));
+    const form = getClassifierForm();
+    form.dataset["initialQueryPresent"] = "true";
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "coolaid";
+
+    await import("./classifier");
+
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
+    document.body.dispatchEvent(new CustomEvent("htmx:beforeHistorySave"));
+
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+    expect(textarea.selectionEnd).toBe(textarea.value.length);
+    expect(setSelectionRangeSpy).toHaveBeenCalled();
+  });
+
   it("suppresses history changes for base example autoload", async () => {
     vi.doMock("./common", () => ({
       ShareLink: {
