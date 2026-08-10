@@ -9,7 +9,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import QuotaUnavailableError, UsageStatus
-from app.web import build_classification_results_context, router, slugify
+from app.web import (
+    _build_fragment_push_url,
+    build_classification_results_context,
+    router,
+    slugify,
+)
 from tests.helpers import InlineClassificationExecutor
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -82,6 +87,22 @@ class SlugifyTests(unittest.TestCase):
 
     def test_keeps_non_latin_characters(self) -> None:
         self.assertEqual(slugify("насос промышленный"), "насос_промышленный")
+
+    def test_fragment_push_url_uses_canonical_separator_for_hyphenated_query(
+        self,
+    ) -> None:
+        self.assertEqual(
+            _build_fragment_push_url(
+                "NAICS", "property-management", "2022", "2022", 10, 10
+            ),
+            "/NAICS/property_management/",
+        )
+
+    def test_fragment_push_url_preserves_legitimate_hyphen(self) -> None:
+        self.assertEqual(
+            _build_fragment_push_url("NAICS", "semi-automatic", "2022", "2022", 10, 10),
+            "/NAICS/semi-automatic/",
+        )
 
 
 class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
@@ -178,6 +199,71 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 301)
         self.assertEqual(response.headers["location"], "/UNSPSC/laptop_computer/")
+
+    async def test_hyphenated_search_path_redirects_to_underscore_canonical(
+        self,
+    ) -> None:
+        response = await self._request(
+            "/NAICS/property-management",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/property_management/")
+
+    async def test_slash_terminated_hyphenated_path_redirects_to_underscore_canonical(
+        self,
+    ) -> None:
+        response = await self._request(
+            "/NAICS/property-management/",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.headers["location"], "/NAICS/property_management/")
+
+    async def test_legitimate_hyphenated_path_remains_canonical(self) -> None:
+        response = await self._request(
+            "/NAICS/semi-automatic/",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["link"],
+            '<https://classifast.com/NAICS/semi-automatic/>; rel="canonical"',
+        )
+
+    async def test_sitemap_slug_preserves_legitimate_hyphen(self) -> None:
+        response = await self._request(
+            "/HS/cotton_t-shirt/",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["link"],
+            '<https://classifast.com/HS/cotton_t-shirt/>; rel="canonical"',
+        )
+
+    @patch("app.web.perform_classification")
+    async def test_query_breadcrumb_uses_canonical_url(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request("/NAICS/property_management/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            '"item": "https://classifast.com/NAICS/property_management/"',
+            response.text,
+        )
+        self.assertNotIn(
+            '"item": "https://classifast.com/NAICS/property management"',
+            response.text,
+        )
 
     @patch("app.web.perform_classification")
     async def test_sitemap_query_is_server_rendered(

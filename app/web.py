@@ -93,6 +93,16 @@ def slugify(text: str) -> str:
     return text.strip("_")
 
 
+def _build_classifier_search_slug(decoded_query: str, classifier_type: str) -> str:
+    """Use a known underscore URL when it is an existing sitemap canonical."""
+    slug = slugify(decoded_query)
+    underscore_slug = slugify(decoded_query.replace("-", " "))
+    underscore_path = f"/{classifier_type}/{quote(underscore_slug, safe='')}/"
+    if underscore_slug != slug and underscore_path in SITEMAP_QUERY_PATHS:
+        return underscore_slug
+    return slug
+
+
 def build_page_headers(canonical_url: str) -> dict[str, str]:
     headers = build_cache_headers(HTML_PAGE)
     headers["Vary"] = "Accept-Encoding"
@@ -235,7 +245,9 @@ def _build_fragment_push_url(
     top_k: int,
     default_top_k: int,
 ) -> str:
-    slug = slugify(normalized_description.replace("/", " "))
+    slug = _build_classifier_search_slug(
+        normalized_description.replace("/", " "), upper_type
+    )
     new_url = f"/{upper_type}/"
     if slug:
         new_url += f"{quote(slug, safe='')}/"
@@ -337,7 +349,9 @@ def _build_classifier_redirect_url(
     redirect_url = f"/{upper_type}/"
     normalized_search_query = search_query.rstrip("/")
     if normalized_search_query:
-        redirect_url += f"{normalized_search_query}/"
+        decoded_query = _decode_search_query(normalized_search_query)
+        slug = _build_classifier_search_slug(decoded_query, upper_type)
+        redirect_url += f"{quote(slug, safe='')}/"
     if query_string:
         redirect_url += f"?{query_string}"
     return redirect_url
@@ -359,7 +373,7 @@ def _decode_search_query(search_query: str) -> str:
 def _build_classifier_canonical_url(classifier_type: str, decoded_query: str) -> str:
     canonical_url = f"https://classifast.com/{classifier_type}"
     if decoded_query:
-        slug = slugify(decoded_query)
+        slug = _build_classifier_search_slug(decoded_query, classifier_type)
         canonical_url += f"/{quote(slug, safe='')}"
     if not canonical_url.endswith("/"):
         canonical_url += "/"
@@ -790,6 +804,12 @@ async def show_classifier_page_with_query(
 
     decoded_search_query = _decode_search_query(search_query)
     canonical_url = _build_classifier_canonical_url(upper_type, decoded_search_query)
+
+    if request.url.path != urlparse(canonical_url).path:
+        redirect_url = _build_classifier_redirect_url(
+            upper_type, search_query, request.url.query
+        )
+        return RedirectResponse(url=redirect_url, status_code=301)
 
     if request.method == "HEAD":
         return Response(headers=build_page_headers(canonical_url))
