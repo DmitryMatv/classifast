@@ -10,8 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import QuotaUnavailableError, UsageStatus
 from app.web import (
+    SITEMAP_QUERY_PATHS,
     _build_fragment_push_url,
     build_classification_results_context,
+    get_homepage_popular_lookup_links,
+    get_popular_lookup_links,
     router,
     slugify,
 )
@@ -103,6 +106,23 @@ class SlugifyTests(unittest.TestCase):
             _build_fragment_push_url("NAICS", "semi-automatic", "2022", "2022", 10, 10),
             "/NAICS/semi-automatic/",
         )
+
+
+class PopularLookupTests(unittest.TestCase):
+    def test_curated_lookup_links_are_sitemap_backed_and_canonical(self) -> None:
+        links = get_popular_lookup_links("UNSPSC")
+
+        self.assertGreaterEqual(len(links), 15)
+        self.assertEqual(links[0]["url"], "/UNSPSC/laptop_computer/")
+        self.assertTrue(all(link["url"] in SITEMAP_QUERY_PATHS for link in links))
+        self.assertTrue(all(link["url"].endswith("/") for link in links))
+
+    def test_homepage_lookup_links_are_small_and_cross_standard(self) -> None:
+        links = get_homepage_popular_lookup_links()
+
+        self.assertEqual(len(links), 8)
+        self.assertEqual(sum(link["classifier_type"] == "UNSPSC" for link in links), 6)
+        self.assertTrue(all(link["url"] in SITEMAP_QUERY_PATHS for link in links))
 
 
 class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
@@ -277,7 +297,28 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Pump manufacturing", response.text)
         self.assertIn('data-autoload-enabled="false"', response.text)
+        self.assertNotIn("Popular UNSPSC code lookups", response.text)
         perform_classification_mock.assert_called_once()
+
+    @patch("app.web.perform_classification")
+    async def test_classifier_base_page_renders_popular_lookup_links(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+
+        response = await self._request("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Popular UNSPSC code lookups", response.text)
+        self.assertIn('<a href="/UNSPSC/laptop_computer/"', response.text)
+
+    async def test_homepage_renders_popular_lookup_links(self) -> None:
+        response = await self._request("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Popular code lookups", response.text)
+        self.assertIn('<a href="/UNSPSC/network_switch/"', response.text)
 
     @patch("app.web.perform_classification")
     async def test_successful_empty_sitemap_query_is_not_left_loading(

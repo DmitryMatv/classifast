@@ -1296,6 +1296,24 @@
         </section>
         {% endif %}
 
+        {% if not url_params.search and popular_lookup_links %}
+        <section id="popular-lookups" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4"
+            aria-labelledby="popular-lookups-heading">
+            <h2 id="popular-lookups-heading" class="text-xl font-bold text-gray-800 mb-4">
+                Popular {{ classifier_type }} code lookups
+            </h2>
+            <ul class="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3" role="list">
+                {% for item in popular_lookup_links %}
+                <li>
+                    <a href="{{ item.url }}" class="text-sky-700 hover:text-sky-800 hover:underline underline-offset-2">
+                        {{ classifier_type }} codes for {{ item.label }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
         <!-- Cross-standard comparison section for enhanced internal linking -->
         <section id="comparison-guide" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto mt-4"
             role="complementary" aria-label="Other Classification Standards">

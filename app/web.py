@@ -69,6 +69,189 @@ def _load_sitemap_query_paths() -> frozenset[str]:
 SITEMAP_QUERY_PATHS = _load_sitemap_query_paths()
 SSRState = Literal["not_attempted", "success", "failure"]
 
+# Keep anchor text curated while using the sitemap as the source of truth for
+# which query pages are canonical and eligible for server-rendered results.
+POPULAR_LOOKUP_CATALOG: dict[str, tuple[tuple[str, str], ...]] = {
+    "UNSPSC": (
+        ("Laptop computers", "/UNSPSC/laptop_computer/"),
+        ("Desktop computers", "/UNSPSC/desktop_computer/"),
+        ("Office chairs", "/UNSPSC/office_chair/"),
+        ("Office desks", "/UNSPSC/office_desk/"),
+        ("Copy paper", "/UNSPSC/copy_paper/"),
+        ("Printer toner", "/UNSPSC/printer_toner/"),
+        ("Safety gloves", "/UNSPSC/safety_gloves/"),
+        ("Industrial pumps", "/UNSPSC/industrial_pump/"),
+        ("Centrifugal pumps", "/UNSPSC/centrifugal_pump/"),
+        ("Valves", "/UNSPSC/valve/"),
+        ("Electric motors", "/UNSPSC/electric_motor/"),
+        ("Air compressors", "/UNSPSC/air_compressor/"),
+        ("Forklifts", "/UNSPSC/forklift/"),
+        ("Generators", "/UNSPSC/generator/"),
+        ("Network switches", "/UNSPSC/network_switch/"),
+        ("Server racks", "/UNSPSC/server_rack/"),
+        ("Laser printers", "/UNSPSC/laser_printer/"),
+        ("Tablet computers", "/UNSPSC/tablet_computer/"),
+        ("Printers", "/UNSPSC/printer/"),
+        ("Ergonomic office chairs", "/UNSPSC/ergonomic_office_chair/"),
+    ),
+    "NAICS": (
+        ("Property management", "/NAICS/property_management/"),
+        ("Software development", "/NAICS/software_development/"),
+        ("Construction", "/NAICS/construction/"),
+        ("Restaurants", "/NAICS/restaurant/"),
+        ("Accounting services", "/NAICS/accounting/"),
+        ("Trucking", "/NAICS/trucking/"),
+        ("Real estate", "/NAICS/real_estate/"),
+        ("Plumbing contractors", "/NAICS/plumbing/"),
+    ),
+    "HS": (
+        ("Smartphones", "/HS/smartphone/"),
+        ("Coffee beans", "/HS/coffee_beans/"),
+        ("Laptops", "/HS/laptops/"),
+        ("Pharmaceuticals", "/HS/pharmaceuticals/"),
+        ("Auto parts", "/HS/auto_parts/"),
+        ("Furniture", "/HS/furniture/"),
+        ("Televisions", "/HS/televisions/"),
+        ("Medical devices", "/HS/medical_devices/"),
+    ),
+    "CN": (
+        ("Frozen mangoes", "/CN/frozen_mangoes/"),
+        ("Olive oil", "/CN/olive_oil/"),
+        ("Wine", "/CN/wine/"),
+        ("Pharmaceuticals", "/CN/pharmaceuticals/"),
+        ("Electric vehicles", "/CN/electric_vehicles/"),
+        ("Solar panels", "/CN/solar_panels/"),
+        ("Electronics", "/CN/electronics/"),
+        ("Medical devices", "/CN/medical_devices/"),
+    ),
+    "HTS": (
+        ("Smartphones", "/HTS/smartphone/"),
+        ("Hydraulic tools", "/HTS/hydraulic_tools/"),
+        ("Auto parts", "/HTS/auto_parts/"),
+        ("Steel products", "/HTS/steel_products/"),
+        ("Coffee beans", "/HTS/coffee_beans/"),
+        ("Electronics", "/HTS/electronics/"),
+        ("Footwear", "/HTS/footwear/"),
+        ("Medical devices", "/HTS/medical_devices/"),
+    ),
+    "GPC": (
+        ("Smartphones", "/GPC/smartphone/"),
+        ("Shampoo", "/GPC/shampoo/"),
+        ("Coffee", "/GPC/coffee/"),
+        ("Laptops", "/GPC/laptop/"),
+        ("Toothpaste", "/GPC/toothpaste/"),
+        ("Milk", "/GPC/milk/"),
+        ("Bread", "/GPC/bread/"),
+        ("Televisions", "/GPC/television/"),
+    ),
+    "GMDN": (
+        ("Syringes", "/GMDN/syringe/"),
+        ("Nebulizers", "/GMDN/nebulizer/"),
+        ("Catheters", "/GMDN/catheter/"),
+        ("Surgical masks", "/GMDN/surgical_mask/"),
+        ("Pacemakers", "/GMDN/pacemaker/"),
+        ("Blood pressure monitors", "/GMDN/blood_pressure_monitor/"),
+        ("Infusion pumps", "/GMDN/infusion_pump/"),
+        ("Stethoscopes", "/GMDN/stethoscope/"),
+    ),
+    "EMDN": (
+        ("Syringes", "/EMDN/syringe/"),
+        ("Nebulizers", "/EMDN/nebulizer/"),
+        ("Catheters", "/EMDN/catheter/"),
+        ("Surgical gloves", "/EMDN/surgical_gloves/"),
+        ("Defibrillators", "/EMDN/defibrillator/"),
+        ("Ultrasound scanners", "/EMDN/ultrasound_scanner/"),
+        ("Stethoscopes", "/EMDN/stethoscope/"),
+        ("Wheelchairs", "/EMDN/wheelchair/"),
+    ),
+    "ETIM": (
+        ("Circuit breakers", "/ETIM/circuit_breaker/"),
+        ("Cables", "/ETIM/cable/"),
+        ("LED lamps", "/ETIM/LED_lamp/"),
+        ("Switches", "/ETIM/switch/"),
+        ("Power supplies", "/ETIM/power_supply/"),
+        ("Connectors", "/ETIM/connector/"),
+        ("Transformers", "/ETIM/transformer/"),
+        ("Fuses", "/ETIM/fuse/"),
+    ),
+    "ISIC": (
+        ("Pharmacies", "/ISIC/pharmacy/"),
+        ("Forestry", "/ISIC/forestry/"),
+        ("Software development", "/ISIC/software_development/"),
+        ("Construction", "/ISIC/construction/"),
+        ("Retail trade", "/ISIC/retail_trade/"),
+        ("Manufacturing", "/ISIC/manufacturing/"),
+        ("Education", "/ISIC/education/"),
+        ("Financial services", "/ISIC/financial_services/"),
+    ),
+    "NACE": (
+        ("Pharmacies", "/NACE/pharmacy/"),
+        ("Software development", "/NACE/software_development/"),
+        ("Construction", "/NACE/construction/"),
+        ("Retail", "/NACE/retail/"),
+        ("Used car dealerships", "/NACE/used_car_dealership/"),
+        ("Manufacturing", "/NACE/manufacturing/"),
+        ("Education", "/NACE/education/"),
+        ("Financial services", "/NACE/financial_services/"),
+    ),
+    "CPV": (
+        ("Office supplies", "/CPV/office_supplies/"),
+        ("IT services", "/CPV/IT_services/"),
+        ("Construction works", "/CPV/construction_works/"),
+        ("Medical equipment", "/CPV/medical_equipment/"),
+        ("Cleaning services", "/CPV/cleaning_services/"),
+        ("Vehicles", "/CPV/vehicles/"),
+        ("Software development", "/CPV/software_development/"),
+        ("Consulting services", "/CPV/consulting_services/"),
+    ),
+    "NSN": (
+        ("Batteries", "/NSN/battery/"),
+        ("Bolts", "/NSN/bolt/"),
+        ("Filters", "/NSN/filter/"),
+        ("Hoses", "/NSN/hose/"),
+        ("Pumps", "/NSN/pump/"),
+        ("Valves", "/NSN/valve/"),
+        ("Engines", "/NSN/engine/"),
+        ("Generators", "/NSN/generator/"),
+    ),
+}
+
+
+def get_popular_lookup_links(classifier_type: str) -> list[dict[str, str]]:
+    """Return curated lookup links whose canonical pages are in the sitemap."""
+    upper_type = classifier_type.strip().upper()
+    return [
+        {
+            "classifier_type": upper_type,
+            "label": label,
+            "url": path,
+        }
+        for label, path in POPULAR_LOOKUP_CATALOG.get(upper_type, ())
+        if path in SITEMAP_QUERY_PATHS
+    ]
+
+
+def get_homepage_popular_lookup_links() -> list[dict[str, str]]:
+    """Return a small cross-standard set of high-value homepage lookups."""
+    unspsc_links = {link["label"]: link for link in get_popular_lookup_links("UNSPSC")}
+    homepage_unspsc_labels = (
+        "Laptop computers",
+        "Office chairs",
+        "Industrial pumps",
+        "Safety gloves",
+        "Printers",
+        "Network switches",
+    )
+    return (
+        [
+            unspsc_links[label]
+            for label in homepage_unspsc_labels
+            if label in unspsc_links
+        ]
+        + get_popular_lookup_links("HS")[:1]
+        + get_popular_lookup_links("NAICS")[:1]
+    )
+
 
 def get_default_top_k(classifier_type: str) -> int:
     """Return the default number of results to show for a classifier page."""
@@ -489,6 +672,7 @@ def _build_classifier_page_context(
         "canonical_url": canonical_url,
         "current_year": today.year,
         "current_month_name": today.strftime("%B"),
+        "popular_lookup_links": get_popular_lookup_links(classifier_type),
         **results_data,
     }
 
@@ -516,7 +700,10 @@ async def read_root(request: Request):
     response = templates.TemplateResponse(
         request,
         "index.html",
-        {"current_year": today.year},
+        {
+            "current_year": today.year,
+            "popular_lookup_links": get_homepage_popular_lookup_links(),
+        },
     )
 
     # Cloudflare-friendly cache headers (same as classifier pages)
