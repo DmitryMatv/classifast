@@ -773,6 +773,16 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             self.default_version,
         )
 
+    async def test_fragment_rejects_top_k_above_100(self) -> None:
+        response = await self._request_fragment(top_k="999")
+
+        self.assertEqual(response.status_code, 422)
+
+    async def test_fragment_rejects_top_k_below_1(self) -> None:
+        response = await self._request_fragment(top_k="0")
+
+        self.assertEqual(response.status_code, 422)
+
 
 class PageRouteDefaultTopKTests(unittest.IsolatedAsyncioTestCase):
     @classmethod

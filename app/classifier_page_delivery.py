@@ -351,7 +351,9 @@ def resolve_classifier_options(
     """Resolve version and top_k against a standard's config.
 
     Page requests silently fall back to the first version; fragment requests
-    let the classification pipeline reject unknown versions.
+    let the classification pipeline reject unknown versions. The top_k clamp
+    is defense-in-depth: the fragment endpoint's ``ge=1, le=100`` query
+    validation rejects out-of-range values before this is reached.
     """
     resolved_top_k = (
         default_top_k if top_k is None or top_k < 1 or top_k > 100 else top_k
