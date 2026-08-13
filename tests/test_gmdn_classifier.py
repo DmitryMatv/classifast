@@ -10,10 +10,11 @@ from app.classifier import perform_classification, validate_and_prepare_classifi
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from app.web import router
-from tests.helpers import InlineClassificationExecutor
+from tests.helpers import build_classification_service
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 GMDN_VERSION = "AccessGUDID Full Release (July 6, 2026)"
+GMDN_COLLECTION = "GMDN_GUDID_20260706_Qwen3-8B_v1"
 
 
 def build_test_app() -> FastAPI:
@@ -24,11 +25,7 @@ def build_test_app() -> FastAPI:
         name="static",
     )
     app.include_router(router)
-    app.state.embed_client = object()
-    app.state.qdrant_client = object()
-    app.state.classification_executor = InlineClassificationExecutor()
-    app.state.collection_quantization_cache = {}
-    app.state.reranker = None
+    app.state.classification_service = build_classification_service()
     app.state.redis_client = object()
     return app
 
@@ -37,6 +34,9 @@ def empty_classification_result() -> dict:
     return {
         "results": [],
         "version_config": {"base_url": "", "tooltip": ""},
+        "version_name": GMDN_VERSION,
+        "collection_name": GMDN_COLLECTION,
+        "query": "test query",
     }
 
 
@@ -149,7 +149,7 @@ async def test_gmdn_page_and_navigation_are_available() -> None:
     transport = httpx.ASGITransport(app=app)
 
     with patch(
-        "app.web.perform_classification",
+        "app.classification_service.perform_classification",
         return_value=empty_classification_result(),
     ):
         async with httpx.AsyncClient(
@@ -204,6 +204,9 @@ async def test_gmdn_fragment_renders_metadata_next_to_class_name() -> None:
             },
         ],
         "version_config": {"base_url": "", "tooltip": ""},
+        "version_name": GMDN_VERSION,
+        "collection_name": GMDN_COLLECTION,
+        "query": "medical device",
     }
     usage = UsageStatus(
         allowed=True,
@@ -216,7 +219,7 @@ async def test_gmdn_fragment_renders_metadata_next_to_class_name() -> None:
     transport = httpx.ASGITransport(app=app)
 
     with (
-        patch("app.web.perform_classification", return_value=result),
+        patch("app.classification_service.perform_classification", return_value=result),
         patch("app.web.reserve_usage", new=AsyncMock(return_value=usage)),
         patch(
             "app.web.is_verified_google_search_crawler_request",
@@ -309,6 +312,9 @@ async def test_unspsc_level_rendering_remains_unchanged() -> None:
             }
         ],
         "version_config": {"base_url": "", "tooltip": ""},
+        "version_name": GMDN_VERSION,
+        "collection_name": GMDN_COLLECTION,
+        "query": "medical device",
     }
     usage = UsageStatus(
         allowed=True,
@@ -321,7 +327,7 @@ async def test_unspsc_level_rendering_remains_unchanged() -> None:
     transport = httpx.ASGITransport(app=app)
 
     with (
-        patch("app.web.perform_classification", return_value=result),
+        patch("app.classification_service.perform_classification", return_value=result),
         patch("app.web.reserve_usage", new=AsyncMock(return_value=usage)),
         patch(
             "app.web.is_verified_google_search_crawler_request",

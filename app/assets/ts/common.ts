@@ -155,6 +155,7 @@ export class TextareaEnhancer {
   private textarea: HTMLTextAreaElement | null;
   private defaultExampleCleared = false;
   private defaultExampleClearTimeoutId: number | null = null;
+  private prefillValue = "";
 
   constructor(textareaId: string) {
     this.textarea = document.getElementById(
@@ -167,6 +168,7 @@ export class TextareaEnhancer {
 
   private init() {
     focusTextareaAtEnd(this.textarea);
+    this.setupPrefillReplace();
     this.setupDefaultExampleClear();
 
     this.textarea?.addEventListener("keydown", (event) => {
@@ -175,6 +177,48 @@ export class TextareaEnhancer {
         this.submitForm();
       }
     });
+  }
+
+  private setupPrefillReplace() {
+    if (!this.textarea || !this.textarea.value) {
+      return;
+    }
+
+    this.prefillValue = this.textarea.value;
+    this.textarea.select();
+
+    this.textarea.addEventListener("paste", (event) => {
+      if (!this.isUntouchedPrefill()) {
+        return;
+      }
+
+      const clipboardText = event.clipboardData?.getData("text/plain");
+      if (clipboardText == null) {
+        return;
+      }
+
+      event.preventDefault();
+      this.replaceValue(clipboardText);
+    });
+  }
+
+  private isUntouchedPrefill(): boolean {
+    return (
+      !!this.textarea &&
+      this.textarea.value === this.prefillValue &&
+      this.textarea.selectionStart === this.textarea.selectionEnd
+    );
+  }
+
+  private replaceValue(value: string) {
+    if (!this.textarea) {
+      return;
+    }
+
+    this.textarea.value = value;
+    this.textarea.defaultValue = value;
+    this.textarea.textContent = value;
+    this.textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   private isDefaultExamplePrefill(): boolean {

@@ -21,6 +21,17 @@ function createJwtWithExpiration(exp: number): string {
   return `header.${payload}.signature`;
 }
 
+function createPasteEvent(text: string): ClipboardEvent {
+  const event = new Event("paste", {
+    bubbles: true,
+    cancelable: true,
+  }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: { getData: () => text },
+  });
+  return event;
+}
+
 describe("common.ts", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -180,7 +191,7 @@ describe("common.ts", () => {
     expect(textarea.selectionEnd).toBe(10);
   });
 
-  it("focuses a prefilled textarea with the cursor at the end", async () => {
+  it("selects all prefilled text so the first paste or keystroke replaces it", async () => {
     document.body.dataset["authUi"] = "disabled";
     document.body.innerHTML = `
       <textarea id="product_description_area">Industrial pump</textarea>
@@ -193,11 +204,11 @@ describe("common.ts", () => {
     ) as HTMLTextAreaElement;
 
     expect(document.activeElement).toBe(textarea);
-    expect(textarea.selectionStart).toBe(textarea.value.length);
+    expect(textarea.selectionStart).toBe(0);
     expect(textarea.selectionEnd).toBe(textarea.value.length);
   });
 
-  it("does not steal existing focus while placing the cursor at the end", async () => {
+  it("does not steal existing focus while preselecting prefilled text", async () => {
     document.body.dataset["authUi"] = "disabled";
     document.body.innerHTML = `
       <button id="existing-focus">Existing focus</button>
@@ -215,8 +226,78 @@ describe("common.ts", () => {
     ) as HTMLTextAreaElement;
 
     expect(document.activeElement).toBe(existingFocus);
-    expect(textarea.selectionStart).toBe(textarea.value.length);
+    expect(textarea.selectionStart).toBe(0);
     expect(textarea.selectionEnd).toBe(textarea.value.length);
+  });
+
+  it("replaces untouched prefilled text on a quick paste", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <textarea id="product_description_area">SH203-C20 Miniature Circuit Breaker 6kA 20A 3P</textarea>
+    `;
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.setSelectionRange(0, 0);
+
+    const pasteEvent = createPasteEvent("water pump");
+    textarea.dispatchEvent(pasteEvent);
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+    expect(textarea.value).toBe("water pump");
+    expect(textarea.defaultValue).toBe("water pump");
+    expect(textarea.textContent).toBe("water pump");
+  });
+
+  it("does not intercept paste once the prefilled text has been modified", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <textarea id="product_description_area">Industrial pump</textarea>
+    `;
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value = "Industrial pump updated";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const pasteEvent = createPasteEvent("water pump");
+    textarea.dispatchEvent(pasteEvent);
+
+    expect(pasteEvent.defaultPrevented).toBe(false);
+    expect(textarea.value).toBe("Industrial pump updated");
+  });
+
+  it("replaces the default example on a quick paste instead of appending", async () => {
+    document.body.dataset["authUi"] = "disabled";
+    document.body.innerHTML = `
+      <form data-default-example-prefill="true">
+        <textarea id="product_description_area">Industrial pump</textarea>
+      </form>
+    `;
+
+    await import("./common");
+
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.setSelectionRange(0, 0);
+
+    const pasteEvent = createPasteEvent("water pump");
+    textarea.dispatchEvent(pasteEvent);
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+    expect(textarea.value).toBe("water pump");
+
+    await advanceTimersAndFlushAsync(300);
+
+    expect(textarea.value).toBe("water pump");
+    expect(textarea.defaultValue).toBe("water pump");
   });
 
   it("clears the default example text after the configured delay", async () => {

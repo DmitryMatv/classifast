@@ -31,6 +31,7 @@ from .cache_profiles import (
     build_cache_headers,
 )
 from .classification_executor import ClassificationExecutor
+from .classification_service import ClassificationService
 from .qdrant_connection import create_qdrant_client, resolve_qdrant_url
 from .qdrant_schema import (
     QdrantSchemaValidationError,
@@ -180,8 +181,7 @@ def initialize_openrouter_reranker() -> OpenRouterReranker | None:
 
     try:
         model_name = (
-            os.getenv("OPENROUTER_RERANK_MODEL", "").strip()
-            or "voyageai/rerank-2.5"
+            os.getenv("OPENROUTER_RERANK_MODEL", "").strip() or "voyageai/rerank-2.5"
         )
         timeout_seconds = float(os.getenv("OPENROUTER_RERANK_TIMEOUT_SECONDS", "30"))
         if timeout_seconds <= 0:
@@ -231,7 +231,13 @@ def assign_startup_clients(
     app.state.qdrant_client = clients.qdrant_client
     app.state.collection_quantization_cache = clients.collection_quantization_cache
     app.state.redis_client = clients.redis_client
-    app.state.classification_executor = classification_executor
+    app.state.classification_service = ClassificationService(
+        embed_client=clients.embed_client,
+        qdrant_client=clients.qdrant_client,
+        quantization_cache=clients.collection_quantization_cache,
+        reranker=clients.reranker,
+        executor=classification_executor,
+    )
 
 
 async def close_startup_clients(clients: StartupClients) -> None:

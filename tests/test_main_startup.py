@@ -243,7 +243,16 @@ class MainStartupClientTests(unittest.TestCase):
             {"products": False},
         )
         self.assertIs(app.state.redis_client, clients.redis_client)
-        self.assertIs(app.state.classification_executor, executor)
+        service = app.state.classification_service
+        self.assertIsInstance(service, main.ClassificationService)
+        self.assertIs(service._executor, executor)
+        self.assertIs(service._embed_client, clients.embed_client)
+        self.assertIs(service._qdrant_client, clients.qdrant_client)
+        self.assertIs(service._reranker, clients.reranker)
+        self.assertEqual(
+            service._quantization_cache,
+            {"products": False},
+        )
 
 
 class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):

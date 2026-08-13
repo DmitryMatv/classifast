@@ -569,6 +569,18 @@
         <priority>0.64</priority>
     </url>
     <url>
+        <loc>https://classifast.com/UNSPSC/transportation_services/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/transport_service/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/transport/</loc>
+        <priority>0.64</priority>
+    </url>
+    <url>
         <loc>https://classifast.com/UNSPSC/freight/</loc>
         <priority>0.64</priority>
     </url>
@@ -831,6 +843,9 @@
     </url>
     <url>
         <loc>https://classifast.com/UNSPSC/security_services/</loc>
+    </url>
+    <url>
+        <loc>https://classifast.com/UNSPSC/consultancy_services/</loc>
         <priority>0.64</priority>
     </url>
     <url>

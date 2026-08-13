@@ -9,17 +9,13 @@ from app.classifier_config import CLASSIFIER_CONFIG
 from app.dependencies import group_original_id_tokens
 from app.usage_tracker import UsageStatus
 from app.web import router
-from tests.helpers import InlineClassificationExecutor
+from tests.helpers import build_classification_service
 
 
 def _build_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)
-    app.state.embed_client = object()
-    app.state.qdrant_client = object()
-    app.state.classification_executor = InlineClassificationExecutor()
-    app.state.collection_quantization_cache = {}
-    app.state.reranker = None
+    app.state.classification_service = build_classification_service()
     app.state.redis_client = object()
     return app
 
@@ -114,6 +110,9 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
                 "code_url_suffix": code_url_suffix,
                 "tooltip": "",
             },
+            "version_name": version,
+            "collection_name": "test_collection",
+            "query": "sample query",
         }
 
         transport = httpx.ASGITransport(app=self.app)
@@ -122,7 +121,10 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
             base_url="http://testserver",
         ) as client:
             with (
-                patch("app.web.perform_classification", return_value=result),
+                patch(
+                    "app.classification_service.perform_classification",
+                    return_value=result,
+                ),
                 patch(
                     "app.web.reserve_usage",
                     new=AsyncMock(

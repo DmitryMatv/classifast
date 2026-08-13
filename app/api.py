@@ -2,13 +2,13 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .classifier import get_classification_cache_headers, perform_classification
+from .classifier import get_classification_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class RapidAPIResponse(BaseModel):
     query: str = Field(..., description="Original query")
     standard: str = Field(..., description="Classification standard used")
     version: str = Field(..., description="Version of the standard used")
-    results: List[ClassificationResult] = Field(
+    results: list[ClassificationResult] = Field(
         ..., description="Classification results"
     )
     processing_time: float = Field(..., description="Processing time in seconds")
@@ -110,33 +110,21 @@ async def rapid_classify(
     start_time = time.perf_counter()
 
     try:
-        quantization_cache = getattr(
-            request.app.state, "collection_quantization_cache", {}
-        )
-        # Use shared classification service with reranking.
-        reranker = getattr(request.app.state, "reranker", None)
-        result = await request.app.state.classification_executor.run(
-            perform_classification,
-            embed_client=request.app.state.embed_client,
-            qdrant_client=request.app.state.qdrant_client,
+        outcome = await request.app.state.classification_service.classify(
             query=normalized_query,
             classifier_type=normalized_standard,
             version=version,
             top_k=top_k or 1,
-            quantization_cache=quantization_cache,
-            reranker=reranker,
         )
 
-        classification_results = result["results"]
+        classification_results = outcome.results
 
         # Format results for API response
         formatted_results = []
         for r in classification_results:
             payload = r.get("payload", {})
-            base_url = result["version_config"].get("base_url", "")
-            append_code_to_url = result["version_config"].get(
-                "append_code_to_url", True
-            )
+            base_url = outcome.version_config.get("base_url", "")
+            append_code_to_url = outcome.version_config.get("append_code_to_url", True)
             code = payload.get("original_id", "")
 
             formatted_result = ClassificationResult(
@@ -154,7 +142,7 @@ async def rapid_classify(
         response_data = RapidAPIResponse(
             query=normalized_query,
             standard=normalized_standard.lower(),
-            version=result["version_name"],
+            version=outcome.version_name,
             results=formatted_results,
             processing_time=processing_time,
         )

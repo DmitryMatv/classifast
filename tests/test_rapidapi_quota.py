@@ -7,7 +7,10 @@ from fastapi import FastAPI, Request
 from app import api, web
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
-from tests.helpers import InlineClassificationExecutor
+from tests.helpers import (
+    build_classification_outcome,
+    build_classification_service,
+)
 
 
 def build_classification_result(version_name: str) -> dict:
@@ -26,6 +29,8 @@ def build_classification_result(version_name: str) -> dict:
             "base_url": "https://example.com/",
             "tooltip": "",
         },
+        "collection_name": "test_collection",
+        "query": "test widget",
     }
 
 
@@ -60,10 +65,11 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
         test_app = FastAPI()
         test_app.state.embed_client = object()
         test_app.state.qdrant_client = object()
-        test_app.state.collection_quantization_cache = {}
-        test_app.state.reranker = None
+        test_app.state.classification_service = build_classification_service(
+            embed_client=test_app.state.embed_client,
+            qdrant_client=test_app.state.qdrant_client,
+        )
         test_app.state.redis_client = object()
-        test_app.state.classification_executor = InlineClassificationExecutor()
         return test_app
 
     async def test_verified_request_succeeds_without_quota_headers_or_usage_calls(self):
@@ -77,7 +83,7 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(api, "RAPIDAPI_SECRET", "secret"),
             patch(
-                "app.api.perform_classification",
+                "app.classification_service.perform_classification",
                 return_value=build_classification_result("2025"),
             ),
             patch("app.usage_tracker.reserve_usage", new=AsyncMock()) as reserve_usage,
@@ -100,14 +106,28 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("X-RateLimit-Limit", response.headers)
         reserve_usage.assert_not_awaited()
 
-    async def test_classification_is_submitted_to_executor(self) -> None:
+    async def test_classification_is_delegated_to_classification_service(self) -> None:
         rapid_app = self.build_app()
-        executor = MagicMock()
-        executor.run = AsyncMock(return_value=build_classification_result("2025"))
-        rapid_app.state.classification_executor = executor
+        outcome = build_classification_outcome(
+            results=[
+                {
+                    "score": 0.91,
+                    "payload": {
+                        "original_id": "12345",
+                        "class_name": "Test classification",
+                    },
+                }
+            ],
+            version_config={"base_url": "https://example.com/"},
+            version_name="2025",
+        )
         request = build_request(rapid_app, "/api/v1/rapid/classify")
 
-        with patch("app.api.perform_classification") as perform_classification:
+        with patch.object(
+            rapid_app.state.classification_service,
+            "classify",
+            new=AsyncMock(return_value=outcome),
+        ) as classify:
             response = await api.rapid_classify(
                 request,
                 query="test widget",
@@ -117,21 +137,11 @@ class RapidApiQuotaBypassTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        perform_classification.assert_not_called()
-        executor.run.assert_awaited_once()
-        self.assertIs(executor.run.await_args.args[0], perform_classification)
-        self.assertEqual(
-            executor.run.await_args.kwargs,
-            {
-                "embed_client": rapid_app.state.embed_client,
-                "qdrant_client": rapid_app.state.qdrant_client,
-                "query": "test widget",
-                "classifier_type": "UNSPSC",
-                "version": None,
-                "top_k": 1,
-                "quantization_cache": {},
-                "reranker": None,
-            },
+        classify.assert_awaited_once_with(
+            query="test widget",
+            classifier_type="UNSPSC",
+            version=None,
+            top_k=1,
         )
 
 
@@ -193,10 +203,11 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
         test_app = FastAPI()
         test_app.state.embed_client = object()
         test_app.state.qdrant_client = object()
-        test_app.state.collection_quantization_cache = {}
-        test_app.state.reranker = None
+        test_app.state.classification_service = build_classification_service(
+            embed_client=test_app.state.embed_client,
+            qdrant_client=test_app.state.qdrant_client,
+        )
         test_app.state.redis_client = object()
-        test_app.state.classification_executor = InlineClassificationExecutor()
         return test_app
 
     async def test_fragment_requests_still_use_quota_enforcement(self):
@@ -222,7 +233,7 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
                 "app.web.reserve_usage", new=AsyncMock(return_value=usage_status)
             ) as reserve_usage,
             patch(
-                "app.web.perform_classification",
+                "app.classification_service.perform_classification",
                 return_value=build_classification_result(version_name),
             ),
             patch("app.web.add_quota_headers") as add_quota_headers,

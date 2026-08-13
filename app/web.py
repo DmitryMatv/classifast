@@ -1,11 +1,7 @@
 import logging
-import re
 from datetime import datetime
 from pathlib import Path
-from time import perf_counter
-from typing import Literal
-from urllib.parse import quote, unquote_plus, urlencode, urlparse
-from xml.etree import ElementTree
+from urllib.parse import quote, urlparse
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -14,15 +10,32 @@ from starlette.templating import _TemplateResponse
 from app.cache_profiles import CacheProfile
 
 from .cache_profiles import (
-    CLASSIFICATION_RESULT,
     HTML_PAGE,
     NO_STORE,
     STATIC_MEDIA,
     STATIC_TEXT,
     build_cache_headers,
 )
-from .classifier import get_classification_cache_headers, perform_classification
-from .classifier_config import CLASSIFIER_CONFIG, ClassifierConfig
+from .classifier_config import CLASSIFIER_CONFIG
+from .classifier_page_delivery import (
+    build_classification_results_context,
+    build_classifier_canonical_url,
+    build_classifier_page_context,
+    build_classifier_redirect_url,
+    build_fragment_page_title,
+    build_fragment_push_url,
+    decode_search_query,
+    get_classifier_or_404,
+    get_default_top_k,
+    get_homepage_popular_lookup_links,
+    maybe_seed_classifier_page_results,
+    normalize_product_description,
+    render_classification_results_fragment,
+    render_empty_results_fragment,
+    resolve_classifier_options,
+    resolve_fragment_push_url,
+    should_ssr,
+)
 from .dependencies import templates
 from .google_crawlers import is_verified_google_search_crawler_request
 from .mapping_store import (
@@ -43,247 +56,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-def _load_sitemap_query_paths() -> frozenset[str]:
-    sitemap_path = BASE_DIR / "app" / "static" / "sitemap.xml"
-    try:
-        root = ElementTree.parse(sitemap_path).getroot()
-    except (OSError, ElementTree.ParseError) as exc:
-        logger.warning("Unable to load sitemap SEO query allowlist: %s", exc)
-        return frozenset()
-
-    query_paths: set[str] = set()
-    for loc in root.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
-        if not loc.text:
-            continue
-
-        path = urlparse(loc.text).path
-        path_parts = [part for part in path.split("/") if part]
-        if len(path_parts) == 2 and path_parts[0] in CLASSIFIER_CONFIG:
-            query_paths.add(path)
-
-    return frozenset(query_paths)
-
-
-SITEMAP_QUERY_PATHS = _load_sitemap_query_paths()
-SSRState = Literal["not_attempted", "success", "failure"]
-
-# Keep anchor text curated while using the sitemap as the source of truth for
-# which query pages are canonical and eligible for server-rendered results.
-POPULAR_LOOKUP_CATALOG: dict[str, tuple[tuple[str, str], ...]] = {
-    "UNSPSC": (
-        ("Laptop computers", "/UNSPSC/laptop_computer/"),
-        ("Desktop computers", "/UNSPSC/desktop_computer/"),
-        ("Office chairs", "/UNSPSC/office_chair/"),
-        ("Office desks", "/UNSPSC/office_desk/"),
-        ("Copy paper", "/UNSPSC/copy_paper/"),
-        ("Printer toner", "/UNSPSC/printer_toner/"),
-        ("Safety gloves", "/UNSPSC/safety_gloves/"),
-        ("Industrial pumps", "/UNSPSC/industrial_pump/"),
-        ("Centrifugal pumps", "/UNSPSC/centrifugal_pump/"),
-        ("Valves", "/UNSPSC/valve/"),
-        ("Electric motors", "/UNSPSC/electric_motor/"),
-        ("Air compressors", "/UNSPSC/air_compressor/"),
-        ("Forklifts", "/UNSPSC/forklift/"),
-        ("Generators", "/UNSPSC/generator/"),
-        ("Network switches", "/UNSPSC/network_switch/"),
-        ("Server racks", "/UNSPSC/server_rack/"),
-        ("Laser printers", "/UNSPSC/laser_printer/"),
-        ("Tablet computers", "/UNSPSC/tablet_computer/"),
-        ("Printers", "/UNSPSC/printer/"),
-        ("Ergonomic office chairs", "/UNSPSC/ergonomic_office_chair/"),
-    ),
-    "NAICS": (
-        ("Property management", "/NAICS/property_management/"),
-        ("Software development", "/NAICS/software_development/"),
-        ("Construction", "/NAICS/construction/"),
-        ("Restaurants", "/NAICS/restaurant/"),
-        ("Accounting services", "/NAICS/accounting/"),
-        ("Trucking", "/NAICS/trucking/"),
-        ("Real estate", "/NAICS/real_estate/"),
-        ("Plumbing contractors", "/NAICS/plumbing/"),
-    ),
-    "HS": (
-        ("Smartphones", "/HS/smartphone/"),
-        ("Coffee beans", "/HS/coffee_beans/"),
-        ("Laptops", "/HS/laptops/"),
-        ("Pharmaceuticals", "/HS/pharmaceuticals/"),
-        ("Auto parts", "/HS/auto_parts/"),
-        ("Furniture", "/HS/furniture/"),
-        ("Televisions", "/HS/televisions/"),
-        ("Medical devices", "/HS/medical_devices/"),
-    ),
-    "CN": (
-        ("Frozen mangoes", "/CN/frozen_mangoes/"),
-        ("Olive oil", "/CN/olive_oil/"),
-        ("Wine", "/CN/wine/"),
-        ("Pharmaceuticals", "/CN/pharmaceuticals/"),
-        ("Electric vehicles", "/CN/electric_vehicles/"),
-        ("Solar panels", "/CN/solar_panels/"),
-        ("Electronics", "/CN/electronics/"),
-        ("Medical devices", "/CN/medical_devices/"),
-    ),
-    "HTS": (
-        ("Smartphones", "/HTS/smartphone/"),
-        ("Hydraulic tools", "/HTS/hydraulic_tools/"),
-        ("Auto parts", "/HTS/auto_parts/"),
-        ("Steel products", "/HTS/steel_products/"),
-        ("Coffee beans", "/HTS/coffee_beans/"),
-        ("Electronics", "/HTS/electronics/"),
-        ("Footwear", "/HTS/footwear/"),
-        ("Medical devices", "/HTS/medical_devices/"),
-    ),
-    "GPC": (
-        ("Smartphones", "/GPC/smartphone/"),
-        ("Shampoo", "/GPC/shampoo/"),
-        ("Coffee", "/GPC/coffee/"),
-        ("Laptops", "/GPC/laptop/"),
-        ("Toothpaste", "/GPC/toothpaste/"),
-        ("Milk", "/GPC/milk/"),
-        ("Bread", "/GPC/bread/"),
-        ("Televisions", "/GPC/television/"),
-    ),
-    "GMDN": (
-        ("Syringes", "/GMDN/syringe/"),
-        ("Nebulizers", "/GMDN/nebulizer/"),
-        ("Catheters", "/GMDN/catheter/"),
-        ("Surgical masks", "/GMDN/surgical_mask/"),
-        ("Pacemakers", "/GMDN/pacemaker/"),
-        ("Blood pressure monitors", "/GMDN/blood_pressure_monitor/"),
-        ("Infusion pumps", "/GMDN/infusion_pump/"),
-        ("Stethoscopes", "/GMDN/stethoscope/"),
-    ),
-    "EMDN": (
-        ("Syringes", "/EMDN/syringe/"),
-        ("Nebulizers", "/EMDN/nebulizer/"),
-        ("Catheters", "/EMDN/catheter/"),
-        ("Surgical gloves", "/EMDN/surgical_gloves/"),
-        ("Defibrillators", "/EMDN/defibrillator/"),
-        ("Ultrasound scanners", "/EMDN/ultrasound_scanner/"),
-        ("Stethoscopes", "/EMDN/stethoscope/"),
-        ("Wheelchairs", "/EMDN/wheelchair/"),
-    ),
-    "ETIM": (
-        ("Circuit breakers", "/ETIM/circuit_breaker/"),
-        ("Cables", "/ETIM/cable/"),
-        ("LED lamps", "/ETIM/LED_lamp/"),
-        ("Switches", "/ETIM/switch/"),
-        ("Power supplies", "/ETIM/power_supply/"),
-        ("Connectors", "/ETIM/connector/"),
-        ("Transformers", "/ETIM/transformer/"),
-        ("Fuses", "/ETIM/fuse/"),
-    ),
-    "ISIC": (
-        ("Pharmacies", "/ISIC/pharmacy/"),
-        ("Forestry", "/ISIC/forestry/"),
-        ("Software development", "/ISIC/software_development/"),
-        ("Construction", "/ISIC/construction/"),
-        ("Retail trade", "/ISIC/retail_trade/"),
-        ("Manufacturing", "/ISIC/manufacturing/"),
-        ("Education", "/ISIC/education/"),
-        ("Financial services", "/ISIC/financial_services/"),
-    ),
-    "NACE": (
-        ("Pharmacies", "/NACE/pharmacy/"),
-        ("Software development", "/NACE/software_development/"),
-        ("Construction", "/NACE/construction/"),
-        ("Retail", "/NACE/retail/"),
-        ("Used car dealerships", "/NACE/used_car_dealership/"),
-        ("Manufacturing", "/NACE/manufacturing/"),
-        ("Education", "/NACE/education/"),
-        ("Financial services", "/NACE/financial_services/"),
-    ),
-    "CPV": (
-        ("Office supplies", "/CPV/office_supplies/"),
-        ("IT services", "/CPV/IT_services/"),
-        ("Construction works", "/CPV/construction_works/"),
-        ("Medical equipment", "/CPV/medical_equipment/"),
-        ("Cleaning services", "/CPV/cleaning_services/"),
-        ("Vehicles", "/CPV/vehicles/"),
-        ("Software development", "/CPV/software_development/"),
-        ("Consulting services", "/CPV/consulting_services/"),
-    ),
-    "NSN": (
-        ("Batteries", "/NSN/battery/"),
-        ("Bolts", "/NSN/bolt/"),
-        ("Filters", "/NSN/filter/"),
-        ("Hoses", "/NSN/hose/"),
-        ("Pumps", "/NSN/pump/"),
-        ("Valves", "/NSN/valve/"),
-        ("Engines", "/NSN/engine/"),
-        ("Generators", "/NSN/generator/"),
-    ),
-}
-
-
-def get_popular_lookup_links(classifier_type: str) -> list[dict[str, str]]:
-    """Return curated lookup links whose canonical pages are in the sitemap."""
-    upper_type = classifier_type.strip().upper()
-    return [
-        {
-            "classifier_type": upper_type,
-            "label": label,
-            "url": path,
-        }
-        for label, path in POPULAR_LOOKUP_CATALOG.get(upper_type, ())
-        if path in SITEMAP_QUERY_PATHS
-    ]
-
-
-def get_homepage_popular_lookup_links() -> list[dict[str, str]]:
-    """Return a small cross-standard set of high-value homepage lookups."""
-    unspsc_links = {link["label"]: link for link in get_popular_lookup_links("UNSPSC")}
-    homepage_unspsc_labels = (
-        "Laptop computers",
-        "Office chairs",
-        "Industrial pumps",
-        "Safety gloves",
-        "Printers",
-        "Network switches",
-    )
-    return (
-        [
-            unspsc_links[label]
-            for label in homepage_unspsc_labels
-            if label in unspsc_links
-        ]
-        + get_popular_lookup_links("HS")[:1]
-        + get_popular_lookup_links("NAICS")[:1]
-    )
-
-
-def get_default_top_k(classifier_type: str) -> int:
-    """Return the default number of results to show for a classifier page."""
-    return 10
-
-
-def slugify(text: str) -> str:
-    """
-    Slugify utility for SEO-friendly URLs.
-    Matches the logic used in show_classifier_page_with_query and frontend JS.
-    """
-    if not text:
-        return ""
-    # Sanitize input: limit length and remove harmful characters
-    text = text[:200]  # Limit to 200 chars max
-    # Normalize internal whitespace first (collapse multiple spaces/newlines into single space)
-    text = re.sub(r"\s+", " ", text)
-    # Preserve punctuation that sanitize_query_text accepts so URL slugs round-trip
-    # cleanly back into the classifier textbox.
-    text = re.sub(r"[^\w\s.,:;'()-]", "", text)
-    text = re.sub(r"[\s]+", "_", text)
-    return text.strip("_")
-
-
-def _build_classifier_search_slug(decoded_query: str, classifier_type: str) -> str:
-    """Use a known underscore URL when it is an existing sitemap canonical."""
-    slug = slugify(decoded_query)
-    underscore_slug = slugify(decoded_query.replace("-", " "))
-    underscore_path = f"/{classifier_type}/{quote(underscore_slug, safe='')}/"
-    if underscore_slug != slug and underscore_path in SITEMAP_QUERY_PATHS:
-        return underscore_slug
-    return slug
 
 
 def build_page_headers(canonical_url: str) -> dict[str, str]:
@@ -310,105 +82,6 @@ def get_sample_cache_profile(sample_path: str) -> CacheProfile:
     return STATIC_MEDIA
 
 
-def build_classification_results_context(
-    request: Request,
-    classifier_type: str,
-    query: str,
-    version: str,
-    top_k: int,
-    executor_submitted_at: float | None = None,
-) -> dict[str, object]:
-    """Build the template context used to render classification results."""
-    normalized_query = re.sub(r"\s+", " ", query).strip()
-    upper_type = classifier_type.strip().upper()
-
-    if not normalized_query:
-        return {
-            "query": normalized_query,
-            "results_for_query": [],
-            "base_url": "",
-            "append_code_to_url": True,
-            "code_url_suffix": "",
-            "tooltip": "",
-            "total_request_time": 0,
-        }
-
-    start_total_time = (
-        perf_counter() if executor_submitted_at is None else executor_submitted_at
-    )
-    quantization_cache = getattr(request.app.state, "collection_quantization_cache", {})
-    reranker = getattr(request.app.state, "reranker", None)
-    result = perform_classification(
-        embed_client=request.app.state.embed_client,
-        qdrant_client=request.app.state.qdrant_client,
-        query=normalized_query,
-        classifier_type=upper_type,
-        version=version,
-        top_k=top_k,
-        quantization_cache=quantization_cache,
-        reranker=reranker,
-    )
-    total_request_time = perf_counter() - start_total_time
-
-    return {
-        "query": normalized_query,
-        "results_for_query": result["results"],
-        "base_url": result["version_config"].get("base_url", ""),
-        "append_code_to_url": result["version_config"].get("append_code_to_url", True),
-        "code_url_suffix": result["version_config"].get("code_url_suffix", ""),
-        "tooltip": result["version_config"].get("tooltip", ""),
-        "total_request_time": total_request_time,
-        "classifier_type": upper_type,
-    }
-
-
-def _normalize_product_description(product_description: str) -> str:
-    return re.sub(r"\s+", " ", product_description).strip()
-
-
-def _get_classifier_or_404(classifier_type: str) -> tuple[str, ClassifierConfig]:
-    upper_type = classifier_type.strip().upper()
-    config = CLASSIFIER_CONFIG.get(upper_type)
-    if not config:
-        raise HTTPException(
-            status_code=404, detail=f"Classifier '{classifier_type}' not found"
-        )
-    return upper_type, config
-
-
-def _get_classifier_config_or_404(
-    classifier_type: str,
-) -> tuple[str, ClassifierConfig]:
-    return _get_classifier_or_404(classifier_type)
-
-
-def _resolve_classifier_options(
-    upper_type: str,
-    config: ClassifierConfig,
-    version: str | None,
-    top_k: int | None,
-) -> tuple[str, int, str, int]:
-    default_top_k = get_default_top_k(upper_type)
-    resolved_top_k = default_top_k if top_k is None else top_k
-
-    versions_list = list(config["versions"].keys())
-    default_version = versions_list[0] if versions_list else ""
-    resolved_version = default_version if version is None else version
-
-    return resolved_version, resolved_top_k, default_version, default_top_k
-
-
-def _resolve_fragment_push_url(
-    push_url: bool | None,
-    url_change: bool | None,
-) -> bool:
-    if push_url is not None:
-        return push_url
-    if url_change is not None:
-        return url_change
-    return True
-
-
 def _get_redis_client(request: Request):
     return getattr(request.app.state, "redis_client", None)
 
@@ -418,32 +91,6 @@ async def _maybe_verify_checkout_return(request: Request, redis_client) -> None:
     checkout_token = request.query_params.get("checkout_token")
     if checkout_success == "success" and checkout_token:
         await verify_checkout_token(checkout_token, request, redis_client)
-
-
-def _build_fragment_push_url(
-    upper_type: str,
-    normalized_description: str,
-    version: str,
-    default_version: str,
-    top_k: int,
-    default_top_k: int,
-) -> str:
-    slug = _build_classifier_search_slug(
-        normalized_description.replace("/", " "), upper_type
-    )
-    new_url = f"/{upper_type}/"
-    if slug:
-        new_url += f"{quote(slug, safe='')}/"
-
-    params: dict[str, str | int] = {}
-    if version and version != default_version:
-        params["version"] = version
-    if top_k != default_top_k:
-        params["top_k"] = top_k
-    if params:
-        new_url += f"?{urlencode(params)}"
-
-    return new_url
 
 
 def _render_paywall_fragment(
@@ -469,45 +116,6 @@ def _render_paywall_fragment(
     return response
 
 
-def _render_empty_results_fragment(
-    request: Request,
-    normalized_description: str,
-) -> _TemplateResponse:
-    response = templates.TemplateResponse(
-        request,
-        "results.html",
-        {
-            "query": normalized_description,
-            "results_for_query": [],
-        },
-    )
-    response.headers.update(build_cache_headers(CLASSIFICATION_RESULT))
-    response.headers["Vary"] = "Accept-Encoding"
-    return response
-
-
-def _render_classification_results_fragment(
-    request: Request,
-    results_context: dict,
-    page_title: str | None,
-    push_url: bool,
-    new_url: str,
-) -> _TemplateResponse:
-    response = templates.TemplateResponse(
-        request,
-        "results.html",
-        {
-            **results_context,
-            "page_title": page_title,
-        },
-    )
-    response.headers.update(get_classification_cache_headers())
-    response.headers["Cache-Tag"] = "classification-results"
-    if push_url:
-        response.headers["HX-Push-Url"] = new_url
-    return response
-
-
 def _render_status_fragment(
     message: str,
     status_code: int,
@@ -522,159 +130,6 @@ def _render_status_fragment(
     )
     response.headers.update(build_cache_headers(NO_STORE))
     return response
-
-
-def _build_classifier_redirect_url(
-    upper_type: str,
-    search_query: str,
-    query_string: str,
-) -> str:
-    redirect_url = f"/{upper_type}/"
-    normalized_search_query = search_query.rstrip("/")
-    if normalized_search_query:
-        decoded_query = _decode_search_query(normalized_search_query)
-        slug = _build_classifier_search_slug(decoded_query, upper_type)
-        redirect_url += f"{quote(slug, safe='')}/"
-    if query_string:
-        redirect_url += f"?{query_string}"
-    return redirect_url
-
-
-def _decode_search_query(search_query: str) -> str:
-    if not search_query or not search_query.strip():
-        return ""
-
-    decoded_query = (
-        unquote_plus(search_query).rstrip("/").replace("/", " ").replace("_", " ")
-    )
-    decoded_query = re.sub(r"\s+", " ", decoded_query).strip()
-    if len(decoded_query) > 4000:
-        decoded_query = decoded_query[:4000].strip()
-    return decoded_query
-
-
-def _build_classifier_canonical_url(classifier_type: str, decoded_query: str) -> str:
-    canonical_url = f"https://classifast.com/{classifier_type}"
-    if decoded_query:
-        slug = _build_classifier_search_slug(decoded_query, classifier_type)
-        canonical_url += f"/{quote(slug, safe='')}"
-    if not canonical_url.endswith("/"):
-        canonical_url += "/"
-    return canonical_url
-
-
-def _resolve_classifier_page_options(
-    config: ClassifierConfig,
-    version: str | None,
-    top_k: int | None,
-    default_top_k: int,
-) -> tuple[str, int, str]:
-    resolved_top_k = (
-        default_top_k if top_k is None or top_k < 1 or top_k > 100 else top_k
-    )
-    versions_list = list(config["versions"].keys())
-    first_version: str = versions_list[0] if versions_list else ""
-    validated_version: str = (
-        version
-        if version is not None and version in config["versions"]
-        else first_version
-    )
-    return validated_version, resolved_top_k, first_version
-
-
-def _build_empty_classifier_results(decoded_query: str) -> dict[str, object]:
-    return {
-        "results_for_query": [],
-        "query": decoded_query,
-        "base_url": "",
-        "code_url_suffix": "",
-        "tooltip": "",
-        "total_request_time": 0,
-    }
-
-
-async def _maybe_seed_classifier_page_results(
-    request: Request,
-    classifier_type: str,
-    decoded_query: str,
-    example_query: str,
-    version: str,
-    top_k: int,
-    allow_query_ssr: bool = False,
-) -> tuple[dict[str, object], bool, bool, SSRState]:
-    results_data = _build_empty_classifier_results(decoded_query)
-    if decoded_query and not allow_query_ssr:
-        return results_data, False, True, "not_attempted"
-
-    query = decoded_query or example_query
-    if not query:
-        return results_data, False, False, "not_attempted"
-
-    results_data["query"] = query
-    try:
-        seeded_results = await request.app.state.classification_executor.run(
-            build_classification_results_context,
-            request=request,
-            classifier_type=classifier_type,
-            query=query,
-            version=version,
-            top_k=top_k,
-            executor_submitted_at=perf_counter(),
-        )
-        return seeded_results, not decoded_query, False, "success"
-    except Exception as e:
-        logger.warning(
-            "SSR fallback for '%s' page classification due to %s: %s",
-            classifier_type,
-            type(e).__name__,
-            e,
-        )
-        return results_data, not decoded_query, True, "failure"
-
-
-def _build_classifier_page_context(
-    classifier_type: str,
-    config: ClassifierConfig,
-    display_example: str,
-    decoded_query: str,
-    validated_version: str,
-    first_version: str,
-    top_k: int,
-    default_top_k: int,
-    canonical_url: str,
-    results_data: dict[str, object],
-    default_example_prefill: bool,
-    trigger_search_on_load: bool,
-    results_loaded: bool,
-) -> dict[str, object]:
-    today = datetime.now()
-    return {
-        "classifier_type": classifier_type,
-        "title": config["title"],
-        "heading": config["heading"],
-        "description": config["description"],
-        "versions": list(config["versions"].keys()),
-        "example": display_example,
-        "url_params": {
-            "search": decoded_query,
-            "version": (
-                validated_version
-                if validated_version and validated_version != first_version
-                else ""
-            ),
-            "top_k": top_k,
-        },
-        "default_example_prefill": default_example_prefill,
-        "trigger_search_on_load": trigger_search_on_load,
-        "results_loaded": results_loaded,
-        "default_top_k": default_top_k,
-        "first_version": first_version,
-        "canonical_url": canonical_url,
-        "current_year": today.year,
-        "current_month_name": today.strftime("%B"),
-        "popular_lookup_links": get_popular_lookup_links(classifier_type),
-        **results_data,
-    }
 
 
 def get_related_mapping_products(product: MappingProduct) -> list[MappingProduct]:
@@ -878,10 +333,14 @@ async def get_classification_fragment(
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
     """
-    normalized_description = _normalize_product_description(product_description)
-    upper_type, config = _get_classifier_config_or_404(classifier_type)
-    version, top_k, default_version, default_top_k = _resolve_classifier_options(
-        upper_type, config, version, top_k
+    normalized_description = normalize_product_description(product_description)
+    upper_type, config = get_classifier_or_404(classifier_type)
+    version, top_k, default_version = resolve_classifier_options(
+        config,
+        version,
+        top_k,
+        get_default_top_k(upper_type),
+        allow_invalid_version=True,
     )
 
     logger.info(
@@ -891,20 +350,20 @@ async def get_classification_fragment(
         push_url,
     )
 
-    push_url = _resolve_fragment_push_url(push_url, url_change)
+    push_url = resolve_fragment_push_url(push_url, url_change)
     redis_client = _get_redis_client(request)
     await _maybe_verify_checkout_return(request, redis_client)
-    new_url = _build_fragment_push_url(
+    new_url = build_fragment_push_url(
         upper_type,
         normalized_description,
         version,
         default_version,
         top_k,
-        default_top_k,
+        get_default_top_k(upper_type),
     )
 
     if not normalized_description:
-        return _render_empty_results_fragment(request, normalized_description)
+        return render_empty_results_fragment(request, normalized_description)
 
     is_verified_crawler = await is_verified_google_search_crawler_request(request)
     if is_verified_crawler:
@@ -924,14 +383,12 @@ async def get_classification_fragment(
             )
 
     try:
-        results_context = await request.app.state.classification_executor.run(
-            build_classification_results_context,
+        results_context = await build_classification_results_context(
             request=request,
             classifier_type=upper_type,
             query=normalized_description,
             version=version,
             top_k=top_k,
-            executor_submitted_at=perf_counter(),
         )
     except HTTPException as exc:
         exc.headers = {
@@ -948,11 +405,11 @@ async def get_classification_fragment(
         )
 
     page_title = (
-        f"{upper_type} codes for '{normalized_description.title()}'"
+        build_fragment_page_title(upper_type, normalized_description)
         if push_url
         else None
     )
-    response = _render_classification_results_fragment(
+    response = render_classification_results_fragment(
         request, results_context, page_title, push_url, new_url
     )
 
@@ -973,14 +430,14 @@ async def show_classifier_page_with_query(
     Handles both base URLs like /NAICS and search URLs like /NAICS/gamedev-studio
     Also redirects lowercase classifier types to uppercase.
     """
-    upper_type, config = _get_classifier_or_404(classifier_type)
+    upper_type, config = get_classifier_or_404(classifier_type)
 
     normalized_search_query = search_query.rstrip("/")
     canonical_search_query = (
         f"{normalized_search_query}/" if normalized_search_query else ""
     )
     if classifier_type != upper_type or search_query != canonical_search_query:
-        redirect_url = _build_classifier_redirect_url(
+        redirect_url = build_classifier_redirect_url(
             upper_type, search_query, request.url.query
         )
         return RedirectResponse(url=redirect_url, status_code=301)
@@ -989,11 +446,11 @@ async def show_classifier_page_with_query(
     redis_client = _get_redis_client(request)
     await _maybe_verify_checkout_return(request, redis_client)
 
-    decoded_search_query = _decode_search_query(search_query)
-    canonical_url = _build_classifier_canonical_url(upper_type, decoded_search_query)
+    decoded_search_query = decode_search_query(search_query)
+    canonical_url = build_classifier_canonical_url(upper_type, decoded_search_query)
 
     if request.url.path != urlparse(canonical_url).path:
-        redirect_url = _build_classifier_redirect_url(
+        redirect_url = build_classifier_redirect_url(
             upper_type, search_query, request.url.query
         )
         return RedirectResponse(url=redirect_url, status_code=301)
@@ -1001,22 +458,22 @@ async def show_classifier_page_with_query(
     if request.method == "HEAD":
         return Response(headers=build_page_headers(canonical_url))
 
-    validated_version, top_k, first_version = _resolve_classifier_page_options(
+    validated_version, top_k, first_version = resolve_classifier_options(
         config, version, top_k, default_top_k
     )
     raw_example = config["example"].strip()
     display_example = raw_example if raw_example else ""
-    allow_query_ssr = (
-        bool(decoded_search_query)
-        and not request.query_params
-        and urlparse(canonical_url).path in SITEMAP_QUERY_PATHS
+    allow_query_ssr = should_ssr(
+        decoded_search_query,
+        bool(request.query_params),
+        canonical_url,
     )
     (
         results_data,
         default_example_prefill,
         trigger_search_on_load,
         ssr_state,
-    ) = await _maybe_seed_classifier_page_results(
+    ) = await maybe_seed_classifier_page_results(
         request,
         upper_type,
         decoded_search_query,
@@ -1029,7 +486,7 @@ async def show_classifier_page_with_query(
     response = templates.TemplateResponse(
         request,
         "classifier_page.html",
-        _build_classifier_page_context(
+        build_classifier_page_context(
             upper_type,
             config,
             display_example,

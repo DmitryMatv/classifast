@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.main import QueryNormalizationMiddleware, URLEncodingValidationMiddleware
 from app.web import router
-from tests.helpers import InlineClassificationExecutor
+from tests.helpers import build_classification_service
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -53,12 +53,8 @@ def _build_web_test_app() -> FastAPI:
         "/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static"
     )
     app.include_router(router)
-    app.state.embed_client = object()
-    app.state.qdrant_client = object()
-    app.state.collection_quantization_cache = {}
-    app.state.reranker = None
+    app.state.classification_service = build_classification_service()
     app.state.redis_client = object()
-    app.state.classification_executor = InlineClassificationExecutor()
     return app
 
 
@@ -301,7 +297,10 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
             response.text,
         )
 
-    @patch("app.web.perform_classification", side_effect=RuntimeError("no backend"))
+    @patch(
+        "app.classification_service.perform_classification",
+        side_effect=RuntimeError("no backend"),
+    )
     async def test_base_page_falls_back_to_initial_loader_when_ssr_cannot_run(
         self,
         perform_classification_mock,

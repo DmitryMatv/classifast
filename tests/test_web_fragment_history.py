@@ -7,17 +7,13 @@ from fastapi import FastAPI
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from app.web import router
-from tests.helpers import InlineClassificationExecutor
+from tests.helpers import build_classification_service
 
 
 def _build_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)
-    app.state.embed_client = object()
-    app.state.qdrant_client = object()
-    app.state.classification_executor = InlineClassificationExecutor()
-    app.state.collection_quantization_cache = {}
-    app.state.reranker = None
+    app.state.classification_service = build_classification_service()
     app.state.redis_client = object()
     return app
 
@@ -52,6 +48,9 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
                 "base_url": "",
                 "tooltip": "",
             },
+            "version_name": self.version,
+            "collection_name": "test_collection",
+            "query": "trash removal",
         }
 
     async def _request_fragment(self, **extra_params):
@@ -80,7 +79,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
+    @patch("app.classification_service.perform_classification")
     async def test_push_url_true_returns_one_cacheable_metered_response(
         self,
         perform_classification_mock: Mock,
@@ -113,7 +112,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
+    @patch("app.classification_service.perform_classification")
     async def test_push_url_false_suppresses_history_but_still_tracks(
         self,
         perform_classification_mock: Mock,
@@ -133,7 +132,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
+    @patch("app.classification_service.perform_classification")
     async def test_legacy_track_usage_false_no_longer_bypasses_quota(
         self,
         perform_classification_mock: Mock,
@@ -152,7 +151,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
+    @patch("app.classification_service.perform_classification")
     async def test_legacy_url_change_false_only_suppresses_history(
         self,
         perform_classification_mock: Mock,
@@ -172,7 +171,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
-    @patch("app.web.perform_classification")
+    @patch("app.classification_service.perform_classification")
     async def test_explicit_push_url_wins_over_legacy_url_change(
         self,
         perform_classification_mock: Mock,

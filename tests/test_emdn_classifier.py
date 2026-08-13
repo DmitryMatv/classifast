@@ -10,7 +10,7 @@ from app.classifier import perform_classification, validate_and_prepare_classifi
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from app.web import router
-from tests.helpers import InlineClassificationExecutor
+from tests.helpers import build_classification_service
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 EMDN_VERSION = "EMDN v2026 (English)"
@@ -33,11 +33,7 @@ def build_test_app() -> FastAPI:
         name="static",
     )
     app.include_router(router)
-    app.state.embed_client = object()
-    app.state.qdrant_client = object()
-    app.state.classification_executor = InlineClassificationExecutor()
-    app.state.collection_quantization_cache = {}
-    app.state.reranker = None
+    app.state.classification_service = build_classification_service()
     app.state.redis_client = object()
     return app
 
@@ -46,6 +42,9 @@ def empty_classification_result() -> dict:
     return {
         "results": [],
         "version_config": {"base_url": "", "tooltip": ""},
+        "version_name": EMDN_VERSION,
+        "collection_name": EMDN_COLLECTION,
+        "query": "test query",
     }
 
 
@@ -152,7 +151,7 @@ async def test_emdn_page_navigation_resources_and_no_logo() -> None:
     transport = httpx.ASGITransport(app=app)
 
     with patch(
-        "app.web.perform_classification",
+        "app.classification_service.perform_classification",
         return_value=empty_classification_result(),
     ):
         async with httpx.AsyncClient(
@@ -219,6 +218,9 @@ async def test_emdn_fragment_groups_code_without_metadata_badges() -> None:
             }
         ],
         "version_config": {"base_url": "", "tooltip": ""},
+        "version_name": EMDN_VERSION,
+        "collection_name": EMDN_COLLECTION,
+        "query": "sterile safety hypodermic needle",
     }
     usage = UsageStatus(
         allowed=True,
@@ -231,7 +233,7 @@ async def test_emdn_fragment_groups_code_without_metadata_badges() -> None:
     transport = httpx.ASGITransport(app=app)
 
     with (
-        patch("app.web.perform_classification", return_value=result),
+        patch("app.classification_service.perform_classification", return_value=result),
         patch("app.web.reserve_usage", new=AsyncMock(return_value=usage)),
         patch(
             "app.web.is_verified_google_search_crawler_request",
