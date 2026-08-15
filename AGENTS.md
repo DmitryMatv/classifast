@@ -2,6 +2,18 @@
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in this project that surprises you, please alert the developer working with you and indicate that this is the case in the AGENTS.md file to help prevent future agents from having the same issue.
 
+## Ask Before You Assume
+
+Never guess at intent. If a task leaves anything open - which screen, which endpoint, what happens on failure, whether it needs a migration, whether this is user-facing - stop and ask. If an important decision is unresolved, stop and ask. One question up front is cheaper than half-a-day of work in the wrong direction.
+
+- Ask when the request could reasonably mean two different things.
+- Ask before changing a public API shape.
+- Do not invent product decisions, copy, or acceptance criteria.
+- Do not widen scope past what was asked. Note the adjacent thing you spotted; don't fix it unprompted.
+- If you had to assume something you couldn't resolve, list it explicitly at the top of your summary.
+
+## Testing
+
 Always use `npm test` or `npm run test:watch` for frontend tests.
 
 Always use `pytest` for backend tests. The suite retains `unittest`-compatible
@@ -20,8 +32,6 @@ Use Virtual Environment `source .venv/bin/activate` because all dependencies are
 backfills payloads and creates or replaces indexes in configured Qdrant
 collections. Runtime startup must validate Qdrant without creating, replacing,
 or deleting indexes.
-
-`QDRANT_URL` takes precedence over `QDRANT_HOST`/`QDRANT_PORT` for both runtime and maintenance commands.
 
 ## Project Snapshot
 

@@ -191,10 +191,12 @@ describe("common.ts", () => {
     expect(textarea.selectionEnd).toBe(10);
   });
 
-  it("selects all prefilled text so the first paste or keystroke replaces it", async () => {
+  it("keeps direct-link prefilled text unselected", async () => {
     document.body.dataset["authUi"] = "disabled";
     document.body.innerHTML = `
-      <textarea id="product_description_area">Industrial pump</textarea>
+      <form data-initial-query-present="true">
+        <textarea id="product_description_area">Industrial pump</textarea>
+      </form>
     `;
 
     await import("./common");
@@ -204,7 +206,7 @@ describe("common.ts", () => {
     ) as HTMLTextAreaElement;
 
     expect(document.activeElement).toBe(textarea);
-    expect(textarea.selectionStart).toBe(0);
+    expect(textarea.selectionStart).toBe(textarea.value.length);
     expect(textarea.selectionEnd).toBe(textarea.value.length);
   });
 

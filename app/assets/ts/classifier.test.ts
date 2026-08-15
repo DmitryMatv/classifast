@@ -248,6 +248,27 @@ describe("classifier.ts", () => {
     expect(detail.parameters["track_usage"]).toBeUndefined();
   });
 
+  it("normalizes whitespace in the product description before sending", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const textarea = document.getElementById(
+      "product_description_area",
+    ) as HTMLTextAreaElement;
+    textarea.value =
+      "  Retail   facility and equipment maintenance\t\n service  ";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:configRequest", {
+        detail,
+      } as CustomEventInit),
+    );
+
+    expect(detail.parameters["product_description"]).toBe(
+      "Retail facility and equipment maintenance service",
+    );
+  });
+
   it("keeps non-default top-k on manual requests", async () => {
     await import("./classifier");
     const form = getClassifierForm();

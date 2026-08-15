@@ -152,14 +152,22 @@ class ClassifierPage {
     }
   }
 
+  private normalizeQueryText(value: string): string {
+    return value.replace(/\s+/g, " ").trim();
+  }
+
   private getEffectiveQuery(): string {
     const productDescriptionArea = this.getProductDescriptionArea();
-    const textareaValue = productDescriptionArea?.value.trim() ?? "";
+    const textareaValue = this.normalizeQueryText(
+      productDescriptionArea?.value ?? "",
+    );
     if (textareaValue) {
-      return productDescriptionArea?.value ?? "";
+      return textareaValue;
     }
 
-    return this.activeQuery ?? this.defaultExampleQuery ?? "";
+    return this.normalizeQueryText(
+      this.activeQuery ?? this.defaultExampleQuery ?? "",
+    );
   }
 
   private setupQueryStateTracking(): void {

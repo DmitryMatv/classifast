@@ -185,7 +185,11 @@ export class TextareaEnhancer {
     }
 
     this.prefillValue = this.textarea.value;
-    this.textarea.select();
+    if (
+      this.textarea.closest("form")?.dataset["initialQueryPresent"] !== "true"
+    ) {
+      this.textarea.select();
+    }
 
     this.textarea.addEventListener("paste", (event) => {
       if (!this.isUntouchedPrefill()) {
