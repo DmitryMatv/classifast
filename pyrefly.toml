@@ -1,2 +1,6 @@
 project-includes = ["app"]
-project-excludes = ["^utilities/"]
+project-excludes = ["**/utilities/"]
+preset = "legacy"
+
+[errors]
+redundant-cast = "warn"

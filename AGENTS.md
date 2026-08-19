@@ -4,7 +4,7 @@ The role of this file is to describe common mistakes and confusion points that a
 
 ## Ask Before You Assume
 
-Never guess at intent. If a task leaves anything open - which screen, which endpoint, what happens on failure, whether it needs a migration, whether this is user-facing - stop and ask. If an important decision is unresolved, stop and ask. One question up front is cheaper than half-a-day of work in the wrong direction.
+Never guess at intent. If a task leaves anything open - which screen, which endpoint, what happens on failure, whether it needs a migration, whether this is user-facing - stop and ask. If an important decision is unresolved, stop and ask. One question up front is cheaper than half a day of work in the wrong direction.
 
 - Ask when the request could reasonably mean two different things.
 - Ask before changing a public API shape.
