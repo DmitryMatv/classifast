@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: "app/static",
     emptyOutDir: false,
-    sourcemap: true,
+    sourcemap: false,
     target: "es2022",
     rollupOptions: {
       input: {

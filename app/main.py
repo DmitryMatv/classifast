@@ -88,10 +88,16 @@ def initialize_embed_client() -> Any | None:
 
     try:
         provider: Any = os.getenv("HF_INFERENCE_PROVIDER", "").strip() or "auto"
-        embed_client = InferenceClient(provider=provider, api_key=hf_token)
+        embed_timeout = float(os.getenv("HF_EMBEDDING_TIMEOUT_SECONDS", "20"))
+        if embed_timeout <= 0:
+            raise ValueError("HF_EMBEDDING_TIMEOUT_SECONDS must be greater than zero")
+        embed_client = InferenceClient(
+            provider=provider, api_key=hf_token, timeout=embed_timeout
+        )
         logger.info(
-            "Hugging Face Inference client initialized successfully with provider=%s.",
+            "Hugging Face Inference client initialized successfully with provider=%s timeout=%.1fs.",
             provider,
+            embed_timeout,
         )
         return embed_client
     except Exception as e:

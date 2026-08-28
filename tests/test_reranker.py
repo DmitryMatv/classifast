@@ -178,6 +178,75 @@ class OpenRouterRerankerTests(unittest.TestCase):
         self.assertEqual(reranker.rerank("query", []), [])
         client.post.assert_not_called()
 
+    def test_budgeted_rerank_passes_per_request_timeout(self) -> None:
+        client = self._client_with_response(
+            {"results": [{"index": 0, "relevance_score": 0.6}]}
+        )
+        reranker = OpenRouterReranker(
+            api_key="test-token", model_name="model", client=client
+        )
+
+        scores = reranker.rerank("query", ["document"], timeout_seconds=8.0)
+
+        self.assertEqual(scores, [0.6])
+        client.post.assert_called_once_with(
+            OPENROUTER_RERANK_URL,
+            json={
+                "model": "model",
+                "query": "query",
+                "documents": ["document"],
+                "top_n": 1,
+            },
+            timeout=8.0,
+        )
+
+    def test_budgeted_transient_http_failure_is_retried(self) -> None:
+        request = httpx.Request("POST", OPENROUTER_RERANK_URL)
+        unavailable = httpx.Response(503, request=request)
+        recovered = Mock()
+        recovered.raise_for_status.return_value = None
+        recovered.json.return_value = {
+            "results": [{"index": 0, "relevance_score": 0.6}]
+        }
+        client = Mock()
+        client.post.side_effect = [
+            httpx.HTTPStatusError("unavailable", request=request, response=unavailable),
+            recovered,
+        ]
+        reranker = OpenRouterReranker(
+            api_key="test-token", model_name="model", client=client
+        )
+
+        with patch("app.reranker.tenacity.nap.sleep"):
+            scores = reranker.rerank("query", ["document"], timeout_seconds=8.0)
+
+        self.assertEqual(scores, [0.6])
+        self.assertEqual(client.post.call_count, 2)
+
+    def test_request_timeout_is_capped_by_configured_client_timeout(self) -> None:
+        client = self._client_with_response(
+            {"results": [{"index": 0, "relevance_score": 0.6}]}
+        )
+        reranker = OpenRouterReranker(
+            api_key="test-token", model_name="model", client=client, timeout_seconds=5.0
+        )
+
+        reranker.rerank("query", ["document"], timeout_seconds=999.0)
+
+        self.assertEqual(client.post.call_args.kwargs["timeout"], 5.0)
+
+    def test_request_timeout_has_positive_floor(self) -> None:
+        client = self._client_with_response(
+            {"results": [{"index": 0, "relevance_score": 0.6}]}
+        )
+        reranker = OpenRouterReranker(
+            api_key="test-token", model_name="model", client=client
+        )
+
+        reranker.rerank("query", ["document"], timeout_seconds=0)
+
+        self.assertEqual(client.post.call_args.kwargs["timeout"], 0.1)
+
 
 if __name__ == "__main__":
     unittest.main()

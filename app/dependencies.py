@@ -1,4 +1,6 @@
+import hashlib
 import os
+from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 from jwt.jwks_client import PyJWKClient
@@ -43,6 +45,40 @@ def group_original_id_tokens(original_id: object) -> list[dict[str, object]]:
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["group_original_id_tokens"] = group_original_id_tokens
+
+# Content-hash versioning for static assets. Appending ?v=<hash> to built
+# js/css URLs keeps Cloudflare's cache key per deploy, so freshly deployed
+# bundles are fetched instead of serving stale code against new HTML.
+_STATIC_DIR = Path("app/static")
+_ASSET_VERSION_LENGTH = 10
+_asset_version_cache: dict[str, str] = {}
+
+
+def _asset_content_version(path: str) -> str | None:
+    file_path = _STATIC_DIR / path.lstrip("/")
+    try:
+        content = file_path.read_bytes()
+    except OSError:
+        return None
+    return hashlib.sha256(content).hexdigest()[:_ASSET_VERSION_LENGTH]
+
+
+def asset_url(path: str) -> str:
+    """Static URL with a content-hash version query for cache busting.
+
+    Missing files fall back to the unversioned URL so pages still render
+    before the first frontend build (e.g. in development).
+    """
+    version = _asset_version_cache.get(path)
+    if version is None:
+        version = _asset_content_version(path) or ""
+        if version:
+            _asset_version_cache[path] = version
+    suffix = f"?v={version}" if version else ""
+    return f"/static{path}{suffix}"
+
+
+templates.env.globals["asset_url"] = asset_url
 
 # Clerk Authentication Configuration
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")

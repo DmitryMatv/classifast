@@ -685,6 +685,23 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
         perform_classification_mock.assert_not_called()
         reserve_usage_mock.assert_awaited_once()
 
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
+    @patch("app.classification_service.perform_classification")
+    async def test_quota_unavailable_message_is_html_escaped(
+        self,
+        perform_classification_mock: Mock,
+        reserve_usage_mock: AsyncMock,
+    ) -> None:
+        reserve_usage_mock.side_effect = QuotaUnavailableError(
+            'Unavailable <script>alert("x")</script>'
+        )
+
+        response = await self._request_fragment(push_url="true")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("<script>", response.text)
+        self.assertIn("&lt;script&gt;", response.text)
+
     @patch(
         "app.classification_service.perform_classification",
         side_effect=RuntimeError("qdrant down"),

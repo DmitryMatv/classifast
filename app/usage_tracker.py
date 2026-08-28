@@ -29,7 +29,6 @@ REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
 # Constants
 TRACKING_COOKIE_NAME = "cf_track"
 ANON_USAGE_TTL = 365 * 24 * 60 * 60  # 1 year
-TRACKING_COOKIE_MAX_AGE = ANON_USAGE_TTL  # Keep the anon cookie aligned with Redis
 USAGE_TTL = ANON_USAGE_TTL  # 1 year for authenticated free-user usage too
 TIER_CACHE_TTL = 3600  # Cache user tier for 1 hour
 NEGATIVE_TIER_CACHE_TTL = 60  # Cache failed lookups for 1 minute
@@ -634,19 +633,6 @@ async def reserve_usage(
         return await _reserve_anonymous_usage(request, redis_client)
 
     return await _reserve_authenticated_free_usage(user_id, redis_client)
-
-
-def set_tracking_cookie(response: Response, tracking_id: str) -> None:
-    """Set the tracking cookie on response."""
-    logger.info(f"Setting tracking cookie: {tracking_id}")
-    response.set_cookie(
-        key=TRACKING_COOKIE_NAME,
-        value=tracking_id,
-        max_age=TRACKING_COOKIE_MAX_AGE,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-    )
 
 
 def add_quota_headers(response: Response, usage_status: UsageStatus) -> None:

@@ -34,6 +34,7 @@ class OpenRouterReranker:
         client: httpx.Client | None = None,
     ) -> None:
         self.model_name = model_name
+        self._timeout_seconds = timeout_seconds
         self._client = client or httpx.Client(
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -45,11 +46,19 @@ class OpenRouterReranker:
     def close(self) -> None:
         self._client.close()
 
-    def rerank(self, query: str, documents: Sequence[str]) -> list[float]:
+    def rerank(
+        self,
+        query: str,
+        documents: Sequence[str],
+        timeout_seconds: float | None = None,
+    ) -> list[float]:
         """Return relevance scores in [0, 1] matching ``documents`` order.
 
         ``top_n`` is set to ``len(documents)`` so every submitted document
         receives a score and the caller can compare ordering directly.
+
+        ``timeout_seconds`` caps this call's total wall-clock budget
+        (including retries); it never raises the client's configured timeout.
         """
         if not documents:
             return []
@@ -60,8 +69,13 @@ class OpenRouterReranker:
             "documents": list(documents),
             "top_n": len(documents),
         }
-        response_payload = self._post_with_retry(payload)
+        response_payload = self._post_with_retry(payload, timeout_seconds)
         return self._parse_scores(response_payload, n_documents=len(documents))
+
+    def _request_timeout(self, timeout_seconds: float | None) -> float:
+        if timeout_seconds is None:
+            return self._timeout_seconds
+        return max(0.1, min(timeout_seconds, self._timeout_seconds))
 
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(3),
@@ -69,10 +83,36 @@ class OpenRouterReranker:
         retry=tenacity.retry_if_exception(_is_transient_rerank_error),
         reraise=True,
     )
-    def _post_with_retry(self, payload: dict[str, Any]) -> Any:
+    def _post_with_retry_unbounded(self, payload: dict[str, Any]) -> Any:
         response = self._client.post(OPENROUTER_RERANK_URL, json=payload)
         response.raise_for_status()
         return response.json()
+
+    def _post_with_retry(
+        self, payload: dict[str, Any], timeout_seconds: float | None
+    ) -> Any:
+        if timeout_seconds is None:
+            return self._post_with_retry_unbounded(payload)
+
+        request_timeout = self._request_timeout(timeout_seconds)
+        retryer = tenacity.Retrying(
+            stop=(
+                tenacity.stop_after_attempt(3)
+                | tenacity.stop_after_delay(request_timeout)
+            ),
+            wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
+            retry=tenacity.retry_if_exception(_is_transient_rerank_error),
+            reraise=True,
+        )
+
+        def _post() -> Any:
+            response = self._client.post(
+                OPENROUTER_RERANK_URL, json=payload, timeout=request_timeout
+            )
+            response.raise_for_status()
+            return response.json()
+
+        return retryer(_post)
 
     @staticmethod
     def _parse_scores(response_payload: Any, *, n_documents: int) -> list[float]:

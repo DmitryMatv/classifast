@@ -14,5 +14,4 @@ polar-sdk>=0.28.0
 PyJWT<=3.0.0
 cryptography>=44.0.1
 redis>=7.0.0,<8.0.0
-httpx>=0.24.0,<0.30.0
 tenacity>=9.1.0,<10.0.0

@@ -50,6 +50,7 @@ class MainStartupClientTests(unittest.TestCase):
         client_class.assert_called_once_with(
             provider="auto",
             api_key="test-key",
+            timeout=20.0,
         )
 
     @patch.dict(
@@ -71,6 +72,7 @@ class MainStartupClientTests(unittest.TestCase):
         client_class.assert_called_once_with(
             provider="auto",
             api_key="test-key",
+            timeout=20.0,
         )
 
     @patch.dict(
@@ -89,6 +91,7 @@ class MainStartupClientTests(unittest.TestCase):
         client_class.assert_called_once_with(
             provider="custom-provider",
             api_key="test-key",
+            timeout=20.0,
         )
 
     @patch.dict(main.os.environ, {}, clear=True)

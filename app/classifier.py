@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -38,6 +39,24 @@ ALLOWED_QUERY_PATTERN = re.compile(
 )
 TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 DEFAULT_RERANK_CANDIDATE_LIMIT = 100
+DEFAULT_OUTBOUND_BUDGET_SECONDS = 60.0
+MIN_RERANK_BUDGET_SECONDS = 2.0
+
+
+def outbound_budget_seconds() -> float:
+    """Total wall-clock budget for outbound embedding + rerank calls."""
+    raw = os.getenv(
+        "CLASSIFICATION_OUTBOUND_BUDGET_SECONDS",
+        str(DEFAULT_OUTBOUND_BUDGET_SECONDS),
+    )
+    try:
+        budget = float(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid CLASSIFICATION_OUTBOUND_BUDGET_SECONDS %r; using default", raw
+        )
+        return DEFAULT_OUTBOUND_BUDGET_SECONDS
+    return budget if budget > 0 else DEFAULT_OUTBOUND_BUDGET_SECONDS
 
 
 # ===== Input Sanitization =====
@@ -195,9 +214,12 @@ def build_rerank_query_text(query: str, instruction: Optional[str]) -> str:
     return f"{instruction_text}\nQuery: {query}"
 
 
-def _build_embedding_retry() -> tenacity.Retrying:
+def _build_embedding_retry(max_seconds: float | None = None) -> tenacity.Retrying:
+    stop: "tenacity.stop.stop_base" = tenacity.stop_after_attempt(3)
+    if max_seconds is not None:
+        stop = stop | tenacity.stop_after_delay(max_seconds)
     return tenacity.Retrying(
-        stop=tenacity.stop_after_attempt(3),
+        stop=stop,
         wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
         retry=tenacity.retry_if_exception(_is_transient_hf_error),
         reraise=True,
@@ -209,6 +231,7 @@ def get_embedding(
     model_name: str,
     text: str,
     embed_dims: Optional[int] = None,
+    max_seconds: Optional[float] = None,
 ) -> List[float]:
     """
     Generate a single embedding for text using Hugging Face Inference.
@@ -218,6 +241,7 @@ def get_embedding(
         model_name: The embedding model name
         text: Text to embed
         embed_dims: Expected embedding dimensions
+        max_seconds: Optional wall-clock budget across embedding retries
 
     Returns:
         Embedding vector as list of floats
@@ -235,7 +259,7 @@ def get_embedding(
         )
 
         api_start = time.time()
-        retry = _build_embedding_retry()
+        retry = _build_embedding_retry(max_seconds)
         if embed_dims is None:
             response = retry(
                 embed_client.feature_extraction,
@@ -565,6 +589,7 @@ def rerank_candidates(
     rerank_top_n: int = 15,
     document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
     rerank_instruction: Optional[str] = None,
+    timeout_seconds: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     """Rerank semantic search results using OpenRouter reranking.
 
@@ -578,6 +603,7 @@ def rerank_candidates(
             Receives the full candidate dict and returns a string.
             If None, uses class_name + definition from payload.
         rerank_instruction: Optional reranker instruction to wrap around the query.
+        timeout_seconds: Optional wall-clock budget for the rerank call.
 
     Returns:
         List of reranked candidates with rerank_relevance_score field.
@@ -599,7 +625,9 @@ def rerank_candidates(
             query[:50],
         )
 
-        scores = reranker.rerank(rerank_query, documents)
+        scores = reranker.rerank(
+            rerank_query, documents, timeout_seconds=timeout_seconds
+        )
         reranked_candidates = _apply_rerank_scores(candidates_to_rerank, scores)
         reranked_candidates.sort(
             key=lambda candidate: candidate["rerank_relevance_score"], reverse=True
@@ -803,6 +831,7 @@ def _run_semantic_classification_search(
     top_k: int,
     has_quantization: bool,
     search_exact: bool,
+    embed_max_seconds: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     embedding_text = build_query_embedding_text(
         context.normalized_query,
@@ -813,6 +842,7 @@ def _run_semantic_classification_search(
         model_name=context.embed_model_name,
         text=embedding_text,
         embed_dims=context.config.get("embed_dims"),
+        max_seconds=embed_max_seconds,
     )
 
     return perform_semantic_search(
@@ -847,8 +877,18 @@ def _rank_semantic_results(
     top_k: int,
     rerank_top_n: int,
     rerank_instruction: Optional[str],
+    deadline: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     if reranker is not None and not id_match_results and filtered_semantic:
+        remaining_seconds: Optional[float] = None
+        if deadline is not None:
+            remaining_seconds = deadline - time.monotonic()
+            if remaining_seconds < MIN_RERANK_BUDGET_SECONDS:
+                logger.warning(
+                    "RERANK_STATUS: Skipped - outbound budget exhausted (%.2fs left)",
+                    max(0.0, remaining_seconds),
+                )
+                return _zero_score_candidates(filtered_semantic[:top_k])
         logger.info(
             "RERANK_STATUS: Using OpenRouter for %d semantic candidates",
             len(filtered_semantic),
@@ -860,6 +900,7 @@ def _rank_semantic_results(
             top_k=top_k,
             rerank_top_n=rerank_top_n,
             rerank_instruction=rerank_instruction,
+            timeout_seconds=remaining_seconds,
         )
         for result in reranked_semantic:
             if "rerank_relevance_score" in result:
@@ -915,6 +956,7 @@ def perform_classification(
         classifier_type=classifier_type,
         version=version,
     )
+    outbound_deadline = time.monotonic() + outbound_budget_seconds()
 
     try:
         has_quantization = _collection_has_quantization(
@@ -971,6 +1013,7 @@ def perform_classification(
             top_k=semantic_retrieve_limit,
             has_quantization=has_quantization,
             search_exact=search_exact,
+            embed_max_seconds=outbound_deadline - time.monotonic(),
         )
         filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
         ranked_semantic = _rank_semantic_results(
@@ -984,6 +1027,7 @@ def perform_classification(
                 "rerank_instruction",
                 context.config.get("query_instruction"),
             ),
+            deadline=outbound_deadline,
         )
         classification_results = _merge_classification_results(
             partial_results, ranked_semantic, top_k

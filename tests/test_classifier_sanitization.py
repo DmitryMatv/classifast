@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 import httpx
 from fastapi import HTTPException
 from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
-from requests import Response
 
 from app.classifier import (
     DEFAULT_RERANK_CANDIDATE_LIMIT,
@@ -634,7 +633,7 @@ class EmbeddingAndCacheHeaderTests(unittest.TestCase):
         self.assertEqual(client.feature_extraction.call_count, 2)
 
     def test_transient_hf_http_error_is_retried(self) -> None:
-        response = Response()
+        response = Mock()
         response.status_code = 503
         client = Mock()
         client.feature_extraction.side_effect = [

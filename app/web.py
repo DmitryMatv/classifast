@@ -1,3 +1,4 @@
+import html
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -123,7 +124,7 @@ def _render_status_fragment(
     response = HTMLResponse(
         content=(
             '<div class="bg-white border border-amber-200 rounded-lg p-6 shadow">'
-            f'<p class="text-gray-700">{message}</p>'
+            f'<p class="text-gray-700">{html.escape(message)}</p>'
             "</div>"
         ),
         status_code=status_code,
