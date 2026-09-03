@@ -162,7 +162,7 @@ async def test_emdn_page_navigation_resources_and_no_logo() -> None:
             homepage = await client.get("/")
             page = await client.get("/EMDN/")
             lowercase_redirect = await client.get("/emdn")
-            other_classifier_page = await client.get("/GMDN/")
+            other_classifier_page = await client.get("/ETIM/")
 
     assert homepage.status_code == 200
     assert homepage.text.count('href="http://testserver/EMDN/"') >= 2

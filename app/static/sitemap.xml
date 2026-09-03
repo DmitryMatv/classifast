@@ -28,10 +28,6 @@
         <priority>0.85</priority>
     </url>
     <url>
-        <loc>https://classifast.com/GMDN/</loc>
-        <priority>0.85</priority>
-    </url>
-    <url>
         <loc>https://classifast.com/EMDN/</loc>
         <priority>0.85</priority>
     </url>
@@ -1572,59 +1568,6 @@
     </url>
     <url>
         <loc>https://classifast.com/GPC/washing_machine/</loc>
-        <priority>0.64</priority>
-    </url>
-    <!-- GMDN common queries -->
-    <url>
-        <loc>https://classifast.com/GMDN/syringe/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/nebulizer/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/catheter/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/surgical_mask/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/pacemaker/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/blood_pressure_monitor/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/infusion_pump/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/stethoscope/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/scalpel/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/wheelchair/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/oxygen_concentrator/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/hospital_bed/</loc>
-        <priority>0.64</priority>
-    </url>
-    <url>
-        <loc>https://classifast.com/GMDN/bandage/</loc>
         <priority>0.64</priority>
     </url>
     <!-- EMDN common queries -->

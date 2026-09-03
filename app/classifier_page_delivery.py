@@ -44,6 +44,11 @@ def _load_sitemap_query_paths() -> frozenset[str]:
 
 SITEMAP_QUERY_PATHS = _load_sitemap_query_paths()
 
+# Classifiers deliberately removed from the service. They must stay out of
+# CLASSIFIER_CONFIG, but their URLs answer 410 Gone so crawlers deindex them
+# quickly and the removal is explicit.
+REMOVED_CLASSIFIER_TYPES: frozenset[str] = frozenset({"GMDN"})
+
 # Keep anchor text curated while using the sitemap as the source of truth for
 # which query pages are canonical and eligible for server-rendered results.
 POPULAR_LOOKUP_CATALOG: dict[str, tuple[tuple[str, str], ...]] = {
@@ -118,16 +123,6 @@ POPULAR_LOOKUP_CATALOG: dict[str, tuple[tuple[str, str], ...]] = {
         ("Milk", "/GPC/milk/"),
         ("Bread", "/GPC/bread/"),
         ("Televisions", "/GPC/television/"),
-    ),
-    "GMDN": (
-        ("Syringes", "/GMDN/syringe/"),
-        ("Nebulizers", "/GMDN/nebulizer/"),
-        ("Catheters", "/GMDN/catheter/"),
-        ("Surgical masks", "/GMDN/surgical_mask/"),
-        ("Pacemakers", "/GMDN/pacemaker/"),
-        ("Blood pressure monitors", "/GMDN/blood_pressure_monitor/"),
-        ("Infusion pumps", "/GMDN/infusion_pump/"),
-        ("Stethoscopes", "/GMDN/stethoscope/"),
     ),
     "EMDN": (
         ("Syringes", "/EMDN/syringe/"),
@@ -332,6 +327,11 @@ def normalize_product_description(product_description: str) -> str:
 
 def get_classifier_or_404(classifier_type: str) -> tuple[str, ClassifierConfig]:
     upper_type = classifier_type.strip().upper()
+    if upper_type in REMOVED_CLASSIFIER_TYPES:
+        raise HTTPException(
+            status_code=410,
+            detail=f"Classifier '{classifier_type}' is no longer available",
+        )
     config = CLASSIFIER_CONFIG.get(upper_type)
     if not config:
         raise HTTPException(

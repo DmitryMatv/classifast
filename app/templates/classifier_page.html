@@ -704,8 +704,6 @@
                             class="menu-chip">UNSPSC</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='GPC') }}" class="menu-chip">
                             GS1 GPC</a>
-                        <a href="{{ url_for('show_classifier_page', classifier_type='GMDN') }}"
-                            class="menu-chip">GMDN</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='EMDN') }}"
                             class="menu-chip">EMDN</a>
                         <a href="{{ url_for('show_classifier_page', classifier_type='NAICS') }}"
@@ -775,10 +773,6 @@
                 <img src="{{ url_for('static', path='images/ETIM-International_logo.svg') }}"
                     alt="ETIM International classification standard logo" data-classifier-logo="true"
                     class="hidden lg:block pointer-events-none absolute right-8 top-4 h-20 w-auto" fetchpriority="high">
-                {% elif classifier_type == 'GMDN' %}
-                <img src="{{ url_for('static', path='images/gmdn-logo.png') }}" alt="GMDN classification standard logo"
-                    data-classifier-logo="true"
-                    class="hidden lg:block pointer-events-none absolute right-8 top-1 h-16 w-auto" fetchpriority="high">
                 {% elif classifier_type == 'HTS' %}
                 <img src="{{ url_for('static', path='images/hts-logo.jpg') }}" alt="HTS classification standard logo"
                     data-classifier-logo="true"
@@ -1337,16 +1331,6 @@
                             class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
                             role="link" aria-label="GS1 GPC Classification Tool">GS1 GPC</a></h3>
                     <p class="text-gray-600">Find the right GPC brick code by essential characteristics.</p>
-                </article>
-                {% endif %}
-
-                {% if classifier_type != 'GMDN' %}
-                <article class="border border-gray-200 rounded p-3 shadow" role="article">
-                    <h3 class="font-semibold text-gray-800 mb-2"><a
-                            href="{{ url_for('show_classifier_page', classifier_type='GMDN') }}"
-                            class="text-sky-700 hover:text-sky-800 underline decoration-sky-700 underline-offset-2"
-                            role="link" aria-label="GMDN Classification Tool">GMDN</a></h3>
-                    <p class="text-gray-600">Global nomenclature for identifying and describing medical devices.</p>
                 </article>
                 {% endif %}
 

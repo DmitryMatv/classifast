@@ -19,6 +19,7 @@ from .cache_profiles import (
 )
 from .classifier_config import CLASSIFIER_CONFIG
 from .classifier_page_delivery import (
+    REMOVED_CLASSIFIER_TYPES,
     build_classification_results_context,
     build_classifier_canonical_url,
     build_classifier_page_context,
@@ -298,6 +299,11 @@ async def redirect_classifier_page_no_slash(classifier_type: str, request: Reque
     Also redirects lowercase classifier types to uppercase.
     """
     upper_type = classifier_type.strip().upper()
+    if upper_type in REMOVED_CLASSIFIER_TYPES:
+        raise HTTPException(
+            status_code=410,
+            detail=f"Classifier '{classifier_type}' is no longer available",
+        )
     if upper_type in CLASSIFIER_CONFIG:
         query_string = f"?{request.url.query}" if request.url.query else ""
         return RedirectResponse(url=f"/{upper_type}/{query_string}", status_code=301)
