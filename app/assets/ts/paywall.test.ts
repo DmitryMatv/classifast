@@ -89,8 +89,10 @@ describe("paywall.ts", () => {
     window.__paywallInitialized = true;
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:afterSwap", {
-        detail: { target: document.getElementById("results-container") },
+      new CustomEvent("htmx:after:swap", {
+        detail: {
+          ctx: { target: document.getElementById("results-container") },
+        },
       } as CustomEventInit),
     );
     vi.runAllTimers();

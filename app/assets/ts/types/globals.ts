@@ -7,6 +7,7 @@ declare global {
   interface Window {
     Clerk?: ClerkInstance;
     __authReady?: boolean;
+    __classifierHistoryAbort?: AbortController;
     __clerkAuthListenerRegistered?: boolean;
     __clerkInteractionListenersRegistered?: boolean;
     __clerkScriptFailed?: boolean;
@@ -113,64 +114,67 @@ declare global {
   }
 
   // ============================================
-  // HTMX Extensions
+  // HTMX Extensions (htmx 4 event detail shapes)
   // ============================================
-  interface HtmxConfigRequestEvent extends CustomEvent {
-    detail: {
+  interface HtmxRequestContext {
+    sourceElement: Element;
+    sourceEvent?: Event;
+    target: Element;
+    swap?: string;
+    request: {
+      action: string;
+      method: string;
       headers: Record<string, string>;
-      xhr: XMLHttpRequest;
-      elt: Element;
-      parameters: Record<string, unknown>;
+      body: FormData;
     };
+    response?: {
+      status: number;
+      headers: Headers;
+    };
+    text?: string;
+  }
+
+  interface HtmxConfigRequestEvent extends CustomEvent {
+    detail: { ctx: HtmxRequestContext };
   }
 
   interface HtmxBeforeRequestEvent extends CustomEvent {
-    detail: {
-      elt: Element;
-      target: HTMLElement;
-    };
-  }
-
-  interface HtmxAfterSwapEvent extends CustomEvent {
-    detail: {
-      target: HTMLElement;
-    };
-  }
-
-  interface HtmxAfterSettleEvent extends CustomEvent {
-    detail: {
-      target: HTMLElement;
-    };
+    detail: { ctx: HtmxRequestContext };
   }
 
   interface HtmxAfterRequestEvent extends CustomEvent {
-    detail: {
-      elt: Element;
-      target: HTMLElement;
-    };
+    detail: { ctx: HtmxRequestContext };
+  }
+
+  interface HtmxAfterSwapEvent extends CustomEvent {
+    detail: { ctx: HtmxRequestContext };
   }
 
   interface HtmxResponseErrorEvent extends CustomEvent {
     detail: {
-      xhr: XMLHttpRequest;
-      elt: Element;
-      target: HTMLElement;
+      ctx: HtmxRequestContext & {
+        response: { status: number; headers: Headers };
+      };
+    };
+  }
+
+  interface HtmxHistoryUpdateEvent extends CustomEvent {
+    detail: {
+      history?: { type?: string; path?: string };
     };
   }
 
   interface HTMLElementEventMap {
-    "htmx:beforeRequest": HtmxBeforeRequestEvent;
-    "htmx:configRequest": HtmxConfigRequestEvent;
-    "htmx:afterSwap": HtmxAfterSwapEvent;
-    "htmx:afterSettle": HtmxAfterSettleEvent;
-    "htmx:afterRequest": HtmxAfterRequestEvent;
-    "htmx:responseError": HtmxResponseErrorEvent;
+    "htmx:before:request": HtmxBeforeRequestEvent;
+    "htmx:config:request": HtmxConfigRequestEvent;
+    "htmx:after:swap": HtmxAfterSwapEvent;
+    "htmx:after:request": HtmxAfterRequestEvent;
+    "htmx:response:error": HtmxResponseErrorEvent;
     "htmx:authReady": CustomEvent;
     "clerk:loaded": CustomEvent;
-    "htmx:sendAbort": CustomEvent;
-    "htmx:timeout": CustomEvent;
-    "htmx:beforeHistorySave": CustomEvent;
-    "htmx:historyRestore": CustomEvent;
+    "htmx:error": CustomEvent;
+    "htmx:before:history:update": HtmxHistoryUpdateEvent;
+    "htmx:before:history:restore": CustomEvent;
   }
 }
 

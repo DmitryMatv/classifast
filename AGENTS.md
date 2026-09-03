@@ -64,6 +64,40 @@ Uvicorn's `fddf:...` client address is the Cloudflare Tunnel peer, not the end
 visitor. Do not correlate adjacent access-log entries as one user without using
 `CF-Connecting-IP`, a Cloudflare Ray ID, or equivalent structured request data.
 
+## htmx 4 (upgraded from 2.0.10)
+
+`app/static/htmx.min.js` is self-hosted (CSP in `app/main.py` allows unpkg but
+not jsdelivr — adding a CDN script requires a CSP edit too). Gotchas that bit
+during the migration:
+
+- Event details live under `detail.ctx`, not flat on `detail`:
+  `detail.elt` → `detail.ctx.sourceElement`, `detail.target` →
+  `detail.ctx.target`, `detail.headers` → `detail.ctx.request.headers`,
+  `detail.parameters` → `detail.ctx.request.body` (a `FormData` — use
+  `.set()`/`.delete()`, not object access), `detail.xhr.status` →
+  `detail.ctx.response.status`, `detail.xhr.response` → `detail.ctx.text`.
+- History events (`htmx:before:history:update`, `htmx:before:history:restore`)
+  are dispatched on `document`, not `body` — body listeners never fire. These
+  listeners are registered with an `AbortController` stored at
+  `window.__classifierHistoryAbort` so re-init replaces them (jsdom tests
+  replace `document.body` per test, so body listeners die naturally but
+  document listeners accumulate without this).
+- `htmx:after:settle` fires on the swapped target element itself and has no
+  `ctx` in its detail — filter with `evt.target`.
+- 4xx/5xx responses swap into the target automatically (only 204/304 don't) —
+  don't manually inject error HTML in `htmx:response:error` handlers.
+- Request timeouts (60s default) and aborted requests fire `htmx:error`; there
+  is no `htmx:sendAbort`/`htmx:timeout`, and `hx-sync`-dropped requests fire
+  nothing at all.
+- `npx htmx.org@4.0.0 upgrade-check -- ./app` flags old event names even inside
+  comments — reword comments instead of ignoring the output.
+
+## Built Frontend Files
+
+`app/static/js/*.js` and `app/static/css/styles.css` are Vite build outputs
+from `app/assets/ts/` and `app/assets/css/`. Never hand-edit them; edit the TS
+sources and run `npm run build`.
+
 ## Rapid API (API.py)
 
 `app/api.py` is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.

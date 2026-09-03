@@ -1,6 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
+from typing import Any
 
 from fastapi.templating import Jinja2Templates
 from jwt.jwks_client import PyJWKClient
@@ -78,7 +79,8 @@ def asset_url(path: str) -> str:
     return f"/static{path}{suffix}"
 
 
-templates.env.globals["asset_url"] = asset_url
+env_globals: dict[str, Any] = templates.env.globals
+env_globals["asset_url"] = asset_url
 
 # Clerk Authentication Configuration
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")

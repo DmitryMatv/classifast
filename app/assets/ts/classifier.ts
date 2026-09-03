@@ -104,16 +104,14 @@ class ClassifierPage {
     ) as HTMLSelectElement | null;
   }
 
-  private canonicalizeDefaultParameters(
-    parameters: Record<string, unknown>,
-  ): void {
+  private canonicalizeDefaultParameters(body: FormData): void {
     const topKSelector = this.getTopKSelector();
     const defaultTopK = this.getDefaultTopK();
     if (topKSelector) {
       if (defaultTopK && topKSelector.value === defaultTopK) {
-        delete parameters["top_k"];
+        body.delete("top_k");
       } else {
-        parameters["top_k"] = topKSelector.value;
+        body.set("top_k", topKSelector.value);
       }
     }
 
@@ -121,9 +119,9 @@ class ClassifierPage {
     const defaultVersion = this.getDefaultVersion();
     if (versionSelector) {
       if (defaultVersion && versionSelector.value === defaultVersion) {
-        delete parameters["version"];
+        body.delete("version");
       } else {
-        parameters["version"] = versionSelector.value;
+        body.set("version", versionSelector.value);
       }
     }
   }
@@ -511,33 +509,36 @@ class ClassifierPage {
    * Setup HTMX event listeners for response handling
    */
   private setupHTMXListeners(): void {
-    document.body.addEventListener("htmx:configRequest", (evt: Event) => {
+    document.body.addEventListener("htmx:config:request", (evt: Event) => {
       const htmxEvent = evt as HtmxConfigRequestEvent;
       const form = this.getClassifierForm();
 
-      if (!form || htmxEvent.detail.elt !== form) {
+      if (!form || htmxEvent.detail.ctx.sourceElement !== form) {
         return;
       }
 
       const effectiveQuery = this.getEffectiveQuery();
       if (effectiveQuery) {
-        htmxEvent.detail.parameters["product_description"] = effectiveQuery;
+        htmxEvent.detail.ctx.request.body.set(
+          "product_description",
+          effectiveQuery,
+        );
       }
-      this.canonicalizeDefaultParameters(htmxEvent.detail.parameters);
+      this.canonicalizeDefaultParameters(htmxEvent.detail.ctx.request.body);
 
       if (!this.pendingAutoloadRequestConfig) {
         return;
       }
 
-      delete htmxEvent.detail.parameters["track_usage"];
-      delete htmxEvent.detail.parameters["push_url"];
+      htmxEvent.detail.ctx.request.body.delete("track_usage");
+      htmxEvent.detail.ctx.request.body.delete("push_url");
       this.pendingAutoloadRequestConfig = null;
     });
 
-    document.body.addEventListener("htmx:beforeRequest", (evt: Event) => {
+    document.body.addEventListener("htmx:before:request", (evt: Event) => {
       const htmxEvent = evt as HtmxBeforeRequestEvent;
-      if (this.isResultsTarget(htmxEvent.detail.target)) {
-        if (!this.isAutoloadRequest(htmxEvent.detail.elt)) {
+      if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
+        if (!this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
           this.cancelInitialResultsAutoload();
         }
         this.showLoadingIndicator();
@@ -545,91 +546,101 @@ class ClassifierPage {
     });
 
     // Handle HTMX after request completes - fade out spinner smoothly
-    document.body.addEventListener("htmx:afterRequest", (evt: Event) => {
+    document.body.addEventListener("htmx:after:request", (evt: Event) => {
       const htmxEvent = evt as HtmxAfterRequestEvent;
-      if (this.isResultsTarget(htmxEvent.detail.target)) {
+      if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
         this.hideLoadingIndicator();
-        if (this.isAutoloadRequest(htmxEvent.detail.elt)) {
+        if (this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
           this.completeInitialResultsAutoload();
         }
       }
     });
 
     // Handle HTMX after swap for results visibility
-    document.body.addEventListener("htmx:afterSwap", (evt: Event) => {
+    document.body.addEventListener("htmx:after:swap", (evt: Event) => {
       const htmxEvent = evt as HtmxAfterSwapEvent;
-      if (this.isResultsTarget(htmxEvent.detail.target)) {
+      if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
         this.handleResultsSwap();
       }
     });
 
-    document.body.addEventListener("htmx:afterSettle", (evt: Event) => {
-      const htmxEvent = evt as HtmxAfterSettleEvent;
-      if (this.isResultsTarget(htmxEvent.detail.target)) {
+    // htmx 4 fires after:settle on the swapped target element (no ctx in detail)
+    document.body.addEventListener("htmx:after:settle", (evt: Event) => {
+      if (this.isResultsTarget(evt.target)) {
         this.handleResultsSettle();
       }
     });
 
-    // Handle quota and rate limit responses
-    document.body.addEventListener("htmx:responseError", (evt: Event) => {
+    // Handle quota and rate limit responses.
+    // htmx 4 swaps error response bodies into the target automatically.
+    document.body.addEventListener("htmx:response:error", (evt: Event) => {
       const htmxEvent = evt as HtmxResponseErrorEvent;
+      const status = htmxEvent.detail.ctx.response.status;
 
-      if (
-        htmxEvent.detail.xhr.status === 429 ||
-        htmxEvent.detail.xhr.status === 503
-      ) {
-        if (this.isResultsTarget(htmxEvent.detail.target)) {
+      if (status === 429 || status === 503) {
+        if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
           // Display the paywall/error content returned by the server
-          htmxEvent.detail.target.innerHTML = htmxEvent.detail.xhr.response;
-
           this.ensureResultsSectionVisible();
           this.hideLoadingIndicator();
-          if (this.isAutoloadRequest(htmxEvent.detail.elt)) {
+          if (this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
             this.completeInitialResultsAutoload();
           }
         }
       }
     });
 
-    document.body.addEventListener("htmx:sendAbort", () => {
+    // Consolidated handler for request failures (network errors, timeouts, aborts)
+    document.body.addEventListener("htmx:error", () => {
       this.clearAutoloadRequestState();
       this.hideLoadingIndicator();
     });
 
-    document.body.addEventListener("htmx:timeout", () => {
-      this.clearAutoloadRequestState();
-      this.hideLoadingIndicator();
-    });
+    // htmx 4 dispatches history events on document (not body). Re-init aborts
+    // the previous registration so stale module instances stop listening.
+    window.__classifierHistoryAbort?.abort();
+    const historyAbort = new AbortController();
+    window.__classifierHistoryAbort = historyAbort;
+    const historySignal = { signal: historyAbort.signal };
 
-    document.body.addEventListener("htmx:beforeHistorySave", () => {
-      this.syncHistoryState();
-    });
+    document.addEventListener(
+      "htmx:before:history:update",
+      () => {
+        this.syncHistoryState();
+      },
+      historySignal,
+    );
 
-    document.body.addEventListener("htmx:beforeHistoryUpdate", (evt: Event) => {
-      if (!this.suppressNextHistoryUpdate) {
-        return;
-      }
+    document.addEventListener(
+      "htmx:before:history:update",
+      (evt: Event) => {
+        if (!this.suppressNextHistoryUpdate) {
+          return;
+        }
 
-      const htmxEvent = evt as CustomEvent<{
-        history?: { type?: string; path?: string };
-      }>;
-      if (!htmxEvent.detail.history) {
-        return;
-      }
+        const htmxEvent = evt as HtmxHistoryUpdateEvent;
+        if (!htmxEvent.detail?.history) {
+          return;
+        }
 
-      htmxEvent.detail.history.type = "replace";
-      htmxEvent.detail.history.path =
-        window.location.pathname +
-        window.location.search +
-        window.location.hash;
-      this.suppressNextHistoryUpdate = false;
-    });
+        htmxEvent.detail.history.type = "replace";
+        htmxEvent.detail.history.path =
+          window.location.pathname +
+          window.location.search +
+          window.location.hash;
+        this.suppressNextHistoryUpdate = false;
+      },
+      historySignal,
+    );
 
-    document.body.addEventListener("htmx:historyRestore", () => {
-      this.hideLoadingIndicator();
-      this.handleResultsSwap();
-      this.handleResultsSettle();
-    });
+    document.addEventListener(
+      "htmx:before:history:restore",
+      () => {
+        this.hideLoadingIndicator();
+        this.handleResultsSwap();
+        this.handleResultsSettle();
+      },
+      historySignal,
+    );
 
     window.addEventListener("pageshow", () => {
       this.hideLoadingIndicator();

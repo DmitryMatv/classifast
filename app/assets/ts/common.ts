@@ -771,7 +771,7 @@ export class ClerkAuth {
     if (ClerkAuth.htmxAuthHeaderRegistered) return;
     ClerkAuth.htmxAuthHeaderRegistered = true;
 
-    document.body.addEventListener("htmx:configRequest", (event) => {
+    document.body.addEventListener("htmx:config:request", (event) => {
       ClerkAuth.configureHtmxAuthRequest(event as HtmxConfigRequestEvent);
     });
   }
@@ -802,7 +802,7 @@ export class ClerkAuth {
     htmxEvent: HtmxConfigRequestEvent,
     token: string,
   ): void {
-    htmxEvent.detail.headers["Authorization"] = `Bearer ${token}`;
+    htmxEvent.detail.ctx.request.headers["Authorization"] = `Bearer ${token}`;
   }
 
   private static blockRequestAndQueueRetry(
@@ -810,7 +810,9 @@ export class ClerkAuth {
   ): void {
     ClerkAuth.logBlockedHtmxRequest();
     htmxEvent.preventDefault();
-    ClerkAuth.queuePendingRetry(htmxEvent.detail.elt as HTMLElement);
+    ClerkAuth.queuePendingRetry(
+      htmxEvent.detail.ctx.sourceElement as HTMLElement,
+    );
   }
 
   private static logBlockedHtmxRequest(): void {
