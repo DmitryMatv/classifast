@@ -291,11 +291,11 @@ if (!window.__paywallScriptParsed) {
     initPaywallImpl();
   });
 
-  // Initialize on HTMX afterSwap (when paywall is swapped into results-container)
-  document.body.addEventListener("htmx:afterSwap", (evt: Event) => {
+  // Initialize on HTMX after:swap (when paywall is swapped into results-container)
+  document.body.addEventListener("htmx:after:swap", (evt: Event) => {
     const htmxEvent = evt as HtmxAfterSwapEvent;
     // Only initialize if the results-container was updated
-    if (htmxEvent.detail.target.id === "results-container") {
+    if (htmxEvent.detail.ctx.target.id === "results-container") {
       // Reset initialization flag to allow re-initialization with new DOM elements
       window.__paywallInitialized = false;
       // Small delay to ensure DOM is updated

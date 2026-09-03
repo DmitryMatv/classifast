@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Iterable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from typing import Any
 
 from qdrant_client import QdrantClient, models
 
@@ -80,21 +81,6 @@ def build_normalized_original_id_text_index_params() -> models.TextIndexParams:
     )
 
 
-def get_payload_index_schema(
-    field_name: str,
-) -> models.KeywordIndexParams | models.TextIndexParams:
-    if field_name == ORIGINAL_ID_FIELD:
-        return build_original_id_index_params()
-    if field_name in {
-        ORIGINAL_ID_NORMALIZED_FIELD,
-        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-    }:
-        return build_normalized_original_id_text_index_params()
-    if field_name == "class_name":
-        return build_class_name_text_index_params()
-    raise KeyError(f"Unsupported payload index field: {field_name}")
-
-
 def get_existing_payload_index(
     collection_info: Any,
     field_name: str,
@@ -103,41 +89,32 @@ def get_existing_payload_index(
     return payload_schema.get(field_name)
 
 
+def _param_or_default(
+    params: models.KeywordIndexParams | models.TextIndexParams | None,
+    attr: str,
+    default: object,
+) -> object:
+    if params is None:
+        return default
+    value = getattr(params, attr, None)
+    return default if value is None else value
+
+
 def normalize_text_index_params(
     params: models.TextIndexParams | None,
 ) -> dict[str, object]:
     return {
         "type": "text",
-        "tokenizer": (
-            params.tokenizer
-            if params and params.tokenizer is not None
-            else models.TokenizerType.WORD
-        ),
-        "min_token_len": (
-            params.min_token_len if params and params.min_token_len is not None else 1
-        ),
-        "max_token_len": (
-            params.max_token_len if params and params.max_token_len is not None else 30
-        ),
-        "lowercase": (
-            params.lowercase if params and params.lowercase is not None else True
-        ),
-        "ascii_folding": (
-            params.ascii_folding
-            if params and params.ascii_folding is not None
-            else False
-        ),
-        "phrase_matching": (
-            params.phrase_matching
-            if params and params.phrase_matching is not None
-            else False
-        ),
-        "stopwords": params.stopwords if params else None,
-        "on_disk": (params.on_disk if params and params.on_disk is not None else False),
-        "stemmer": params.stemmer if params else None,
-        "enable_hnsw": (
-            params.enable_hnsw if params and params.enable_hnsw is not None else True
-        ),
+        "tokenizer": _param_or_default(params, "tokenizer", models.TokenizerType.WORD),
+        "min_token_len": _param_or_default(params, "min_token_len", 1),
+        "max_token_len": _param_or_default(params, "max_token_len", 30),
+        "lowercase": _param_or_default(params, "lowercase", True),
+        "ascii_folding": _param_or_default(params, "ascii_folding", False),
+        "phrase_matching": _param_or_default(params, "phrase_matching", False),
+        "stopwords": _param_or_default(params, "stopwords", None),
+        "on_disk": _param_or_default(params, "on_disk", False),
+        "stemmer": _param_or_default(params, "stemmer", None),
+        "enable_hnsw": _param_or_default(params, "enable_hnsw", True),
     }
 
 
@@ -146,57 +123,79 @@ def normalize_keyword_index_params(
 ) -> dict[str, object]:
     return {
         "type": "keyword",
-        "is_tenant": (
-            params.is_tenant if params and params.is_tenant is not None else False
-        ),
-        "on_disk": (params.on_disk if params and params.on_disk is not None else False),
-        "enable_hnsw": (
-            params.enable_hnsw if params and params.enable_hnsw is not None else True
-        ),
+        "is_tenant": _param_or_default(params, "is_tenant", False),
+        "on_disk": _param_or_default(params, "on_disk", False),
+        "enable_hnsw": _param_or_default(params, "enable_hnsw", True),
     }
+
+
+@dataclass(frozen=True)
+class _IndexFieldSpec:
+    data_type: models.PayloadSchemaType
+    build_params: Callable[[], models.KeywordIndexParams | models.TextIndexParams]
+    normalize: Callable[
+        [models.KeywordIndexParams | models.TextIndexParams | None],
+        dict[str, object],
+    ]
+
+
+_INDEX_FIELD_SPECS: dict[str, _IndexFieldSpec] = {
+    ORIGINAL_ID_FIELD: _IndexFieldSpec(
+        data_type=models.PayloadSchemaType.KEYWORD,
+        build_params=build_original_id_index_params,
+        normalize=normalize_keyword_index_params,
+    ),
+    ORIGINAL_ID_NORMALIZED_FIELD: _IndexFieldSpec(
+        data_type=models.PayloadSchemaType.TEXT,
+        build_params=build_normalized_original_id_text_index_params,
+        normalize=normalize_text_index_params,
+    ),
+    ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: _IndexFieldSpec(
+        data_type=models.PayloadSchemaType.TEXT,
+        build_params=build_normalized_original_id_text_index_params,
+        normalize=normalize_text_index_params,
+    ),
+    "class_name": _IndexFieldSpec(
+        data_type=models.PayloadSchemaType.TEXT,
+        build_params=build_class_name_text_index_params,
+        normalize=normalize_text_index_params,
+    ),
+}
+
+
+def _get_index_field_spec(field_name: str) -> _IndexFieldSpec:
+    spec = _INDEX_FIELD_SPECS.get(field_name)
+    if spec is None:
+        raise KeyError(f"Unsupported payload index field: {field_name}")
+    return spec
+
+
+def get_payload_index_schema(
+    field_name: str,
+) -> models.KeywordIndexParams | models.TextIndexParams:
+    return _get_index_field_spec(field_name).build_params()
 
 
 def is_expected_payload_index(
     field_name: str,
     index_info: models.PayloadIndexInfo,
 ) -> bool:
-    if field_name == ORIGINAL_ID_FIELD:
-        if index_info.data_type != models.PayloadSchemaType.KEYWORD:
-            return False
-        params = index_info.params
-        if params is not None and not isinstance(params, models.KeywordIndexParams):
-            return False
-        expected = get_payload_index_schema(field_name)
-        if not isinstance(expected, models.KeywordIndexParams):
-            return False
-        return normalize_keyword_index_params(params) == normalize_keyword_index_params(
-            expected
-        )
+    spec = _get_index_field_spec(field_name)
+    if index_info.data_type != spec.data_type:
+        return False
+    expected = spec.build_params()
+    params = index_info.params
+    if params is not None and not isinstance(params, type(expected)):
+        return False
+    return spec.normalize(params) == spec.normalize(expected)
 
-    if field_name in {
-        ORIGINAL_ID_NORMALIZED_FIELD,
-        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-        "class_name",
-    }:
-        if index_info.data_type != models.PayloadSchemaType.TEXT:
-            return False
-        params = index_info.params
-        if params is not None and not isinstance(params, models.TextIndexParams):
-            return False
-        expected = get_payload_index_schema(field_name)
-        if not isinstance(expected, models.TextIndexParams):
-            return False
-        return normalize_text_index_params(params) == normalize_text_index_params(
-            expected
-        )
 
-    raise KeyError(f"Unsupported payload index field: {field_name}")
+def _resolve_config_source(classifier_config: dict | None) -> dict:
+    return CLASSIFIER_CONFIG if classifier_config is None else classifier_config
 
 
 def get_all_collection_names(classifier_config: dict | None = None) -> list[str]:
-    config_source = (
-        CLASSIFIER_CONFIG if classifier_config is None else classifier_config
-    )
+    config_source = _resolve_config_source(classifier_config)
     return sorted(
         {
             collection_name
@@ -207,17 +206,33 @@ def get_all_collection_names(classifier_config: dict | None = None) -> list[str]
     )
 
 
-def build_collection_requirements(
-    classifier_config: dict | None = None,
-    collection_names: set[str] | None = None,
-) -> tuple[dict[str, CollectionRequirement], list[QdrantValidationIssue]]:
-    config_source = (
-        CLASSIFIER_CONFIG if classifier_config is None else classifier_config
+def _is_valid_embed_dims(embed_dims: Any) -> bool:
+    return (
+        isinstance(embed_dims, int)
+        and not isinstance(embed_dims, bool)
+        and embed_dims > 0
     )
-    dimensions: dict[str, set[int]] = {}
-    references: dict[str, list[str]] = {}
-    invalid_dimension_references: dict[str, list[str]] = {}
 
+
+@dataclass
+class _CollectionUsage:
+    references: list[str] = field(default_factory=list)
+    dimensions: set[int] = field(default_factory=set)
+    invalid_dimension_references: list[str] = field(default_factory=list)
+
+    def record(self, reference: str, embed_dims: Any) -> None:
+        self.references.append(reference)
+        if _is_valid_embed_dims(embed_dims):
+            self.dimensions.add(embed_dims)
+        else:
+            self.invalid_dimension_references.append(f"{reference}={embed_dims!r}")
+
+
+def _scan_collection_usage(
+    config_source: dict,
+    collection_names: set[str] | None,
+) -> dict[str, _CollectionUsage]:
+    usage: dict[str, _CollectionUsage] = {}
     for classifier_type, config in config_source.items():
         embed_dims = config.get("embed_dims")
         for version, version_config in config.get("versions", {}).items():
@@ -226,55 +241,66 @@ def build_collection_requirements(
                 collection_names is not None and collection_name not in collection_names
             ):
                 continue
-            reference = f"{classifier_type}/{version}"
-            references.setdefault(collection_name, []).append(reference)
-            if (
-                isinstance(embed_dims, int)
-                and not isinstance(embed_dims, bool)
-                and embed_dims > 0
-            ):
-                dimensions.setdefault(collection_name, set()).add(embed_dims)
-            else:
-                dimensions.setdefault(collection_name, set())
-                invalid_dimension_references.setdefault(collection_name, []).append(
-                    f"{reference}={embed_dims!r}"
-                )
+            usage.setdefault(collection_name, _CollectionUsage()).record(
+                f"{classifier_type}/{version}", embed_dims
+            )
+    return usage
 
+
+def _config_problems(usage: _CollectionUsage) -> list[str]:
+    problems: list[str] = []
+    if len(usage.dimensions) > 1:
+        problems.append(f"conflicting embedding dimensions {sorted(usage.dimensions)}")
+    elif not usage.dimensions:
+        problems.append("no valid configured embedding dimension")
+    if usage.invalid_dimension_references:
+        problems.append(
+            "invalid embedding dimensions for "
+            + ", ".join(usage.invalid_dimension_references)
+        )
+    return problems
+
+
+def _build_collection_requirement(
+    collection_name: str,
+    usage: _CollectionUsage,
+) -> tuple[CollectionRequirement, list[QdrantValidationIssue]]:
+    problems = _config_problems(usage)
+    embed_dims = (
+        next(iter(usage.dimensions))
+        if len(usage.dimensions) == 1 and not usage.invalid_dimension_references
+        else None
+    )
+    requirement = CollectionRequirement(
+        collection_name=collection_name,
+        embed_dims=embed_dims,
+        references=tuple(usage.references),
+    )
+    if not problems:
+        return requirement, []
+    issue = QdrantValidationIssue(
+        collection_name,
+        "invalid_config",
+        "; ".join(problems),
+    )
+    return requirement, [issue]
+
+
+def build_collection_requirements(
+    classifier_config: dict | None = None,
+    collection_names: set[str] | None = None,
+) -> tuple[dict[str, CollectionRequirement], list[QdrantValidationIssue]]:
+    config_source = _resolve_config_source(classifier_config)
     requirements: dict[str, CollectionRequirement] = {}
     issues: list[QdrantValidationIssue] = []
-    for collection_name, collection_references in references.items():
-        configured_dimensions = dimensions[collection_name]
-        invalid_references = invalid_dimension_references.get(collection_name, [])
-        config_problems: list[str] = []
-        if len(configured_dimensions) > 1:
-            config_problems.append(
-                f"conflicting embedding dimensions {sorted(configured_dimensions)}"
-            )
-        elif not configured_dimensions:
-            config_problems.append("no valid configured embedding dimension")
-        if invalid_references:
-            config_problems.append(
-                "invalid embedding dimensions for " + ", ".join(invalid_references)
-            )
-        embed_dims = (
-            next(iter(configured_dimensions))
-            if len(configured_dimensions) == 1 and not invalid_references
-            else None
+    for collection_name, usage in _scan_collection_usage(
+        config_source, collection_names
+    ).items():
+        requirement, collection_issues = _build_collection_requirement(
+            collection_name, usage
         )
-        if config_problems:
-            issues.append(
-                QdrantValidationIssue(
-                    collection_name,
-                    "invalid_config",
-                    "; ".join(config_problems),
-                )
-            )
-        requirements[collection_name] = CollectionRequirement(
-            collection_name=collection_name,
-            embed_dims=embed_dims,
-            references=tuple(collection_references),
-        )
-
+        requirements[collection_name] = requirement
+        issues.extend(collection_issues)
     return requirements, issues
 
 

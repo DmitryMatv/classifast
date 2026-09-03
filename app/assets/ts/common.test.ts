@@ -968,14 +968,14 @@ describe("common.ts", () => {
     await flushAsyncWork();
 
     const source = document.getElementById("retry-source") as HTMLElement;
-    const event = new CustomEvent("htmx:configRequest", {
+    const event = new CustomEvent("htmx:config:request", {
       bubbles: true,
       cancelable: true,
       detail: {
-        headers: {},
-        xhr: {},
-        elt: source,
-        parameters: {},
+        ctx: {
+          sourceElement: source,
+          request: { headers: {}, body: new FormData() },
+        },
       },
     });
 
@@ -1013,14 +1013,14 @@ describe("common.ts", () => {
 
     const source = document.getElementById("retry-source") as HTMLElement;
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         bubbles: true,
         cancelable: true,
         detail: {
-          headers: {},
-          xhr: {},
-          elt: source,
-          parameters: {},
+          ctx: {
+            sourceElement: source,
+            request: { headers: {}, body: new FormData() },
+          },
         },
       }),
     );

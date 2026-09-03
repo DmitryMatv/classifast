@@ -32,23 +32,32 @@ function getClassifierForm(): HTMLFormElement {
 function createConfigRequestDetail(
   form: HTMLFormElement,
 ): HtmxConfigRequestEvent["detail"] {
+  const body = new FormData();
+  body.set(
+    "product_description",
+    (document.getElementById("product_description_area") as HTMLTextAreaElement)
+      .value,
+  );
+  body.set(
+    "top_k",
+    (document.getElementById("show_top_k_categories") as HTMLSelectElement)
+      .value,
+  );
+  body.set(
+    "version",
+    (document.getElementById("version_selector") as HTMLSelectElement).value,
+  );
   return {
-    headers: {},
-    xhr: {} as XMLHttpRequest,
-    elt: form,
-    parameters: {
-      product_description: (
-        document.getElementById(
-          "product_description_area",
-        ) as HTMLTextAreaElement
-      ).value,
-      top_k: (
-        document.getElementById("show_top_k_categories") as HTMLSelectElement
-      ).value,
-      version: (
-        document.getElementById("version_selector") as HTMLSelectElement
-      ).value,
-    } as Record<string, unknown>,
+    ctx: {
+      sourceElement: form,
+      target: document.getElementById("results-container") as Element,
+      request: {
+        action: "/NAICS/fragment",
+        method: "GET",
+        headers: {},
+        body,
+      },
+    },
   };
 }
 
@@ -236,16 +245,18 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBe("industrial pump");
-    expect(detail.parameters["top_k"]).toBeUndefined();
-    expect(detail.parameters["version"]).toBeUndefined();
-    expect(detail.parameters["push_url"]).toBeUndefined();
-    expect(detail.parameters["track_usage"]).toBeUndefined();
+    expect(detail.ctx.request.body.get("product_description")).toBe(
+      "industrial pump",
+    );
+    expect(detail.ctx.request.body.get("top_k")).toBeNull();
+    expect(detail.ctx.request.body.get("version")).toBeNull();
+    expect(detail.ctx.request.body.get("push_url")).toBeNull();
+    expect(detail.ctx.request.body.get("track_usage")).toBeNull();
   });
 
   it("normalizes whitespace in the product description before sending", async () => {
@@ -259,12 +270,12 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBe(
+    expect(detail.ctx.request.body.get("product_description")).toBe(
       "Retail facility and equipment maintenance service",
     );
   });
@@ -283,13 +294,13 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["top_k"]).toBe("30");
-    expect(detail.parameters["version"]).toBeUndefined();
+    expect(detail.ctx.request.body.get("top_k")).toBe("30");
+    expect(detail.ctx.request.body.get("version")).toBeNull();
   });
 
   it("keeps non-default version on manual requests", async () => {
@@ -306,13 +317,13 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["top_k"]).toBeUndefined();
-    expect(detail.parameters["version"]).toBe("v2");
+    expect(detail.ctx.request.body.get("top_k")).toBeNull();
+    expect(detail.ctx.request.body.get("version")).toBe("v2");
   });
 
   it("shows and hides the loading indicator across HTMX request events", async () => {
@@ -322,17 +333,21 @@ describe("classifier.ts", () => {
     ) as HTMLElement;
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:beforeRequest", {
-        detail: { target: document.getElementById("results-container") },
+      new CustomEvent("htmx:before:request", {
+        detail: {
+          ctx: { target: document.getElementById("results-container") },
+        },
       } as CustomEventInit),
     );
     expect(indicator.classList.contains("htmx-request")).toBe(true);
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:afterRequest", {
+      new CustomEvent("htmx:after:request", {
         detail: {
-          target: document.getElementById("results-container"),
-          elt: document.createElement("div"),
+          ctx: {
+            target: document.getElementById("results-container"),
+            sourceElement: document.createElement("div"),
+          },
         },
       } as CustomEventInit),
     );
@@ -348,8 +363,8 @@ describe("classifier.ts", () => {
     ) as HTMLElement;
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:afterSwap", {
-        detail: { target: resultsContainer },
+      new CustomEvent("htmx:after:swap", {
+        detail: { ctx: { target: resultsContainer } },
       } as CustomEventInit),
     );
 
@@ -362,10 +377,8 @@ describe("classifier.ts", () => {
       scoreBars[0]?.style.getPropertyValue("--score-animation-delay"),
     ).toBe("");
 
-    document.body.dispatchEvent(
-      new CustomEvent("htmx:afterSettle", {
-        detail: { target: resultsContainer },
-      } as CustomEventInit),
+    resultsContainer.dispatchEvent(
+      new CustomEvent("htmx:after:settle", { bubbles: true }),
     );
     animationFrameController.flush();
 
@@ -384,7 +397,7 @@ describe("classifier.ts", () => {
     ).toBe("200ms");
   });
 
-  it("injects rate limit responses into the results container", async () => {
+  it("reveals the results section on rate limit responses", async () => {
     await import("./classifier");
     const resultsContainer = document.getElementById(
       "results-container",
@@ -394,15 +407,25 @@ describe("classifier.ts", () => {
     ) as HTMLElement;
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:responseError", {
+      new CustomEvent("htmx:response:error", {
         detail: {
-          xhr: { status: 429, response: "<div>Paywall</div>" },
-          target: resultsContainer,
+          ctx: {
+            response: { status: 429, headers: new Headers() },
+            text: "<div>Paywall</div>",
+            target: resultsContainer,
+          },
         },
       } as CustomEventInit),
     );
 
-    expect(resultsContainer.innerHTML).toContain("Paywall");
+    // htmx 4 core swaps the error body into the target after response:error
+    resultsContainer.innerHTML = "<div>Paywall</div>";
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:after:swap", {
+        detail: { ctx: { target: resultsContainer } },
+      } as CustomEventInit),
+    );
+
     expect(resultsSection.classList.contains("hidden")).toBe(false);
   });
 
@@ -478,7 +501,7 @@ describe("classifier.ts", () => {
       "results-section",
     ) as HTMLElement;
 
-    document.body.dispatchEvent(new CustomEvent("htmx:historyRestore"));
+    document.dispatchEvent(new CustomEvent("htmx:before:history:restore"));
     animationFrameController.flush();
 
     const scoreBars = getScoreBars();
@@ -526,14 +549,14 @@ describe("classifier.ts", () => {
       option.selected = index === 0;
     });
 
-    document.body.dispatchEvent(new CustomEvent("htmx:beforeHistorySave"));
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update"));
 
     expect(textarea.defaultValue).toBe("updated query");
     expect(version.options[1]?.defaultSelected).toBe(true);
     expect(topK.options[0]?.defaultSelected).toBe(true);
 
     resultsContainer.innerHTML = "<div>Results</div>";
-    document.body.dispatchEvent(new CustomEvent("htmx:historyRestore"));
+    document.dispatchEvent(new CustomEvent("htmx:before:history:restore"));
 
     expect(resultsSection.classList.contains("hidden")).toBe(false);
   });
@@ -568,14 +591,12 @@ describe("classifier.ts", () => {
     expect(resultsContainer.innerHTML).toBe("");
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:afterSwap", {
-        detail: { target: resultsContainer },
+      new CustomEvent("htmx:after:swap", {
+        detail: { ctx: { target: resultsContainer } },
       } as CustomEventInit),
     );
-    document.body.dispatchEvent(
-      new CustomEvent("htmx:afterSettle", {
-        detail: { target: resultsContainer },
-      } as CustomEventInit),
+    resultsContainer.dispatchEvent(
+      new CustomEvent("htmx:after:settle", { bubbles: true }),
     );
 
     expect(resultsContainer.innerHTML).toBe("");
@@ -601,15 +622,15 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["push_url"]).toBeUndefined();
-    expect(detail.parameters["track_usage"]).toBeUndefined();
-    expect(detail.parameters["top_k"]).toBeUndefined();
-    expect(detail.parameters["version"]).toBeUndefined();
+    expect(detail.ctx.request.body.get("push_url")).toBeNull();
+    expect(detail.ctx.request.body.get("track_usage")).toBeNull();
+    expect(detail.ctx.request.body.get("top_k")).toBeNull();
+    expect(detail.ctx.request.body.get("version")).toBeNull();
   });
 
   it("waits for authReady before autoloading auth-gated initial results", async () => {
@@ -656,8 +677,8 @@ describe("classifier.ts", () => {
         path: "/NAICS/industrial_pump?version=v2",
       },
     };
-    document.body.dispatchEvent(
-      new CustomEvent("htmx:beforeHistoryUpdate", {
+    document.dispatchEvent(
+      new CustomEvent("htmx:before:history:update", {
         detail: historyDetail,
       } as CustomEventInit),
     );
@@ -686,7 +707,7 @@ describe("classifier.ts", () => {
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     const setSelectionRangeSpy = vi.spyOn(textarea, "setSelectionRange");
-    document.body.dispatchEvent(new CustomEvent("htmx:beforeHistorySave"));
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update"));
 
     expect(textarea.selectionStart).toBe(textarea.value.length);
     expect(textarea.selectionEnd).toBe(textarea.value.length);
@@ -719,8 +740,8 @@ describe("classifier.ts", () => {
         path: "/NAICS/industrial_pump",
       },
     };
-    document.body.dispatchEvent(
-      new CustomEvent("htmx:beforeHistoryUpdate", {
+    document.dispatchEvent(
+      new CustomEvent("htmx:before:history:update", {
         detail: historyDetail,
       } as CustomEventInit),
     );
@@ -743,10 +764,12 @@ describe("classifier.ts", () => {
     await import("./classifier");
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:beforeRequest", {
+      new CustomEvent("htmx:before:request", {
         detail: {
-          target: document.getElementById("results-container"),
-          elt: form,
+          ctx: {
+            target: document.getElementById("results-container"),
+            sourceElement: form,
+          },
         },
       } as CustomEventInit),
     );
@@ -774,10 +797,12 @@ describe("classifier.ts", () => {
     expect(window.htmx?.trigger).toHaveBeenCalledTimes(1);
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:afterRequest", {
+      new CustomEvent("htmx:after:request", {
         detail: {
-          target: document.getElementById("results-container"),
-          elt: form,
+          ctx: {
+            target: document.getElementById("results-container"),
+            sourceElement: form,
+          },
         },
       } as CustomEventInit),
     );
@@ -816,16 +841,18 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["push_url"]).toBeUndefined();
-    expect(detail.parameters["track_usage"]).toBeUndefined();
-    expect(detail.parameters["product_description"]).toBe("Industrial pump");
-    expect(detail.parameters["top_k"]).toBeUndefined();
-    expect(detail.parameters["version"]).toBeUndefined();
+    expect(detail.ctx.request.body.get("push_url")).toBeNull();
+    expect(detail.ctx.request.body.get("track_usage")).toBeNull();
+    expect(detail.ctx.request.body.get("product_description")).toBe(
+      "Industrial pump",
+    );
+    expect(detail.ctx.request.body.get("top_k")).toBeNull();
+    expect(detail.ctx.request.body.get("version")).toBeNull();
   });
 
   it("keeps the default example query active for top-k changes after timer clear", async () => {
@@ -880,16 +907,18 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBe("Industrial pump");
-    expect(detail.parameters["push_url"]).toBeUndefined();
-    expect(detail.parameters["track_usage"]).toBeUndefined();
-    expect(detail.parameters["top_k"]).toBeUndefined();
-    expect(detail.parameters["version"]).toBeUndefined();
+    expect(detail.ctx.request.body.get("product_description")).toBe(
+      "Industrial pump",
+    );
+    expect(detail.ctx.request.body.get("push_url")).toBeNull();
+    expect(detail.ctx.request.body.get("track_usage")).toBeNull();
+    expect(detail.ctx.request.body.get("top_k")).toBeNull();
+    expect(detail.ctx.request.body.get("version")).toBeNull();
   });
 
   it("replaces the stored default example query after real user input", async () => {
@@ -915,12 +944,14 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBe("custom typed query");
+    expect(detail.ctx.request.body.get("product_description")).toBe(
+      "custom typed query",
+    );
   });
 
   it("drops the hidden fallback query after the user clears the textarea", async () => {
@@ -954,12 +985,12 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBe("");
+    expect(detail.ctx.request.body.get("product_description")).toBe("");
   });
 
   it("does not create a hidden fallback query for deep-link prefills", async () => {
@@ -984,12 +1015,12 @@ describe("classifier.ts", () => {
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["product_description"]).toBe("");
+    expect(detail.ctx.request.body.get("product_description")).toBe("");
   });
 
   it("preserves history metadata for the hidden active query without repopulating the textarea", async () => {
@@ -1011,7 +1042,7 @@ describe("classifier.ts", () => {
     await import("./classifier");
 
     textarea.value = "";
-    document.body.dispatchEvent(new CustomEvent("htmx:beforeHistorySave"));
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update"));
 
     expect(textarea.value).toBe("");
     expect(textarea.defaultValue).toBe("Industrial pump");
@@ -1056,22 +1087,22 @@ describe("classifier.ts", () => {
 
     const firstDetail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail: firstDetail,
       } as CustomEventInit),
     );
-    expect(firstDetail.parameters["push_url"]).toBeUndefined();
-    expect(firstDetail.parameters["track_usage"]).toBeUndefined();
+    expect(firstDetail.ctx.request.body.get("push_url")).toBeNull();
+    expect(firstDetail.ctx.request.body.get("track_usage")).toBeNull();
 
     const secondDetail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail: secondDetail,
       } as CustomEventInit),
     );
 
-    expect(secondDetail.parameters["push_url"]).toBeUndefined();
-    expect(secondDetail.parameters["track_usage"]).toBeUndefined();
+    expect(secondDetail.ctx.request.body.get("push_url")).toBeNull();
+    expect(secondDetail.ctx.request.body.get("track_usage")).toBeNull();
   });
 
   it("completes autoload state on 429 responses from the form request", async () => {
@@ -1092,34 +1123,35 @@ describe("classifier.ts", () => {
     vi.advanceTimersByTime(0);
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail: createConfigRequestDetail(form),
       } as CustomEventInit),
     );
     document.body.dispatchEvent(
-      new CustomEvent("htmx:responseError", {
+      new CustomEvent("htmx:response:error", {
         detail: {
-          xhr: { status: 429, response: "<div>Paywall</div>" },
-          target: resultsContainer,
-          elt: form,
+          ctx: {
+            response: { status: 429, headers: new Headers() },
+            text: "<div>Paywall</div>",
+            target: resultsContainer,
+            sourceElement: form,
+          },
         },
       } as CustomEventInit),
     );
 
-    expect(resultsContainer.innerHTML).toContain("Paywall");
-
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["push_url"]).toBeUndefined();
-    expect(detail.parameters["track_usage"]).toBeUndefined();
+    expect(detail.ctx.request.body.get("push_url")).toBeNull();
+    expect(detail.ctx.request.body.get("track_usage")).toBeNull();
   });
 
-  it("swaps quota-unavailable 503 responses into the results container", async () => {
+  it("handles quota-unavailable 503 responses", async () => {
     window.__authReady = true;
     vi.doMock("./common", () => ({
       ShareLink: {
@@ -1137,21 +1169,31 @@ describe("classifier.ts", () => {
     vi.advanceTimersByTime(0);
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:responseError", {
+      new CustomEvent("htmx:response:error", {
         detail: {
-          xhr: {
-            status: 503,
-            response: "<div>Usage tracking is temporarily unavailable</div>",
+          ctx: {
+            response: { status: 503, headers: new Headers() },
+            text: "<div>Usage tracking is temporarily unavailable</div>",
+            target: resultsContainer,
+            sourceElement: form,
           },
-          target: resultsContainer,
-          elt: form,
         },
       } as CustomEventInit),
     );
 
-    expect(resultsContainer.innerHTML).toContain(
-      "Usage tracking is temporarily unavailable",
+    // htmx 4 core swaps the error body into the target after response:error
+    resultsContainer.innerHTML =
+      "<div>Usage tracking is temporarily unavailable</div>";
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:after:swap", {
+        detail: { ctx: { target: resultsContainer } },
+      } as CustomEventInit),
     );
+
+    const resultsSection = document.getElementById(
+      "results-section",
+    ) as HTMLElement;
+    expect(resultsSection.classList.contains("hidden")).toBe(false);
   });
 
   it("clears autoload override state after request completion", async () => {
@@ -1169,28 +1211,30 @@ describe("classifier.ts", () => {
     vi.advanceTimersByTime(0);
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail: createConfigRequestDetail(form),
       } as CustomEventInit),
     );
     document.body.dispatchEvent(
-      new CustomEvent("htmx:afterRequest", {
+      new CustomEvent("htmx:after:request", {
         detail: {
-          target: document.getElementById("results-container"),
-          elt: form,
+          ctx: {
+            target: document.getElementById("results-container"),
+            sourceElement: form,
+          },
         },
       } as CustomEventInit),
     );
 
     const detail = createConfigRequestDetail(form);
     document.body.dispatchEvent(
-      new CustomEvent("htmx:configRequest", {
+      new CustomEvent("htmx:config:request", {
         detail,
       } as CustomEventInit),
     );
 
-    expect(detail.parameters["push_url"]).toBeUndefined();
-    expect(detail.parameters["track_usage"]).toBeUndefined();
+    expect(detail.ctx.request.body.get("push_url")).toBeNull();
+    expect(detail.ctx.request.body.get("track_usage")).toBeNull();
   });
 
   it("does not retrigger autoload during history restore", async () => {
@@ -1208,7 +1252,7 @@ describe("classifier.ts", () => {
     vi.advanceTimersByTime(0);
     vi.mocked(window.htmx!.trigger).mockClear();
 
-    document.body.dispatchEvent(new CustomEvent("htmx:historyRestore"));
+    document.dispatchEvent(new CustomEvent("htmx:before:history:restore"));
 
     expect(window.htmx?.trigger).not.toHaveBeenCalled();
   });
@@ -1303,20 +1347,24 @@ describe("classifier.ts", () => {
     indicator.classList.remove("htmx-request"); // Clear initial state
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:beforeRequest", {
+      new CustomEvent("htmx:before:request", {
         detail: {
-          target: document.getElementById("results-container"),
-          elt: form,
+          ctx: {
+            target: document.getElementById("results-container"),
+            sourceElement: form,
+          },
         },
       } as CustomEventInit),
     );
     expect(indicator.classList.contains("htmx-request")).toBe(true);
 
     document.body.dispatchEvent(
-      new CustomEvent("htmx:afterRequest", {
+      new CustomEvent("htmx:after:request", {
         detail: {
-          target: document.getElementById("results-container"),
-          elt: form,
+          ctx: {
+            target: document.getElementById("results-container"),
+            sourceElement: form,
+          },
         },
       } as CustomEventInit),
     );
