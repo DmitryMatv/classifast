@@ -45,7 +45,6 @@ describe("common.ts", () => {
     delete document.body.dataset["authUi"];
     window.__authReady = false;
     delete window.__clerkScriptFailed;
-    delete window.copyOriginalId;
     window.__internal_ClerkUICtor = {};
     window.self = window;
   });
@@ -369,14 +368,13 @@ describe("common.ts", () => {
     expect(textarea.value).toBe("helicopter taxi");
   });
 
-  it("registers copyOriginalId and shows a tooltip when copying", async () => {
-    document.body.innerHTML = '<button id="copy-button">Copy</button>';
+  it("copies from data-copy-original-id buttons and shows a tooltip", async () => {
+    document.body.innerHTML =
+      '<button id="copy-button" data-copy-original-id="8471">Copy</button>';
     await import("./common");
     const button = document.getElementById("copy-button") as HTMLButtonElement;
 
-    expect(window.copyOriginalId).toBeTypeOf("function");
-
-    window.copyOriginalId?.("8471", button);
+    button.click();
     await Promise.resolve();
 
     expect(vi.mocked(navigator.clipboard.writeText)).toHaveBeenCalledWith(
@@ -386,7 +384,8 @@ describe("common.ts", () => {
   });
 
   it("falls back to execCommand when clipboard API is unavailable for result copy", async () => {
-    document.body.innerHTML = '<button id="copy-button">Copy</button>';
+    document.body.innerHTML =
+      '<button id="copy-button" data-copy-original-id="8471">Copy</button>';
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: undefined,
@@ -394,21 +393,24 @@ describe("common.ts", () => {
     const execCommand = vi.mocked(document.execCommand);
     await import("./common");
     const button = document.getElementById("copy-button") as HTMLButtonElement;
-    window.copyOriginalId?.("8471", button);
+
+    button.click();
+    await flushAsyncWork();
 
     expect(execCommand).toHaveBeenCalledWith("copy");
   });
 
   it("falls back to execCommand when clipboard write rejects for result copy", async () => {
-    document.body.innerHTML = '<button id="copy-button">Copy</button>';
-    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+    document.body.innerHTML =
+      '<button id="copy-button" data-copy-original-id="8471">Copy</button>';
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValue(
       new Error("clipboard denied"),
     );
     const execCommand = vi.mocked(document.execCommand);
     await import("./common");
     const button = document.getElementById("copy-button") as HTMLButtonElement;
 
-    window.copyOriginalId?.("8471", button);
+    button.click();
     await flushAsyncWork();
 
     expect(execCommand).toHaveBeenCalledWith("copy");
@@ -416,18 +418,20 @@ describe("common.ts", () => {
   });
 
   it("shows copy failed when clipboard write rejects and fallback copy fails", async () => {
-    document.body.innerHTML = '<button id="copy-button">Copy</button>';
-    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+    document.body.innerHTML =
+      '<button id="copy-button" data-copy-original-id="8471">Copy</button>';
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValue(
       new Error("clipboard denied"),
     );
-    vi.mocked(document.execCommand).mockReturnValueOnce(false);
+    vi.mocked(document.execCommand).mockReturnValue(false);
     await import("./common");
     const button = document.getElementById("copy-button") as HTMLButtonElement;
 
-    window.copyOriginalId?.("8471", button);
+    button.click();
     await flushAsyncWork();
 
     expect(document.body.textContent).toContain("Copy failed");
+    expect(document.body.textContent).not.toContain("Copied!");
   });
 
   it("submits forms through ClerkHelpers when present and returns false otherwise", () => {

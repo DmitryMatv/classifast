@@ -1055,9 +1055,17 @@ export class ResultCopier {
   }
 
   private init() {
-    // Expose global function for inline HTML onclick handlers
-    window.copyOriginalId = (text: string, buttonElement: HTMLButtonElement) =>
-      this.copy(text, buttonElement);
+    // Delegated listener: results fragments are swapped in by htmx after init
+    document.addEventListener("click", (event: MouseEvent) => {
+      const button = (
+        event.target as Element | null
+      )?.closest<HTMLButtonElement>("[data-copy-original-id]");
+      const text = button?.dataset["copyOriginalId"];
+      if (!button || !text) {
+        return;
+      }
+      this.copy(text, button);
+    });
   }
 
   private copy(text: string, buttonElement: HTMLButtonElement) {

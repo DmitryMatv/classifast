@@ -101,7 +101,7 @@ def _param_or_default(
 
 
 def normalize_text_index_params(
-    params: models.TextIndexParams | None,
+    params: models.KeywordIndexParams | models.TextIndexParams | None,
 ) -> dict[str, object]:
     return {
         "type": "text",
@@ -119,7 +119,7 @@ def normalize_text_index_params(
 
 
 def normalize_keyword_index_params(
-    params: models.KeywordIndexParams | None,
+    params: models.KeywordIndexParams | models.TextIndexParams | None,
 ) -> dict[str, object]:
     return {
         "type": "keyword",

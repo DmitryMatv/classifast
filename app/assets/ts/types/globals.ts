@@ -19,7 +19,6 @@ declare global {
     __paywallScriptParsed?: boolean;
     __storefrontInitialized?: boolean;
     __storefrontNavigate?: (url: string) => void;
-    copyOriginalId?: (text: string, buttonElement: HTMLButtonElement) => void;
     htmx?: HtmxInstance;
     ShareLink?: {
       copyShareableLink: () => Promise<void>;

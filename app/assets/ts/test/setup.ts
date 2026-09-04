@@ -52,7 +52,6 @@ beforeEach(() => {
   delete window.__storefrontInitialized;
   delete window.__storefrontNavigate;
   delete window.ShareLink;
-  delete window.copyOriginalId;
 
   Object.defineProperty(window, "matchMedia", {
     configurable: true,

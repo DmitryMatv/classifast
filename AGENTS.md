@@ -19,7 +19,7 @@ Always use `npm test` or `npm run test:watch` for frontend tests.
 Always use `pytest` for backend tests. The suite retains `unittest`-compatible
 test classes and standard-library mocks, but pytest is the official runner.
 
-Keep pytest collection scoped to `tests/`. The `utilities/test_*.py` files are
+pytest.ini scopes pytest collection to `tests/`. The `utilities/test_*.py` files are
 manual live/debug helpers, and the ignored `embedders/tests/` tree contains
 separate experimental tests that are not part of the maintained backend suite.
 
@@ -47,7 +47,9 @@ Classifast is a classification service web application that uses embeddings and 
 
 Self-hosted from Raspberry Pi 4 (4GB) via Coolify behind Cloudflare Tunnel (Full HTTPS/TLS Setup for All Resources). The app uses Cloudflare's CDN edge caching to reduce API costs and improve performance. Classification results are cached at edge for 7 days.
 
-## When Modifying Cache Behavior
+## When Modifying Cache Behaviour
+
+Cache headers are defined in `app/cache_profiles.py` - edit the profiles there instead of hand-rolling headers.
 
 - Never add `Set-Cookie` to fragment responses - breaks CDN caching
 - Paywalls must use `no-store` - prevents serving cached paywall to allowed users

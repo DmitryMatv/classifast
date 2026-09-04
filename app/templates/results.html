@@ -23,15 +23,13 @@
             <div class="relative p-3">
                 <div class="flex-1">
                     <div class="flex items-baseline gap-2">
-                        <button type="button"
-                            onclick="window.copyOriginalId('{{ result.payload.original_id | e }}', this)"
+                        <button type="button" data-copy-original-id="{{ result.payload.original_id }}"
                             title="Copy ID to clipboard"
                             aria-label="Copy classification ID {{ result.payload.original_id | e }} to clipboard"
                             class="text-2xl font-mono text-gray-600 hover:text-sky-600 cursor-pointer">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
                                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round"
-                                class="inline align-text-top lucide lucide-copy-icon lucide-copy">
+                                stroke-linejoin="round" class="inline align-middle lucide lucide-copy-icon lucide-copy">
                                 <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
                                 <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
                             </svg>
@@ -77,7 +75,7 @@
                                 {% if base_url and base_url.strip() %}<svg xmlns="http://www.w3.org/2000/svg" width="24"
                                     height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     stroke-linecap="round" stroke-linejoin="round"
-                                    class="inline align-text-top ml-2 lucide lucide-external-link-icon lucide-external-link">
+                                    class="inline align-middle ml-2 lucide lucide-external-link-icon lucide-external-link">
                                     <path d="M15 3h6v6" />
                                     <path d="M10 14 21 3" />
                                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />

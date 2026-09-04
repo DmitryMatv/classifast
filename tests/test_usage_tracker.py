@@ -818,5 +818,30 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         redis_client.pipeline.assert_not_called()
 
 
+class VerifyCheckoutTokenTests(unittest.IsolatedAsyncioTestCase):
+    async def test_invalid_token_format_is_rejected_without_redis_lookup(self) -> None:
+        redis_client = AsyncMock()
+
+        for token in ("", "short", "a" * 42, "a" * 44, "injection; DEL checkout"):
+            verified = await usage_tracker.verify_checkout_token(
+                token, Mock(), redis_client
+            )
+
+            self.assertFalse(verified)
+
+        redis_client.get.assert_not_called()
+
+    async def test_valid_token_format_looks_up_pending_key(self) -> None:
+        redis_client = AsyncMock()
+        redis_client.get.return_value = None
+
+        verified = await usage_tracker.verify_checkout_token(
+            "a" * 43, Mock(), redis_client
+        )
+
+        self.assertFalse(verified)
+        redis_client.get.assert_awaited_once_with(f"checkout_pending:{'a' * 43}")
+
+
 if __name__ == "__main__":
     unittest.main()

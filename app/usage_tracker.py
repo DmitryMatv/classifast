@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -35,6 +36,10 @@ NEGATIVE_TIER_CACHE_TTL = 60  # Cache failed lookups for 1 minute
 GRACE_PERIOD_TTL = int(
     os.getenv("CHECKOUT_GRACE_TTL", "300")
 )  # 5 minutes - grace period for checkout completion
+
+# Checkout tokens are generated with secrets.token_urlsafe(32), which yields
+# exactly 43 characters from the URL-safe base64 alphabet.
+CHECKOUT_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{43}")
 
 
 @dataclass
@@ -125,6 +130,9 @@ async def verify_checkout_token(
 ) -> bool:
     """Verify checkout token and activate grace period if valid."""
     if not redis_client or not checkout_token:
+        return False
+    if not CHECKOUT_TOKEN_PATTERN.fullmatch(checkout_token):
+        logger.warning("Checkout token verification rejected: invalid token format")
         return False
     try:
         pending_key = f"checkout_pending:{checkout_token}"

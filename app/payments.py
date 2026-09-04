@@ -25,6 +25,7 @@ from .clerk_auth import (
 )
 from .dependencies import CLERK_SECRET_KEY
 from .mapping_store import get_mapping_product
+from .rate_limit import enforce_checkout_rate_limit
 from .usage_tracker import set_cached_user_tier
 
 # Configure logging
@@ -166,7 +167,10 @@ async def get_current_user_id(authorization: str = Header(None)):
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
-@router.post("/create-checkout")
+@router.post(
+    "/create-checkout",
+    dependencies=[Depends(enforce_checkout_rate_limit)],
+)
 async def create_checkout(
     request: Request, user_id: str = Depends(get_current_user_id)
 ):
@@ -231,7 +235,10 @@ async def create_checkout(
         raise HTTPException(status_code=500, detail="Failed to create checkout")
 
 
-@router.post("/create-mapping-checkout")
+@router.post(
+    "/create-mapping-checkout",
+    dependencies=[Depends(enforce_checkout_rate_limit)],
+)
 async def create_mapping_checkout(request: Request):
     try:
         body = await request.json()

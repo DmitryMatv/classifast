@@ -187,7 +187,7 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text.count("code-spacer-halves"), 3)
         self.assertIn(
-            "onclick=\"window.copyOriginalId('72212910-1', this)\"",
+            'data-copy-original-id="72212910-1"',
             response.text,
         )
 
@@ -243,7 +243,7 @@ class ResultsOriginalIdFormattingFragmentTests(unittest.IsolatedAsyncioTestCase)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.history, [])
         self.assertIn(
-            "onclick=\"window.copyOriginalId('12345678', this)\"",
+            'data-copy-original-id="12345678"',
             response.text,
         )
 

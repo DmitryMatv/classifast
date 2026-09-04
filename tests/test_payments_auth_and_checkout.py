@@ -17,7 +17,9 @@ from app.usage_tracker import TIER_CACHE_TTL
 def _build_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(payments.router, prefix="/api")
-    app.state.redis_client = AsyncMock()
+    redis_client = AsyncMock()
+    redis_client.incr.return_value = 1
+    app.state.redis_client = redis_client
     return app
 
 
@@ -331,6 +333,68 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
             f"Error creating mapping checkout: {original_error}",
             exc_info=True,
         )
+
+
+class CheckoutRateLimitTests(unittest.IsolatedAsyncioTestCase):
+    async def _post_mapping_checkout(self, app: FastAPI, slug: str):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.post(
+                "/api/create-mapping-checkout",
+                json={
+                    "slug": slug,
+                    "return_url": f"http://testserver/mapping/{slug}/",
+                },
+            )
+
+    async def test_mapping_checkout_is_rate_limited_per_ip(self) -> None:
+        app = _build_test_app()
+        app.state.redis_client.incr.side_effect = [1, 2, 3]
+        product = next(iter(MAPPING_PRODUCTS.values()))
+        polar_instance = MagicMock()
+        polar_instance.checkouts.create.return_value = SimpleNamespace(
+            url="https://polar.example/checkout"
+        )
+        polar_context = MagicMock()
+        polar_context.__enter__.return_value = polar_instance
+        polar_context.__exit__.return_value = None
+
+        with (
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.rate_limit.CHECKOUT_RATE_LIMIT", 2),
+        ):
+            first = await self._post_mapping_checkout(app, product.slug)
+            second = await self._post_mapping_checkout(app, product.slug)
+            third = await self._post_mapping_checkout(app, product.slug)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(third.status_code, 429)
+        app.state.redis_client.expire.assert_awaited_once()
+
+    async def test_checkout_rate_limit_fails_closed_without_redis(self) -> None:
+        app = _build_test_app()
+        app.state.redis_client = None
+
+        response = await self._post_mapping_checkout(
+            app, next(iter(MAPPING_PRODUCTS.values())).slug
+        )
+
+        self.assertEqual(response.status_code, 503)
+
+    async def test_checkout_rate_limit_fails_closed_on_redis_error(self) -> None:
+        app = _build_test_app()
+        app.state.redis_client.incr.side_effect = redis.RedisError("down")
+
+        response = await self._post_mapping_checkout(
+            app, next(iter(MAPPING_PRODUCTS.values())).slug
+        )
+
+        self.assertEqual(response.status_code, 503)
 
 
 class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
