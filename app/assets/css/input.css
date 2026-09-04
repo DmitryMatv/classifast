@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
-/* Visual spacer used to group code digits (very small, roughly half of a normal space) */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Visual spacer used to group code digits into pairs */
 .code-spacer-halves {
   display: inline-block;
-  width: 0.25ch;
+  width: 0.5ch;
   color: transparent;
   line-height: 1;
 }

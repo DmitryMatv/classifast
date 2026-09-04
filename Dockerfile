@@ -15,6 +15,8 @@ FROM python:3.14-slim-bookworm AS runtime
 
 WORKDIR /service_root
 
+ENV PYTHONUNBUFFERED=1
+
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-compile --uploaded-prior-to=P3D -r requirements.txt

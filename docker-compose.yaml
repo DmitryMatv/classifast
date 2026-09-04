@@ -6,6 +6,8 @@ services:
       - "127.0.0.1:8001:8001"
     env_file:
       - .env
+    init: true
+    mem_limit: 1g
     restart: unless-stopped
     healthcheck:
       test:
