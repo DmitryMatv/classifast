@@ -1,6 +1,5 @@
 import logging
 import os
-import secrets
 from urllib.parse import urlparse
 
 import httpx
@@ -26,7 +25,7 @@ from .clerk_auth import (
 from .dependencies import CLERK_SECRET_KEY
 from .mapping_store import get_mapping_product
 from .rate_limit import enforce_checkout_rate_limit
-from .usage_tracker import set_cached_user_tier
+from .usage_tracker import set_cached_user_tier, set_checkout_grace
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -35,8 +34,6 @@ router = APIRouter()
 
 POLAR_ACCESS_TOKEN = os.getenv("POLAR_ACCESS_TOKEN")
 POLAR_WEBHOOK_SECRET = os.getenv("POLAR_WEBHOOK_SECRET")
-
-CHECKOUT_PENDING_TTL = 900  # 15 minutes - token validity
 
 
 def get_pro_product_id() -> str:
@@ -185,31 +182,10 @@ async def create_checkout(
 
         product_id = get_pro_product_id()
 
-        # Generate secure checkout token
-        checkout_token = secrets.token_urlsafe(32)
-        redis_client = getattr(request.app.state, "redis_client", None)
-
-        if redis_client:
-            try:
-                await redis_client.setex(
-                    f"checkout_pending:{checkout_token}", CHECKOUT_PENDING_TTL, user_id
-                )
-                logger.debug("Checkout token generated")
-            except redis.RedisError as e:
-                logger.error(f"Failed to store checkout token: {e}")
-                raise HTTPException(
-                    status_code=500, detail="Failed to initialize secure checkout"
-                )
-        else:
-            logger.error("Redis client not available for checkout token storage")
-            raise HTTPException(
-                status_code=500, detail="Checkout service temporarily unavailable"
-            )
-
         # Use return_url if provided, otherwise fallback to homepage
         success_url = return_url if return_url else str(request.base_url)
         separator = "&" if "?" in success_url else "?"
-        success_url += f"{separator}checkout=success&checkout_token={checkout_token}"
+        success_url += f"{separator}checkout=success"
 
         # Fetch user details from Clerk to pre-fill checkout form
         user_details = await get_clerk_user_details(user_id)
@@ -377,6 +353,8 @@ async def handle_subscription_update(
                 status_code=502, detail="Failed to update user metadata"
             )
         await set_cached_user_tier(user_id, tier, redis_client)
+        if tier == "pro":
+            await set_checkout_grace(user_id, redis_client)
     elif user_id:
         logger.warning(
             "Ignoring non-string user_id in subscription metadata: %r", user_id

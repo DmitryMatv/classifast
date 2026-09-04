@@ -38,7 +38,6 @@ if (!window.__paywallScriptParsed) {
     private init() {
       this.setupRetryButton();
       this.setupClerkListener();
-      this.setupAuthButtons();
     }
 
     /**
@@ -94,52 +93,6 @@ if (!window.__paywallScriptParsed) {
         // For now, this is fine as the paywall is replaced via HTMX
       }
     }
-
-    /**
-     * Setup sign in/up button handlers for anonymous users
-     */
-    private setupAuthButtons(): void {
-      const signinButton = document.getElementById("signin-button");
-      const signupButton = document.getElementById("signup-button");
-
-      if (signinButton) {
-        // Remove existing listener to prevent duplicates
-        const newSigninButton = signinButton.cloneNode(true) as HTMLElement;
-        signinButton.parentNode?.replaceChild(newSigninButton, signinButton);
-        newSigninButton.addEventListener("click", (e) => {
-          e.preventDefault();
-          if (window.Clerk?.openSignIn) {
-            window.Clerk.openSignIn({ redirectUrl: window.location.href });
-          } else {
-            const fallbackUrl = newSigninButton.dataset["fallbackUrl"];
-            ClerkHelpers.showAuthErrorAndRedirect(
-              "paywall-buttons",
-              "sign-in",
-              fallbackUrl,
-            );
-          }
-        });
-      }
-
-      if (signupButton) {
-        // Remove existing listener to prevent duplicates
-        const newSignupButton = signupButton.cloneNode(true) as HTMLElement;
-        signupButton.parentNode?.replaceChild(newSignupButton, signupButton);
-        newSignupButton.addEventListener("click", (e) => {
-          e.preventDefault();
-          if (window.Clerk?.openSignUp) {
-            window.Clerk.openSignUp({ redirectUrl: window.location.href });
-          } else {
-            const fallbackUrl = newSignupButton.dataset["fallbackUrl"];
-            ClerkHelpers.showAuthErrorAndRedirect(
-              "paywall-buttons",
-              "sign-up",
-              fallbackUrl,
-            );
-          }
-        });
-      }
-    }
   }
 
   /**
@@ -171,6 +124,11 @@ if (!window.__paywallScriptParsed) {
     }
 
     private async handleUpgrade(button: HTMLButtonElement): Promise<void> {
+      if (!window.Clerk?.user) {
+        ClerkHelpers.openSignIn();
+        return;
+      }
+
       if (!window.Clerk?.session) {
         console.error("Clerk not available");
         this.showErrorState(button);

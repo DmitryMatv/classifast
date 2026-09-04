@@ -11,24 +11,10 @@
             <h3 class="text-lg font-semibold text-gray-800">Free trial limit reached</h3>
             <p class="text-gray-600 max-w-md">
                 You've used your {{ limit }} free trial searches.
-                {% if not is_authenticated %}
-                Sign in or create a free account to get {{ free_user_limit }} more free searches.
-                {% else %}
                 Upgrade to Pro for unlimited searches.
-                {% endif %}
             </p>
         </div>
         <div id="paywall-buttons" class="flex flex-col sm:flex-row gap-3 pt-2">
-            {% if not is_authenticated %}
-            <button type="button" id="signin-button" data-fallback-url="https://accounts.classifast.com/sign-in"
-                class="bg-white border border-sky-600 text-sky-600 hover:bg-sky-50 active:bg-sky-100 active:scale-95 px-6 py-2 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
-                Sign In
-            </button>
-            <button type="button" id="signup-button" data-fallback-url="https://accounts.classifast.com/sign-up"
-                class="bg-sky-700 hover:bg-sky-800 active:bg-sky-900 active:scale-95 text-white px-6 py-2 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
-                Sign Up
-            </button>
-            {% else %}
             <button type="button" id="upgrade-button"
                 class="inline-flex items-center justify-center bg-sky-700 hover:bg-sky-800 active:bg-sky-900 active:scale-95 text-white px-6 py-2 rounded font-semibold transition-all duration-150 ease-in-out transform cursor-pointer">
                 <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"
@@ -38,7 +24,6 @@
                 </svg>
                 Upgrade to Pro
             </button>
-            {% endif %}
         </div>
         <button type="button" id="retry-button"
             class="inline-flex items-center justify-center px-4 py-2 text-sm text-sky-600 hover:text-sky-700 hover:underline transition-colors">

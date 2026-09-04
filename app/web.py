@@ -46,12 +46,10 @@ from .mapping_store import (
     list_mapping_products,
 )
 from .usage_tracker import (
-    FREE_USER_LIMIT,
     QuotaUnavailableError,
     UsageStatus,
     add_quota_headers,
     reserve_usage,
-    verify_checkout_token,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,13 +86,6 @@ def _get_redis_client(request: Request):
     return getattr(request.app.state, "redis_client", None)
 
 
-async def _maybe_verify_checkout_return(request: Request, redis_client) -> None:
-    checkout_success = request.query_params.get("checkout")
-    checkout_token = request.query_params.get("checkout_token")
-    if checkout_success == "success" and checkout_token:
-        await verify_checkout_token(checkout_token, request, redis_client)
-
-
 def _render_paywall_fragment(
     request: Request,
     usage_status: UsageStatus,
@@ -106,8 +97,6 @@ def _render_paywall_fragment(
         "paywall.html",
         {
             "limit": usage_status.limit,
-            "is_authenticated": usage_status.is_authenticated,
-            "free_user_limit": FREE_USER_LIMIT,
         },
     )
     response.headers.update(build_cache_headers(NO_STORE))
@@ -359,7 +348,6 @@ async def get_classification_fragment(
 
     push_url = resolve_fragment_push_url(push_url, url_change)
     redis_client = _get_redis_client(request)
-    await _maybe_verify_checkout_return(request, redis_client)
     new_url = build_fragment_push_url(
         upper_type,
         normalized_description,
@@ -407,7 +395,7 @@ async def get_classification_fragment(
         logger.error("Error during '%s' fragment classification: %s", upper_type, e)
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing request: {str(e)}",
+            detail="Error processing request",
             headers=build_cache_headers(NO_STORE),
         )
 
@@ -450,8 +438,6 @@ async def show_classifier_page_with_query(
         return RedirectResponse(url=redirect_url, status_code=301)
 
     default_top_k = get_default_top_k(upper_type)
-    redis_client = _get_redis_client(request)
-    await _maybe_verify_checkout_return(request, redis_client)
 
     decoded_search_query = decode_search_query(search_query)
     canonical_url = build_classifier_canonical_url(upper_type, decoded_search_query)
@@ -474,7 +460,7 @@ async def show_classifier_page_with_query(
         decoded_search_query,
         bool(request.query_params),
         canonical_url,
-    )
+    ) and await is_verified_google_search_crawler_request(request)
     (
         results_data,
         default_example_prefill,

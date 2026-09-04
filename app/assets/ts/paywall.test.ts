@@ -10,8 +10,6 @@ describe("paywall.ts", () => {
       <div id="paywall-buttons"></div>
       <form hx-get="/NAICS/fragment"></form>
       <button id="retry-button">Retry</button>
-      <button id="signin-button" data-fallback-url="/sign-in">Sign in</button>
-      <button id="signup-button" data-fallback-url="/sign-up">Sign up</button>
     `;
   });
 
@@ -46,37 +44,17 @@ describe("paywall.ts", () => {
     expect(requestSubmitSpy).toHaveBeenCalled();
   });
 
-  it("uses Clerk modal handlers when available and fallback helper otherwise", async () => {
-    const { ClerkHelpers } = await import("./clerk-helpers");
+  it("opens sign-in when the upgrade button is clicked while signed out", async () => {
+    document.body.innerHTML +=
+      '<button id="upgrade-button">Upgrade to Pro</button>';
     const { initPaywall } = await import("./paywall");
-    const fallbackSpy = vi.spyOn(ClerkHelpers, "showAuthErrorAndRedirect");
 
     vi.runAllTimers();
     initPaywall();
-    (document.getElementById("signin-button") as HTMLElement).click();
-    (document.getElementById("signup-button") as HTMLElement).click();
+    (document.getElementById("upgrade-button") as HTMLButtonElement).click();
 
     expect(window.Clerk?.openSignIn).toHaveBeenCalled();
-    expect(window.Clerk?.openSignUp).toHaveBeenCalled();
-    expect(fallbackSpy).not.toHaveBeenCalled();
-
-    delete window.Clerk;
-    window.__paywallInitialized = false;
-
-    initPaywall();
-    (document.getElementById("signin-button") as HTMLElement).click();
-    (document.getElementById("signup-button") as HTMLElement).click();
-
-    expect(fallbackSpy).toHaveBeenCalledWith(
-      "paywall-buttons",
-      "sign-in",
-      "/sign-in",
-    );
-    expect(fallbackSpy).toHaveBeenCalledWith(
-      "paywall-buttons",
-      "sign-up",
-      "/sign-up",
-    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("reinitializes after HTMX swaps the results container", async () => {
@@ -106,7 +84,8 @@ describe("paywall.ts", () => {
   it("shows an error state when checkout starts without a Clerk session", async () => {
     document.body.innerHTML +=
       '<button id="upgrade-button">Upgrade to Pro</button>';
-    delete window.Clerk?.session;
+    window.Clerk!.user = { id: "user_123" };
+    delete window.Clerk!.session;
     const { initPaywall } = await import("./paywall");
 
     vi.runAllTimers();
@@ -123,6 +102,7 @@ describe("paywall.ts", () => {
     document.body.innerHTML +=
       '<button id="upgrade-button">Upgrade to Pro</button>';
     if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" };
       window.Clerk.session = {
         getToken: vi.fn(async () => "token-123"),
       };
@@ -160,6 +140,7 @@ describe("paywall.ts", () => {
     document.body.innerHTML +=
       '<button id="upgrade-button">Upgrade to Pro</button>';
     if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" };
       window.Clerk.session = {
         getToken: vi.fn(async () => "token-123"),
       };

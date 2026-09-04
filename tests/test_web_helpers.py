@@ -286,7 +286,23 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
         )
 
     @patch("app.classification_service.perform_classification")
-    async def test_sitemap_query_is_server_rendered(
+    async def test_sitemap_query_is_not_server_rendered_for_regular_visitors(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        response = await self._request("/UNSPSC/laptop_computer/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertIn("Loading...", response.text)
+        perform_classification_mock.assert_not_called()
+
+    @patch(
+        "app.web.is_verified_google_search_crawler_request",
+        new=AsyncMock(return_value=True),
+    )
+    @patch("app.classification_service.perform_classification")
+    async def test_sitemap_query_is_server_rendered_for_verified_google_crawler(
         self,
         perform_classification_mock: Mock,
     ) -> None:
@@ -320,6 +336,10 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Popular code lookups", response.text)
         self.assertIn('<a href="/UNSPSC/network_switch/"', response.text)
 
+    @patch(
+        "app.web.is_verified_google_search_crawler_request",
+        new=AsyncMock(return_value=True),
+    )
     @patch("app.classification_service.perform_classification")
     async def test_successful_empty_sitemap_query_is_not_left_loading(
         self,
@@ -367,6 +387,10 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-autoload-enabled="true"', response.text)
         perform_classification_mock.assert_not_called()
 
+    @patch(
+        "app.web.is_verified_google_search_crawler_request",
+        new=AsyncMock(return_value=True),
+    )
     @patch(
         "app.classification_service.perform_classification",
         side_effect=RuntimeError("classification unavailable"),

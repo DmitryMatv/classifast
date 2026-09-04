@@ -11,7 +11,7 @@ from polar_sdk._webhooks import WebhookVerificationError
 from app import payments
 from app.clerk_auth import ClerkAuthenticationError, ClerkInfrastructureError
 from app.mapping_store import MAPPING_PRODUCTS
-from app.usage_tracker import TIER_CACHE_TTL
+from app.usage_tracker import GRACE_PERIOD_TTL, TIER_CACHE_TTL
 
 
 def _build_test_app() -> FastAPI:
@@ -118,6 +118,11 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(user_id, "user_123")
         self.assertEqual(response["url"], "https://polar.example/checkout")
+        self.assertEqual(
+            polar_instance.checkouts.create.call_args.kwargs["request"]["success_url"],
+            "http://testserver/NAICS/?checkout=success",
+        )
+        request.app.state.redis_client.setex.assert_not_called()
         auth_mock.assert_awaited_once_with("token", validate_azp=True)
 
     async def test_create_checkout_skips_azp_when_permitted_origins_not_configured(
@@ -836,7 +841,7 @@ class WebhookRouteTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SubscriptionUpdateTierCacheTests(unittest.IsolatedAsyncioTestCase):
-    async def test_handle_subscription_update_syncs_redis_after_clerk_success(
+    async def test_handle_subscription_update_syncs_tier_cache_and_grace_after_clerk_success(
         self,
     ) -> None:
         redis_client = AsyncMock()
@@ -853,10 +858,38 @@ class SubscriptionUpdateTierCacheTests(unittest.IsolatedAsyncioTestCase):
             )
 
         clerk_mock.assert_awaited_once_with("user_123", {"tier": "pro"})
-        redis_client.setex.assert_awaited_once_with(
+        redis_client.setex.assert_any_await(
             "user_tier:user_123",
             TIER_CACHE_TTL,
             "pro",
+        )
+        redis_client.setex.assert_any_await(
+            "checkout_grace:user_123",
+            GRACE_PERIOD_TTL,
+            "1",
+        )
+        self.assertEqual(redis_client.setex.await_count, 2)
+
+    async def test_handle_subscription_update_does_not_set_grace_for_free_tier(
+        self,
+    ) -> None:
+        redis_client = AsyncMock()
+        subscription = SimpleNamespace(metadata={"user_id": "user_123"})
+
+        with patch(
+            "app.payments.update_clerk_user_metadata",
+            new=AsyncMock(return_value=True),
+        ):
+            await payments.handle_subscription_update(
+                subscription,
+                tier="free",
+                redis_client=redis_client,
+            )
+
+        redis_client.setex.assert_awaited_once_with(
+            "user_tier:user_123",
+            TIER_CACHE_TTL,
+            "free",
         )
 
     async def test_handle_subscription_update_does_not_sync_redis_if_clerk_fails(
@@ -898,7 +931,7 @@ class SubscriptionUpdateTierCacheTests(unittest.IsolatedAsyncioTestCase):
                 redis_client=redis_client,
             )
 
-        redis_client.setex.assert_awaited_once()
+        self.assertEqual(redis_client.setex.await_count, 2)
 
 
 if __name__ == "__main__":

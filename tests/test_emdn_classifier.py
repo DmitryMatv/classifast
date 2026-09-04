@@ -256,7 +256,7 @@ async def test_emdn_fragment_groups_code_without_metadata_badges() -> None:
 
     assert response.status_code == 200
     assert response.text.count("code-spacer-halves") == 5
-    assert "onclick=\"window.copyOriginalId('A0101010101', this)\"" in response.text
+    assert 'data-copy-original-id="A0101010101"' in response.text
     assert "HYPODERMIC SYRINGE NEEDLES, WITH SAFETY SYSTEMS" in response.text
     assert "DEVICES FOR ADMINISTRATION, WITHDRAWAL AND COLLECTION" in response.text
     assert "&gt; NEEDLES &gt; HYPODERMIC NEEDLES" in response.text
