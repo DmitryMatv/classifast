@@ -220,6 +220,41 @@ class QueryPageSsrTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 301)
         self.assertEqual(response.headers["location"], "/UNSPSC/laptop_computer/")
 
+    async def test_percent_encoded_slug_serves_page_instead_of_redirect_loop(
+        self,
+    ) -> None:
+        response = await self._request(
+            "/UNSPSC/https%3A_classifast.com_UNSPSC/",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["link"],
+            '<https://classifast.com/UNSPSC/https%3A_classifast.com_UNSPSC/>; rel="canonical"',
+        )
+
+    async def test_encoded_punctuation_slug_serves_canonical_page(self) -> None:
+        response = await self._request(
+            "/UNSPSC/pump%3A_10_bar%3B_stainless_steel/",
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["link"],
+            '<https://classifast.com/UNSPSC/pump%3A_10_bar%3B_stainless_steel/>; rel="canonical"',
+        )
+
+    async def test_head_percent_encoded_slug_serves_page(self) -> None:
+        response = await self._request(
+            "/UNSPSC/https%3A_classifast.com_UNSPSC/",
+            follow_redirects=False,
+            method="HEAD",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
     async def test_hyphenated_search_path_redirects_to_underscore_canonical(
         self,
     ) -> None:

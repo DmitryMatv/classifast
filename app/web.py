@@ -2,7 +2,7 @@ import html
 import logging
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -442,7 +442,8 @@ async def show_classifier_page_with_query(
     decoded_search_query = decode_search_query(search_query)
     canonical_url = build_classifier_canonical_url(upper_type, decoded_search_query)
 
-    if request.url.path != urlparse(canonical_url).path:
+    canonical_path = unquote(urlparse(canonical_url).path)
+    if request.url.path != canonical_path:
         redirect_url = build_classifier_redirect_url(
             upper_type, search_query, request.url.query
         )
