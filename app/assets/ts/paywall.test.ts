@@ -10,6 +10,7 @@ describe("paywall.ts", () => {
       <div id="paywall-buttons"></div>
       <form hx-get="/NAICS/fragment"></form>
       <button id="retry-button">Retry</button>
+      <button id="signin-button">Sign In</button>
     `;
   });
 
@@ -42,6 +43,17 @@ describe("paywall.ts", () => {
     (document.getElementById("retry-button") as HTMLElement).click();
 
     expect(requestSubmitSpy).toHaveBeenCalled();
+  });
+
+  it("opens the Clerk sign-in modal when the sign-in button is clicked", async () => {
+    const { initPaywall } = await import("./paywall");
+
+    vi.runAllTimers();
+    initPaywall();
+    (document.getElementById("signin-button") as HTMLElement).click();
+
+    expect(window.Clerk?.openSignIn).toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("opens sign-in when the upgrade button is clicked while signed out", async () => {

@@ -37,6 +37,7 @@ if (!window.__paywallScriptParsed) {
 
     private init() {
       this.setupRetryButton();
+      this.setupSignInButton();
       this.setupClerkListener();
     }
 
@@ -60,6 +61,23 @@ if (!window.__paywallScriptParsed) {
           this.submitClassificationForm(),
         );
       }
+    }
+
+    /**
+     * Setup sign in button handler for the anonymous paywall
+     */
+    private setupSignInButton(): void {
+      const signinButton = document.getElementById("signin-button");
+      if (!signinButton) {
+        return;
+      }
+
+      const newSigninButton = signinButton.cloneNode(true) as HTMLElement;
+      signinButton.parentNode?.replaceChild(newSigninButton, signinButton);
+      newSigninButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        ClerkHelpers.openSignIn();
+      });
     }
 
     /**

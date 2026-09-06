@@ -627,6 +627,35 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
             response.headers.get("HX-Push-Url"),
             f"/{self.classifier_type}/industrial_pump/",
         )
+        self.assertIn("Sign in to continue", response.text)
+        self.assertIn('id="signin-button"', response.text)
+        self.assertIn("Upgrade to Pro", response.text)
+        self.assertNotIn("more free searches", response.text)
+        perform_classification_mock.assert_not_called()
+        reserve_usage_mock.assert_awaited_once()
+
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
+    @patch("app.classification_service.perform_classification")
+    async def test_authenticated_paywall_hides_sign_in_button(
+        self,
+        perform_classification_mock: Mock,
+        reserve_usage_mock: AsyncMock,
+    ) -> None:
+        reserve_usage_mock.return_value = UsageStatus(
+            allowed=False,
+            remaining=0,
+            limit=30,
+            is_authenticated=True,
+            is_pro=False,
+            tracking_id="user-123",
+        )
+
+        response = await self._request_fragment(push_url="true")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("You've used your 30 free trial searches", response.text)
+        self.assertIn("Upgrade to Pro", response.text)
+        self.assertNotIn('id="signin-button"', response.text)
         perform_classification_mock.assert_not_called()
         reserve_usage_mock.assert_awaited_once()
 

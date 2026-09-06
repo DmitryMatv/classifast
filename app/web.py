@@ -97,6 +97,7 @@ def _render_paywall_fragment(
         "paywall.html",
         {
             "limit": usage_status.limit,
+            "is_authenticated": usage_status.is_authenticated,
         },
     )
     response.headers.update(build_cache_headers(NO_STORE))
