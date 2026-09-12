@@ -349,8 +349,8 @@
             {
                 "@type": "HowToStep",
                 "position": 2,
-                "name": "Click Find code",
-                "text": "Press the 'Find code' button to submit your description. The search will process your query in about 1 second."
+                "name": "Submit",
+                "text": "Press the 'Submit' button to submit your description. The search will process your query in about 1 second."
             },
             {
                 "@type": "HowToStep",
@@ -447,7 +447,6 @@
 
         .classifier-surface {
             background-color: #c6ecff;
-            background-image: linear-gradient(180deg, #c6ecff 0%, #ebf8ff 30%, #ffffff 100%);
         }
 
         .js-score-animations [data-score-bar] {
@@ -648,7 +647,7 @@
 
 <body class="classifier-surface text-gray-800 min-h-screen"
     style="font-family: 'Inter', sans-serif; font-feature-settings: 'liga' 1, 'calt' 1;">
-    <header class="bg-white border-b border-slate-200 relative">
+    <header class="bg-white relative">
         <div class="container mx-auto flex min-h-14 justify-between items-center max-w-6xl px-4">
             <a href="{{ url_for('read_root') }}" class="flex items-center">
                 <p class="text-xl font-bold text-gray-800 mr-6">Classi<span class="text-sky-600">fast</span></p>
@@ -913,7 +912,8 @@
 
             <form id="classifier-form"
                 hx-get="{{ url_for('get_classification_fragment', classifier_type=classifier_type) }}"
-                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator" hx-sync="this:drop"
+                hx-target="#results-container" hx-swap="innerHTML" hx-indicator="#loading-indicator"
+                hx-sync="this:replace"
                 data-initial-query-present="{% if url_params.search %}true{% else %}false{% endif %}"
                 data-default-example-prefill="{% if default_example_prefill %}true{% else %}false{% endif %}"
                 data-autoload-enabled="{% if trigger_search_on_load and versions %}true{% else %}false{% endif %}"
@@ -940,7 +940,7 @@
                     <div class="flex items-center space-x-2">
                         <button type="submit" role="button" aria-label="Lookup code for product description"
                             class="cursor-pointer bg-sky-700 hover:bg-sky-800 active:bg-sky-900 active:scale-95 text-white font-medium px-10 py-2 rounded text-base transition-all duration-150 ease-in-out transform">
-                            <span class="hidden md:inline">🔍︎ Find category code</span>
+                            <span class="hidden md:inline">Submit</span>
                             <span class="md:hidden">🔍︎</span>
                         </button>
                         <select name="top_k" id="show_top_k_categories" role="combobox"
@@ -962,12 +962,11 @@
                     </div>
                 </div>
             </form>
-        </section>
 
-        <section id="results-section" class="bg-white p-6 rounded-lg shadow max-w-5xl mx-auto" aria-live="polite"
-            role="region" aria-label="Classification Results">
-            <div id="results-container" style="min-height: 200px;">
-                {% include 'results.html' %}
+            <div id="results-section" class="mt-6" aria-live="polite" role="region" aria-label="Classification Results">
+                <div id="results-container" style="min-height: 200px;">
+                    {% include 'results.html' %}
+                </div>
             </div>
         </section>
 
