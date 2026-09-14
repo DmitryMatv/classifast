@@ -114,7 +114,7 @@ describe("classifier.ts", () => {
       <form
         id="classifier-form"
         hx-get="/NAICS/fragment"
-        hx-sync="this:drop"
+        hx-sync="this:replace"
         data-default-example-prefill="false"
         data-initial-query-present="false"
         data-autoload-enabled="false"

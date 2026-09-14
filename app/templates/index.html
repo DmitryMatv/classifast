@@ -924,18 +924,17 @@
                             in 1 second.
                         </h1>
                         <p class="hero-lede">
-                            Semantic classification across UNSPSC, NAICS, HS/CN codes, ETIM,
-                            and eight other classification standards powered by
+                            Semantic search across UNSPSC, NAICS, CPV, HS/CN 
+                            and many other industry classification standards powered by
                             <a href="https://developers.googleblog.com/en/gemini-embedding-text-model-now-available-gemini-api/"
                                 target="_blank" rel="noopener">vector embeddings for text understanding</a>.
                         </p>
                         <div class="hero-cta-row">
                             <a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"
-                                class="cta-primary">Find UNSPSC codes</a>
+                                class="cta-primary">Find UNSPSC code</a>
                             <a href="#standards" class="cta-secondary">Browse all classifiers</a>
                         </div>
-                        <p class="hero-note">10 searches free, 30 more with a free account. Unlimited Pro for
-                            $50.</p>
+                        <p class="hero-note">10 free searches. 30 more with free account. Unlimited for $50.</p>
                     </div>
 
                     <!-- Static sample of a real UNSPSC result, so the visitor sees the product -->
@@ -946,7 +945,7 @@
                         </div>
                         <div class="demo-query">
                             <p class="demo-query-label">Input description</p>
-                            <p class="demo-query-text">"Apple MacBook Air (13-inch, M3, 2024)"</p>
+                            <p class="demo-query-text">MacBook Air (13-inch, M3, 2024)</p>
                         </div>
                         <ul class="demo-rows">
                             <li class="demo-row">
@@ -972,8 +971,8 @@
                             </li>
                         </ul>
                         <div class="demo-foot">
-                            <a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}">Try it with your
-                                own description</a>, or
+                            <a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}">
+                                Try it with your own description</a> or
                             <a href="https://rapidapi.com/DmitryMatv/api/classifast-api" target="_blank"
                                 rel="noopener">via the API</a>.
                         </div>
@@ -985,7 +984,7 @@
         <!-- Standards index -->
         <section id="standards" class="standards-index page-section">
             <div class="container mx-auto px-4 max-w-6xl">
-                <h2 class="section-title">Twelve standards, one search box</h2>
+                <h2 class="section-title">12 standards in 1 search box</h2>
                 <ul class="standards-list">
                     <li><a href="{{ url_for('show_classifier_page', classifier_type='UNSPSC') }}"><abbr>UNSPSC</abbr>
                             <span class="full-name">United Nations Standard Products and Services Code</span></a></li>
@@ -1018,7 +1017,7 @@
         <!-- Features -->
         <section class="features-section page-section">
             <div class="container mx-auto px-4 max-w-6xl">
-                <h2 class="section-title">Save days of manual classification. Try it free.</h2>
+                <h2 class="section-title">Forget manual classification</h2>
                 <div class="feature-grid mt-8" role="list">
                     <article class="feature" role="listitem">
                         <h3>Cost-effective</h3>

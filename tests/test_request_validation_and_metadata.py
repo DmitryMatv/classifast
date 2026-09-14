@@ -270,7 +270,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-autoload-enabled="true"', response.text)
         self.assertIn('data-initial-query-present="true"', response.text)
         self.assertNotIn("data-initial-track-usage", response.text)
-        self.assertIn('hx-sync="this:drop"', response.text)
+        self.assertIn('hx-sync="this:replace"', response.text)
         self.assertNotIn('id="initial-results-loader"', response.text)
         self.assertNotIn("data-auth-gated=", response.text)
 
@@ -317,7 +317,7 @@ class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('data-autoload-enabled="true"', response.text)
         self.assertIn('data-default-example-prefill="true"', response.text)
         self.assertNotIn("data-initial-track-usage", response.text)
-        self.assertIn('hx-sync="this:drop"', response.text)
+        self.assertIn('hx-sync="this:replace"', response.text)
         self.assertNotIn('id="initial-results-loader"', response.text)
         self.assertNotIn("data-auth-gated=", response.text)
         perform_classification_mock.assert_called_once()

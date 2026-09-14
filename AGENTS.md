@@ -53,18 +53,13 @@ Cache headers are defined in `app/cache_profiles.py` - edit the profiles there i
 
 - Never add `Set-Cookie` to fragment responses - breaks CDN caching
 - Paywalls must use `no-store` - prevents serving cached paywall to allowed users
-- Full pages can set cookies - but prefer client-side JavaScript to prevent CDN cache pollution
+- Never set cookies on full pages either - the server has a blanket no-cookie
+  policy; set per-user state from client-side JavaScript instead
 - Generate per-user state client-side when possible (e.g., tracking IDs via `crypto.randomUUID()`) instead of server-side templating - keeps HTML cacheable across all users
 - `Cloudflare-CDN-Cache-Control` controls Cloudflare independently of browser
   `Cache-Control`. Responses that may be requested with `Authorization` must
   explicitly include `public` (or another authorization-compatible shared-cache
   directive) in the Cloudflare-specific header.
-
-## Cloudflare Tunnel Access Logs
-
-Uvicorn's `fddf:...` client address is the Cloudflare Tunnel peer, not the end
-visitor. Do not correlate adjacent access-log entries as one user without using
-`CF-Connecting-IP`, a Cloudflare Ray ID, or equivalent structured request data.
 
 ## Built Frontend Files
 
@@ -75,3 +70,44 @@ sources and run `npm run build`.
 ## Rapid API (API.py)
 
 `app/api.py` is specifically made for the Rapid API platform. It contains endpoints that make the classification service accessible on that platform. Ignore api.py unless explicitly asked to work on Rapid API service integration.
+
+## Gotchas and Non-Obvious Behaviors
+
+- `data/`, `embedders/`, and `mapping/` are gitignored and exist only on this
+  machine. A fresh clone will not have them, and ripgrep-based searches
+  silently return zero hits inside them (they respect `.gitignore`). Use
+  `--no-ignore` or explicit paths when searching them.
+- `app/classifier_page_delivery.py` parses `app/static/sitemap.xml` at import
+  time to build `SITEMAP_QUERY_PATHS`, which gates SSR eligibility and homepage
+  anchor links. Editing the sitemap only changes app behavior after a restart.
+- `asset_url` hashes are cached per process (`app/dependencies.py`). After
+  `npm run build`, restart the FastAPI process or the browser keeps loading
+  the old JS with stale `?v=` values.
+- The server never sets cookies on any response, cacheable or not. `cf_track`
+  is set by client-side JavaScript. On HTML or fragment routes a server-side
+  cookie additionally breaks the `HTML_PAGE`/`CLASSIFICATION_RESULT` CDN cache
+  profiles; on other routes it is still forbidden by design, so use
+  client-side JavaScript for any per-user state.
+- Two client-IP trust policies coexist: `app/usage_tracker.py` always trusts
+  `CF-Connecting-IP`; `app/google_crawlers.py` requires the explicit
+  `GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP` opt-in. Pick one policy deliberately
+  for new IP-dependent code.
+- `paywall.ts` is wrapped in a parse guard on purpose (class declarations
+  re-execute on bfcache/history-restore re-parsing). Do not remove the guard.
+- `htmx.min.js` is vendored in `app/static` and is the one asset loaded
+  WITHOUT the `?v=` cache-busting param. `emptyOutDir: false` in
+  `vite.config.ts` protects it from build cleanup.
+- The app assumes a single uvicorn worker: module-level caches (JWKS client,
+  asset versions, crawler IP ranges) and the process-randomized ETag fallback
+  depend on it. Scaling workers changes their semantics.
+- `tests/integration/` is empty. The suite is fully unit-level with mocks and
+  says nothing about live Qdrant/Redis/HF connectivity; manual live helpers
+  live in `utilities/test_*.py` (excluded from pytest collection).
+- `/health` only probes Qdrant; Redis or Hugging Face outages will not flip
+  the container unhealthy.
+- `.env` is a personal cross-project secrets file (it contains keys unrelated
+  to classifast too). Never print, copy, or commit it.
+- Checkout endpoints are rate limited per IP via `app/rate_limit.py`
+  (fixed-window Redis counter, fails closed with 503). Checkout grace
+  (`checkout_grace:*` in Redis) is activated only by the signature-verified
+  Polar webhook; the success URL carries no token and grants nothing.
