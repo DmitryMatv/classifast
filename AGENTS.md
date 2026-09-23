@@ -103,11 +103,21 @@ sources and run `npm run build`.
 - `tests/integration/` is empty. The suite is fully unit-level with mocks and
   says nothing about live Qdrant/Redis/HF connectivity; manual live helpers
   live in `utilities/test_*.py` (excluded from pytest collection).
-- `/health` only probes Qdrant; Redis or Hugging Face outages will not flip
-  the container unhealthy.
+- `/health` requires initialized embedding and Qdrant clients, then probes
+  Qdrant only. If `HF_TOKEN` is missing, public pages can still serve while
+  `/health` returns 503, provided Qdrant startup succeeds. It does not check
+  Redis or live Hugging Face requests. A Qdrant startup failure stops the app.
 - `.env` is a personal cross-project secrets file (it contains keys unrelated
   to classifast too). Never print, copy, or commit it.
 - Checkout endpoints are rate limited per IP via `app/rate_limit.py`
   (fixed-window Redis counter, fails closed with 503). Checkout grace
   (`checkout_grace:*` in Redis) is activated only by the signature-verified
   Polar webhook; the success URL carries no token and grants nothing.
+- The homepage and classifier templates load production Clerk scripts and
+  Google Analytics. Production Clerk rejects localhost, while analytics may
+  still send traffic. The UI can render a fallback `Sign In` link when Clerk
+  fails; that link does not prove authentication works. Use a Clerk test
+  configuration that accepts the local origin to verify sign-in.
+- Template `url_for` links render as absolute URLs with the request origin.
+  Browser checks should use accessible names or inspect the URL pathname,
+  rather than match an exact relative `href`.
