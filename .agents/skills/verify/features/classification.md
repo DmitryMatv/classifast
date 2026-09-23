@@ -30,3 +30,4 @@ Preconditions: launch with `--mode full`; doctor must report `health_gate_passed
 - Opening a classifier page in full mode can classify its example before submission. Check the service targets before navigation, and do not count those example results as the submitted query's result.
 - A shared URL may load results asynchronously. Wait for a result or explicit empty state, not a fixed delay.
 - The form can return a paywall when quota is exhausted. Record that as a distinct outcome.
+- Changing `Number of results to show` with a nonempty description submits another lookup. In full mode, that request can consume another quota allowance.
