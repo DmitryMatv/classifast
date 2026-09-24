@@ -15,6 +15,20 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[4]
 STATE_NAME = "instance.json"
+LOCAL_REDIS_HOST = "127.0.0.1"
+LOCAL_REDIS_PORT = 16379
+
+
+def local_redis_ready() -> bool:
+    try:
+        with socket.create_connection(
+            (LOCAL_REDIS_HOST, LOCAL_REDIS_PORT), timeout=2
+        ) as conn:
+            conn.settimeout(2)
+            conn.sendall(b"*1\r\n$4\r\nPING\r\n")
+            return conn.makefile("rb").readline() == b"+PONG\r\n"
+    except OSError:
+        return False
 
 
 def process_start(pid: int) -> str | None:
@@ -49,10 +63,13 @@ def inspect(state: dict) -> dict:
     health_status, health = request(f"{base}/health")
     page_ready = page_status == 200 and "Mapping tables for cross-referencing" in page
     health_ready = health_status == 200 and '"healthy"' in health
-    if not page_ready or (state["mode"] == "full" and not health_ready):
+    redis_ready = local_redis_ready() if state["mode"] == "full" else None
+    if not page_ready or (
+        state["mode"] == "full" and not (health_ready and redis_ready)
+    ):
         raise RuntimeError(
             f"Doctor failed: mapping page={page_status}, health={health_status}, "
-            f"expected mode={state['mode']}"
+            f"local Redis ready={redis_ready}, expected mode={state['mode']}"
         )
     return {
         "url": base,
@@ -62,6 +79,7 @@ def inspect(state: dict) -> dict:
         "mapping_page_ready": page_ready,
         "health_status": health_status,
         "health_gate_passed": health_ready,
+        "local_redis_ready": redis_ready,
     }
 
 
@@ -84,6 +102,10 @@ def launch(run_dir: Path, mode: str) -> dict:
     for asset in ("app/static/js/common.js", "app/static/css/styles.css"):
         if not (ROOT / asset).is_file():
             raise RuntimeError(f"Missing {asset}; run npm run build first")
+    if mode == "full" and not local_redis_ready():
+        raise RuntimeError(
+            f"Start disposable Redis at {LOCAL_REDIS_HOST}:{LOCAL_REDIS_PORT} before full verification"
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
     evidence = run_dir / "evidence"
     evidence.mkdir(exist_ok=True)
@@ -94,6 +116,14 @@ def launch(run_dir: Path, mode: str) -> dict:
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
     ).strip()
     with (evidence / "server.log").open("wb") as log:
+        server_env = os.environ.copy()
+        if mode == "full":
+            server_env.update(
+                REDIS_HOST=LOCAL_REDIS_HOST,
+                REDIS_PORT=str(LOCAL_REDIS_PORT),
+                REDIS_USERNAME="",
+                REDIS_PASSWORD="",
+            )
         server = subprocess.Popen(
             [
                 sys.executable,
@@ -112,6 +142,7 @@ def launch(run_dir: Path, mode: str) -> dict:
             stdout=log,
             stderr=subprocess.STDOUT,
             start_new_session=True,
+            env=server_env,
         )
     state = {
         "pid": server.pid,
@@ -144,7 +175,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("launch", "doctor", "cleanup"))
     parser.add_argument("run_dir", type=Path)
-    parser.add_argument("--mode", choices=("public", "full"), default="public")
+    parser.add_argument("--mode", choices=("public", "full"), default="full")
     args = parser.parse_args()
     run_dir = args.run_dir.resolve()
     if args.action == "launch":

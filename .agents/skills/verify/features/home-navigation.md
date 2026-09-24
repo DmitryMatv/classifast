@@ -18,7 +18,7 @@ The homepage lets a visitor choose a classification standard or open the mapping
 
 Preconditions: doctor reports `mapping_page_ready: true` for this run.
 
-- Navigate to the instance root with `preview_navigate({"url":"<instance URL>/"})`. Snapshot the page and confirm `12 standards in 1 search box` and the Classifast title.
+- Navigate to the instance root with `preview_navigate({"url":"<instance URL>/"})`. Snapshot the page and confirm `12 standards in 1 search box` and the Classifast masthead.
 - Choose the UNSPSC list link with `preview_click({"selector":"#standards a[href$='/UNSPSC/']"})`. Wait for `urlIncludes: "/UNSPSC/"` and `role=textbox[name='Product description']`. Save the before and after snapshots.
 - Return to `/` and choose the desktop mapping link with `preview_click({"locator":"role=link[name='Mapping Files']"})`. Wait for `urlIncludes: "/mapping/"` and text `Mapping tables for cross-referencing`. Save the result snapshot.
 - To check the homepage mobile path, return to `/` first. Call `preview_resize({"mode":"preset","preset":"iphone-12-pro","orientation":"portrait"})`, click `role=button[name='Toggle mobile menu']`, then click `nav[aria-label='Mobile navigation'] a[href$='/mapping/']`. This link displays `Mapping Files` and a description. The catalog heading appears. Record this entry point separately.

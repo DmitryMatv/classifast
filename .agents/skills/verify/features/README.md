@@ -1,6 +1,6 @@
 # Classifast feature map
 
-This index is the maintained source for browser verification. Read the matching feature file before driving a flow. Start a fresh local instance with `../SKILL.md` and run doctor first. The public mode proves pages and mapping downloads. Classification needs full mode and its live dependencies.
+This index is the maintained source for browser verification. Read the matching feature file before driving a flow. Start a fresh local instance with `../SKILL.md` and run doctor first. Full mode is the default and uses live classification services plus local Redis. Use explicit `--mode public` for pages and mapping downloads when live classification is unnecessary.
 
 Record each tested feature ID and entry point in `$RUN_DIR/evidence/notes.md`. Capture the user action and resulting page, plus any downloaded file. An untested entry point is still unverified even when a related route works.
 
