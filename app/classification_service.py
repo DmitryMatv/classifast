@@ -57,7 +57,7 @@ class ClassificationService:
             top_k=top_k,
             quantization_cache=self._quantization_cache,
             reranker=self._reranker,
-            **({"semantic_query": semantic_query} if semantic_query is not None else {}),
+            semantic_query=semantic_query,
         )
         return ClassificationOutcome(
             results=result["results"],

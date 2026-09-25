@@ -168,7 +168,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             enhancer.enhance.reset_mock()
             await self._request_fragment(push_url="true")
             enhancer.enhance.assert_not_awaited()
-            self.assertNotIn("semantic_query", perform_classification_mock.call_args.kwargs)
+            self.assertIsNone(perform_classification_mock.call_args.kwargs["semantic_query"])
         finally:
             del self.app.state.query_enhancer
 

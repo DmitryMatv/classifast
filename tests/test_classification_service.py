@@ -87,6 +87,7 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
                 "top_k": 7,
                 "quantization_cache": quantization_cache,
                 "reranker": reranker,
+                "semantic_query": None,
             },
         )
 

@@ -426,7 +426,7 @@ async def build_classification_results_context(
         classifier_type=upper_type,
         version=version,
         top_k=top_k,
-        **({"semantic_query": semantic_query} if semantic_query is not None else {}),
+        semantic_query=semantic_query,
     )
     total_request_time = perf_counter() - start_total_time
 

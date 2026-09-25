@@ -45,7 +45,7 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
                     enhancer = QueryEnhancer("test-key", client=client)
                     self.assertEqual(await enhancer.enhance("bolt", "UNSPSC"), "bolt")
 
-    async def test_code_shaped_query_makes_no_network_request(self) -> None:
+    async def test_numeric_code_makes_no_network_request(self) -> None:
         def unexpected_request(request: httpx.Request) -> httpx.Response:
             raise AssertionError("Code lookup should skip the LLM")
 
@@ -54,7 +54,26 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             enhancer = QueryEnhancer("test-key", client=client)
             self.assertEqual(await enhancer.enhance("8471", "HS"), "8471")
-            self.assertEqual(await enhancer.enhance("AB-12345", "UNSPSC"), "AB-12345")
+            self.assertEqual(await enhancer.enhance("8471.50", "HS"), "8471.50")
+
+    async def test_measurement_text_still_reaches_model(self) -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "choices": [
+                            {"message": {"content": "A threaded metal fastener with a 123 mm length"}}
+                        ]
+                    },
+                )
+            )
+        ) as client:
+            enhancer = QueryEnhancer("test-key", client=client)
+            self.assertIn(
+                "threaded metal fastener",
+                await enhancer.enhance("bolt 123 mm", "UNSPSC"),
+            )
 
     async def test_model_text_is_sanitized_before_semantic_search(self) -> None:
         async with httpx.AsyncClient(

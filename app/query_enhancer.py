@@ -1,5 +1,3 @@
-"""Optional short descriptions for interactive classifier searches."""
-
 import asyncio
 import logging
 import re
@@ -15,17 +13,6 @@ OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 QUERY_ENHANCEMENT_MODEL = "google/gemini-3.1-flash-lite"
 
 
-def is_code_shaped_query(query: str) -> bool:
-    """Avoid spending a model call on obvious numeric or catalog identifiers."""
-    compact = query.strip()
-    return bool(
-        len(compact) <= 32
-        and any(character.isdigit() for character in compact)
-        and re.fullmatch(r"[A-Za-z0-9._/\- ]+", compact)
-        and (compact.isdigit() or re.search(r"\d{3,}", compact))
-    )
-
-
 class QueryEnhancer:
     def __init__(self, api_key: str, client: httpx.AsyncClient | None = None) -> None:
         self._client = client or httpx.AsyncClient(
@@ -39,7 +26,7 @@ class QueryEnhancer:
             await self._client.aclose()
 
     async def enhance(self, original: str, classifier_type: str) -> str:
-        if is_code_shaped_query(original):
+        if re.fullmatch(r"[\d\s.\-]+", original.strip()):
             return original
 
         try:
