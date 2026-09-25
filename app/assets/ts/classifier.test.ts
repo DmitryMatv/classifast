@@ -122,6 +122,7 @@ describe("classifier.ts", () => {
         data-default-version="v1"
       >
         <textarea id="product_description_area" name="product_description"></textarea>
+        <input type="checkbox" id="enhance-query-switch" name="enhance_query" value="1" role="switch">
         <select id="show_top_k_categories" name="top_k">
           <option value="5">5</option>
           <option value="10" selected>10</option>
@@ -148,6 +149,49 @@ describe("classifier.ts", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("sends the beta flag only while enabled and snapshots switch state for history", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const enhancementSwitch = document.getElementById(
+      "enhance-query-switch",
+    ) as HTMLInputElement;
+    const makeRequest = () => {
+      const detail = createConfigRequestDetail(form);
+      document.body.dispatchEvent(
+        new CustomEvent("htmx:config:request", { detail, bubbles: true }),
+      );
+      return detail.ctx.request.body;
+    };
+
+    expect(makeRequest().has("enhance_query")).toBe(false);
+    enhancementSwitch.checked = true;
+    expect(makeRequest().get("enhance_query")).toBe("1");
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update"));
+    expect(enhancementSwitch.defaultChecked).toBe(true);
+    enhancementSwitch.checked = false;
+    expect(makeRequest().has("enhance_query")).toBe(false);
+  });
+
+  it("restores the beta switch from a shared URL on browser navigation", async () => {
+    await import("./classifier");
+    const enhancementSwitch = document.getElementById(
+      "enhance-query-switch",
+    ) as HTMLInputElement;
+    const initialUrl = window.location.href;
+
+    try {
+      window.history.replaceState({}, "", "/NAICS/bolt/?enhance_query=1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      expect(enhancementSwitch.checked).toBe(true);
+
+      window.history.replaceState({}, "", "/NAICS/bolt/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      expect(enhancementSwitch.checked).toBe(false);
+    } finally {
+      window.history.replaceState({}, "", initialUrl);
+    }
   });
 
   it("staggers score bar animations starting with the second result", async () => {

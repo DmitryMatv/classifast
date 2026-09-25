@@ -832,9 +832,10 @@ def _run_semantic_classification_search(
     has_quantization: bool,
     search_exact: bool,
     embed_max_seconds: Optional[float] = None,
+    semantic_query: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     embedding_text = build_query_embedding_text(
-        context.normalized_query,
+        semantic_query or context.normalized_query,
         context.config.get("query_instruction"),
     )
     query_embedding = get_embedding(
@@ -932,6 +933,7 @@ def perform_classification(
     top_k: int = 3,
     quantization_cache: Optional[Dict[str, bool]] = None,
     reranker: Optional[OpenRouterReranker] = None,
+    semantic_query: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Classify a single query using hybrid search (exact text + semantic) with optional reranking.
@@ -1014,11 +1016,12 @@ def perform_classification(
             has_quantization=has_quantization,
             search_exact=search_exact,
             embed_max_seconds=outbound_deadline - time.monotonic(),
+            semantic_query=semantic_query,
         )
         filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
         ranked_semantic = _rank_semantic_results(
             reranker,
-            context.normalized_query,
+            semantic_query or context.normalized_query,
             filtered_semantic,
             partial_results,
             top_k,

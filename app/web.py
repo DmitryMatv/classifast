@@ -325,12 +325,14 @@ async def get_classification_fragment(
     version: str | None = Query(None),
     push_url: bool | None = Query(None),
     url_change: bool | None = Query(None),
+    enhance_query: str | None = Query(None),
 ):
     """
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
     """
     normalized_description = normalize_product_description(product_description)
+    enhancement_enabled = enhance_query == "1"
     upper_type, config = get_classifier_or_404(classifier_type)
     version, top_k, default_version = resolve_classifier_options(
         config,
@@ -356,6 +358,7 @@ async def get_classification_fragment(
         default_version,
         top_k,
         get_default_top_k(upper_type),
+        enhance_query=enhancement_enabled,
     )
 
     if not normalized_description:
@@ -379,12 +382,22 @@ async def get_classification_fragment(
             )
 
     try:
+        semantic_query = None
+        if enhancement_enabled:
+            enhancer = getattr(request.app.state, "query_enhancer", None)
+            if enhancer is not None:
+                candidate = await enhancer.enhance(
+                    normalized_description, upper_type
+                )
+                if candidate != normalized_description:
+                    semantic_query = candidate
         results_context = await build_classification_results_context(
             request=request,
             classifier_type=upper_type,
             query=normalized_description,
             version=version,
             top_k=top_k,
+            semantic_query=semantic_query,
         )
     except HTTPException as exc:
         exc.headers = {

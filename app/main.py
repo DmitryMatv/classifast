@@ -33,6 +33,7 @@ from .cache_profiles import (
 from .classification_executor import ClassificationExecutor
 from .classification_service import ClassificationService
 from .qdrant_connection import create_qdrant_client, resolve_qdrant_url
+from .query_enhancer import QueryEnhancer
 from .qdrant_schema import (
     QdrantSchemaValidationError,
     validate_configured_collections,
@@ -77,6 +78,7 @@ class StartupClients:
     collection_quantization_cache: dict[str, bool] = field(default_factory=dict)
     redis_client: redis.Redis | None = None
     reranker: OpenRouterReranker | None = None
+    query_enhancer: QueryEnhancer | None = None
 
 
 def initialize_embed_client() -> Any | None:
@@ -220,6 +222,12 @@ async def initialize_startup_clients() -> StartupClients:
         ) = initialize_qdrant_client()
         clients.redis_client = await initialize_redis_client()
         clients.reranker = initialize_openrouter_reranker()
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if api_key:
+            try:
+                clients.query_enhancer = QueryEnhancer(api_key)
+            except Exception as exc:
+                logger.error("Error initializing query enhancer: %s", exc)
         return clients
     except BaseException:
         await close_startup_clients(clients)
@@ -234,6 +242,7 @@ def assign_startup_clients(
     """Store initialized clients and caches on FastAPI app state."""
     app.state.embed_client = clients.embed_client
     app.state.reranker = clients.reranker
+    app.state.query_enhancer = clients.query_enhancer
     app.state.qdrant_client = clients.qdrant_client
     app.state.collection_quantization_cache = clients.collection_quantization_cache
     app.state.redis_client = clients.redis_client
@@ -248,6 +257,11 @@ def assign_startup_clients(
 
 async def close_startup_clients(clients: StartupClients) -> None:
     """Close startup clients that expose shutdown hooks."""
+    if clients.query_enhancer:
+        try:
+            await clients.query_enhancer.close()
+        except Exception as exc:
+            logger.error("Error closing query enhancer: %s", exc)
     if clients.reranker:
         try:
             clients.reranker.close()

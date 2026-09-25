@@ -1,8 +1,10 @@
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
@@ -12,6 +14,11 @@ from tests.helpers import build_classification_service
 
 def _build_test_app() -> FastAPI:
     app = FastAPI()
+    app.mount(
+        "/static",
+        StaticFiles(directory=Path(__file__).resolve().parents[1] / "app" / "static"),
+        name="static",
+    )
     app.include_router(router)
     app.state.classification_service = build_classification_service()
     app.state.redis_client = object()
@@ -67,6 +74,21 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             return await client.get(f"/{self.classifier_type}/fragment", params=params)
 
+    async def test_query_page_switch_follows_explicit_share_flag(self) -> None:
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            enabled = await client.get(
+                f"/{self.classifier_type}/trash_removal/?enhance_query=1"
+            )
+            disabled = await client.get(f"/{self.classifier_type}/trash_removal/")
+
+        self.assertEqual(enabled.status_code, 200)
+        self.assertIn('id="enhance-query-switch" name="enhance_query" value="1"', enabled.text)
+        self.assertIn('role="switch" checked', enabled.text)
+        self.assertNotIn('role="switch" checked', disabled.text)
+
     def _allowed_usage(self) -> UsageStatus:
         return UsageStatus(
             allowed=True,
@@ -109,6 +131,74 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("X-RateLimit-Limit", response.headers)
         reserve_usage_mock.assert_awaited_once()
         perform_classification_mock.assert_called_once()
+
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
+    @patch("app.classification_service.perform_classification")
+    async def test_enhancement_flag_changes_semantic_query_and_share_url_only(
+        self,
+        perform_classification_mock: Mock,
+        reserve_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result()
+        reserve_usage_mock.return_value = self._allowed_usage()
+        crawler_check_mock.return_value = False
+        enhancer = Mock()
+        enhancer.enhance = AsyncMock(return_value="trash removal. Waste collection service")
+        self.app.state.query_enhancer = enhancer
+        try:
+            response = await self._request_fragment(push_url="true", enhance_query="1")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.headers["HX-Push-Url"],
+                f"/{self.classifier_type}/trash_removal/?enhance_query=1",
+            )
+            self.assertIn("trash removal", response.text)
+            self.assertNotIn("Waste collection service", response.text)
+            self.assertEqual(
+                perform_classification_mock.call_args.kwargs["query"], "trash removal"
+            )
+            self.assertEqual(
+                perform_classification_mock.call_args.kwargs["semantic_query"],
+                "trash removal. Waste collection service",
+            )
+            enhancer.enhance.assert_awaited_once()
+
+            enhancer.enhance.reset_mock()
+            await self._request_fragment(push_url="true")
+            enhancer.enhance.assert_not_awaited()
+            self.assertNotIn("semantic_query", perform_classification_mock.call_args.kwargs)
+        finally:
+            del self.app.state.query_enhancer
+
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
+    @patch("app.classification_service.perform_classification")
+    async def test_denied_usage_does_not_call_enhancer(
+        self,
+        perform_classification_mock: Mock,
+        reserve_usage_mock: AsyncMock,
+        crawler_check_mock: AsyncMock,
+    ) -> None:
+        reserve_usage_mock.return_value = UsageStatus(
+            allowed=False,
+            remaining=0,
+            limit=10,
+            is_authenticated=False,
+            is_pro=False,
+            tracking_id="track-123",
+        )
+        crawler_check_mock.return_value = False
+        enhancer = Mock()
+        enhancer.enhance = AsyncMock()
+        self.app.state.query_enhancer = enhancer
+        try:
+            await self._request_fragment(enhance_query="1")
+            enhancer.enhance.assert_not_awaited()
+            perform_classification_mock.assert_not_called()
+        finally:
+            del self.app.state.query_enhancer
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)

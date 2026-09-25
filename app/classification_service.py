@@ -44,6 +44,7 @@ class ClassificationService:
         classifier_type: str,
         version: str | None = None,
         top_k: int = 3,
+        semantic_query: str | None = None,
     ) -> ClassificationOutcome:
         """Classify ``query`` against ``classifier_type`` and return an outcome."""
         result = await self._executor.run(
@@ -56,6 +57,7 @@ class ClassificationService:
             top_k=top_k,
             quantization_cache=self._quantization_cache,
             reranker=self._reranker,
+            **({"semantic_query": semantic_query} if semantic_query is not None else {}),
         )
         return ClassificationOutcome(
             results=result["results"],
