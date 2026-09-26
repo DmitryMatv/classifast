@@ -1,22 +1,40 @@
 # Optional query enhancement
 
-## Use
+The classifier form sends the original query and `enhance_query=1` when the beta
+switch is on. The fragment route reserves usage before classification. It then
+passes the beta flag to `ClassificationService.classify`.
 
-The classifier form submits the original description and an `enhance_query=1` flag only when the beta switch is on. The fragment route reserves usage, asks OpenRouter for a short description, and classifies with both the original and the resulting semantic text. The original stays in the input, results context, page title, ID lookup, and URL path. The flag stays in the URL query string to reproduce an enhanced search after refresh.
+The service uses the classification worker to validate the query and search for
+an exact `original_id` match. An exact hit returns immediately. After a miss,
+the service asks OpenRouter asynchronously for a short description, then resumes
+partial ID and semantic search on the classification worker. The prepared
+classification state prevents a second exact ID lookup.
 
-## Contract
+The model receives one user message:
 
 ```text
-QueryEnhancer.enhance(original: str, classifier_type: str) -> str
-ClassificationService.classify(query: str, ..., semantic_query: str | None = None)
-perform_classification(query: str, ..., semantic_query: str | None = None)
-build_classification_results_context(..., semantic_query: str | None = None)
+<original query>
+
+<instruction mentioning the classification standard>
 ```
 
-`query` is always the validated user text. `semantic_query` contains that text plus a bounded, generic description when the model supplies one. The search pipeline uses `semantic_query` for embedding and reranking, and `query` for exact and partial ID lookup. An absent semantic query means the existing behavior.
+When the model returns a usable description, the semantic text is:
 
-## Decision
+```text
+<original query>
 
-An alternative places the model call inside the synchronous classifier after ID lookup. That avoids a call for IDs but occupies the single classification worker during network I/O. The fragment route can call OpenRouter asynchronously after quota approval and leave the worker available. The model has a short timeout, no retry, and a conservative prompt. A failed, empty, or invalid response falls back to the original text.
+<generated description>
+```
 
-The switch is unchecked unless the page URL explicitly has `enhance_query=1`. The canonical page URL remains based on the original query. The fragment GET flag separates cached enabled and disabled results.
+Only that successful beta path puts the semantic text first in embedding and
+reranker inputs, followed by a blank line and the standard-specific instruction.
+Ordinary searches and beta fallbacks keep the existing instruction-first format.
+An exact match, a code-like query, an empty description, or a provider failure
+uses the original query for semantic search. Provider failures and a missing
+enhancer set `no-store` on the fragment response. Intentional skips and empty
+descriptions use the normal classification cache profile.
+
+The original query always supplies exact and partial ID lookup, result headings,
+URLs, and the outcome's `query` field. The share URL retains `enhance_query=1`,
+so a refreshed beta search repeats the same flow. Direct and ordinary callers
+still use one classification worker call through `perform_classification`.
