@@ -73,10 +73,11 @@ sources and run `npm run build`.
 
 ## Gotchas and Non-Obvious Behaviors
 
-- `data/`, `embedders/`, and `mapping/` are gitignored and exist only on this
-  machine. A fresh clone will not have them, and ripgrep-based searches
-  silently return zero hits inside them (they respect `.gitignore`). Use
-  `--no-ignore` or explicit paths when searching them.
+- `data/`, `embedders/`, and `mapping/` are gitignored and may be absent from
+  a checkout. Ripgrep silently returns zero hits inside them because it
+  respects `.gitignore`; use `--no-ignore` or explicit paths. If `embedders/`
+  is absent, `pytest` fails while collecting `tests/test_emdn_embedder.py`.
+  Run `pytest --ignore=tests/test_emdn_embedder.py` for the remaining suite.
 - `app/classifier_page_delivery.py` parses `app/static/sitemap.xml` at import
   time to build `SITEMAP_QUERY_PATHS`, which gates SSR eligibility and homepage
   anchor links. Editing the sitemap only changes app behavior after a restart.

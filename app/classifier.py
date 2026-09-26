@@ -3,6 +3,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 import httpx
@@ -193,15 +194,30 @@ def _embedding_dimension_mismatch(
     return embed_dims is not None and len(embedding_vector) != embed_dims
 
 
-def build_query_embedding_text(query: str, instruction: Optional[str]) -> str:
+class QueryFormat(Enum):
+    LEGACY = "legacy"
+    INPUT_FIRST = "input_first"
+
+
+def build_query_embedding_text(
+    query: str,
+    instruction: Optional[str],
+    query_format: QueryFormat = QueryFormat.LEGACY,
+) -> str:
     """Format a Qwen3 embedding query with its task instruction."""
     instruction_text = instruction.strip() if instruction else ""
     if not instruction_text:
         return query
+    if query_format is QueryFormat.INPUT_FIRST:
+        return f"{query}\n\n{instruction_text}"
     return f"Instruct: {instruction_text}\nQuery:{query}"
 
 
-def build_rerank_query_text(query: str, instruction: Optional[str]) -> str:
+def build_rerank_query_text(
+    query: str,
+    instruction: Optional[str],
+    query_format: QueryFormat = QueryFormat.LEGACY,
+) -> str:
     """Format an instruction-following reranker query.
 
     Voyage rerank-2.5 supports natural-language instructions in the query
@@ -211,6 +227,8 @@ def build_rerank_query_text(query: str, instruction: Optional[str]) -> str:
     instruction_text = instruction.strip() if instruction else ""
     if not instruction_text:
         return query
+    if query_format is QueryFormat.INPUT_FIRST:
+        return f"{query}\n\n{instruction_text}"
     return f"{instruction_text}\nQuery: {query}"
 
 
@@ -590,6 +608,7 @@ def rerank_candidates(
     document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
     rerank_instruction: Optional[str] = None,
     timeout_seconds: Optional[float] = None,
+    query_format: QueryFormat = QueryFormat.LEGACY,
 ) -> List[Dict[str, Any]]:
     """Rerank semantic search results using OpenRouter reranking.
 
@@ -616,7 +635,7 @@ def rerank_candidates(
         candidates, rerank_top_n
     )
     documents = _build_rerank_documents(candidates_to_rerank, document_builder)
-    rerank_query = build_rerank_query_text(query, rerank_instruction)
+    rerank_query = build_rerank_query_text(query, rerank_instruction, query_format)
 
     try:
         logger.info(
@@ -658,6 +677,32 @@ class _ClassificationContext:
     embed_model_name: str
     normalized_query: str
     classifier_type: str
+
+
+@dataclass(frozen=True)
+class PreparedClassification:
+    context: _ClassificationContext
+    exact_results: List[Dict[str, Any]]
+    exact_ms: float
+
+    def exact_outcome(self, top_k: int) -> Optional[Dict[str, Any]]:
+        if not self.exact_results:
+            return None
+        logger.info(
+            "ID_SEARCH: exact=%d partial=0 exact_ms=%.2f partial_ms=0.00",
+            len(self.exact_results),
+            self.exact_ms,
+        )
+        logger.info(
+            "ID_SEARCH_SHORTCUT: classifier=%s query='%s' matches=%d",
+            self.context.classifier_type,
+            self.context.normalized_query,
+            len(self.exact_results),
+        )
+        return _classification_response(
+            self.context,
+            _prepare_exact_id_shortcut_results(self.exact_results, top_k),
+        )
 
 
 def validate_and_prepare_classification(
@@ -832,10 +877,13 @@ def _run_semantic_classification_search(
     has_quantization: bool,
     search_exact: bool,
     embed_max_seconds: Optional[float] = None,
+    semantic_query: Optional[str] = None,
+    query_format: QueryFormat = QueryFormat.LEGACY,
 ) -> List[Dict[str, Any]]:
     embedding_text = build_query_embedding_text(
-        context.normalized_query,
+        semantic_query or context.normalized_query,
         context.config.get("query_instruction"),
+        query_format,
     )
     query_embedding = get_embedding(
         embed_client=embed_client,
@@ -878,6 +926,7 @@ def _rank_semantic_results(
     rerank_top_n: int,
     rerank_instruction: Optional[str],
     deadline: Optional[float] = None,
+    query_format: QueryFormat = QueryFormat.LEGACY,
 ) -> List[Dict[str, Any]]:
     if reranker is not None and not id_match_results and filtered_semantic:
         remaining_seconds: Optional[float] = None
@@ -901,6 +950,7 @@ def _rank_semantic_results(
             rerank_top_n=rerank_top_n,
             rerank_instruction=rerank_instruction,
             timeout_seconds=remaining_seconds,
+            query_format=query_format,
         )
         for result in reranked_semantic:
             if "rerank_relevance_score" in result:
@@ -923,69 +973,52 @@ def _merge_classification_results(
     return _sort_by_score_desc(id_match_results + semantic_results, top_k)
 
 
-def perform_classification(
+def prepare_classification(
     embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
     version: Optional[str] = None,
+) -> PreparedClassification:
+    context = _prepare_classification_context(
+        embed_client, qdrant_client, query, classifier_type, version
+    )
+    try:
+        exact_results, exact_ms = _timed_exact_id_search(
+            qdrant_client, context.collection_name, context.normalized_query
+        )
+        return PreparedClassification(context, exact_results, exact_ms)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Classification error for '%s': %s", context.classifier_type, exc)
+        raise HTTPException(status_code=500, detail="Error processing request") from exc
+
+
+def complete_classification(
+    prepared: PreparedClassification,
+    embed_client: InferenceClient,
+    qdrant_client: QdrantClient,
     top_k: int = 3,
     quantization_cache: Optional[Dict[str, bool]] = None,
     reranker: Optional[OpenRouterReranker] = None,
+    semantic_query: Optional[str] = None,
+    query_format: QueryFormat = QueryFormat.LEGACY,
+    outbound_deadline: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """
-    Classify a single query using hybrid search (exact text + semantic) with optional reranking.
+    exact_outcome = prepared.exact_outcome(top_k)
+    if exact_outcome is not None:
+        return exact_outcome
 
-    Args:
-        embed_client: The Hugging Face Inference client
-        qdrant_client: The Qdrant client
-        query: The product/service description to classify
-        classifier_type: The classification standard (e.g., 'unspsc', 'etim')
-        version: Optional specific version to use
-        top_k: Number of results to return
-        quantization_cache: Optional cache mapping collection names to quantization status
-        reranker: Optional OpenRouter reranker for semantic results
-
-    Returns:
-        Dict containing classification results and metadata
-    """
-    context = _prepare_classification_context(
-        embed_client=embed_client,
-        qdrant_client=qdrant_client,
-        query=query,
-        classifier_type=classifier_type,
-        version=version,
-    )
-    outbound_deadline = time.monotonic() + outbound_budget_seconds()
+    context = prepared.context
+    if outbound_deadline is None:
+        outbound_deadline = time.monotonic() + outbound_budget_seconds()
 
     try:
         has_quantization = _collection_has_quantization(
             context.collection_name, quantization_cache
         )
         search_exact = _should_use_exact_qdrant_search(context.classifier_type)
-        exact_results, exact_ms = _timed_exact_id_search(
-            qdrant_client, context.collection_name, context.normalized_query
-        )
-
-        if exact_results:
-            logger.info(
-                "ID_SEARCH: exact=%d partial=%d exact_ms=%.2f partial_ms=%.2f",
-                len(exact_results),
-                0,
-                exact_ms,
-                0.0,
-            )
-            logger.info(
-                "ID_SEARCH_SHORTCUT: classifier=%s query='%s' matches=%d",
-                context.classifier_type,
-                context.normalized_query,
-                len(exact_results),
-            )
-            return _classification_response(
-                context,
-                _prepare_exact_id_shortcut_results(exact_results, top_k),
-            )
-
         partial_results, partial_ms = _timed_partial_id_search(
             qdrant_client, context.collection_name, context.normalized_query
         )
@@ -993,7 +1026,7 @@ def perform_classification(
             "ID_SEARCH: exact=%d partial=%d exact_ms=%.2f partial_ms=%.2f",
             0,
             len(partial_results),
-            exact_ms,
+            prepared.exact_ms,
             partial_ms,
         )
 
@@ -1014,11 +1047,13 @@ def perform_classification(
             has_quantization=has_quantization,
             search_exact=search_exact,
             embed_max_seconds=outbound_deadline - time.monotonic(),
+            semantic_query=semantic_query,
+            query_format=query_format,
         )
         filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
         ranked_semantic = _rank_semantic_results(
             reranker,
-            context.normalized_query,
+            semantic_query or context.normalized_query,
             filtered_semantic,
             partial_results,
             top_k,
@@ -1028,6 +1063,7 @@ def perform_classification(
                 context.config.get("query_instruction"),
             ),
             deadline=outbound_deadline,
+            query_format=query_format,
         )
         classification_results = _merge_classification_results(
             partial_results, ranked_semantic, top_k
@@ -1040,3 +1076,30 @@ def perform_classification(
     except Exception as e:
         logger.error("Classification error for '%s': %s", context.classifier_type, e)
         raise HTTPException(status_code=500, detail="Error processing request")
+
+
+def perform_classification(
+    embed_client: InferenceClient,
+    qdrant_client: QdrantClient,
+    query: str,
+    classifier_type: str,
+    version: Optional[str] = None,
+    top_k: int = 3,
+    quantization_cache: Optional[Dict[str, bool]] = None,
+    reranker: Optional[OpenRouterReranker] = None,
+    semantic_query: Optional[str] = None,
+) -> Dict[str, Any]:
+    outbound_deadline = time.monotonic() + outbound_budget_seconds()
+    prepared = prepare_classification(
+        embed_client, qdrant_client, query, classifier_type, version
+    )
+    return complete_classification(
+        prepared,
+        embed_client,
+        qdrant_client,
+        top_k=top_k,
+        quantization_cache=quantization_cache,
+        reranker=reranker,
+        semantic_query=semantic_query,
+        outbound_deadline=outbound_deadline,
+    )
