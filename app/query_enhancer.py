@@ -32,7 +32,7 @@ def _is_code_like(original: str) -> bool:
     stripped = original.strip()
     return bool(
         re.fullmatch(r"[\d\s.\-]+", stripped)
-        or CODE_LIKE_PATTERN.fullmatch(stripped)
+        or (len(stripped) >= 5 and CODE_LIKE_PATTERN.fullmatch(stripped))
     )
 
 

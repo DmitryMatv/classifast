@@ -97,6 +97,25 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
                 )
         self.assertEqual(len(requests), 2)
 
+    async def test_short_alphanumeric_terms_still_reach_model(self) -> None:
+        requests = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": "A common product term"}}]},
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(respond)
+        ) as client:
+            enhancer = QueryEnhancer("test-key", client=client)
+            for query in ("3D", "B2B"):
+                outcome = await enhancer.enhance(query, "UNSPSC")
+                self.assertIs(outcome.status, EnhancementStatus.APPLIED)
+        self.assertEqual(len(requests), 2)
+
     async def test_model_text_is_sanitized_before_semantic_search(self) -> None:
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(
