@@ -45,6 +45,7 @@ from .mapping_store import (
     get_mapping_product,
     list_mapping_products,
 )
+from .query_enhancer import EnhancementStatus
 from .usage_tracker import (
     QuotaUnavailableError,
     UsageStatus,
@@ -382,22 +383,13 @@ async def get_classification_fragment(
             )
 
     try:
-        semantic_query = None
-        if enhancement_enabled:
-            enhancer = getattr(request.app.state, "query_enhancer", None)
-            if enhancer is not None:
-                candidate = await enhancer.enhance(
-                    normalized_description, upper_type
-                )
-                if candidate != normalized_description:
-                    semantic_query = candidate
         results_context = await build_classification_results_context(
             request=request,
             classifier_type=upper_type,
             query=normalized_description,
             version=version,
             top_k=top_k,
-            semantic_query=semantic_query,
+            enhancement_enabled=enhancement_enabled,
         )
     except HTTPException as exc:
         exc.headers = {
@@ -421,6 +413,8 @@ async def get_classification_fragment(
     response = render_classification_results_fragment(
         request, results_context, page_title, push_url, new_url
     )
+    if results_context.get("enhancement_status") is EnhancementStatus.FAILED:
+        response.headers.update(build_cache_headers(NO_STORE))
 
     return response
 

@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
+from app.classification_service import ClassificationOutcome
+from app.query_enhancer import EnhancementStatus
 from app.usage_tracker import UsageStatus
 from app.web import router
 from tests.helpers import build_classification_service
@@ -134,20 +136,28 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
-    @patch("app.classification_service.perform_classification")
-    async def test_enhancement_flag_changes_semantic_query_and_share_url_only(
+    async def test_enhancement_flag_reaches_service_and_share_url(
         self,
-        perform_classification_mock: Mock,
         reserve_usage_mock: AsyncMock,
         crawler_check_mock: AsyncMock,
     ) -> None:
-        perform_classification_mock.return_value = self._classification_result()
         reserve_usage_mock.return_value = self._allowed_usage()
         crawler_check_mock.return_value = False
-        enhancer = Mock()
-        enhancer.enhance = AsyncMock(return_value="trash removal. Waste collection service")
-        self.app.state.query_enhancer = enhancer
-        try:
+        result = self._classification_result()
+        outcome = ClassificationOutcome(
+            results=result["results"],
+            version_config=result["version_config"],
+            version_name=result["version_name"],
+            collection_name=result["collection_name"],
+            query=result["query"],
+            enhancement_status=EnhancementStatus.APPLIED,
+        )
+        with patch.object(
+            self.app.state.classification_service,
+            "classify",
+            new_callable=AsyncMock,
+            return_value=outcome,
+        ) as classify:
             response = await self._request_fragment(push_url="true", enhance_query="1")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(
@@ -156,21 +166,37 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertIn("trash removal", response.text)
             self.assertNotIn("Waste collection service", response.text)
-            self.assertEqual(
-                perform_classification_mock.call_args.kwargs["query"], "trash removal"
-            )
-            self.assertEqual(
-                perform_classification_mock.call_args.kwargs["semantic_query"],
-                "trash removal. Waste collection service",
-            )
-            enhancer.enhance.assert_awaited_once()
-
-            enhancer.enhance.reset_mock()
+            self.assertEqual(classify.call_args.kwargs["query"], "trash removal")
+            self.assertTrue(classify.call_args.kwargs["enhancement_enabled"])
             await self._request_fragment(push_url="true")
-            enhancer.enhance.assert_not_awaited()
-            self.assertIsNone(perform_classification_mock.call_args.kwargs["semantic_query"])
-        finally:
-            del self.app.state.query_enhancer
+            self.assertFalse(classify.call_args.kwargs["enhancement_enabled"])
+
+    @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
+    @patch("app.web.reserve_usage", new_callable=AsyncMock)
+    async def test_provider_failure_fragment_is_not_cached(
+        self, reserve_usage_mock: AsyncMock, crawler_check_mock: AsyncMock
+    ) -> None:
+        reserve_usage_mock.return_value = self._allowed_usage()
+        crawler_check_mock.return_value = False
+        result = self._classification_result()
+        outcome = ClassificationOutcome(
+            results=result["results"],
+            version_config=result["version_config"],
+            version_name=result["version_name"],
+            collection_name=result["collection_name"],
+            query=result["query"],
+            enhancement_status=EnhancementStatus.FAILED,
+        )
+        with patch.object(
+            self.app.state.classification_service,
+            "classify",
+            new_callable=AsyncMock,
+            return_value=outcome,
+        ):
+            response = await self._request_fragment(enhance_query="1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store, max-age=0")
+        self.assertEqual(response.headers["Cloudflare-CDN-Cache-Control"], "no-store")
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)
@@ -190,15 +216,14 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             tracking_id="track-123",
         )
         crawler_check_mock.return_value = False
-        enhancer = Mock()
-        enhancer.enhance = AsyncMock()
-        self.app.state.query_enhancer = enhancer
-        try:
+        with patch.object(
+            self.app.state.classification_service,
+            "classify",
+            new_callable=AsyncMock,
+        ) as classify:
             await self._request_fragment(enhance_query="1")
-            enhancer.enhance.assert_not_awaited()
+            classify.assert_not_awaited()
             perform_classification_mock.assert_not_called()
-        finally:
-            del self.app.state.query_enhancer
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)
     @patch("app.web.reserve_usage", new_callable=AsyncMock)

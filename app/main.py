@@ -242,7 +242,6 @@ def assign_startup_clients(
     """Store initialized clients and caches on FastAPI app state."""
     app.state.embed_client = clients.embed_client
     app.state.reranker = clients.reranker
-    app.state.query_enhancer = clients.query_enhancer
     app.state.qdrant_client = clients.qdrant_client
     app.state.collection_quantization_cache = clients.collection_quantization_cache
     app.state.redis_client = clients.redis_client
@@ -252,6 +251,7 @@ def assign_startup_clients(
         quantization_cache=clients.collection_quantization_cache,
         reranker=clients.reranker,
         executor=classification_executor,
+        enhancer=clients.query_enhancer,
     )
 
 
