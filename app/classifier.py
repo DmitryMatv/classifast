@@ -1006,7 +1006,6 @@ def complete_classification(
     query_format: QueryFormat = QueryFormat.LEGACY,
     outbound_deadline: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Finish a prepared classification without repeating its exact-ID lookup."""
     exact_outcome = prepared.exact_outcome(top_k)
     if exact_outcome is not None:
         return exact_outcome
@@ -1090,7 +1089,6 @@ def perform_classification(
     reranker: Optional[OpenRouterReranker] = None,
     semantic_query: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Classify in one worker call for ordinary and direct callers."""
     outbound_deadline = time.monotonic() + outbound_budget_seconds()
     prepared = prepare_classification(
         embed_client, qdrant_client, query, classifier_type, version
