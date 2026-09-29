@@ -6,6 +6,8 @@ Record each tested feature ID and entry point in `$RUN_DIR/evidence/notes.md`. C
 
 ## Features
 
-- [Find a standard](home-navigation.md): homepage links to classifier pages and mapping catalog.
-- [Classify a description](classification.md): submit a product description, inspect results, and use the shareable URL.
-- [Browse and download a mapping sample](mapping-sample.md): open a crosswalk detail page and download its CSV sample.
+- [Find a standard](home-navigation.md): standard links, homepage shortcuts, popular lookups, and mobile navigation.
+- [Classify a description](classification.md): submit a description, change the result count, copy a code, and reopen the shareable URL. The file also records quota recovery and its authentication prerequisites.
+- [Browse mappings and download samples](mapping-sample.md): inspect both crosswalk products, download their CSV samples, and identify the prerequisites for paid checkout.
+
+Public mode covers navigation and free mapping samples. Classification needs full mode and available quota. Authenticated quota recovery needs a localhost-compatible Clerk test configuration. Successful paid checkout needs a dedicated Polar sandbox integration, which the current payment routes do not select. Record these restricted paths as unreachable with their entry point and prerequisite; public pages and fallback sign-in links do not prove them.
