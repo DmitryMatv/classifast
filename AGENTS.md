@@ -87,6 +87,9 @@ sources and run `npm run build`.
 
 ## Gotchas and Non-Obvious Behaviors
 
+- Polar SDK 1.x replaces the `polar_sdk` import namespace with `polar` and changes
+  the API. Keep the `polar-sdk<1.0.0` requirement until the payment integration is
+  explicitly migrated.
 - `data/`, `embedders/`, and `mapping/` are gitignored and may be absent from
   a checkout. Ripgrep silently returns zero hits inside them because it
   respects `.gitignore`; use `--no-ignore` or explicit paths. If `embedders/`
