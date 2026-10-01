@@ -189,7 +189,7 @@ def initialize_openrouter_reranker() -> OpenRouterReranker | None:
 
     try:
         model_name = (
-            os.getenv("OPENROUTER_RERANK_MODEL", "").strip() or "voyageai/rerank-2.5"
+            os.getenv("OPENROUTER_RERANK_MODEL", "").strip() or "voyageai/rerank-3"
         )
         timeout_seconds = float(os.getenv("OPENROUTER_RERANK_TIMEOUT_SECONDS", "30"))
         if timeout_seconds <= 0:
