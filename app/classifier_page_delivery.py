@@ -302,6 +302,7 @@ def build_fragment_push_url(
     default_version: str,
     top_k: int,
     default_top_k: int,
+    enhance_query: bool = False,
 ) -> str:
     slug = _build_classifier_search_slug(
         normalized_description.replace("/", " "), upper_type
@@ -315,6 +316,8 @@ def build_fragment_push_url(
         params["version"] = version
     if top_k != default_top_k:
         params["top_k"] = top_k
+    if enhance_query:
+        params["enhance_query"] = "1"
     if params:
         new_url += f"?{urlencode(params)}"
 
@@ -400,6 +403,8 @@ async def build_classification_results_context(
     query: str,
     version: str,
     top_k: int,
+    semantic_query: str | None = None,
+    enhancement_enabled: bool = False,
 ) -> dict[str, object]:
     """Build the template context used to render classification results."""
     normalized_query = re.sub(r"\s+", " ", query).strip()
@@ -422,6 +427,8 @@ async def build_classification_results_context(
         classifier_type=upper_type,
         version=version,
         top_k=top_k,
+        semantic_query=semantic_query,
+        enhancement_enabled=enhancement_enabled,
     )
     total_request_time = perf_counter() - start_total_time
 
@@ -433,6 +440,7 @@ async def build_classification_results_context(
         "code_url_suffix": outcome.version_config.get("code_url_suffix", ""),
         "tooltip": outcome.version_config.get("tooltip", ""),
         "total_request_time": total_request_time,
+        "enhancement_status": outcome.enhancement_status,
         "classifier_type": upper_type,
     }
 

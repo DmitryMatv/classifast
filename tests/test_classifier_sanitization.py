@@ -318,6 +318,20 @@ class ClassificationContractTests(unittest.TestCase):
             "Instruct: Find matching codes.\nQuery:industrial pump",
         )
 
+    def test_beta_format_places_instruction_after_semantic_text(self) -> None:
+        from app.classifier import QueryFormat
+
+        semantic_text = "bolt\n\nThreaded fastener"
+        expected = "bolt\n\nThreaded fastener\n\nFind matching codes."
+        self.assertEqual(
+            build_query_embedding_text(semantic_text, " Find matching codes. ", QueryFormat.INPUT_FIRST),
+            expected,
+        )
+        self.assertEqual(
+            build_rerank_query_text(semantic_text, " Find matching codes. ", QueryFormat.INPUT_FIRST),
+            expected,
+        )
+
     def test_build_query_embedding_text_returns_query_without_instruction(self) -> None:
         self.assertEqual(
             build_query_embedding_text("industrial pump", None),

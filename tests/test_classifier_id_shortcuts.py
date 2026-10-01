@@ -63,6 +63,41 @@ class PerformClassificationShortcutTests(unittest.TestCase):
         embedding_mock.assert_not_called()
         semantic_mock.assert_not_called()
 
+    def test_semantic_query_changes_embedding_and_reranking_but_not_id_lookup(self) -> None:
+        semantic_results = [
+            {
+                "score": 0.42,
+                "id": "semantic-1",
+                "payload": {"original_id": "12345", "class_name": "Fasteners"},
+            }
+        ]
+        with (
+            patch("app.classifier.perform_exact_id_search", return_value=[]) as exact,
+            patch("app.classifier.perform_partial_id_search", return_value=[]) as partial,
+            patch("app.classifier.get_embedding", return_value=[0.1]) as embedding,
+            patch(
+                "app.classifier.perform_semantic_search", return_value=semantic_results
+            ),
+            patch(
+                "app.classifier.rerank_candidates", return_value=semantic_results
+            ) as rerank,
+        ):
+            result = perform_classification(
+                embed_client=object(),
+                qdrant_client=object(),
+                query="bolt",
+                semantic_query="bolt. Threaded fastener",
+                classifier_type=self.classifier_type,
+                version=self.version,
+                reranker=object(),
+            )
+
+        self.assertEqual(result["query"], "bolt")
+        self.assertEqual(exact.call_args.kwargs["query_text"], "bolt")
+        self.assertEqual(partial.call_args.kwargs["normalized_query"], "bolt")
+        self.assertIn("bolt. Threaded fastener", embedding.call_args.kwargs["text"])
+        self.assertEqual(rerank.call_args.kwargs["query"], "bolt. Threaded fastener")
+
     def test_partial_matches_still_keep_semantic_path(self) -> None:
         partial_results = [
             {

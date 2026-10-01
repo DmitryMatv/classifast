@@ -140,6 +140,7 @@ describe("classifier.ts", () => {
         data-default-version="v1"
       >
         <textarea id="product_description_area" name="product_description"></textarea>
+        <input type="checkbox" id="enhance-query-switch" name="enhance_query" value="1" role="switch">
         <select id="show_top_k_categories" name="top_k">
           <option value="5">5</option>
           <option value="10" selected>10</option>
@@ -166,6 +167,97 @@ describe("classifier.ts", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("sends the beta flag only while enabled and snapshots switch state for history", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const enhancementSwitch = document.getElementById(
+      "enhance-query-switch",
+    ) as HTMLInputElement;
+    const makeRequest = () => {
+      const detail = createConfigRequestDetail(form);
+      document.body.dispatchEvent(
+        new CustomEvent("htmx:config:request", { detail, bubbles: true }),
+      );
+      return detail.ctx.request.body;
+    };
+
+    expect(makeRequest().has("enhance_query")).toBe(false);
+    enhancementSwitch.checked = true;
+    expect(makeRequest().get("enhance_query")).toBe("1");
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update"));
+    expect(enhancementSwitch.defaultChecked).toBe(true);
+    enhancementSwitch.checked = false;
+    expect(makeRequest().has("enhance_query")).toBe(false);
+  });
+
+  it("restores the beta switch from a shared URL on browser navigation", async () => {
+    await import("./classifier");
+    const enhancementSwitch = document.getElementById(
+      "enhance-query-switch",
+    ) as HTMLInputElement;
+    const initialUrl = window.location.href;
+
+    try {
+      window.history.replaceState({}, "", "/NAICS/bolt/?enhance_query=1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      expect(enhancementSwitch.checked).toBe(true);
+
+      window.history.replaceState({}, "", "/NAICS/bolt/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      expect(enhancementSwitch.checked).toBe(false);
+    } finally {
+      window.history.replaceState({}, "", initialUrl);
+    }
+  });
+
+  it("restores beta requests after BODY replacement without losing Forward history", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: { copyShareableLink: vi.fn() },
+    }));
+    await import("./classifier");
+    const originalSwitch = document.querySelector<HTMLInputElement>(
+      "#enhance-query-switch",
+    );
+    if (!originalSwitch) throw new Error("Missing enhancement switch");
+    originalSwitch.checked = true;
+    getClassifierForm().dataset["autoloadEnabled"] = "true";
+    document.dispatchEvent(new CustomEvent("htmx:before:history:update"));
+
+    restoreBodyMarkup(document.body.innerHTML);
+    const restoredForm = getClassifierForm();
+    const restoredSwitch = document.querySelector<HTMLInputElement>(
+      "#enhance-query-switch",
+    );
+    if (!restoredSwitch) throw new Error("Missing restored enhancement switch");
+    expect(restoredSwitch).not.toBe(originalSwitch);
+    expect(restoredSwitch.checked).toBe(true);
+    vi.advanceTimersByTime(0);
+    expect(window.htmx?.trigger).toHaveBeenCalledExactlyOnceWith(
+      restoredForm,
+      "submit",
+    );
+
+    const restoredRequest = createConfigRequestDetail(restoredForm);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:config:request", { detail: restoredRequest }),
+    );
+    expect(restoredRequest.ctx.request.body.get("enhance_query")).toBe("1");
+    expect(restoredRequest.ctx.request.body.get("push_url")).toBe("false");
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:after:request", { detail: restoredRequest }),
+    );
+
+    restoredSwitch.checked = false;
+    const manualRequest = createConfigRequestDetail(restoredForm);
+    manualRequest.ctx.request.body.set("enhance_query", "1");
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:config:request", { detail: manualRequest }),
+    );
+    expect(manualRequest.ctx.request.body.has("enhance_query")).toBe(false);
+    expect(manualRequest.ctx.request.body.has("push_url")).toBe(false);
   });
 
   it("initializes fresh classifier shells once after BODY replacement and retires old handlers", async () => {

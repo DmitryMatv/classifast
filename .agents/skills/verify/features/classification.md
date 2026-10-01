@@ -7,6 +7,7 @@ A visitor enters a product description and receives ranked codes for the chosen 
 - `classify-form` shows the selected standard, version, description field, and result-count choice.
 - `classify-submit` returns code results or an explicit no-match state.
 - `classify-share` updates the URL so the lookup can be reopened.
+- `classify-beta-enhancement` lets a visitor opt in to a query description for embedding and reranking while keeping the submitted text visible.
 - `classify-count` automatically reruns the lookup when the result-count choice changes.
 - `classify-copy-code` copies the original classification ID from a result row.
 
@@ -26,6 +27,11 @@ Preconditions: use the default full-mode launch with the disposable local Redis 
 - For a nonempty result, record a displayed code, name, and score from `#results-container`. Click the first row's `[data-copy-original-id]` button and confirm the clipboard matches that attribute. Record its `View details` link's destination without leaving the local instance. Grant clipboard permissions in the browser when needed; a visible button alone does not prove copying.
 - Change `role=combobox[name='Number of results to show']` to `30`. In Playwright, use `selectOption('30')`. Confirm an automatic fragment request, `top_k=30` in the URL, and the updated result list. No submit click is needed for this control.
 - Click `role=button[name='Copy link']` and capture the `Copied!` feedback. Confirm the clipboard equals the current local URL, then reopen that exact URL. Confirm the description, selected count, and completed results. Save the result snapshot and URL. If clipboard reading is unavailable, record sharing as partially verified.
+- To check `classify-beta-enhancement`:
+  1. Start at `/UNSPSC/` and confirm `Expand query Beta` is off. Enter a short query such as `POS` and submit it. Record the URL, input value, results heading, and first result.
+  2. Click the visible `Expand query Beta` label and submit the same query again. Confirm the URL includes `?enhance_query=1`, the switch is on, the input and heading still show the original query, and a completed result list appears.
+  3. Record the first result. Check `evidence/server.log` for a successful OpenRouter chat completion and rerank request using the expanded query. Live model output can vary, so do not require a particular code or score.
+  4. Reopen the enhanced URL and confirm it restores the switch and original query.
 
 ## Quota recovery and paid access
 

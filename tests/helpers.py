@@ -26,6 +26,7 @@ def build_classification_service(
     quantization_cache: dict[str, bool] | None = None,
     reranker: Any = None,
     executor: Any = None,
+    enhancer: Any = None,
 ) -> ClassificationService:
     """Build a classification module with infrastructure bound at construction."""
     return ClassificationService(
@@ -34,6 +35,7 @@ def build_classification_service(
         quantization_cache=quantization_cache if quantization_cache is not None else {},
         reranker=reranker,
         executor=executor if executor is not None else InlineClassificationExecutor(),
+        enhancer=enhancer,
     )
 
 

@@ -45,6 +45,7 @@ from .mapping_store import (
     get_mapping_product,
     list_mapping_products,
 )
+from .query_enhancer import EnhancementStatus
 from .usage_tracker import (
     QuotaUnavailableError,
     UsageStatus,
@@ -325,12 +326,14 @@ async def get_classification_fragment(
     version: str | None = Query(None),
     push_url: bool | None = Query(None),
     url_change: bool | None = Query(None),
+    enhance_query: str | None = Query(None),
 ):
     """
     GET endpoint for retrieving classification results as an HTML fragment.
     Optimized for HTMX lazy loading and caching.
     """
     normalized_description = normalize_product_description(product_description)
+    enhancement_enabled = enhance_query == "1"
     upper_type, config = get_classifier_or_404(classifier_type)
     version, top_k, default_version = resolve_classifier_options(
         config,
@@ -356,6 +359,7 @@ async def get_classification_fragment(
         default_version,
         top_k,
         get_default_top_k(upper_type),
+        enhance_query=enhancement_enabled,
     )
 
     if not normalized_description:
@@ -385,6 +389,7 @@ async def get_classification_fragment(
             query=normalized_description,
             version=version,
             top_k=top_k,
+            enhancement_enabled=enhancement_enabled,
         )
     except HTTPException as exc:
         exc.headers = {
@@ -408,6 +413,8 @@ async def get_classification_fragment(
     response = render_classification_results_fragment(
         request, results_context, page_title, push_url, new_url
     )
+    if results_context.get("enhancement_status") is EnhancementStatus.FAILED:
+        response.headers.update(build_cache_headers(NO_STORE))
 
     return response
 

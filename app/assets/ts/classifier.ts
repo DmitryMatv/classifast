@@ -138,6 +138,10 @@ class ClassifierPage {
     ) as HTMLSelectElement | null;
   }
 
+  private getEnhancementSwitch(): HTMLInputElement | null {
+    return document.querySelector<HTMLInputElement>("#enhance-query-switch");
+  }
+
   private canonicalizeDefaultParameters(body: FormData): void {
     const topKSelector = this.getTopKSelector();
     const defaultTopK = this.getDefaultTopK();
@@ -429,6 +433,10 @@ class ClassifierPage {
     this.syncTextareaState();
     this.syncSelectState("version_selector");
     this.syncSelectState("show_top_k_categories");
+    const enhancementSwitch = this.getEnhancementSwitch();
+    if (enhancementSwitch) {
+      enhancementSwitch.defaultChecked = enhancementSwitch.checked;
+    }
     this.hideLoadingIndicator();
   }
 
@@ -577,6 +585,11 @@ class ClassifierPage {
           );
         }
         this.canonicalizeDefaultParameters(htmxEvent.detail.ctx.request.body);
+        if (this.getEnhancementSwitch()?.checked) {
+          htmxEvent.detail.ctx.request.body.set("enhance_query", "1");
+        } else {
+          htmxEvent.detail.ctx.request.body.delete("enhance_query");
+        }
 
         if (!this.pendingAutoloadRequestConfig) {
           return;
@@ -711,6 +724,19 @@ class ClassifierPage {
       "pageshow",
       () => {
         this.hideLoadingIndicator();
+      },
+      { signal: this.lifecycle.signal },
+    );
+
+    window.addEventListener(
+      "popstate",
+      () => {
+        const enhancementSwitch = this.getEnhancementSwitch();
+        if (enhancementSwitch) {
+          enhancementSwitch.checked =
+            new URLSearchParams(window.location.search).get("enhance_query") ===
+            "1";
+        }
       },
       { signal: this.lifecycle.signal },
     );

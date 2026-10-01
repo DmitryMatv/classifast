@@ -511,6 +511,10 @@ describe("paywall.ts", () => {
       "/NAICS/industrial_pump/",
     ],
     ["/NAICS/?product_description=pump&checkout=success", "/NAICS/pump/"],
+    [
+      "/NAICS/?product_description=pump&enhance_query=1&checkout=success",
+      "/NAICS/pump/?enhance_query=1",
+    ],
   ])(
     "keeps activation recovery when its initial response canonicalizes %s",
     async (returnPath, canonicalPath) => {
