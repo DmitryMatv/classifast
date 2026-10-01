@@ -73,7 +73,7 @@ Reranking is served by OpenRouter and uses its own API key and model:
 Embedding inference uses the configured `HF_INFERENCE_PROVIDER`. Reranking is
 sent to OpenRouter's `/api/v1/rerank` endpoint with the `OPENROUTER_API_KEY`.
 
-The classifier page also has an off-by-default **Better results** beta switch.
+The classifier page also has an off-by-default **Expand query** beta switch.
 When enabled, `google/gemini-3.1-flash-lite` adds a short description after the
 original query for embedding and reranking. The beta model inputs put each
 classification instruction after that semantic text. Exact ID matches skip the
