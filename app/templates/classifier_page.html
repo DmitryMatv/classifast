@@ -1451,11 +1451,8 @@
 
     {% include "site_footer.html" %}
 
-    <!-- Classifier page specific functionality (global script, compiled from TypeScript) -->
-    <script type="module" src="{{ asset_url('/js/classifier.js') }}"></script>
-
-    <!-- Paywall functionality (loaded once, handles HTMX-swapped paywall content) -->
     <script type="module" src="{{ asset_url('/js/paywall.js') }}"></script>
+    <script type="module" src="{{ asset_url('/js/classifier.js') }}"></script>
 
     <!-- Initialize Clerk with your Clerk Publishable Key and Frontend API URL -->
     <script defer crossorigin="anonymous" src="https://clerk.classifast.com/npm/@clerk/ui@1/dist/ui.browser.js"

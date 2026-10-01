@@ -35,6 +35,14 @@ function createClerkMock(): ClerkInstance {
 }
 
 beforeEach(() => {
+  window.__commonLifecycleAbort?.abort();
+  window.__classifierLifecycleAbort?.abort();
+  window.__classifierHistoryAbort?.abort();
+  delete window.__commonLifecycleAbort;
+  delete window.__commonController;
+  delete window.__classifierLifecycleAbort;
+  delete window.__classifierHistoryAbort;
+  delete window.__checkoutReturnUrl;
   document.body.innerHTML = "";
   document.head.innerHTML = "";
   document.documentElement.className = "";

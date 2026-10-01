@@ -61,6 +61,24 @@ function createConfigRequestDetail(
   };
 }
 
+function restoreBodyMarkup(markup: string): void {
+  document.body.innerHTML = markup;
+  const ctx: HtmxRequestContext = {
+    sourceElement: document.body,
+    target: document.body,
+    swap: "outerSync",
+    request: {
+      action: "/NAICS",
+      method: "GET",
+      headers: { "HX-History-Restore-Request": "true" },
+      body: null,
+    },
+  };
+  document.dispatchEvent(
+    new CustomEvent("htmx:after:swap", { detail: { ctx } }),
+  );
+}
+
 function createMediaQueryList(query: string, matches: boolean): MediaQueryList {
   return {
     matches,
@@ -148,6 +166,91 @@ describe("classifier.ts", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("initializes fresh classifier shells once after BODY replacement and retires old handlers", async () => {
+    window.__authReady = true;
+    vi.doMock("./common", () => ({
+      ShareLink: { copyShareableLink: vi.fn() },
+    }));
+    const originalMarkup = document.body.innerHTML;
+    const { initClassifierPage } = await import("./classifier");
+    const body = document.body;
+    document.body.innerHTML = originalMarkup;
+    const restored = getClassifierForm();
+    restored.dataset["autoloadEnabled"] = "true";
+    const textarea = document.getElementById("product_description_area");
+    if (!(textarea instanceof HTMLTextAreaElement))
+      throw new Error("Missing textarea");
+    textarea.value = "restored query";
+    const ctx: HtmxRequestContext = {
+      sourceElement: body,
+      target: body,
+      swap: "outerSync",
+      request: {
+        action: "/NAICS",
+        method: "GET",
+        headers: { "HX-History-Restore-Request": "true" },
+        body: null,
+      },
+    };
+    document.dispatchEvent(
+      new CustomEvent("htmx:after:swap", { detail: { ctx } }),
+    );
+    initClassifierPage();
+    vi.advanceTimersByTime(0);
+
+    expect(document.body).toBe(body);
+    expect(window.htmx?.trigger).toHaveBeenCalledExactlyOnceWith(
+      restored,
+      "submit",
+    );
+    vi.mocked(window.htmx!.trigger).mockClear();
+    document
+      .getElementById("show_top_k_categories")
+      ?.dispatchEvent(new Event("change"));
+    expect(window.htmx?.trigger).toHaveBeenCalledExactlyOnceWith(
+      restored,
+      "submit",
+    );
+    const details = createConfigRequestDetail(restored);
+    const bodySet = vi.spyOn(details.ctx.request.body, "set");
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:config:request", { detail: details }),
+    );
+    expect(
+      bodySet.mock.calls.filter(([name]) => name === "product_description"),
+    ).toHaveLength(1);
+    expect(details.ctx.request.body.get("push_url")).toBe("false");
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:after:request", { detail: details }),
+    );
+    const manualDetails = createConfigRequestDetail(restored);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:config:request", { detail: manualDetails }),
+    );
+    expect(manualDetails.ctx.request.body.get("push_url")).toBeNull();
+  });
+
+  it("cancels pending old-form autoload and auth-ready submission on replacement", async () => {
+    window.__authReady = false;
+    vi.doMock("./common", () => ({
+      ShareLink: { copyShareableLink: vi.fn() },
+    }));
+    const originalMarkup = document.body.innerHTML;
+    const oldForm = getClassifierForm();
+    oldForm.dataset["autoloadEnabled"] = "true";
+    const { initClassifierPage } = await import("./classifier");
+    oldForm.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    document.body.innerHTML = originalMarkup;
+    initClassifierPage();
+    window.__authReady = true;
+    document.body.dispatchEvent(new CustomEvent("htmx:authReady"));
+    vi.advanceTimersByTime(0);
+
+    expect(window.htmx?.trigger).not.toHaveBeenCalled();
   });
 
   it("staggers score bar animations starting with the second result", async () => {
@@ -496,12 +599,13 @@ describe("classifier.ts", () => {
   it("replays score bar animation during history restore", async () => {
     const animationFrameController = createAnimationFrameController();
     await import("./classifier");
-    const resultsContainer = setResultsMarkup(createScoreBarsMarkup());
+    setResultsMarkup(createScoreBarsMarkup());
+    restoreBodyMarkup(document.body.innerHTML);
+    const resultsContainer = document.getElementById("results-container");
     const resultsSection = document.getElementById(
       "results-section",
     ) as HTMLElement;
 
-    document.dispatchEvent(new CustomEvent("htmx:before:history:restore"));
     animationFrameController.flush();
 
     const scoreBars = getScoreBars();
@@ -518,7 +622,7 @@ describe("classifier.ts", () => {
     expect(
       scoreBars[2]?.style.getPropertyValue("--score-animation-delay"),
     ).toBe("200ms");
-    expect(resultsContainer.innerHTML).toContain("score-bar");
+    expect(resultsContainer?.innerHTML).toContain("score-bar");
   });
 
   it("syncs form state before history save and re-runs results visibility on restore", async () => {
@@ -556,9 +660,11 @@ describe("classifier.ts", () => {
     expect(topK.options[0]?.defaultSelected).toBe(true);
 
     resultsContainer.innerHTML = "<div>Results</div>";
-    document.dispatchEvent(new CustomEvent("htmx:before:history:restore"));
+    restoreBodyMarkup(document.body.innerHTML);
 
-    expect(resultsSection.classList.contains("hidden")).toBe(false);
+    expect(
+      document.getElementById("results-section")?.classList.contains("hidden"),
+    ).toBe(false);
   });
 
   it("shows reduced-motion score bars immediately without animation delay", async () => {

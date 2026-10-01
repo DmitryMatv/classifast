@@ -7,6 +7,15 @@ declare global {
   interface Window {
     Clerk?: ClerkInstance;
     __authReady?: boolean;
+    __checkoutReturnUrl?: string;
+    __commonLifecycleAbort?: AbortController;
+    __commonController?: {
+      init: () => void;
+      getCachedAuthToken: () => string | null;
+      refreshAuthToken: () => Promise<string | null>;
+      abort: AbortController;
+    };
+    __classifierLifecycleAbort?: AbortController;
     __classifierHistoryAbort?: AbortController;
     __clerkAuthListenerRegistered?: boolean;
     __clerkInteractionListenersRegistered?: boolean;
@@ -36,6 +45,12 @@ declare global {
       url: string,
       options: {
         source?: Element;
+        event?: Event;
+        values?: Record<string, string>;
+        headers?: Record<string, string>;
+        select?: string;
+        push?: boolean | string;
+        request?: Partial<HtmxRequestContext["request"]>;
         target?: string | Element;
         swap?: string;
       },
@@ -115,16 +130,22 @@ declare global {
   // ============================================
   // HTMX Extensions (htmx 4 event detail shapes)
   // ============================================
-  interface HtmxRequestContext {
+  interface HtmxRequestContext<
+    RequestBody extends BodyInit | null = BodyInit | null,
+  > {
     sourceElement: Element;
     sourceEvent?: Event;
     target: Element;
     swap?: string;
-    request: {
+    select?: string;
+    fetch?: typeof window.fetch;
+    request: Omit<RequestInit, "body" | "headers" | "method"> & {
       action: string;
       method: string;
       headers: Record<string, string>;
-      body: FormData;
+      body: RequestBody;
+      abort?: () => void;
+      timeout?: number | string;
     };
     response?: {
       status: number;
@@ -134,7 +155,7 @@ declare global {
   }
 
   interface HtmxConfigRequestEvent extends CustomEvent {
-    detail: { ctx: HtmxRequestContext };
+    detail: { ctx: HtmxRequestContext<FormData> };
   }
 
   interface HtmxBeforeRequestEvent extends CustomEvent {
@@ -168,6 +189,7 @@ declare global {
     "htmx:config:request": HtmxConfigRequestEvent;
     "htmx:after:swap": HtmxAfterSwapEvent;
     "htmx:after:request": HtmxAfterRequestEvent;
+    "htmx:finally:request": HtmxAfterRequestEvent;
     "htmx:response:error": HtmxResponseErrorEvent;
     "htmx:authReady": CustomEvent;
     "clerk:loaded": CustomEvent;

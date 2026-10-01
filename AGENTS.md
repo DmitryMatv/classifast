@@ -108,6 +108,13 @@ sources and run `npm run build`.
   for new IP-dependent code.
 - `paywall.ts` is wrapped in a parse guard on purpose (class declarations
   re-execute on bfcache/history-restore re-parsing). Do not remove the guard.
+- HTMX 4 history restore preserves `document.body` and replaces its children.
+  Initialize restored controls after the BODY `htmx:after:swap` with
+  `HX-History-Restore-Request`, and retire handlers for the previous form.
+  Restored result autoload must use `push_url=false` to preserve Forward.
+- `common.ts` can load through both a versioned template URL and the classifier's
+  unversioned module import. Both instances must share one document owner for
+  Clerk bootstrap, token refresh, and global handlers.
 - `htmx.min.js` is vendored in `app/static` and must use `asset_url` like the
   application scripts. An unversioned URL can pair cached HTMX with incompatible
   event handlers after an upgrade. `emptyOutDir: false` in `vite.config.ts`
