@@ -168,6 +168,12 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("Waste collection service", response.text)
             self.assertEqual(classify.call_args.kwargs["query"], "trash removal")
             self.assertTrue(classify.call_args.kwargs["enhancement_enabled"])
+            restored_response = await self._request_fragment(
+                push_url="false", enhance_query="1"
+            )
+            self.assertEqual(restored_response.status_code, 200)
+            self.assertNotIn("HX-Push-Url", restored_response.headers)
+            self.assertTrue(classify.call_args.kwargs["enhancement_enabled"])
             await self._request_fragment(push_url="true")
             self.assertFalse(classify.call_args.kwargs["enhancement_enabled"])
 

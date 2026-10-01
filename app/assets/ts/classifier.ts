@@ -30,8 +30,25 @@ class ClassifierPage {
   private pendingAuthReadySubmission = false;
   private activeQuery: string | null = null;
   private defaultExampleQuery: string | null = null;
+  private readonly lifecycle = new AbortController();
+  private readonly timers = new Set<number>();
 
-  constructor() {
+  constructor(
+    private readonly form: HTMLFormElement,
+    private readonly historyRestored: boolean,
+  ) {
+    window.__classifierLifecycleAbort?.abort();
+    window.__classifierLifecycleAbort = this.lifecycle;
+    this.lifecycle.signal.addEventListener(
+      "abort",
+      () => {
+        this.timers.forEach((timer) => window.clearTimeout(timer));
+        this.timers.clear();
+        this.pendingAuthReadySubmission = false;
+        this.autoloadStatus = "cancelled";
+      },
+      { once: true },
+    );
     this.init();
   }
 
@@ -47,6 +64,20 @@ class ClassifierPage {
     this.setupQueryStateTracking();
     this.attachShareButtonListener();
     this.animateScoreBars(document);
+    this.ensureResultsSectionVisible();
+  }
+
+  dispose(): void {
+    this.lifecycle.abort();
+  }
+
+  private schedule(callback: () => void, delay: number): number {
+    const timer = window.setTimeout(() => {
+      this.timers.delete(timer);
+      if (!this.lifecycle.signal.aborted && this.form.isConnected) callback();
+    }, delay);
+    this.timers.add(timer);
+    return timer;
   }
 
   private getLoadingIndicator(): HTMLElement | null {
@@ -62,11 +93,14 @@ class ClassifierPage {
   }
 
   private isResultsTarget(target: EventTarget | null): target is HTMLElement {
-    return target instanceof HTMLElement && target.id === "results-container";
+    return (
+      target instanceof HTMLElement &&
+      target === document.getElementById("results-container")
+    );
   }
 
   private getClassifierForm(): HTMLFormElement | null {
-    return document.getElementById("classifier-form") as HTMLFormElement | null;
+    return this.form.isConnected ? this.form : null;
   }
 
   private getAutoloadConfig(): {
@@ -105,7 +139,7 @@ class ClassifierPage {
   }
 
   private getEnhancementSwitch(): HTMLInputElement | null {
-    return document.getElementById("enhance-query-switch") as HTMLInputElement | null;
+    return document.querySelector<HTMLInputElement>("#enhance-query-switch");
   }
 
   private canonicalizeDefaultParameters(body: FormData): void {
@@ -179,15 +213,19 @@ class ClassifierPage {
       return;
     }
 
-    productDescriptionArea.addEventListener("input", () => {
-      if (productDescriptionArea.value.trim()) {
-        this.activeQuery = productDescriptionArea.value;
-      } else {
-        this.activeQuery = null;
-      }
+    productDescriptionArea.addEventListener(
+      "input",
+      () => {
+        if (productDescriptionArea.value.trim()) {
+          this.activeQuery = productDescriptionArea.value;
+        } else {
+          this.activeQuery = null;
+        }
 
-      this.defaultExampleQuery = null;
-    });
+        this.defaultExampleQuery = null;
+      },
+      { signal: this.lifecycle.signal },
+    );
   }
 
   private isAutoloadRequest(element: Element | null): boolean {
@@ -266,7 +304,7 @@ class ClassifierPage {
         return;
       }
 
-      window.setTimeout(triggerInitialResultsLoad, 0);
+      this.schedule(triggerInitialResultsLoad, 0);
     };
 
     this.autoloadStatus = "pending";
@@ -278,7 +316,7 @@ class ClassifierPage {
 
     this.showLoadingIndicator();
 
-    const authTimeout = window.setTimeout(() => {
+    const authTimeout = this.schedule(() => {
       this.hideLoadingIndicator();
     }, 10000); // 10 second fallback
 
@@ -288,7 +326,7 @@ class ClassifierPage {
         window.clearTimeout(authTimeout);
         scheduleInitialResultsLoad();
       },
-      { once: true },
+      { once: true, signal: this.lifecycle.signal },
     );
   }
 
@@ -298,33 +336,37 @@ class ClassifierPage {
       return;
     }
 
-    form.addEventListener("submit", (event) => {
-      if (window.__authReady) {
-        return;
-      }
+    form.addEventListener(
+      "submit",
+      (event) => {
+        if (window.__authReady) {
+          return;
+        }
 
-      event.preventDefault();
-      if (this.pendingAuthReadySubmission) {
-        return;
-      }
+        event.preventDefault();
+        if (this.pendingAuthReadySubmission) {
+          return;
+        }
 
-      this.cancelInitialResultsAutoload();
-      this.pendingAuthReadySubmission = true;
-      this.showLoadingIndicator();
+        this.cancelInitialResultsAutoload();
+        this.pendingAuthReadySubmission = true;
+        this.showLoadingIndicator();
 
-      document.body.addEventListener(
-        "htmx:authReady",
-        () => {
-          if (!this.pendingAuthReadySubmission) {
-            return;
-          }
+        document.body.addEventListener(
+          "htmx:authReady",
+          () => {
+            if (!this.pendingAuthReadySubmission) {
+              return;
+            }
 
-          this.pendingAuthReadySubmission = false;
-          window.htmx?.trigger(form, "submit");
-        },
-        { once: true },
-      );
-    });
+            this.pendingAuthReadySubmission = false;
+            window.htmx?.trigger(form, "submit");
+          },
+          { once: true, signal: this.lifecycle.signal },
+        );
+      },
+      { signal: this.lifecycle.signal },
+    );
   }
 
   private ensureResultsSectionVisible(): void {
@@ -435,7 +477,9 @@ class ClassifierPage {
     });
 
     requestAnimationFrame(() => {
+      if (this.lifecycle.signal.aborted) return;
       requestAnimationFrame(() => {
+        if (this.lifecycle.signal.aborted) return;
         scoreBars.forEach((bar) => {
           bar.classList.add("is-score-bar-visible");
         });
@@ -466,11 +510,15 @@ class ClassifierPage {
     const productDescriptionArea = this.getProductDescriptionArea();
 
     if (topKSelector && productDescriptionArea) {
-      topKSelector.addEventListener("change", () => {
-        if (this.getEffectiveQuery()) {
-          this.triggerFormSubmission();
-        }
-      });
+      topKSelector.addEventListener(
+        "change",
+        () => {
+          if (this.getEffectiveQuery()) {
+            this.triggerFormSubmission();
+          }
+        },
+        { signal: this.lifecycle.signal },
+      );
     }
   }
 
@@ -478,9 +526,7 @@ class ClassifierPage {
    * Trigger form submission with visual feedback
    */
   private triggerFormSubmission(): void {
-    const form = document.querySelector(
-      "form[hx-get]",
-    ) as HTMLFormElement | null;
+    const form = this.getClassifierForm();
     const submitBtn = form?.querySelector(
       'button[type="submit"]',
     ) as HTMLElement | null;
@@ -488,7 +534,7 @@ class ClassifierPage {
     if (form) {
       if (submitBtn) {
         submitBtn.classList.add("active", "scale-95");
-        setTimeout(() => {
+        this.schedule(() => {
           submitBtn.classList.remove("active", "scale-95");
         }, 150);
       }
@@ -506,121 +552,150 @@ class ClassifierPage {
       return;
     }
 
-    productDescriptionArea.addEventListener("input", () => {
-      if (this.autoloadStatus === "pending") {
-        this.cancelInitialResultsAutoload();
-      }
-    });
+    productDescriptionArea.addEventListener(
+      "input",
+      () => {
+        if (this.autoloadStatus === "pending") {
+          this.cancelInitialResultsAutoload();
+        }
+      },
+      { signal: this.lifecycle.signal },
+    );
   }
 
   /**
    * Setup HTMX event listeners for response handling
    */
   private setupHTMXListeners(): void {
-    document.body.addEventListener("htmx:config:request", (evt: Event) => {
-      const htmxEvent = evt as HtmxConfigRequestEvent;
-      const form = this.getClassifierForm();
+    document.body.addEventListener(
+      "htmx:config:request",
+      (evt: Event) => {
+        const htmxEvent = evt as HtmxConfigRequestEvent;
+        const form = this.getClassifierForm();
 
-      if (!form || htmxEvent.detail.ctx.sourceElement !== form) {
-        return;
-      }
-
-      const effectiveQuery = this.getEffectiveQuery();
-      if (effectiveQuery) {
-        htmxEvent.detail.ctx.request.body.set(
-          "product_description",
-          effectiveQuery,
-        );
-      }
-      this.canonicalizeDefaultParameters(htmxEvent.detail.ctx.request.body);
-      if (this.getEnhancementSwitch()?.checked) {
-        htmxEvent.detail.ctx.request.body.set("enhance_query", "1");
-      } else {
-        htmxEvent.detail.ctx.request.body.delete("enhance_query");
-      }
-
-      if (!this.pendingAutoloadRequestConfig) {
-        return;
-      }
-
-      htmxEvent.detail.ctx.request.body.delete("track_usage");
-      htmxEvent.detail.ctx.request.body.delete("push_url");
-      this.pendingAutoloadRequestConfig = null;
-    });
-
-    document.body.addEventListener("htmx:before:request", (evt: Event) => {
-      const htmxEvent = evt as HtmxBeforeRequestEvent;
-      if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
-        if (!this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
-          this.cancelInitialResultsAutoload();
+        if (!form || htmxEvent.detail.ctx.sourceElement !== form) {
+          return;
         }
-        this.showLoadingIndicator();
-      }
-    });
+
+        const effectiveQuery = this.getEffectiveQuery();
+        if (effectiveQuery) {
+          htmxEvent.detail.ctx.request.body.set(
+            "product_description",
+            effectiveQuery,
+          );
+        }
+        this.canonicalizeDefaultParameters(htmxEvent.detail.ctx.request.body);
+        if (this.getEnhancementSwitch()?.checked) {
+          htmxEvent.detail.ctx.request.body.set("enhance_query", "1");
+        } else {
+          htmxEvent.detail.ctx.request.body.delete("enhance_query");
+        }
+
+        if (!this.pendingAutoloadRequestConfig) {
+          return;
+        }
+
+        htmxEvent.detail.ctx.request.body.delete("track_usage");
+        if (this.historyRestored) {
+          htmxEvent.detail.ctx.request.body.set("push_url", "false");
+        } else {
+          htmxEvent.detail.ctx.request.body.delete("push_url");
+        }
+        this.pendingAutoloadRequestConfig = null;
+      },
+      { signal: this.lifecycle.signal },
+    );
+
+    document.body.addEventListener(
+      "htmx:before:request",
+      (evt: Event) => {
+        const htmxEvent = evt as HtmxBeforeRequestEvent;
+        if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
+          if (!this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
+            this.cancelInitialResultsAutoload();
+          }
+          this.showLoadingIndicator();
+        }
+      },
+      { signal: this.lifecycle.signal },
+    );
 
     // Handle HTMX after request completes - fade out spinner smoothly
-    document.body.addEventListener("htmx:after:request", (evt: Event) => {
-      const htmxEvent = evt as HtmxAfterRequestEvent;
-      if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
-        this.hideLoadingIndicator();
-        if (this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
-          this.completeInitialResultsAutoload();
-        }
-      }
-    });
-
-    // Handle HTMX after swap for results visibility
-    document.body.addEventListener("htmx:after:swap", (evt: Event) => {
-      const htmxEvent = evt as HtmxAfterSwapEvent;
-      if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
-        this.handleResultsSwap();
-      }
-    });
-
-    // htmx 4 fires after:settle on the swapped target element (no ctx in detail)
-    document.body.addEventListener("htmx:after:settle", (evt: Event) => {
-      if (this.isResultsTarget(evt.target)) {
-        this.handleResultsSettle();
-      }
-    });
-
-    // Handle quota and rate limit responses.
-    // htmx 4 swaps error response bodies into the target automatically.
-    document.body.addEventListener("htmx:response:error", (evt: Event) => {
-      const htmxEvent = evt as HtmxResponseErrorEvent;
-      const status = htmxEvent.detail.ctx.response.status;
-
-      if (status === 429 || status === 503) {
+    document.body.addEventListener(
+      "htmx:after:request",
+      (evt: Event) => {
+        const htmxEvent = evt as HtmxAfterRequestEvent;
         if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
-          // Display the paywall/error content returned by the server
-          this.ensureResultsSectionVisible();
           this.hideLoadingIndicator();
           if (this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
             this.completeInitialResultsAutoload();
           }
         }
-      }
-    });
+      },
+      { signal: this.lifecycle.signal },
+    );
+
+    // Handle HTMX after swap for results visibility
+    document.body.addEventListener(
+      "htmx:after:swap",
+      (evt: Event) => {
+        const htmxEvent = evt as HtmxAfterSwapEvent;
+        if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
+          this.handleResultsSwap();
+        }
+      },
+      { signal: this.lifecycle.signal },
+    );
+
+    // htmx 4 fires after:settle on the swapped target element (no ctx in detail)
+    document.body.addEventListener(
+      "htmx:after:settle",
+      (evt: Event) => {
+        if (this.isResultsTarget(evt.target)) {
+          this.handleResultsSettle();
+        }
+      },
+      { signal: this.lifecycle.signal },
+    );
+
+    // Handle quota and rate limit responses.
+    // htmx 4 swaps error response bodies into the target automatically.
+    document.body.addEventListener(
+      "htmx:response:error",
+      (evt: Event) => {
+        const htmxEvent = evt as HtmxResponseErrorEvent;
+        const status = htmxEvent.detail.ctx.response.status;
+
+        if (status === 429 || status === 503) {
+          if (this.isResultsTarget(htmxEvent.detail.ctx.target)) {
+            // Display the paywall/error content returned by the server
+            this.ensureResultsSectionVisible();
+            this.hideLoadingIndicator();
+            if (this.isAutoloadRequest(htmxEvent.detail.ctx.sourceElement)) {
+              this.completeInitialResultsAutoload();
+            }
+          }
+        }
+      },
+      { signal: this.lifecycle.signal },
+    );
 
     // Consolidated handler for request failures (network errors, timeouts, aborts)
-    document.body.addEventListener("htmx:error", () => {
-      this.clearAutoloadRequestState();
-      this.hideLoadingIndicator();
-    });
-
-    // htmx 4 dispatches history events on document (not body). Re-init aborts
-    // the previous registration so stale module instances stop listening.
-    window.__classifierHistoryAbort?.abort();
-    const historyAbort = new AbortController();
-    window.__classifierHistoryAbort = historyAbort;
-    const historySignal = { signal: historyAbort.signal };
+    document.body.addEventListener(
+      "htmx:error",
+      () => {
+        this.clearAutoloadRequestState();
+        this.hideLoadingIndicator();
+      },
+      { signal: this.lifecycle.signal },
+    );
 
     document.addEventListener(
       "htmx:before:history:update",
       () => {
         this.syncHistoryState();
       },
-      historySignal,
+      { signal: this.lifecycle.signal },
     );
 
     document.addEventListener(
@@ -642,29 +717,29 @@ class ClassifierPage {
           window.location.hash;
         this.suppressNextHistoryUpdate = false;
       },
-      historySignal,
+      { signal: this.lifecycle.signal },
     );
 
-    document.addEventListener(
-      "htmx:before:history:restore",
+    window.addEventListener(
+      "pageshow",
       () => {
         this.hideLoadingIndicator();
-        this.handleResultsSwap();
-        this.handleResultsSettle();
       },
-      historySignal,
+      { signal: this.lifecycle.signal },
     );
 
-    window.addEventListener("pageshow", () => {
-      this.hideLoadingIndicator();
-    });
-    window.addEventListener("popstate", () => {
-      const enhancementSwitch = this.getEnhancementSwitch();
-      if (enhancementSwitch) {
-        enhancementSwitch.checked =
-          new URLSearchParams(window.location.search).get("enhance_query") === "1";
-      }
-    });
+    window.addEventListener(
+      "popstate",
+      () => {
+        const enhancementSwitch = this.getEnhancementSwitch();
+        if (enhancementSwitch) {
+          enhancementSwitch.checked =
+            new URLSearchParams(window.location.search).get("enhance_query") ===
+            "1";
+        }
+      },
+      { signal: this.lifecycle.signal },
+    );
   }
 
   /**
@@ -679,9 +754,13 @@ class ClassifierPage {
       shareButton.parentNode?.replaceChild(newButton, shareButton);
 
       // Add the click listener
-      newButton.addEventListener("click", () => {
-        this.copyShareableLink();
-      });
+      newButton.addEventListener(
+        "click",
+        () => {
+          this.copyShareableLink();
+        },
+        { signal: this.lifecycle.signal },
+      );
     }
   }
 
@@ -747,16 +826,20 @@ class ClassifierPage {
     elements: DescriptionToggleElements,
     learnMoreText: string,
   ): void {
-    elements.toggleButton.addEventListener("click", () => {
-      const newExpandedState = !this.isDescriptionExpanded(
-        elements.toggleButton,
-      );
-      elements.toggleButton.setAttribute(
-        "aria-expanded",
-        String(newExpandedState),
-      );
-      this.applyDescriptionState(elements, newExpandedState, learnMoreText);
-    });
+    elements.toggleButton.addEventListener(
+      "click",
+      () => {
+        const newExpandedState = !this.isDescriptionExpanded(
+          elements.toggleButton,
+        );
+        elements.toggleButton.setAttribute(
+          "aria-expanded",
+          String(newExpandedState),
+        );
+        this.applyDescriptionState(elements, newExpandedState, learnMoreText);
+      },
+      { signal: this.lifecycle.signal },
+    );
   }
 
   private applyDescriptionState(
@@ -788,13 +871,46 @@ class ClassifierPage {
   }
 }
 
-// Initialize classifier page functionality when DOM is ready
-export function initClassifierPage(): void {
-  new ClassifierPage();
+let currentClassifierPage: {
+  form: HTMLFormElement;
+  page: ClassifierPage;
+} | null = null;
+window.__classifierHistoryAbort?.abort();
+const classifierHistoryAbort = new AbortController();
+window.__classifierHistoryAbort = classifierHistoryAbort;
+
+function mountClassifierPage(historyRestored = false): void {
+  const form = document.getElementById("classifier-form");
+  if (currentClassifierPage?.form === form) return;
+  currentClassifierPage?.page.dispose();
+  currentClassifierPage =
+    form instanceof HTMLFormElement
+      ? { form, page: new ClassifierPage(form, historyRestored) }
+      : null;
 }
 
+export function initClassifierPage(): void {
+  mountClassifierPage();
+}
+
+document.addEventListener(
+  "htmx:after:swap",
+  (event) => {
+    if (!(event instanceof CustomEvent)) return;
+    const ctx: HtmxRequestContext = event.detail.ctx;
+    if (
+      ctx.target === document.body &&
+      ctx.request.headers["HX-History-Restore-Request"] === "true"
+    )
+      mountClassifierPage(true);
+  },
+  { signal: classifierHistoryAbort.signal },
+);
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initClassifierPage);
+  document.addEventListener("DOMContentLoaded", initClassifierPage, {
+    signal: classifierHistoryAbort.signal,
+  });
 } else {
   initClassifierPage();
 }

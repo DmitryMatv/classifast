@@ -19,11 +19,25 @@ Always use `npm test` or `npm run test:watch` for frontend tests.
 Always use `pytest` for backend tests. The suite retains `unittest`-compatible
 test classes and standard-library mocks, but pytest is the official runner.
 
+Fresh checkouts may lack `.venv`, `node_modules`, and generated frontend assets
+because they are ignored. If `.venv` is absent, run `python -m venv .venv` and
+`.venv/bin/pip install -r requirements-dev.txt` before `pytest`. If
+`node_modules` is absent, run `npm ci` before frontend tests or builds. The
+verification driver also requires a frontend build (`npm run build`).
+
 pytest.ini scopes pytest collection to `tests/`. The `utilities/test_*.py` files are
 manual live/debug helpers, and the ignored `embedders/tests/` tree contains
 separate experimental tests that are not part of the maintained backend suite.
+`tests/test_emdn_embedder.py` imports the ignored
+`embedders/embedder_remote_EMDN_hf.py`; a checkout without that local file cannot
+collect the full suite. Report that limitation when excluding this test.
 
-Use Virtual Environment `source .venv/bin/activate` because all dependencies are installed there already.
+Activate the Python environment with `source .venv/bin/activate` before backend
+tests or the verification driver.
+
+`npm test` currently exits successfully while jsdom prints a `TypeError` from
+`ResultCopier` in `app/assets/ts/common.ts` when a test clicks `document`.
+Inspect the test output as well as its exit status.
 
 `utilities/qdrant_config.py` is an executable migration-style script, not passive configuration. Importing or running it updates a hardcoded Qdrant collection, so review it carefully before execution.
 
@@ -95,15 +109,24 @@ sources and run `npm run build`.
   for new IP-dependent code.
 - `paywall.ts` is wrapped in a parse guard on purpose (class declarations
   re-execute on bfcache/history-restore re-parsing). Do not remove the guard.
-- `htmx.min.js` is vendored in `app/static` and is the one asset loaded
-  WITHOUT the `?v=` cache-busting param. `emptyOutDir: false` in
-  `vite.config.ts` protects it from build cleanup.
+- HTMX 4 history restore preserves `document.body` and replaces its children.
+  Initialize restored controls after the BODY `htmx:after:swap` with
+  `HX-History-Restore-Request`, and retire handlers for the previous form.
+  Restored result autoload must use `push_url=false` to preserve Forward.
+- `common.ts` can load through both a versioned template URL and the classifier's
+  unversioned module import. Both instances must share one document owner for
+  Clerk bootstrap, token refresh, and global handlers.
+- `htmx.min.js` is vendored in `app/static` and must use `asset_url` like the
+  application scripts. An unversioned URL can pair cached HTMX with incompatible
+  event handlers after an upgrade. `emptyOutDir: false` in `vite.config.ts`
+  protects it from build cleanup.
 - The app assumes a single uvicorn worker: module-level caches (JWKS client,
   asset versions, crawler IP ranges) and the process-randomized ETag fallback
   depend on it. Scaling workers changes their semantics.
-- `tests/integration/` is empty. The suite is fully unit-level with mocks and
-  says nothing about live Qdrant/Redis/HF connectivity; manual live helpers
-  live in `utilities/test_*.py` (excluded from pytest collection).
+- `tests/integration/` is empty. Most tests use mocks, including the checkout
+  rate-limit tests. The suite does not prove deployed Qdrant, Redis, or Hugging
+  Face connectivity. Manual live helpers live in `utilities/test_*.py`, which
+  pytest excludes from collection.
 - `/health` requires initialized embedding and Qdrant clients, then probes
   Qdrant only. If `HF_TOKEN` is missing, public pages can still serve while
   `/health` returns 503, provided Qdrant startup succeeds. It does not check

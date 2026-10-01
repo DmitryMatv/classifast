@@ -14,14 +14,31 @@ const CLERK_LOAD_TIMEOUT_MS = 10000;
 const INITIAL_TOKEN_REFRESH_TIMEOUT_MS = 10000;
 const DEFAULT_EXAMPLE_CLEAR_DELAY_MS = 100;
 
-// Global error handlers
-window.addEventListener("error", (event) => {
-  console.error("Global error:", event.error);
-});
+const ownsCommonLifecycle = !window.__commonController;
+const commonLifecycleAbort =
+  window.__commonController?.abort ?? new AbortController();
+window.__commonLifecycleAbort = commonLifecycleAbort;
+const commonListenerOptions = { signal: commonLifecycleAbort.signal };
+let refreshCurrentAuthUI: (() => void) | null = null;
 
-window.addEventListener("unhandledrejection", (event) => {
-  console.error("Unhandled promise rejection:", event.reason);
-});
+// Global error handlers
+if (ownsCommonLifecycle)
+  window.addEventListener(
+    "error",
+    (event) => {
+      console.error("Global error:", event.error);
+    },
+    commonListenerOptions,
+  );
+
+if (ownsCommonLifecycle)
+  window.addEventListener(
+    "unhandledrejection",
+    (event) => {
+      console.error("Unhandled promise rejection:", event.reason);
+    },
+    commonListenerOptions,
+  );
 
 // Mobile menu functionality
 export class MobileMenu {
@@ -29,7 +46,7 @@ export class MobileMenu {
   private menu: HTMLElement | null = null;
   private hamburger: HTMLElement | null = null;
 
-  constructor() {
+  constructor(private readonly signal: AbortSignal) {
     this.init();
   }
 
@@ -46,34 +63,48 @@ export class MobileMenu {
     if (!this.button || !this.menu || !this.hamburger) return;
 
     this.button.setAttribute("aria-controls", this.menu.id);
-    this.button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      this.toggle();
-    });
+    this.button.addEventListener(
+      "click",
+      (event) => {
+        event.stopPropagation();
+        this.toggle();
+      },
+      { signal: this.signal },
+    );
 
     // Close on link click
     const links = this.menu.querySelectorAll("a");
     links.forEach((link) => {
-      link.addEventListener("click", () => this.close());
+      link.addEventListener("click", () => this.close(), {
+        signal: this.signal,
+      });
     });
 
     // Close on outside click
-    document.addEventListener("click", (e) => {
-      if (
-        !this.menu?.contains(e.target as Node) &&
-        !this.button?.contains(e.target as Node)
-      ) {
-        this.close();
-      }
-    });
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (
+          !this.menu?.contains(e.target as Node) &&
+          !this.button?.contains(e.target as Node)
+        ) {
+          this.close();
+        }
+      },
+      { signal: this.signal },
+    );
 
     // Close on ESC key
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.menu?.classList.contains("active")) {
-        this.close();
-        this.button?.focus();
-      }
-    });
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape" && this.menu?.classList.contains("active")) {
+          this.close();
+          this.button?.focus();
+        }
+      },
+      { signal: this.signal },
+    );
   }
 
   private toggle() {
@@ -157,7 +188,10 @@ export class TextareaEnhancer {
   private defaultExampleClearTimeoutId: number | null = null;
   private prefillValue = "";
 
-  constructor(textareaId: string) {
+  constructor(
+    textareaId: string,
+    private readonly signal: AbortSignal,
+  ) {
     this.textarea = document.getElementById(
       textareaId,
     ) as HTMLTextAreaElement | null;
@@ -171,12 +205,16 @@ export class TextareaEnhancer {
     this.setupPrefillReplace();
     this.setupDefaultExampleClear();
 
-    this.textarea?.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        this.submitForm();
-      }
-    });
+    this.textarea?.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          this.submitForm();
+        }
+      },
+      { signal: this.signal },
+    );
   }
 
   private setupPrefillReplace() {
@@ -191,19 +229,23 @@ export class TextareaEnhancer {
       this.textarea.select();
     }
 
-    this.textarea.addEventListener("paste", (event) => {
-      if (!this.isUntouchedPrefill()) {
-        return;
-      }
+    this.textarea.addEventListener(
+      "paste",
+      (event) => {
+        if (!this.isUntouchedPrefill()) {
+          return;
+        }
 
-      const clipboardText = event.clipboardData?.getData("text/plain");
-      if (clipboardText == null) {
-        return;
-      }
+        const clipboardText = event.clipboardData?.getData("text/plain");
+        if (clipboardText == null) {
+          return;
+        }
 
-      event.preventDefault();
-      this.replaceValue(clipboardText);
-    });
+        event.preventDefault();
+        this.replaceValue(clipboardText);
+      },
+      { signal: this.signal },
+    );
   }
 
   private isUntouchedPrefill(): boolean {
@@ -250,6 +292,10 @@ export class TextareaEnhancer {
     };
 
     this.textarea.addEventListener("input", clearDefaultExampleTimeout, {
+      once: true,
+      signal: this.signal,
+    });
+    this.signal.addEventListener("abort", clearDefaultExampleTimeout, {
       once: true,
     });
 
@@ -302,20 +348,7 @@ export class TextareaEnhancer {
 
 // Cached auth token for synchronous HTMX header injection
 let cachedAuthToken: string | null = null;
-
-type PendingHtmxRetry = {
-  element: HTMLElement;
-};
-
-type HtmxRetryMethod = "GET" | "POST";
-
-type HtmxRetryRequest = {
-  method: HtmxRetryMethod;
-  url: string;
-  source: HTMLElement;
-  target: string;
-  swap: string;
-};
+let cachedAuthUserId: string | undefined;
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -326,8 +359,14 @@ function isTokenExpired(token: string): boolean {
     const base64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
     const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
 
-    const payload = JSON.parse(atob(padded)) as { exp?: number };
-    if (!payload.exp) return true;
+    const payload: unknown = JSON.parse(atob(padded));
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("exp" in payload) ||
+      typeof payload.exp !== "number"
+    )
+      return true;
     const now = Math.floor(Date.now() / 1000);
     return payload.exp < now;
   } catch (err: unknown) {
@@ -351,12 +390,19 @@ function signalAuthReady(): void {
 // Simple Clerk Authentication using official SDK patterns
 export class ClerkAuth {
   private static htmxAuthHeaderRegistered = false;
+  private static tokenRefreshPromise: Promise<string | null> | null = null;
+  private static gatedRequests = new WeakSet<HtmxRequestContext>();
+  private authUiState: "pending" | "ready" | "fallback" = "pending";
   private clerkStarted = false;
   private hasAttemptedGoogleOneTap = false;
   private readonly clerkScriptSelector =
     'script[src*="@clerk/clerk-js"], script[src*="clerk.browser.js"]';
 
   constructor() {
+    refreshCurrentAuthUI = () => {
+      if (this.authUiState === "ready") this.updateAuthUI();
+      if (this.authUiState === "fallback") this.renderFallbackAuth();
+    };
     this.init();
   }
 
@@ -401,6 +447,8 @@ export class ClerkAuth {
       // If bootstrap falls back to anonymous mode, requests should not be cancelled.
       this.registerHtmxAuthHeader();
 
+      if (commonLifecycleAbort.signal.aborted) return;
+      this.authUiState = "ready";
       this.updateAuthUI();
 
       // Signal that auth is ready for auto-classification (fire only once).
@@ -411,7 +459,15 @@ export class ClerkAuth {
       // Refresh token every 50s (Clerk tokens expire in ~60s)
       // getToken with expirationBufferSeconds handles caching automatically
       // and only makes network requests when the token is near expiration
-      setInterval(() => this.refreshAuthToken(), 50000);
+      const refreshInterval = window.setInterval(
+        () => this.refreshAuthToken(),
+        50000,
+      );
+      commonLifecycleAbort.signal.addEventListener(
+        "abort",
+        () => window.clearInterval(refreshInterval),
+        { once: true },
+      );
 
       // Also refresh on user interaction to ensure token is fresh before requests
       // This is a backup in case the interval misses or page was inactive
@@ -437,20 +493,26 @@ export class ClerkAuth {
         };
         document.addEventListener("click", refreshOnInteraction, {
           passive: true,
+          signal: commonLifecycleAbort.signal,
         });
         document.addEventListener("keydown", refreshOnInteraction, {
           passive: true,
+          signal: commonLifecycleAbort.signal,
         });
       }
 
       // Listen for auth state changes (guard to prevent duplicate listeners)
       if (window.Clerk?.addListener && !window.__clerkAuthListenerRegistered) {
         window.__clerkAuthListenerRegistered = true;
-        window.Clerk.addListener(async () => {
+        const unsubscribe = window.Clerk.addListener(async () => {
           await this.refreshAuthToken();
+          if (commonLifecycleAbort.signal.aborted) return;
           this.updateAuthUI();
           // Note: We intentionally don't dispatch htmx:authReady here
           // Auto-classification should only happen on initial page load
+        });
+        commonLifecycleAbort.signal.addEventListener("abort", unsubscribe, {
+          once: true,
         });
       }
     } catch (err: unknown) {
@@ -610,12 +672,34 @@ export class ClerkAuth {
   }
 
   // Shared implementation to avoid duplication between instance and static methods
-  private static async performTokenRefresh(): Promise<string | null> {
-    try {
-      return await ClerkAuth.refreshTokenFromClerkState();
-    } catch (e: unknown) {
-      return ClerkAuth.handleTokenRefreshError(e);
-    }
+  private static performTokenRefresh(): Promise<string | null> {
+    if (ClerkAuth.tokenRefreshPromise) return ClerkAuth.tokenRefreshPromise;
+    const clerk = window.Clerk;
+    const userId = clerk?.user?.id;
+    let timeoutId: number | null = null;
+    const refresh = Promise.race([
+      ClerkAuth.refreshTokenFromClerkState(),
+      new Promise<null>((resolve) => {
+        timeoutId = window.setTimeout(
+          () => resolve(null),
+          INITIAL_TOKEN_REFRESH_TIMEOUT_MS,
+        );
+      }),
+    ])
+      .then((token) => {
+        if (window.Clerk !== clerk || window.Clerk?.user?.id !== userId)
+          return null;
+        cachedAuthUserId = userId;
+        cachedAuthToken = token;
+        return token;
+      })
+      .catch((error: unknown) => ClerkAuth.handleTokenRefreshError(error))
+      .finally(() => {
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+        ClerkAuth.tokenRefreshPromise = null;
+      });
+    ClerkAuth.tokenRefreshPromise = refresh;
+    return refresh;
   }
 
   private static async refreshTokenFromClerkState(): Promise<string | null> {
@@ -628,7 +712,7 @@ export class ClerkAuth {
       return await ClerkAuth.recoverSessionAndRefreshToken();
     }
 
-    return ClerkAuth.clearCachedAuthToken();
+    return null;
   }
 
   private static async refreshTokenFromSession(
@@ -644,12 +728,7 @@ export class ClerkAuth {
       );
     }
 
-    return ClerkAuth.cacheAuthTokenResult(token);
-  }
-
-  private static cacheAuthTokenResult(token: string | null): string | null {
-    cachedAuthToken = token;
-    return cachedAuthToken;
+    return token;
   }
 
   private static async recoverSessionAndRefreshToken(): Promise<string | null> {
@@ -673,85 +752,12 @@ export class ClerkAuth {
       console.error("Failed to recover Clerk session:", recoveryErr);
     }
 
-    return cachedAuthToken;
-  }
-
-  private static clearCachedAuthToken(): null {
-    cachedAuthToken = null;
     return null;
   }
 
   private static handleTokenRefreshError(err: unknown): string | null {
     console.error("Failed to refresh auth token:", err);
-    if (cachedAuthToken && !isTokenExpired(cachedAuthToken)) {
-      return cachedAuthToken;
-    }
-    return null;
-  }
-
-  // Track if we're currently refreshing token to prevent duplicate retries
-  private static isRefreshingToken = false;
-  // Queue of pending retry requests
-  private static pendingRetries: PendingHtmxRetry[] = [];
-
-  private static async handleTokenRefreshAndRetry() {
-    ClerkAuth.isRefreshingToken = true;
-    console.log("Refreshing auth token before retrying HTMX requests...");
-
-    try {
-      const newToken = await ClerkAuth.performTokenRefresh();
-      ClerkAuth.handleRefreshRetryResult(newToken);
-    } catch (err: unknown) {
-      ClerkAuth.handleRefreshRetryError(err);
-    } finally {
-      ClerkAuth.isRefreshingToken = false;
-    }
-  }
-
-  private static handleRefreshRetryResult(newToken: string | null): void {
-    if (!newToken) {
-      console.error("Failed to refresh token - requests will remain blocked");
-      ClerkAuth.pendingRetries = [];
-      ClerkAuth.dispatchAuthRefreshFailed();
-      return;
-    }
-
-    console.log(
-      "Token refreshed successfully, retrying",
-      ClerkAuth.pendingRetries.length,
-      "requests",
-    );
-    ClerkAuth.replayPendingRetries(ClerkAuth.drainPendingRetries());
-  }
-
-  private static drainPendingRetries(): PendingHtmxRetry[] {
-    const retries = [...ClerkAuth.pendingRetries];
-    ClerkAuth.pendingRetries = [];
-    return retries;
-  }
-
-  private static replayPendingRetries(retries: PendingHtmxRetry[]): void {
-    if (!window.htmx) return;
-
-    for (const retry of retries) {
-      const request = ClerkAuth.buildHtmxRetryRequest(retry.element);
-      window.htmx.ajax(request.method, request.url, {
-        source: request.source,
-        target: request.target,
-        swap: request.swap,
-      });
-    }
-  }
-
-  private static buildHtmxRetryRequest(element: HTMLElement): HtmxRetryRequest {
-    return {
-      method: element.getAttribute("hx-get") ? "GET" : "POST",
-      url:
-        element.getAttribute("hx-get") || element.getAttribute("hx-post") || "",
-      source: element,
-      target: element.getAttribute("hx-target") || "",
-      swap: element.getAttribute("hx-swap") || "innerHTML",
-    };
+    return ClerkAuth.getCachedAuthToken();
   }
 
   private static dispatchAuthRefreshFailed(): void {
@@ -762,86 +768,65 @@ export class ClerkAuth {
     );
   }
 
-  private static handleRefreshRetryError(err: unknown): void {
-    console.error("Error during token refresh for HTMX retry:", err);
-    ClerkAuth.pendingRetries = [];
-  }
-
   private registerHtmxAuthHeader() {
     if (ClerkAuth.htmxAuthHeaderRegistered) return;
     ClerkAuth.htmxAuthHeaderRegistered = true;
-
-    document.body.addEventListener("htmx:config:request", (event) => {
-      ClerkAuth.configureHtmxAuthRequest(event as HtmxConfigRequestEvent);
-    });
+    document.body.addEventListener(
+      "htmx:config:request",
+      (event) => {
+        ClerkAuth.configureHtmxAuthRequest(event);
+      },
+      commonListenerOptions,
+    );
   }
 
-  private static configureHtmxAuthRequest(
-    htmxEvent: HtmxConfigRequestEvent,
-  ): void {
-    const token = ClerkAuth.getCachedAuthTokenForRequest();
+  private static configureHtmxAuthRequest(event: HtmxConfigRequestEvent): void {
+    const ctx = event.detail.ctx;
+    const token = ClerkAuth.getCachedAuthToken();
     if (token) {
-      ClerkAuth.attachAuthorizationHeader(htmxEvent, token);
+      ctx.request.headers["Authorization"] = `Bearer ${token}`;
       return;
     }
-
-    if (window.Clerk?.user) {
-      ClerkAuth.blockRequestAndQueueRetry(htmxEvent);
-      ClerkAuth.startTokenRefreshIfIdle();
-    }
+    const userId = window.Clerk?.user?.id;
+    if (!userId || ClerkAuth.gatedRequests.has(ctx)) return;
+    ClerkAuth.gatedRequests.add(ctx);
+    const transport = ctx.fetch ?? window.fetch.bind(window);
+    ctx.fetch = async (input, request) => {
+      const signal = request?.signal;
+      try {
+        signal?.throwIfAborted();
+        const refreshedToken = await ClerkAuth.waitForRequestToken(signal);
+        signal?.throwIfAborted();
+        if (
+          window.Clerk?.user?.id !== userId ||
+          !refreshedToken ||
+          isTokenExpired(refreshedToken)
+        ) {
+          throw new Error("Authentication failed. Please try again.");
+        }
+        const headers = new Headers(request?.headers);
+        headers.set("Authorization", `Bearer ${refreshedToken}`);
+        return transport(input, { ...request, headers });
+      } catch (error: unknown) {
+        if (!signal?.aborted) ClerkAuth.dispatchAuthRefreshFailed();
+        throw error;
+      }
+    };
   }
 
-  private static getCachedAuthTokenForRequest(): string | null {
-    if (!cachedAuthToken || isTokenExpired(cachedAuthToken)) {
-      return null;
-    }
-    return cachedAuthToken;
-  }
-
-  private static attachAuthorizationHeader(
-    htmxEvent: HtmxConfigRequestEvent,
-    token: string,
-  ): void {
-    htmxEvent.detail.ctx.request.headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  private static blockRequestAndQueueRetry(
-    htmxEvent: HtmxConfigRequestEvent,
-  ): void {
-    ClerkAuth.logBlockedHtmxRequest();
-    htmxEvent.preventDefault();
-    ClerkAuth.queuePendingRetry(
-      htmxEvent.detail.ctx.sourceElement as HTMLElement,
-    );
-  }
-
-  private static logBlockedHtmxRequest(): void {
-    if (cachedAuthToken) {
-      console.warn(
-        "HTMX request: Auth token expired. Cancelling request to refresh token and retry...",
-      );
-      return;
-    }
-
-    console.warn(
-      "HTMX request: User is logged in but no auth token available. " +
-        "Cancelling request to refresh token and retry...",
-    );
-  }
-
-  private static queuePendingRetry(element: HTMLElement): void {
-    const alreadyPending = ClerkAuth.pendingRetries.some(
-      (retry) => retry.element === element,
-    );
-    if (!alreadyPending) {
-      ClerkAuth.pendingRetries.push({ element });
-    }
-  }
-
-  private static startTokenRefreshIfIdle(): void {
-    if (!ClerkAuth.isRefreshingToken) {
-      ClerkAuth.handleTokenRefreshAndRetry();
-    }
+  private static waitForRequestToken(
+    signal: AbortSignal | null | undefined,
+  ): Promise<string | null> {
+    signal?.throwIfAborted();
+    const refresh = ClerkAuth.performTokenRefresh();
+    if (!signal) return refresh;
+    return new Promise((resolve, reject) => {
+      const onAbort = () => reject(signal.reason);
+      signal.addEventListener("abort", onAbort, { once: true });
+      refresh
+        .then(resolve, reject)
+        .finally(() => signal.removeEventListener("abort", onAbort));
+    });
   }
 
   private updateAuthUI() {
@@ -969,6 +954,8 @@ export class ClerkAuth {
   }
 
   private renderFallbackAuth() {
+    if (commonLifecycleAbort.signal.aborted) return;
+    this.authUiState = "fallback";
     this.cleanupCheckoutTokens();
 
     const desktopContainer = document.getElementById("desktop-auth-container");
@@ -1036,7 +1023,13 @@ export class ClerkAuth {
 
   // Public method to get current auth token
   static getCachedAuthToken(): string | null {
-    if (cachedAuthToken && isTokenExpired(cachedAuthToken)) {
+    const getToken = window.__commonController?.getCachedAuthToken;
+    if (getToken && getToken !== ClerkAuth.getCachedAuthToken)
+      return getToken();
+    if (
+      cachedAuthUserId !== window.Clerk?.user?.id ||
+      (cachedAuthToken && isTokenExpired(cachedAuthToken))
+    ) {
       return null;
     }
     return cachedAuthToken;
@@ -1044,6 +1037,9 @@ export class ClerkAuth {
 
   // Public method to refresh auth token
   static async refreshAuthToken(): Promise<string | null> {
+    const refreshToken = window.__commonController?.refreshAuthToken;
+    if (refreshToken && refreshToken !== ClerkAuth.refreshAuthToken)
+      return refreshToken();
     return await ClerkAuth.performTokenRefresh();
   }
 }
@@ -1056,16 +1052,20 @@ export class ResultCopier {
 
   private init() {
     // Delegated listener: results fragments are swapped in by htmx after init
-    document.addEventListener("click", (event: MouseEvent) => {
-      const button = (
-        event.target as Element | null
-      )?.closest<HTMLButtonElement>("[data-copy-original-id]");
-      const text = button?.dataset["copyOriginalId"];
-      if (!button || !text) {
-        return;
-      }
-      this.copy(text, button);
-    });
+    document.addEventListener(
+      "click",
+      (event: MouseEvent) => {
+        const button = (
+          event.target as Element | null
+        )?.closest<HTMLButtonElement>("[data-copy-original-id]");
+        const text = button?.dataset["copyOriginalId"];
+        if (!button || !text) {
+          return;
+        }
+        this.copy(text, button);
+      },
+      commonListenerOptions,
+    );
   }
 
   private copy(text: string, buttonElement: HTMLButtonElement) {
@@ -1156,23 +1156,92 @@ export class ResultCopier {
   }
 }
 
-// Initialize common functionality when DOM is ready
-export function initCommon(): void {
-  if (document.body.dataset["commonInitialized"] === "true") {
-    return;
-  }
+let commonControls: Element[] = [];
+let commonControlsAbort: AbortController | null = null;
+let clerkAuthStarted = false;
+let resultCopierStarted = false;
+if (ownsCommonLifecycle)
+  commonLifecycleAbort.signal.addEventListener(
+    "abort",
+    () => commonControlsAbort?.abort(),
+    { once: true },
+  );
 
-  document.body.dataset["commonInitialized"] = "true";
-  new MobileMenu();
-  if (document.body.dataset["authUi"] !== "disabled") {
-    new ClerkAuth();
+function initializeCommonControls(): void {
+  const controls = [
+    "mobile-menu-button",
+    "product_description_area",
+    "desktop-auth-container",
+    "mobile-auth-container",
+  ].flatMap((id) => {
+    const element = document.getElementById(id);
+    return element ? [element] : [];
+  });
+  if (
+    commonControlsAbort &&
+    controls.length === commonControls.length &&
+    controls.every((element, index) => element === commonControls[index])
+  )
+    return;
+  if (
+    new URLSearchParams(window.location.search).get("checkout") === "success"
+  ) {
+    window.__checkoutReturnUrl ??= window.location.href;
   }
-  new TextareaEnhancer("product_description_area");
-  new ResultCopier();
+  commonControlsAbort?.abort();
+  commonControlsAbort = new AbortController();
+  commonControls = controls;
+  document.body.dataset["commonInitialized"] = "true";
+  new MobileMenu(commonControlsAbort.signal);
+  if (document.body.dataset["authUi"] !== "disabled") {
+    if (!clerkAuthStarted) {
+      clerkAuthStarted = true;
+      new ClerkAuth();
+    } else {
+      refreshCurrentAuthUI?.();
+    }
+  }
+  new TextareaEnhancer("product_description_area", commonControlsAbort.signal);
+  if (!resultCopierStarted) {
+    resultCopierStarted = true;
+    new ResultCopier();
+  }
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initCommon);
+if (ownsCommonLifecycle) {
+  window.__commonController = {
+    init: initializeCommonControls,
+    getCachedAuthToken: ClerkAuth.getCachedAuthToken,
+    refreshAuthToken: ClerkAuth.refreshAuthToken,
+    abort: commonLifecycleAbort,
+  };
+}
+
+export function initCommon(): void {
+  window.__commonController?.init();
+}
+
+if (ownsCommonLifecycle)
+  document.addEventListener(
+    "htmx:after:swap",
+    (event) => {
+      if (!(event instanceof CustomEvent)) return;
+      const ctx: HtmxRequestContext = event.detail.ctx;
+      if (
+        ctx.target === document.body &&
+        ctx.request.headers["HX-History-Restore-Request"] === "true"
+      )
+        initCommon();
+    },
+    commonListenerOptions,
+  );
+
+if (ownsCommonLifecycle && document.readyState === "loading") {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initCommon,
+    commonListenerOptions,
+  );
 } else {
   initCommon();
 }

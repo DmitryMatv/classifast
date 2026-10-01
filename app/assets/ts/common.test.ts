@@ -3,9 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClerkHelpers } from "./clerk-helpers";
 
 async function flushAsyncWork(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let turn = 0; turn < 12; turn += 1) await Promise.resolve();
 }
 
 async function advanceTimersAndFlushAsync(ms: number): Promise<void> {
@@ -30,6 +28,43 @@ function createPasteEvent(text: string): ClipboardEvent {
     value: { getData: () => text },
   });
   return event;
+}
+
+function createAuthRequestContext(
+  sourceElement: Element,
+  transport: typeof window.fetch,
+): HtmxConfigRequestEvent["detail"]["ctx"] {
+  return {
+    sourceElement,
+    target: document.body,
+    swap: "outerSync",
+    fetch: transport,
+    request: {
+      action: "/NAICS?product_description=pump",
+      method: "GET",
+      headers: { "HX-History-Restore-Request": "true", "HX-Request": "true" },
+      body: new FormData(),
+      signal: new AbortController().signal,
+    },
+  };
+}
+
+function configureAuthRequest(
+  ctx: HtmxConfigRequestEvent["detail"]["ctx"],
+): HtmxConfigRequestEvent {
+  const event = new CustomEvent("htmx:config:request", {
+    bubbles: true,
+    cancelable: true,
+    detail: { ctx },
+  });
+  document.body.dispatchEvent(event);
+  return event;
+}
+
+function authAndMobileMarkup(): string {
+  return `<div id="desktop-auth-container"></div><div id="mobile-auth-container"></div>
+    <button id="mobile-menu-button" class="hamburger"></button><div id="mobile-menu"><a href="/">Home</a></div>
+    <button data-copy-original-id="123">Copy</button>`;
 }
 
 describe("common.ts", () => {
@@ -948,89 +983,319 @@ describe("common.ts", () => {
     await expect(ClerkAuth.refreshAuthToken()).resolves.toBe(validCachedToken);
   });
 
-  it("blocks and replays HTMX requests after refreshing a missing auth token", async () => {
-    document.body.innerHTML = `
-      <div id="desktop-auth-container"></div>
-      <div id="mobile-auth-container"></div>
-      <button
-        id="retry-source"
-        hx-post="/NAICS/fragment"
-        hx-target="#results-container"
-        hx-swap="outerHTML"
-      ></button>
-    `;
+  it("does not recapture a consumed return hint through a duplicate common URL", async () => {
+    window.history.replaceState({}, "", "/NAICS?checkout=success");
+    try {
+      const first = await import("./common");
+      expect(window.__checkoutReturnUrl).toBe(
+        "http://localhost:3000/NAICS?checkout=success",
+      );
+      delete window.__checkoutReturnUrl;
+      first.initCommon();
+      const duplicateModuleUrl = "./common?version=consumed-return";
+      const duplicate: typeof first = await import(duplicateModuleUrl);
+      duplicate.initCommon();
+      expect(window.__checkoutReturnUrl).toBeUndefined();
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("shares one auth owner across repeated common module evaluations", async () => {
+    document.body.innerHTML = authAndMobileMarkup();
+    const token = createJwtWithExpiration(Math.floor(Date.now() / 1000) + 60);
     if (window.Clerk) {
-      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.user = { id: "user_123" };
+      window.Clerk.session = { getToken: vi.fn(async () => token) };
+    }
+    const first = await import("./common");
+    await vi.advanceTimersByTimeAsync(0);
+    const owner = window.__commonController;
+    const timerCount = vi.getTimerCount();
+    const duplicateModuleUrl = "./common?version=second";
+    const second: typeof first = await import(duplicateModuleUrl);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(window.__commonController).toBe(owner);
+    expect(window.__commonLifecycleAbort?.signal.aborted).toBe(false);
+    expect(window.Clerk?.load).toHaveBeenCalledOnce();
+    expect(window.Clerk?.addListener).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(timerCount);
+    expect(second.ClerkAuth.getCachedAuthToken()).toBe(token);
+    await second.ClerkAuth.refreshAuthToken();
+    expect(first.ClerkAuth.getCachedAuthToken()).toBe(token);
+    const ctx = createAuthRequestContext(
+      document.body,
+      vi.fn(async () => new Response()),
+    );
+    configureAuthRequest(ctx);
+    expect(ctx.request.headers["Authorization"]).toBe(`Bearer ${token}`);
+  });
+
+  it("gates the finalized history GET after its cached token expires", async () => {
+    const initialToken = createJwtWithExpiration(
+      Math.floor(Date.now() / 1000) + 60,
+    );
+    const token = createJwtWithExpiration(Math.floor(Date.now() / 1000) + 180);
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" };
+      window.Clerk.session = {
+        getToken: vi
+          .fn()
+          .mockResolvedValueOnce(initialToken)
+          .mockResolvedValueOnce(token),
+      };
+    }
+    await import("./common");
+    await vi.advanceTimersByTimeAsync(0);
+    vi.setSystemTime(Date.now() + 120000);
+    const transport = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response("restored"),
+    );
+    const ctx = createAuthRequestContext(document.body, transport);
+    const event = configureAuthRequest(ctx);
+    const request: RequestInit = {
+      ...ctx.request,
+      body: null,
+      credentials: "include",
+    };
+    if (!ctx.fetch) throw new Error("Missing request transport");
+
+    await ctx.fetch("/NAICS?product_description=pump", request);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(window.htmx?.ajax).not.toHaveBeenCalled();
+    expect(transport).toHaveBeenCalledOnce();
+    expect(transport).toHaveBeenCalledWith("/NAICS?product_description=pump", {
+      ...request,
+      headers: expect.any(Headers),
+    });
+    expect([...new Headers(transport.mock.calls[0]?.[1]?.headers)]).toEqual([
+      ...new Headers({
+        ...ctx.request.headers,
+        Authorization: `Bearer ${token}`,
+      }),
+    ]);
+    expect(ctx.swap).toBe("outerSync");
+    expect(ctx.target).toBe(document.body);
+  });
+
+  it("retains parameters finalized by later config handlers and the original POST body", async () => {
+    const token = createJwtWithExpiration(Math.floor(Date.now() / 1000) + 60);
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" };
       window.Clerk.session = {
         getToken: vi
           .fn()
           .mockResolvedValueOnce(null)
-          .mockResolvedValueOnce("retry-token"),
+          .mockResolvedValueOnce(token),
       };
     }
     await import("./common");
-    await flushAsyncWork();
+    await vi.advanceTimersByTimeAsync(0);
+    const transport = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(),
+    );
+    const ctx = createAuthRequestContext(document.body, transport);
+    configureAuthRequest(ctx);
+    ctx.request.body.set("product_description", "changed after auth config");
+    const body = new URLSearchParams();
+    body.set(
+      "product_description",
+      String(ctx.request.body.get("product_description")),
+    );
+    const request = { ...ctx.request, method: "POST", body };
+    if (!ctx.fetch) throw new Error("Missing request transport");
 
-    const source = document.getElementById("retry-source") as HTMLElement;
-    const event = new CustomEvent("htmx:config:request", {
-      bubbles: true,
-      cancelable: true,
-      detail: {
-        ctx: {
-          sourceElement: source,
-          request: { headers: {}, body: new FormData() },
-        },
-      },
-    });
+    await ctx.fetch("/NAICS/fragment", request);
 
-    document.body.dispatchEvent(event);
-    await flushAsyncWork();
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(window.htmx?.ajax).toHaveBeenCalledTimes(1);
-    expect(window.htmx?.ajax).toHaveBeenCalledWith("POST", "/NAICS/fragment", {
-      source,
-      target: "#results-container",
-      swap: "outerHTML",
-    });
+    expect(transport.mock.calls[0]?.[1]?.body).toBe(body);
+    expect(transport.mock.calls[0]?.[1]?.method).toBe("POST");
   });
 
-  it("dispatches authRefreshFailed and skips HTMX replay when retry token refresh fails", async () => {
-    document.body.innerHTML = `
-      <div id="desktop-auth-container"></div>
-      <div id="mobile-auth-container"></div>
-      <button id="retry-source" hx-get="/NAICS/fragment"></button>
-    `;
+  it("shares a refresh while promptly retiring an aborted history traversal", async () => {
+    let resolveToken: (token: string) => void = () => {};
+    const tokenPromise = new Promise<string>((resolve) => {
+      resolveToken = resolve;
+    });
+    const token = createJwtWithExpiration(Math.floor(Date.now() / 1000) + 60);
+    const getToken = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockReturnValueOnce(tokenPromise);
     if (window.Clerk) {
-      window.Clerk.user = { id: "user_123" } as ClerkUser;
+      window.Clerk.user = { id: "user_123" };
+      window.Clerk.session = { getToken };
+    }
+    await import("./common");
+    await vi.advanceTimersByTimeAsync(0);
+    const failed = vi.fn();
+    document.body.addEventListener("htmx:authRefreshFailed", failed);
+    const transport = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(),
+    );
+    const first = createAuthRequestContext(document.body, transport);
+    const second = createAuthRequestContext(document.body, transport);
+    const abort = new AbortController();
+    first.request.signal = abort.signal;
+    configureAuthRequest(first);
+    configureAuthRequest(second);
+    if (!first.fetch || !second.fetch)
+      throw new Error("Missing request transport");
+    const obsolete = first.fetch("/old", { ...first.request, body: null });
+    const rejected = expect(obsolete).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    const current = second.fetch("/current", { ...second.request, body: null });
+    abort.abort();
+    await rejected;
+    resolveToken(token);
+    await current;
+
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(transport).toHaveBeenCalledOnce();
+    expect(transport.mock.calls[0]?.[0]).toBe("/current");
+    expect(failed).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when refresh supplies no valid token", async () => {
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" };
+      window.Clerk.session = { getToken: vi.fn(async () => null) };
+    }
+    await import("./common");
+    await vi.advanceTimersByTimeAsync(0);
+    const failed = vi.fn();
+    document.body.addEventListener("htmx:authRefreshFailed", failed);
+    const transport = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(),
+    );
+    const ctx = createAuthRequestContext(document.body, transport);
+    configureAuthRequest(ctx);
+    if (!ctx.fetch) throw new Error("Missing request transport");
+
+    await expect(
+      ctx.fetch("/NAICS", { ...ctx.request, body: null }),
+    ).rejects.toThrow();
+
+    expect(failed).toHaveBeenCalledOnce();
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("fails closed if the signed-in identity changes while awaiting refresh", async () => {
+    let resolveToken: (token: string) => void = () => {};
+    const pending = new Promise<string>((resolve) => {
+      resolveToken = resolve;
+    });
+    if (window.Clerk) {
+      window.Clerk.user = { id: "original" };
       window.Clerk.session = {
-        getToken: vi.fn(async () => null),
+        getToken: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockReturnValueOnce(pending),
       };
     }
-    const refreshFailedListener = vi.fn();
-    document.body.addEventListener(
-      "htmx:authRefreshFailed",
-      refreshFailedListener,
-    );
     await import("./common");
-    await flushAsyncWork();
-
-    const source = document.getElementById("retry-source") as HTMLElement;
-    document.body.dispatchEvent(
-      new CustomEvent("htmx:config:request", {
-        bubbles: true,
-        cancelable: true,
-        detail: {
-          ctx: {
-            sourceElement: source,
-            request: { headers: {}, body: new FormData() },
-          },
-        },
-      }),
+    await vi.advanceTimersByTimeAsync(0);
+    const transport = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(),
     );
-    await flushAsyncWork();
+    const ctx = createAuthRequestContext(document.body, transport);
+    configureAuthRequest(ctx);
+    if (!ctx.fetch) throw new Error("Missing request transport");
+    const result = ctx.fetch("/NAICS", { ...ctx.request, body: null });
+    const rejected = expect(result).rejects.toThrow();
+    if (window.Clerk) window.Clerk.user = { id: "different" };
+    resolveToken(createJwtWithExpiration(Math.floor(Date.now() / 1000) + 60));
+    await rejected;
 
-    expect(refreshFailedListener).toHaveBeenCalledTimes(1);
-    expect(window.htmx?.ajax).not.toHaveBeenCalled();
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("bounds a hung auth refresh independently of the HTMX timeout", async () => {
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" };
+      window.Clerk.session = {
+        getToken: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockReturnValueOnce(new Promise(() => {})),
+      };
+    }
+    await import("./common");
+    await vi.advanceTimersByTimeAsync(0);
+    const transport = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(),
+    );
+    const ctx = createAuthRequestContext(document.body, transport);
+    configureAuthRequest(ctx);
+    if (!ctx.fetch) throw new Error("Missing request transport");
+    const result = ctx.fetch("/NAICS", { ...ctx.request, body: null }).then(
+      () => ({ kind: "sent" }),
+      (error: unknown) => ({ kind: "failed", error }),
+    );
+    await vi.advanceTimersByTimeAsync(10000);
+    await expect(result).resolves.toMatchObject({ kind: "failed" });
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("captures checkout return before asynchronous Clerk bootstrap", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/NAICS?product_description=pump&checkout=success",
+    );
+    if (window.Clerk)
+      window.Clerk.load = vi.fn(() => new Promise<void>(() => {}));
+    await import("./common");
+    try {
+      expect(window.__checkoutReturnUrl).toBe(
+        "http://localhost:3000/NAICS?product_description=pump&checkout=success",
+      );
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
+  });
+
+  it("remounts auth and current controls after a BODY history swap without another bootstrap", async () => {
+    document.body.innerHTML = authAndMobileMarkup();
+    const token = createJwtWithExpiration(Math.floor(Date.now() / 1000) + 60);
+    if (window.Clerk) {
+      window.Clerk.user = { id: "user_123" };
+      window.Clerk.session = { getToken: vi.fn(async () => token) };
+    }
+    const { initCommon } = await import("./common");
+    await vi.advanceTimersByTimeAsync(0);
+    const timers = vi.getTimerCount();
+    const body = document.body;
+    document.body.innerHTML = authAndMobileMarkup();
+    const ctx = createAuthRequestContext(
+      document.body,
+      vi.fn(async () => new Response()),
+    );
+    document.dispatchEvent(
+      new CustomEvent("htmx:after:swap", { detail: { ctx } }),
+    );
+    initCommon();
+    const button = document.getElementById("mobile-menu-button");
+    if (!(button instanceof HTMLButtonElement))
+      throw new Error("Missing mobile menu button");
+    button.click();
+
+    expect(document.body).toBe(body);
+    expect(
+      document.getElementById("mobile-menu")?.classList.contains("active"),
+    ).toBe(true);
+    expect(window.Clerk?.load).toHaveBeenCalledOnce();
+    expect(window.Clerk?.mountUserButton).toHaveBeenCalledTimes(4);
+    expect(vi.getTimerCount()).toBe(timers);
+    const copy = document.querySelector("[data-copy-original-id]");
+    if (!(copy instanceof HTMLButtonElement))
+      throw new Error("Missing copy button");
+    copy.click();
+    await flushAsyncWork();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledOnce();
   });
 });

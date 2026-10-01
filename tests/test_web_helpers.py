@@ -1,7 +1,8 @@
+import re
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import FastAPI
@@ -1048,6 +1049,27 @@ class BaseClassifierPageSSRTests(unittest.IsolatedAsyncioTestCase):
             response.text.index(animation_bootstrap),
             response.text.index("/js/classifier.js"),
         )
+
+    @patch("app.classification_service.perform_classification")
+    async def test_classifier_page_versions_htmx_script(
+        self,
+        perform_classification_mock: Mock,
+    ) -> None:
+        perform_classification_mock.return_value = self._classification_result(
+            "43211503", "Laptop computers"
+        )
+
+        response = await self._request("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        script = re.search(
+            r'<script\b[^>]*\bsrc="([^"]*htmx\.min\.js[^"]*)"[^>]*>',
+            response.text,
+        )
+        self.assertIsNotNone(script)
+        script_url = urlsplit(script.group(1))
+        self.assertEqual(script_url.path, "/static/htmx.min.js")
+        self.assertRegex(script_url.query, r"^v=[0-9a-f]{10}$")
 
     @patch("app.classification_service.perform_classification")
     async def test_base_page_normalizes_invalid_version_before_ssr(
