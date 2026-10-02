@@ -19,7 +19,7 @@ ENV PYTHONUNBUFFERED=1
 
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-compile --uploaded-prior-to=P3D -r requirements.txt
+    pip install --no-compile --uploaded-prior-to=P1D -r requirements.txt
 
 # Install curl for health checks
 RUN apt-get update && apt-get install --no-install-recommends -y curl \

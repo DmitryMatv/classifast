@@ -5,16 +5,19 @@ from urllib.parse import urlparse
 import httpx
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from polar_sdk import Polar
-from polar_sdk._webhooks import WebhookVerificationError, validate_event
-from polar_sdk.models import (
+from polar.v2026_10 import Polar
+from polar.v2026_10.outputs import Subscription
+from polar.v2026_10.webhooks import (
+    PolarWebhookError,
+    PolarWebhookUnknownTypeError,
+    PolarWebhookVerificationError,
     WebhookSubscriptionActivePayload,
     WebhookSubscriptionCanceledPayload,
     WebhookSubscriptionCreatedPayload,
     WebhookSubscriptionRevokedPayload,
     WebhookSubscriptionUpdatedPayload,
+    validate_event,
 )
-from polar_sdk.models.subscription import Subscription
 
 from .clerk_auth import (
     ClerkAuthenticationError,
@@ -193,13 +196,11 @@ async def create_checkout(
         # Initialize Polar SDK
         with Polar(access_token=POLAR_ACCESS_TOKEN) as polar:
             checkout = polar.checkouts.create(
-                request={
-                    "products": [product_id],
-                    "metadata": {"user_id": user_id},
-                    "success_url": success_url,
-                    "customer_email": user_details.get("email"),
-                    "customer_name": user_details.get("name"),
-                }
+                products=[product_id],
+                metadata={"user_id": user_id},
+                success_url=success_url,
+                customer_email=user_details.get("email"),
+                customer_name=user_details.get("name"),
             )
 
             return {"url": checkout.url}
@@ -239,15 +240,13 @@ async def create_mapping_checkout(request: Request):
 
         with Polar(access_token=POLAR_ACCESS_TOKEN) as polar:
             checkout = polar.checkouts.create(
-                request={
-                    "products": [product.polar_product_id],
-                    "metadata": {
-                        "mapping_slug": product.slug,
-                        "source_standard": product.source_standard,
-                        "target_standard": product.target_standard,
-                    },
-                    "success_url": success_url,
-                }
+                products=[product.polar_product_id],
+                metadata={
+                    "mapping_slug": product.slug,
+                    "source_standard": product.source_standard,
+                    "target_standard": product.target_standard,
+                },
+                success_url=success_url,
             )
 
         return {"url": checkout.url}
@@ -275,11 +274,17 @@ async def polar_webhook(request: Request):
             headers=dict(request.headers),
             secret=POLAR_WEBHOOK_SECRET,
         )
-    except WebhookVerificationError as e:
-        logger.warning(f"Webhook verification failed: {e.message}")
+    except PolarWebhookVerificationError as e:
+        logger.warning(f"Webhook verification failed: {e}")
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
+    except PolarWebhookError as e:
+        if isinstance(e, PolarWebhookUnknownTypeError) and e.event_type:
+            logger.info("Ignoring unsupported Polar webhook type: %s", e.event_type)
+            return {"status": "received"}
+        logger.warning("Invalid Polar webhook payload: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid webhook payload") from e
 
-    logger.info(f"Received Polar webhook: {event.TYPE}")
+    logger.info(f"Received Polar webhook: {event.type}")
 
     # Handle subscription events using typed payloads
     # Note: Some state changes may trigger both specific events (e.g., Active) AND Updated events.

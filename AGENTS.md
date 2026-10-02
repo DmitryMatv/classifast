@@ -87,9 +87,14 @@ sources and run `npm run build`.
 
 ## Gotchas and Non-Obvious Behaviors
 
-- Polar SDK 1.x replaces the `polar_sdk` import namespace with `polar` and changes
-  the API. Keep the `polar-sdk<1.0.0` requirement until the payment integration is
-  explicitly migrated.
+- Polar SDK version range is declared in `requirements.txt`.
+  SDK 1.x uses versioned `polar` imports, direct checkout keyword arguments, and
+  webhook dataclasses with `event.type` instead of `event.TYPE`.
+  The `polar.v2026_10` webhook parser requires `api_version` and complete
+  subscription fields even when their values are null. Check the dashboard
+  endpoint version when migrating older webhook payloads.
+  Invalid signatures return 403. Verified unknown event types are acknowledged
+  without changing entitlements; malformed webhook payloads return 400.
 - `data/`, `embedders/`, and `mapping/` are gitignored and may be absent from
   a checkout. Ripgrep silently returns zero hits inside them because it
   respects `.gitignore`; use `--no-ignore` or explicit paths. If `embedders/`
