@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 import uuid
 from types import SimpleNamespace
@@ -49,6 +50,36 @@ def _build_redis_client_with_pipeline(
     return redis_client, pipeline
 
 
+class _TierCacheRedis:
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+        self.expirations: dict[str, int] = {}
+
+    async def get(self, key: str) -> bytes | None:
+        value = self.values.get(key)
+        return value.encode() if value is not None else None
+
+    async def setex(self, key: str, ttl: int, value: str) -> bool:
+        self.values[key] = value
+        self.expirations[key] = ttl
+        return True
+
+    async def set(
+        self, key: str, value: str, *, ex: int, nx: bool = False
+    ) -> bool | None:
+        if nx and key in self.values:
+            return None
+        self.values[key] = value
+        self.expirations[key] = ex
+        return True
+
+    async def exists(self, key: str) -> bool:
+        return key in self.values
+
+    async def ttl(self, key: str) -> int:
+        return self.expirations.get(key, -2)
+
+
 class UsageTrackerHelperTests(unittest.TestCase):
     def test_quota_fail_open_is_not_available(self) -> None:
         self.assertFalse(hasattr(usage_tracker, "QUOTA_FAIL_OPEN"))
@@ -90,6 +121,102 @@ class UsageTrackerHelperTests(unittest.TestCase):
 
 
 class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
+    async def _lookup_during_authoritative_tier_update(
+        self,
+        redis_client: _TierCacheRedis,
+        stale_resolution: TierResolution,
+        authoritative_tier: str,
+    ) -> TierResolution:
+        lookup_started = asyncio.Event()
+        finish_lookup = asyncio.Event()
+
+        async def fetch_stale_tier(user_id: str) -> TierResolution:
+            lookup_started.set()
+            await finish_lookup.wait()
+            return stale_resolution
+
+        with patch(
+            "app.usage_tracker.fetch_clerk_user_tier",
+            new=AsyncMock(side_effect=fetch_stale_tier),
+        ):
+            lookup = asyncio.create_task(get_cached_user_tier("user-123", redis_client))
+            try:
+                await asyncio.wait_for(lookup_started.wait(), timeout=5)
+                await set_cached_user_tier("user-123", authoritative_tier, redis_client)
+                finish_lookup.set()
+                return await asyncio.wait_for(lookup, timeout=5)
+            finally:
+                finish_lookup.set()
+                if not lookup.done():
+                    lookup.cancel()
+
+    async def test_cache_miss_lookup_preserves_authoritative_pro_update(self) -> None:
+        stale_resolutions = (
+            TierResolution(status="confirmed_non_pro", tier="free"),
+            TierResolution(status="confirmed_non_pro"),
+            TierResolution(status="explicit_negative"),
+            TierResolution(status="transient_unavailable"),
+        )
+
+        for stale_resolution in stale_resolutions:
+            with self.subTest(stale_resolution=stale_resolution):
+                redis_client = _TierCacheRedis()
+                resolution = await self._lookup_during_authoritative_tier_update(
+                    redis_client, stale_resolution, "pro"
+                )
+
+                self.assertEqual(
+                    resolution, TierResolution(status="confirmed_pro", tier="pro")
+                )
+                self.assertEqual(await redis_client.get("user_tier:user-123"), b"pro")
+                self.assertEqual(
+                    await redis_client.ttl("user_tier:user-123"), TIER_CACHE_TTL
+                )
+
+                with patch(
+                    "app.usage_tracker.authenticate_clerk_token_local",
+                    new=AsyncMock(return_value=("user-123", "free")),
+                ):
+                    usage_status = await reserve_usage(
+                        _build_request(headers={"authorization": "Bearer token"}),
+                        redis_client,
+                    )
+
+                self.assertTrue(usage_status.allowed)
+                self.assertTrue(usage_status.is_pro)
+                self.assertEqual(usage_status.remaining, -1)
+
+    async def test_cache_miss_lookup_preserves_authoritative_free_update(self) -> None:
+        redis_client = _TierCacheRedis()
+        pipeline = Mock()
+        pipeline.execute = AsyncMock(return_value=[FREE_USER_LIMIT + 1, True])
+        redis_client.pipeline = Mock(return_value=pipeline)
+
+        resolution = await self._lookup_during_authoritative_tier_update(
+            redis_client,
+            TierResolution(status="confirmed_pro", tier="pro"),
+            "free",
+        )
+
+        self.assertEqual(
+            resolution, TierResolution(status="confirmed_non_pro", tier="free")
+        )
+        self.assertEqual(await redis_client.get("user_tier:user-123"), b"free")
+        self.assertEqual(await redis_client.ttl("user_tier:user-123"), TIER_CACHE_TTL)
+
+        with patch(
+            "app.usage_tracker.authenticate_clerk_token_local",
+            new=AsyncMock(return_value=("user-123", "pro")),
+        ):
+            usage_status = await reserve_usage(
+                _build_request(headers={"authorization": "Bearer token"}),
+                redis_client,
+            )
+
+        self.assertFalse(usage_status.allowed)
+        self.assertFalse(usage_status.is_pro)
+        self.assertEqual(usage_status.remaining, 0)
+
     async def test_get_cached_user_tier_uses_negative_cache_sentinel(self) -> None:
         redis_client = AsyncMock()
         redis_client.get.return_value = TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE
@@ -110,10 +237,11 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resolution.status, "confirmed_pro")
         self.assertEqual(resolution.tier, "pro")
-        redis_client.setex.assert_awaited_once_with(
+        redis_client.set.assert_awaited_once_with(
             "user_tier:user-123",
-            TIER_CACHE_TTL,
             "pro",
+            ex=TIER_CACHE_TTL,
+            nx=True,
         )
 
     async def test_get_cached_user_tier_negative_result_is_cached(self) -> None:
@@ -127,10 +255,11 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             resolution = await get_cached_user_tier("user-123", redis_client)
 
         self.assertEqual(resolution.status, "explicit_negative")
-        redis_client.setex.assert_awaited_once_with(
+        redis_client.set.assert_awaited_once_with(
             "user_tier:user-123",
-            NEGATIVE_TIER_CACHE_TTL,
             TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE,
+            ex=NEGATIVE_TIER_CACHE_TTL,
+            nx=True,
         )
 
     async def test_get_cached_user_tier_transient_result_is_cached(self) -> None:
@@ -144,11 +273,45 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             resolution = await get_cached_user_tier("user-123", redis_client)
 
         self.assertEqual(resolution.status, "transient_unavailable")
-        redis_client.setex.assert_awaited_once_with(
+        redis_client.set.assert_awaited_once_with(
             "user_tier:user-123",
-            NEGATIVE_TIER_CACHE_TTL,
             TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE,
+            ex=NEGATIVE_TIER_CACHE_TTL,
+            nx=True,
         )
+
+    async def test_get_cached_user_tier_returns_clerk_resolution_when_fill_fails(
+        self,
+    ) -> None:
+        redis_client = AsyncMock()
+        redis_client.get.return_value = None
+        redis_client.set.side_effect = redis.RedisError("cache fill unavailable")
+        clerk_resolution = TierResolution(status="confirmed_pro", tier="pro")
+
+        with patch(
+            "app.usage_tracker.fetch_clerk_user_tier",
+            return_value=clerk_resolution,
+        ):
+            resolution = await get_cached_user_tier("user-123", redis_client)
+
+        self.assertEqual(resolution, clerk_resolution)
+
+    async def test_get_cached_user_tier_returns_clerk_resolution_when_winner_read_fails(
+        self,
+    ) -> None:
+        for failure in (redis.RedisError("cache read unavailable"), b"\xff"):
+            with self.subTest(failure=failure):
+                redis_client = AsyncMock()
+                redis_client.get.side_effect = [None, failure]
+                clerk_resolution = TierResolution(status="confirmed_pro", tier="pro")
+
+                with patch(
+                    "app.usage_tracker.fetch_clerk_user_tier",
+                    return_value=clerk_resolution,
+                ):
+                    resolution = await get_cached_user_tier("user-123", redis_client)
+
+                self.assertEqual(resolution, clerk_resolution)
 
     async def test_set_cached_user_tier_stores_pro_tier(self) -> None:
         redis_client = AsyncMock()

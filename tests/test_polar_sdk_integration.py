@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -220,7 +220,10 @@ def payment_app(monkeypatch):
     app = FastAPI()
     app.include_router(payments.router, prefix="/api")
     app.state.redis_client = AsyncMock()
-    app.state.redis_client.incr.return_value = 1
+    pipeline = MagicMock()
+    pipeline.__aenter__.return_value = pipeline
+    pipeline.execute = AsyncMock(return_value=[1, True])
+    app.state.redis_client.pipeline = MagicMock(return_value=pipeline)
     monkeypatch.setenv("POLAR_PRO_PRODUCT_ID", PRO_PRODUCT_ID)
     monkeypatch.setattr(payments, "POLAR_ACCESS_TOKEN", "local-test-access-token")
     monkeypatch.setattr(payments, "POLAR_WEBHOOK_SECRET", WEBHOOK_SECRET)

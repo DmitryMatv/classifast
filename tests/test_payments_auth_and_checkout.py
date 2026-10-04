@@ -18,7 +18,10 @@ def _build_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(payments.router, prefix="/api")
     redis_client = AsyncMock()
-    redis_client.incr.return_value = 1
+    pipeline = MagicMock()
+    pipeline.__aenter__.return_value = pipeline
+    pipeline.execute = AsyncMock(return_value=[1, True])
+    redis_client.pipeline = MagicMock(return_value=pipeline)
     app.state.redis_client = redis_client
     return app
 
@@ -357,7 +360,8 @@ class CheckoutRateLimitTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_mapping_checkout_is_rate_limited_per_ip(self) -> None:
         app = _build_test_app()
-        app.state.redis_client.incr.side_effect = [1, 2, 3]
+        pipeline = app.state.redis_client.pipeline.return_value
+        pipeline.execute.side_effect = [[1, True], [2, False], [3, False]]
         product = next(iter(MAPPING_PRODUCTS.values()))
         polar_instance = MagicMock()
         polar_instance.checkouts.create.return_value = SimpleNamespace(
@@ -379,7 +383,7 @@ class CheckoutRateLimitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(third.status_code, 429)
-        app.state.redis_client.expire.assert_awaited_once()
+        self.assertEqual(polar_instance.checkouts.create.call_count, 2)
 
     async def test_checkout_rate_limit_fails_closed_without_redis(self) -> None:
         app = _build_test_app()
@@ -393,7 +397,8 @@ class CheckoutRateLimitTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_checkout_rate_limit_fails_closed_on_redis_error(self) -> None:
         app = _build_test_app()
-        app.state.redis_client.incr.side_effect = redis.RedisError("down")
+        pipeline = app.state.redis_client.pipeline.return_value
+        pipeline.execute.side_effect = redis.RedisError("down")
 
         response = await self._post_mapping_checkout(
             app, next(iter(MAPPING_PRODUCTS.values())).slug

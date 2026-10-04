@@ -153,3 +153,25 @@ sources and run `npm run build`.
 - Template `url_for` links render as absolute URLs with the request origin.
   Browser checks should use accessible names or inspect the URL pathname,
   rather than match an exact relative `href`.
+- Static header tests do not exercise conditional GETs. `CachedStaticFiles`
+  currently overwrites the ETag after Starlette checks `If-None-Match`, so
+  sending the returned ETag back produces 200 instead of 304. Verify the actual
+  mounted response when changing static cache behavior.
+- Checkout rate limiting requires Redis 7+ for `EXPIRE NX`. Queue `INCR` and
+  `EXPIRE NX` in one transactional pipeline. This assigns missing TTLs, including
+  on stranded counters, while preserving existing deadlines. Redis errors must
+  still return 503, and counters above the allowance must still return 429.
+- Tier-cache lookup fills use `SET EX NX` and reread the winning value.
+  Webhook tier updates use authoritative `SETEX`; a lookup completing afterward
+  must preserve and return that tier. Upgrade and downgrade overlap tests also
+  verify quota behavior without checkout grace.
+- README.md describes one active plus four waiting classifications and 503
+  for overflow, but the current executor has no admission limit. Its one worker
+  serializes execution while accepting additional queued submissions. Do not
+  assume the documented capacity is enforced when verifying overload behavior.
+- Checkout recovery retries two seconds after each completed request and has a
+  60-second deadline. An input or change inside the form cancels recovery,
+  switches to the existing manual-retry message, and enables Try again.
+  Keep displayed status consistent with whether automatic checks are running;
+  update only the recovery status paragraph, preserving a fresh ordinary paywall.
+  Successful recovery must leave results visible without recreating a warning.

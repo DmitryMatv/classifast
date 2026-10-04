@@ -394,6 +394,7 @@ describe("paywall.ts", () => {
     expect(document.getElementById("no-results")?.textContent).toBe(
       "No results found.",
     );
+    expect(document.getElementById("paywall-warning")).toBeNull();
   });
 
   it("retries 503 and network failures within one deadline and exposes manual Try again", async () => {
@@ -449,6 +450,61 @@ describe("paywall.ts", () => {
     expect(window.htmx?.ajax).toHaveBeenCalledTimes(1);
     expect(sessionStorage.length).toBe(0);
   });
+
+  it.each([
+    ["initial", "input"],
+    ["initial", "change"],
+    ["waiting", "input"],
+    ["waiting", "change"],
+    ["requesting", "input"],
+    ["requesting", "change"],
+  ])(
+    "shows manual retry after cancelling %s recovery with %s",
+    async (phase, eventName) => {
+      window.__checkoutReturnUrl = "http://localhost:3000/?checkout=success";
+      const init = await initialize();
+      const warning = document.getElementById("paywall-warning");
+      const initial = request();
+      if (phase !== "initial") {
+        emit("htmx:config:request", initial);
+        complete(initial, 429);
+      }
+      let retry = request();
+      vi.mocked(window.htmx!.ajax).mockImplementation(
+        async (_method, _url, options) => {
+          retry = request(options.event);
+          emit("htmx:config:request", retry);
+        },
+      );
+      if (phase === "requesting") await vi.advanceTimersByTimeAsync(2000);
+      expect(warning?.textContent).toContain("Checking automatically...");
+      expect(button("retry-button").disabled).toBe(true);
+      const input = form().querySelector("textarea");
+      if (!input) throw new Error("Missing description input");
+      input.value = "updated coffee";
+      input.dispatchEvent(new Event(eventName, { bubbles: true }));
+      expect(button("retry-button").disabled).toBe(false);
+      expect(form().querySelector("textarea")).toBe(input);
+      expect(input.value).toBe("updated coffee");
+      expect(document.getElementById("paywall-warning")).toBe(warning);
+      expect(warning?.querySelector("[role='status']")?.textContent).toBe(
+        "Payment activation is still pending. Try again.",
+      );
+      expect(warning?.textContent).not.toContain("Checking automatically...");
+      if (phase === "requesting") {
+        expect(retry.request.signal.aborted).toBe(true);
+        complete(retry, 429);
+      }
+      init();
+      await vi.advanceTimersByTimeAsync(60000);
+      expect(window.htmx?.ajax).toHaveBeenCalledTimes(
+        phase === "requesting" ? 1 : 0,
+      );
+      expect(sessionStorage.length).toBe(0);
+      button("retry-button").click();
+      expect(form().requestSubmit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("ignores unrelated swaps when observing the initial response", async () => {
     window.__checkoutReturnUrl = "http://localhost:3000/?checkout=success";
@@ -576,6 +632,9 @@ describe("paywall.ts", () => {
       await vi.advanceTimersByTimeAsync(2000);
       expect(window.htmx?.ajax).not.toHaveBeenCalled();
       expect(button("upgrade-button").hidden).toBe(false);
+      expect(document.querySelector("#paywall-warning p")?.textContent).toBe(
+        "Upgrade for unlimited searches.",
+      );
       expect(sessionStorage.length).toBe(0);
     },
   );

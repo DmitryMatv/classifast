@@ -292,42 +292,26 @@ async def _cache_tier_resolution(
     user_id: str,
     resolution: TierResolution,
 ) -> None:
+    cache_ttl = TIER_CACHE_TTL
     if resolution.status == "confirmed_pro":
-        await redis_client.setex(cache_key, TIER_CACHE_TTL, "pro")
-        logger.debug(
-            "Tier cache set: user_id=%s, status=%s, ttl=%d",
-            user_id,
-            resolution.status,
-            TIER_CACHE_TTL,
-        )
-        return
-
-    if resolution.status == "confirmed_non_pro":
-        await redis_client.setex(
-            cache_key,
-            TIER_CACHE_TTL,
-            resolution.tier or TIER_CACHE_SENTINEL_NON_PRO,
-        )
-        logger.debug(
-            "Tier cache set: user_id=%s, status=%s, tier=%s, ttl=%d",
-            user_id,
-            resolution.status,
-            resolution.tier,
-            TIER_CACHE_TTL,
-        )
-        return
-
-    if resolution.status == "explicit_negative":
-        cache_value = TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE
+        cache_value = "pro"
+    elif resolution.status == "confirmed_non_pro":
+        cache_value = resolution.tier or TIER_CACHE_SENTINEL_NON_PRO
     else:
-        cache_value = TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE
+        cache_ttl = NEGATIVE_TIER_CACHE_TTL
+        cache_value = (
+            TIER_CACHE_SENTINEL_EXPLICIT_NEGATIVE
+            if resolution.status == "explicit_negative"
+            else TIER_CACHE_SENTINEL_TRANSIENT_UNAVAILABLE
+        )
 
-    await redis_client.setex(cache_key, NEGATIVE_TIER_CACHE_TTL, cache_value)
+    await redis_client.set(cache_key, cache_value, ex=cache_ttl, nx=True)
     logger.debug(
-        "Tier cache set: user_id=%s, status=%s, ttl=%d",
+        "Tier cache fill attempted: user_id=%s, status=%s, tier=%s, ttl=%d",
         user_id,
         resolution.status,
-        NEGATIVE_TIER_CACHE_TTL,
+        resolution.tier,
+        cache_ttl,
     )
 
 
@@ -366,7 +350,12 @@ async def get_cached_user_tier(
     if redis_client:
         try:
             await _cache_tier_resolution(redis_client, cache_key, user_id, resolution)
-        except redis.RedisError:
+            cached_resolution = _tier_resolution_from_cache(
+                await redis_client.get(cache_key)
+            )
+            if cached_resolution:
+                resolution = cached_resolution
+        except (redis.RedisError, ValueError):
             pass
 
     total_elapsed = time.time() - start_time

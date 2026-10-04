@@ -590,6 +590,12 @@ if (!window.__paywallScriptParsed) {
       if (recovery) {
         window.clearTimeout(recovery.deadlineTimer);
         this.abortAttempt(recovery.attempt);
+        const message = document.querySelector(
+          "#paywall-warning p[role='status']",
+        );
+        if (message)
+          message.textContent =
+            "Payment activation is still pending. Try again.";
       }
       if (!keepStored) this.writeStorage(RECOVERY_KEY, null);
       for (const id of ["upgrade-button", "signin-button", "paywall-buttons"]) {

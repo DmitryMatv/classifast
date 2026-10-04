@@ -24,9 +24,10 @@ async def enforce_checkout_rate_limit(request: Request) -> None:
     ip_hash = hash_ip(get_client_ip(request))
     key = f"checkout_rl:{ip_hash}"
     try:
-        count = await redis_client.incr(key)
-        if count == 1:
-            await redis_client.expire(key, CHECKOUT_RATE_LIMIT_WINDOW_SECONDS)
+        async with redis_client.pipeline(transaction=True) as pipeline:
+            pipeline.incr(key)
+            pipeline.expire(key, CHECKOUT_RATE_LIMIT_WINDOW_SECONDS, nx=True)
+            count, _ = await pipeline.execute()
     except redis.RedisError as e:
         logger.error(f"Redis error during checkout rate limiting: {e}")
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
