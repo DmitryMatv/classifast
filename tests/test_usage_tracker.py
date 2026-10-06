@@ -989,72 +989,38 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(usage_status.is_pro)
         redis_client.pipeline.assert_not_called()
 
-    def assert_only_read(self, redis_client: AsyncMock, keys: list[str]) -> None:
-        self.assertEqual([call[0] for call in redis_client.method_calls], ["mget"])
-        self.assertEqual(list(redis_client.mget.await_args.args[0]), keys)
-
-    async def check_anonymous_usage(
-        self, stored_counts: list[str | None]
-    ) -> UsageStatus:
+    async def test_check_usage_reads_quota_without_writing(self) -> None:
         tracking_id = "1b4e28ba-2fa1-41d2-883f-0016d3cca427"
         request = _build_request(
             headers={"cf-connecting-ip": "203.0.113.10"},
             cookies={"cf_track": tracking_id},
         )
-        redis_client = AsyncMock()
-        redis_client.mget.return_value = stored_counts
-
-        usage_status = await check_usage(request, redis_client, None)
-
-        self.assertEqual(usage_status.tracking_id, tracking_id)
-        self.assert_only_read(
-            redis_client,
-            [
-                f"anon:{tracking_id}:usage_count",
-                f"anon:ip:{hash_ip('203.0.113.10')}:usage_count",
-            ],
+        anonymous_keys = [
+            f"anon:{tracking_id}:usage_count",
+            f"anon:ip:{hash_ip('203.0.113.10')}:usage_count",
+        ]
+        free_user = SignedInCaller(user_id="user-123", is_pro=False)
+        free_keys = ["user:user-123:usage_count"]
+        cases = (
+            (None, [str(ANON_LIMIT - 4), str(ANON_LIMIT - 1)], True, 1, anonymous_keys),
+            (None, [str(ANON_LIMIT), None], False, 0, anonymous_keys),
+            (None, [None, str(ANON_LIMIT + 3)], False, 0, anonymous_keys),
+            (free_user, [str(FREE_USER_LIMIT - 1)], True, 1, free_keys),
+            (free_user, [str(FREE_USER_LIMIT)], False, 0, free_keys),
         )
-        return usage_status
-
-    async def test_check_usage_allows_anonymous_caller_below_limit(self) -> None:
-        usage_status = await self.check_anonymous_usage(
-            [str(ANON_LIMIT - 4), str(ANON_LIMIT - 1)]
-        )
-
-        self.assertTrue(usage_status.allowed)
-        self.assertEqual(usage_status.remaining, 1)
-        self.assertEqual(usage_status.limit, ANON_LIMIT)
-        self.assertFalse(usage_status.is_authenticated)
-
-    async def test_check_usage_denies_anonymous_caller_at_limit_on_either_counter(
-        self,
-    ) -> None:
-        for stored_counts in ([str(ANON_LIMIT), None], [None, str(ANON_LIMIT + 3)]):
-            with self.subTest(stored_counts=stored_counts):
-                usage_status = await self.check_anonymous_usage(stored_counts)
-
-                self.assertFalse(usage_status.allowed)
-                self.assertEqual(usage_status.remaining, 0)
-
-    async def test_check_usage_allows_free_user_only_below_limit(self) -> None:
-        caller = SignedInCaller(user_id="user-123", is_pro=False)
-        for stored_count, allowed, remaining in (
-            (FREE_USER_LIMIT - 1, True, 1),
-            (FREE_USER_LIMIT, False, 0),
-        ):
-            with self.subTest(stored_count=stored_count):
+        for caller, stored_counts, allowed, remaining, keys in cases:
+            with self.subTest(caller=caller, stored_counts=stored_counts):
                 redis_client = AsyncMock()
-                redis_client.mget.return_value = [str(stored_count)]
+                redis_client.mget.return_value = stored_counts
 
-                usage_status = await check_usage(_build_request(), redis_client, caller)
+                usage_status = await check_usage(request, redis_client, caller)
 
+                self.assertEqual(usage_status.allowed, allowed)
+                self.assertEqual(usage_status.remaining, remaining)
                 self.assertEqual(
-                    usage_status,
-                    UsageStatus(
-                        allowed, remaining, FREE_USER_LIMIT, True, False, "user-123"
-                    ),
+                    [call[0] for call in redis_client.method_calls], ["mget"]
                 )
-                self.assert_only_read(redis_client, ["user:user-123:usage_count"])
+                self.assertEqual(list(redis_client.mget.await_args.args[0]), keys)
 
     async def test_check_usage_for_pro_caller_does_not_touch_redis(self) -> None:
         redis_client = AsyncMock()
@@ -1070,22 +1036,21 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(redis_client.method_calls, [])
 
-    async def test_check_usage_without_redis_raises_quota_unavailable(self) -> None:
-        with self.assertRaises(QuotaUnavailableError):
-            await check_usage(_build_request(), None, None)
-
-    async def test_check_usage_redis_error_raises_quota_unavailable(self) -> None:
-        redis_client = AsyncMock()
+    async def test_check_usage_fails_closed_when_usage_tracking_is_unavailable(
+        self,
+    ) -> None:
         failure = redis.RedisError("boom")
-        redis_client.mget.side_effect = failure
+        failing_client = AsyncMock()
+        failing_client.mget.side_effect = failure
+        for redis_client, cause in ((None, None), (failing_client, failure)):
+            with self.subTest(cause=cause):
+                with self.assertRaises(QuotaUnavailableError) as caught:
+                    await check_usage(_build_request(), redis_client, None)
 
-        with self.assertRaises(QuotaUnavailableError) as caught:
-            await check_usage(_build_request(), redis_client, None)
-
-        self.assertEqual(
-            str(caught.exception), "Usage tracking is temporarily unavailable"
-        )
-        self.assertIs(caught.exception.__cause__, failure)
+                self.assertEqual(
+                    str(caught.exception), "Usage tracking is temporarily unavailable"
+                )
+                self.assertIs(caught.exception.__cause__, cause)
 
 
 if __name__ == "__main__":

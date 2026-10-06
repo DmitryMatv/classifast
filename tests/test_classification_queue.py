@@ -18,6 +18,7 @@ from app.query_enhancer import EnhancementOutcome, EnhancementStatus
 from app.usage_tracker import (
     ANON_LIMIT,
     FREE_USER_LIMIT,
+    SignedInCaller,
     TierResolution,
     UsageStatus,
     hash_ip,
@@ -224,12 +225,12 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
         exhausted_ip_key = f"anon:ip:{hash_ip('203.0.113.9')}:usage_count"
         cases = (
             (
-                "anonymous",
+                None,
                 {quota_cookie_key("exhausted"): ANON_LIMIT},
                 "Sign in to continue",
             ),
             (
-                "free",
+                SignedInCaller(user_id="user-1", is_pro=False),
                 {"user:user-1:usage_count": FREE_USER_LIMIT},
                 f"used your {FREE_USER_LIMIT} free trial searches",
             ),
@@ -240,24 +241,15 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
                 ledger = LocalQuotaLedger(hold="gate-active")
                 ledger.counts.update(exhausted_counts)
 
-                async def identify(request):
-                    query = request.query_params["product_description"]
-                    if caller == "free" and query == "exhausted":
-                        return "user-1", None
-                    return None, None
+                async def resolve_caller(request, redis_client):
+                    if request.query_params["product_description"] == "exhausted":
+                        return caller
+                    return None
 
                 with (
                     patch(
-                        "app.usage_tracker.extract_user_info_from_token",
-                        side_effect=identify,
-                    ),
-                    patch(
-                        "app.usage_tracker.has_active_grace",
-                        new=AsyncMock(return_value=False),
-                    ),
-                    patch(
-                        "app.usage_tracker.get_cached_user_tier",
-                        new=AsyncMock(return_value=TierResolution("confirmed_non_pro")),
+                        "app.web.resolve_signed_in_caller",
+                        side_effect=resolve_caller,
                     ),
                     patch(
                         "app.web.is_verified_google_search_crawler_request",
