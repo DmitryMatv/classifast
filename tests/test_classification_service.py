@@ -7,21 +7,31 @@ from app.classification_service import ClassificationOutcome
 from app.classifier import perform_classification
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.query_enhancer import EnhancementOutcome, EnhancementStatus, QueryEnhancer
-from tests.helpers import build_classification_service
+from tests.helpers import InlineClassificationExecutor, build_classification_service
 
 
 class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
-    async def test_beta_exact_alphanumeric_id_skips_model_and_semantic_work(self) -> None:
-        exact_result = {"id": "exact", "score": 1.0, "payload": {"original_id": "SH203-C20"}}
+    async def test_beta_exact_alphanumeric_id_skips_model_and_semantic_work(
+        self,
+    ) -> None:
+        exact_result = {
+            "id": "exact",
+            "score": 1.0,
+            "payload": {"original_id": "SH203-C20"},
+        }
         enhancer = MagicMock()
         enhancer.enhance = AsyncMock()
         service = build_classification_service(enhancer=enhancer)
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[exact_result]) as exact,
+            patch(
+                "app.classifier.perform_exact_id_search", return_value=[exact_result]
+            ) as exact,
             patch("app.classifier.perform_partial_id_search") as partial,
             patch("app.classifier.get_embedding") as embedding,
         ):
-            outcome = await service.classify("SH203-C20", "ETIM", enhancement_enabled=True)
+            outcome = await service.classify(
+                "SH203-C20", "ETIM", enhancement_enabled=True
+            )
         self.assertEqual(outcome.results[0]["payload"]["original_id"], "SH203-C20")
         self.assertEqual(outcome.query, "SH203-C20")
         self.assertIs(outcome.enhancement_status, EnhancementStatus.SKIPPED)
@@ -41,12 +51,18 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
         reranker = MagicMock()
         reranker.rerank.return_value = [0.8]
         service = build_classification_service(enhancer=enhancer, reranker=reranker)
-        semantic_result = {"id": "semantic", "score": 0.4, "payload": {"class_name": "Bolts"}}
+        semantic_result = {
+            "id": "semantic",
+            "score": 0.4,
+            "payload": {"class_name": "Bolts"},
+        }
         with (
             patch("app.classifier.perform_exact_id_search", return_value=[]) as exact,
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1]) as embedding,
-            patch("app.classifier.perform_semantic_search", return_value=[semantic_result]),
+            patch(
+                "app.classifier.perform_semantic_search", return_value=[semantic_result]
+            ),
         ):
             outcome = await service.classify(query, "UNSPSC", enhancement_enabled=True)
         self.assertEqual(outcome.query, query)
@@ -92,20 +108,37 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
             outcome = await service.classify("bolt", "UNSPSC", enhancement_enabled=True)
         self.assertIs(outcome.enhancement_status, EnhancementStatus.FAILED)
 
-    async def test_beta_partial_code_miss_skips_model_and_preserves_id_result(self) -> None:
+    async def test_beta_partial_code_miss_skips_model_and_preserves_id_result(
+        self,
+    ) -> None:
         def unexpected_request(request: httpx.Request) -> httpx.Response:
             raise AssertionError("Partial code should skip OpenRouter")
 
-        partial_result = {"id": "partial", "score": 0.9, "payload": {"original_id": "SH203-C20"}}
-        async with httpx.AsyncClient(transport=httpx.MockTransport(unexpected_request)) as client:
-            service = build_classification_service(enhancer=QueryEnhancer("test", client=client))
+        partial_result = {
+            "id": "partial",
+            "score": 0.9,
+            "payload": {"original_id": "SH203-C20"},
+        }
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(unexpected_request)
+        ) as client:
+            service = build_classification_service(
+                enhancer=QueryEnhancer("test", client=client)
+            )
             with (
-                patch("app.classifier.perform_exact_id_search", return_value=[]) as exact,
-                patch("app.classifier.perform_partial_id_search", return_value=[partial_result]) as partial,
+                patch(
+                    "app.classifier.perform_exact_id_search", return_value=[]
+                ) as exact,
+                patch(
+                    "app.classifier.perform_partial_id_search",
+                    return_value=[partial_result],
+                ) as partial,
                 patch("app.classifier.get_embedding", return_value=[0.1]) as embedding,
                 patch("app.classifier.perform_semantic_search", return_value=[]),
             ):
-                outcome = await service.classify("SH203", "ETIM", enhancement_enabled=True)
+                outcome = await service.classify(
+                    "SH203", "ETIM", enhancement_enabled=True
+                )
         self.assertIs(outcome.enhancement_status, EnhancementStatus.SKIPPED)
         self.assertEqual(outcome.results[0]["payload"]["original_id"], "SH203-C20")
         self.assertEqual(outcome.query, "SH203")
@@ -152,8 +185,8 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
         qdrant_client = object()
         reranker = object()
         quantization_cache = {"EMDN_2026": True}
-        executor = MagicMock()
-        executor.run = AsyncMock(
+        executor = InlineClassificationExecutor()
+        executor._run_stage = AsyncMock(
             return_value={
                 "results": [],
                 "version_config": {},
@@ -180,10 +213,10 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertIsInstance(outcome, ClassificationOutcome)
-        executor.run.assert_awaited_once()
-        self.assertIs(executor.run.await_args.args[0], pipeline)
+        executor._run_stage.assert_awaited_once()
+        self.assertIs(executor._run_stage.await_args.args[0], pipeline)
         self.assertEqual(
-            executor.run.await_args.kwargs,
+            executor._run_stage.await_args.kwargs,
             {
                 "embed_client": embed_client,
                 "qdrant_client": qdrant_client,
@@ -198,8 +231,8 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_classify_submits_real_pipeline_when_not_mocked(self) -> None:
-        executor = MagicMock()
-        executor.run = AsyncMock(
+        executor = InlineClassificationExecutor()
+        executor._run_stage = AsyncMock(
             return_value={
                 "results": [],
                 "version_config": {},
@@ -213,11 +246,11 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
 
         await service.classify(query="q", classifier_type="UNSPSC")
 
-        self.assertIs(executor.run.await_args.args[0], perform_classification)
+        self.assertIs(executor._run_stage.await_args.args[0], perform_classification)
 
     async def test_classify_propagates_executor_errors(self) -> None:
-        executor = MagicMock()
-        executor.run = AsyncMock(side_effect=RuntimeError("worker down"))
+        executor = InlineClassificationExecutor()
+        executor._run_stage = AsyncMock(side_effect=RuntimeError("worker down"))
         service = build_classification_service(executor=executor)
 
         with self.assertRaisesRegex(RuntimeError, "worker down"):

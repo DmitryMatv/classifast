@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from .cache_profiles import NO_STORE, build_cache_headers
+from .classification_executor import ClassificationQueueFull
 from .classifier import get_classification_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG
 
@@ -151,6 +153,13 @@ async def rapid_classify(
         cache_headers = get_classification_cache_headers()
         return JSONResponse(content=response_data.model_dump(), headers=cache_headers)
 
+    except ClassificationQueueFull as exc:
+        logger.warning("RapidAPI classification queue full for %s", normalized_standard)
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+            headers=build_cache_headers(NO_STORE),
+        ) from exc
     except HTTPException:
         raise
     except Exception as e:

@@ -8,6 +8,7 @@ from app import api, web
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from tests.helpers import (
+    EmptyUsageRedis,
     build_classification_outcome,
     build_classification_service,
 )
@@ -207,7 +208,7 @@ class WebsiteQuotaRegressionTests(unittest.IsolatedAsyncioTestCase):
             embed_client=test_app.state.embed_client,
             qdrant_client=test_app.state.qdrant_client,
         )
-        test_app.state.redis_client = object()
+        test_app.state.redis_client = EmptyUsageRedis()
         return test_app
 
     async def test_fragment_requests_still_use_quota_enforcement(self):

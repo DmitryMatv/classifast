@@ -18,12 +18,16 @@ from app.usage_tracker import (
     TIER_CACHE_TTL,
     USAGE_TTL,
     QuotaUnavailableError,
+    SignedInCaller,
     TierResolution,
+    UsageStatus,
+    check_usage,
     get_cached_user_tier,
     get_client_ip,
     get_or_create_tracking_id,
     hash_ip,
     reserve_usage,
+    resolve_signed_in_caller,
     set_cached_user_tier,
 )
 
@@ -38,6 +42,11 @@ def _build_request(
     request.cookies = cookies or {}
     request.client = SimpleNamespace(host=client_host)
     return request
+
+
+async def _resolve_and_reserve(request: Mock, redis_client) -> UsageStatus:
+    caller = await resolve_signed_in_caller(request, redis_client)
+    return await reserve_usage(request, redis_client, caller)
 
 
 def _build_redis_client_with_pipeline(
@@ -177,7 +186,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                     "app.usage_tracker.authenticate_clerk_token_local",
                     new=AsyncMock(return_value=("user-123", "free")),
                 ):
-                    usage_status = await reserve_usage(
+                    usage_status = await _resolve_and_reserve(
                         _build_request(headers={"authorization": "Bearer token"}),
                         redis_client,
                     )
@@ -208,7 +217,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             "app.usage_tracker.authenticate_clerk_token_local",
             new=AsyncMock(return_value=("user-123", "pro")),
         ):
-            usage_status = await reserve_usage(
+            usage_status = await _resolve_and_reserve(
                 _build_request(headers={"authorization": "Bearer token"}),
                 redis_client,
             )
@@ -369,7 +378,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_pro)
@@ -396,7 +405,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, AsyncMock())
+            usage_status = await _resolve_and_reserve(request, AsyncMock())
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_authenticated)
@@ -423,7 +432,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(return_value=TierResolution(status="explicit_negative")),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_authenticated)
@@ -452,7 +461,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_pro)
@@ -472,7 +481,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 return_value=("track-123", False),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_authenticated)
@@ -494,7 +503,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 return_value=("track-infra", False),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_authenticated)
@@ -517,7 +526,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 return_value=("track-cookie", False),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_authenticated)
@@ -543,7 +552,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, AsyncMock())
+            usage_status = await _resolve_and_reserve(request, AsyncMock())
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_authenticated)
@@ -574,7 +583,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_authenticated)
@@ -595,7 +604,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 return_value=("track-456", False),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_authenticated)
@@ -632,7 +641,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 create=True,
             ) as verify_mock,
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_authenticated)
@@ -665,7 +674,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         auth_mock.assert_awaited_once_with("token", validate_azp=False)
@@ -700,7 +709,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 create=True,
             ) as verify_mock,
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_authenticated)
@@ -712,7 +721,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         request = _build_request()
 
         with self.assertRaises(QuotaUnavailableError):
-            await reserve_usage(request, None)
+            await _resolve_and_reserve(request, None)
 
     async def test_redis_unavailable_short_circuits_before_tier_or_grace_checks(
         self,
@@ -734,7 +743,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ) as tier_mock,
         ):
             with self.assertRaises(QuotaUnavailableError):
-                await reserve_usage(request, None)
+                await _resolve_and_reserve(request, None)
 
         grace_mock.assert_not_called()
         tier_mock.assert_not_called()
@@ -752,7 +761,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(return_value=True),
             ),
         ):
-            usage_status = await reserve_usage(request, AsyncMock())
+            usage_status = await _resolve_and_reserve(request, AsyncMock())
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_pro)
@@ -776,7 +785,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 return_value=("track-999", False),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertFalse(usage_status.is_authenticated)
@@ -791,7 +800,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         pipeline.execute.side_effect = redis.RedisError("boom")
 
         with self.assertRaises(QuotaUnavailableError):
-            await reserve_usage(request, redis_client)
+            await _resolve_and_reserve(request, redis_client)
 
     async def test_reserve_usage_handles_pipeline_creation_error(self) -> None:
         request = _build_request()
@@ -799,7 +808,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
         redis_client.pipeline = Mock(side_effect=redis.RedisError("boom"))
 
         with self.assertRaises(QuotaUnavailableError):
-            await reserve_usage(request, redis_client)
+            await _resolve_and_reserve(request, redis_client)
 
     async def test_reserve_usage_handles_redis_errors_for_authenticated_users(
         self,
@@ -828,7 +837,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             with self.assertRaises(QuotaUnavailableError):
-                await reserve_usage(request, redis_client)
+                await _resolve_and_reserve(request, redis_client)
 
     async def test_authenticated_reservation_at_limit_is_allowed(self) -> None:
         request = _build_request(headers={"authorization": "Bearer token"})
@@ -855,7 +864,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertEqual(usage_status.remaining, 0)
@@ -896,7 +905,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertFalse(usage_status.allowed)
         self.assertEqual(usage_status.remaining, 0)
@@ -914,7 +923,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             "app.usage_tracker.get_or_create_tracking_id",
             return_value=("track-123", False),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         ip_key = f"anon:ip:{hash_ip('203.0.113.10')}:usage_count"
         self.assertTrue(usage_status.allowed)
@@ -938,7 +947,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             [ANON_LIMIT, True, ANON_LIMIT - 2, True]
         )
 
-        usage_status = await reserve_usage(request, redis_client)
+        usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertEqual(usage_status.remaining, 0)
@@ -949,7 +958,7 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
             [ANON_LIMIT - 2, True, ANON_LIMIT + 1, True]
         )
 
-        usage_status = await reserve_usage(request, redis_client)
+        usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertFalse(usage_status.allowed)
         self.assertEqual(usage_status.remaining, 0)
@@ -974,11 +983,74 @@ class UsageTrackerAsyncTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
-            usage_status = await reserve_usage(request, redis_client)
+            usage_status = await _resolve_and_reserve(request, redis_client)
 
         self.assertTrue(usage_status.allowed)
         self.assertTrue(usage_status.is_pro)
         redis_client.pipeline.assert_not_called()
+
+    async def test_check_usage_reads_quota_without_writing(self) -> None:
+        tracking_id = "1b4e28ba-2fa1-41d2-883f-0016d3cca427"
+        request = _build_request(
+            headers={"cf-connecting-ip": "203.0.113.10"},
+            cookies={"cf_track": tracking_id},
+        )
+        anonymous_keys = [
+            f"anon:{tracking_id}:usage_count",
+            f"anon:ip:{hash_ip('203.0.113.10')}:usage_count",
+        ]
+        free_user = SignedInCaller(user_id="user-123", is_pro=False)
+        free_keys = ["user:user-123:usage_count"]
+        cases = (
+            (None, [str(ANON_LIMIT - 4), str(ANON_LIMIT - 1)], True, 1, anonymous_keys),
+            (None, [str(ANON_LIMIT), None], False, 0, anonymous_keys),
+            (None, [None, str(ANON_LIMIT + 3)], False, 0, anonymous_keys),
+            (free_user, [str(FREE_USER_LIMIT - 1)], True, 1, free_keys),
+            (free_user, [str(FREE_USER_LIMIT)], False, 0, free_keys),
+        )
+        for caller, stored_counts, allowed, remaining, keys in cases:
+            with self.subTest(caller=caller, stored_counts=stored_counts):
+                redis_client = AsyncMock()
+                redis_client.mget.return_value = stored_counts
+
+                usage_status = await check_usage(request, redis_client, caller)
+
+                self.assertEqual(usage_status.allowed, allowed)
+                self.assertEqual(usage_status.remaining, remaining)
+                self.assertEqual(
+                    [call[0] for call in redis_client.method_calls], ["mget"]
+                )
+                self.assertEqual(list(redis_client.mget.await_args.args[0]), keys)
+
+    async def test_check_usage_for_pro_caller_does_not_touch_redis(self) -> None:
+        redis_client = AsyncMock()
+
+        usage_status = await check_usage(
+            _build_request(),
+            redis_client,
+            SignedInCaller(user_id="user-123", is_pro=True),
+        )
+
+        self.assertEqual(
+            usage_status, UsageStatus(True, -1, -1, True, True, "user-123")
+        )
+        self.assertEqual(redis_client.method_calls, [])
+
+    async def test_check_usage_fails_closed_when_usage_tracking_is_unavailable(
+        self,
+    ) -> None:
+        failure = redis.RedisError("boom")
+        failing_client = AsyncMock()
+        failing_client.mget.side_effect = failure
+        for redis_client, cause in ((None, None), (failing_client, failure)):
+            with self.subTest(cause=cause):
+                with self.assertRaises(QuotaUnavailableError) as caught:
+                    await check_usage(_build_request(), redis_client, None)
+
+                self.assertEqual(
+                    str(caught.exception), "Usage tracking is temporarily unavailable"
+                )
+                self.assertIs(caught.exception.__cause__, cause)
 
 
 if __name__ == "__main__":

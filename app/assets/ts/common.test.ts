@@ -403,20 +403,51 @@ describe("common.ts", () => {
     expect(textarea.value).toBe("helicopter taxi");
   });
 
-  it("copies from data-copy-original-id buttons and shows a tooltip", async () => {
-    document.body.innerHTML =
-      '<button id="copy-button" data-copy-original-id="8471">Copy</button>';
+  it("ignores document click targets without reporting an error or copying", async () => {
+    document.body.dataset["authUi"] = "disabled";
     await import("./common");
-    const button = document.getElementById("copy-button") as HTMLButtonElement;
+    const errors: string[] = [];
+    const onError = (event: ErrorEvent): void => {
+      errors.push(event.message);
+      event.preventDefault();
+    };
+    window.addEventListener("error", onError);
 
-    button.click();
-    await Promise.resolve();
+    try {
+      document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await flushAsyncWork();
 
-    expect(vi.mocked(navigator.clipboard.writeText)).toHaveBeenCalledWith(
-      "8471",
-    );
-    expect(document.body.textContent).toContain("Copied!");
+      expect(errors).toEqual([]);
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+      expect(document.execCommand).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("error", onError);
+    }
   });
+
+  it.each(["button", "descendant"])(
+    "copies from a data-copy-original-id %s click and shows a tooltip",
+    async (target) => {
+      const button = document.createElement("button");
+      button.dataset["copyOriginalId"] = "8471";
+      const icon = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg",
+      );
+      button.appendChild(icon);
+      document.body.appendChild(button);
+      await import("./common");
+
+      const clickTarget = target === "button" ? button : icon;
+      clickTarget.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await flushAsyncWork();
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(
+        "8471",
+      );
+      expect(document.body.textContent).toContain("Copied!");
+    },
+  );
 
   it("falls back to execCommand when clipboard API is unavailable for result copy", async () => {
     document.body.innerHTML =

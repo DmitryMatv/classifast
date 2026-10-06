@@ -1,7 +1,9 @@
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any
 
-from .classification_executor import ClassificationExecutor
+from .classification_executor import ClassificationExecutor, StageRunner
 from .classifier import (
     QueryFormat,
     complete_classification,
@@ -20,6 +22,7 @@ class ClassificationOutcome:
     version_name: str
     collection_name: str
     query: str
+    elapsed_seconds: float
     enhancement_status: EnhancementStatus | None = None
 
 
@@ -55,6 +58,8 @@ class ClassificationService:
         top_k: int = 3,
         semantic_query: str | None = None,
         enhancement_enabled: bool = False,
+        *,
+        authorize: Callable[[], Awaitable[None]] | None = None,
     ) -> ClassificationOutcome:
         """Classify ``query`` against ``classifier_type`` and return an outcome."""
         if enhancement_enabled and semantic_query is not None:
@@ -62,9 +67,38 @@ class ClassificationService:
                 "semantic_query and enhancement_enabled cannot be combined"
             )
 
+        started = perf_counter()
+
+        async def operation(run_stage: StageRunner) -> ClassificationOutcome:
+            if authorize is not None:
+                await authorize()
+            return await self._classify(
+                run_stage,
+                started,
+                query,
+                classifier_type,
+                version,
+                top_k,
+                semantic_query,
+                enhancement_enabled,
+            )
+
+        return await self._executor.schedule(operation)
+
+    async def _classify(
+        self,
+        run_stage: StageRunner,
+        started: float,
+        query: str,
+        classifier_type: str,
+        version: str | None,
+        top_k: int,
+        semantic_query: str | None,
+        enhancement_enabled: bool,
+    ) -> ClassificationOutcome:
         enhancement_status = None
         if enhancement_enabled:
-            prepared = await self._executor.run(
+            prepared = await run_stage(
                 prepare_classification,
                 embed_client=self._embed_client,
                 qdrant_client=self._qdrant_client,
@@ -86,7 +120,7 @@ class ClassificationService:
                 )
                 enhancement_status = enhancement.status
                 applied = enhancement.status is EnhancementStatus.APPLIED
-                result = await self._executor.run(
+                result = await run_stage(
                     complete_classification,
                     prepared=prepared,
                     embed_client=self._embed_client,
@@ -100,7 +134,7 @@ class ClassificationService:
                     ),
                 )
         else:
-            result = await self._executor.run(
+            result = await run_stage(
                 perform_classification,
                 embed_client=self._embed_client,
                 qdrant_client=self._qdrant_client,
@@ -118,5 +152,6 @@ class ClassificationService:
             version_name=result["version_name"],
             collection_name=result["collection_name"],
             query=result["query"],
+            elapsed_seconds=perf_counter() - started,
             enhancement_status=enhancement_status,
         )

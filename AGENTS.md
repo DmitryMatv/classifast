@@ -2,16 +2,6 @@
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter as they work in this project. If you ever encounter something in this project that surprises you, please alert the developer working with you and indicate that this is the case in the AGENTS.md file to help prevent future agents from having the same issue.
 
-## Ask Before You Assume
-
-Never guess at intent. If a task leaves anything open - which screen, which endpoint, what happens on failure, whether it needs a migration, whether this is user-facing - stop and ask. If an important decision is unresolved, stop and ask. One question up front is cheaper than half a day of work in the wrong direction.
-
-- Ask when the request could reasonably mean two different things.
-- Ask before changing a public API shape.
-- Do not invent product decisions, copy, or acceptance criteria.
-- Do not widen scope past what was asked. Note the adjacent thing you spotted; don't fix it unprompted.
-- If you had to assume something you couldn't resolve, list it explicitly at the top of your summary.
-
 ## Testing
 
 Always use `npm test` or `npm run test:watch` for frontend tests.
@@ -23,7 +13,8 @@ Fresh checkouts may lack `.venv`, `node_modules`, and generated frontend assets
 because they are ignored. If `.venv` is absent, run `python -m venv .venv` and
 `.venv/bin/pip install -r requirements-dev.txt` before `pytest`. If
 `node_modules` is absent, run `npm ci` before frontend tests or builds. The
-verification driver also requires a frontend build (`npm run build`).
+verification driver (`.agents/skills/verify/`) also requires a frontend build
+(`npm run build`).
 
 pytest.ini scopes pytest collection to `tests/`. The `utilities/test_*.py` files are
 manual live/debug helpers, and the ignored `embedders/tests/` tree contains
@@ -35,9 +26,10 @@ collect the full suite. Report that limitation when excluding this test.
 Activate the Python environment with `source .venv/bin/activate` before backend
 tests or the verification driver.
 
-`npm test` currently exits successfully while jsdom prints a `TypeError` from
-`ResultCopier` in `app/assets/ts/common.ts` when a test clicks `document`.
-Inspect the test output as well as its exit status.
+jsdom prints an exception thrown inside an event listener, but the test still
+passes and `npm test` exits 0. Read the test output as well as the exit status.
+To prove a listener does not throw, capture `window` `error` events in the test,
+as `common.test.ts` does for `ResultCopier`.
 
 `utilities/qdrant_config.py` is an executable migration-style script, not passive configuration. Importing or running it updates a hardcoded Qdrant collection, so review it carefully before execution.
 
@@ -49,13 +41,13 @@ or deleting indexes.
 
 ## Project Snapshot
 
-Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIS, ETIM, CPV, etc.
+Classifast is a classification service web application that uses embeddings and vector search (Qdrant) to classify any text input (mostly product descriptions) into categories of various industry standard classifications, like UNSPSC, NAICS, CN/HS codes, ISIC, ETIM, CPV, etc.
 
 ## Tech Stack
 
 - Backend: Python FastAPI
 - Frontend: TypeScript with Tailwind CSS (built with Node/npm and Vite, served via FastAPI)
-- Infrastructure: Redis (usage tracking), Qdrant (vector database), Hugging Face Inference (embeddings), OpenRouter (deployed-service reranking), Clerk (authentication), Polar (payments)
+- Infrastructure: Redis (usage tracking), Qdrant (vector database), Hugging Face Inference (embeddings), OpenRouter (deployed-service reranking and opt-in query enhancement), Clerk (authentication), Polar (payments)
 
 ## Hardware, Deployment, Cache
 
@@ -128,10 +120,10 @@ sources and run `npm run build`.
   application scripts. An unversioned URL can pair cached HTMX with incompatible
   event handlers after an upgrade. `emptyOutDir: false` in `vite.config.ts`
   protects it from build cleanup.
-- The app assumes a single uvicorn worker: module-level caches (JWKS client,
-  asset versions, crawler IP ranges) and the process-randomized ETag fallback
-  depend on it. Scaling workers changes their semantics.
-- `tests/integration/` is empty. Most tests use mocks, including the checkout
+- The app assumes a single uvicorn worker. The JWKS client, asset versions,
+  crawler IP ranges, and the classification queue capacity are all
+  process-local. Scaling workers changes their semantics.
+- There is no integration test suite. Most tests use mocks, including the checkout
   rate-limit tests. The suite does not prove deployed Qdrant, Redis, or Hugging
   Face connectivity. Manual live helpers live in `utilities/test_*.py`, which
   pytest excludes from collection.
@@ -153,10 +145,11 @@ sources and run `npm run build`.
 - Template `url_for` links render as absolute URLs with the request origin.
   Browser checks should use accessible names or inspect the URL pathname,
   rather than match an exact relative `href`.
-- Static header tests do not exercise conditional GETs. `CachedStaticFiles`
-  currently overwrites the ETag after Starlette checks `If-None-Match`, so
-  sending the returned ETag back produces 200 instead of 304. Verify the actual
-  mounted response when changing static cache behavior.
+- `CachedStaticFiles` must not replace the `ETag` that Starlette sets.
+  Starlette compares `If-None-Match` with its own ETag inside `file_response`,
+  before `CachedStaticFiles.get_response` adds headers. A replaced ETag turns
+  every revalidation into a 200. `tests/test_static_headers.py` covers 304
+  responses and changed-file revalidation on the real mount.
 - Checkout rate limiting requires Redis 7+ for `EXPIRE NX`. Queue `INCR` and
   `EXPIRE NX` in one transactional pipeline. This assigns missing TTLs, including
   on stranded counters, while preserving existing deadlines. Redis errors must
@@ -165,10 +158,31 @@ sources and run `npm run build`.
   Webhook tier updates use authoritative `SETEX`; a lookup completing afterward
   must preserve and return that tier. Upgrade and downgrade overlap tests also
   verify quota behavior without checkout grace.
-- README.md describes one active plus four waiting classifications and 503
-  for overflow, but the current executor has no admission limit. Its one worker
-  serializes execution while accepting additional queued submissions. Do not
-  assume the documented capacity is enforced when verifying overload behavior.
+- `ClassificationExecutor` holds one turn per complete classification, not per
+  thread stage. Asynchronous query enhancement between stages keeps the turn.
+  Each process admits one active and four waiting classifications
+  (`QUEUE_CAPACITY`). The next request raises `ClassificationQueueFull`. The
+  fragment and RapidAPI routes log a warning and return 503 with `no-store`.
+  An overloaded SSR page falls back to client-side loading with `no-store`
+  but stays indexable. Verified Google crawlers get that page as a 503 with
+  `Retry-After` instead. Only genuine SSR failures send `noindex`, because
+  Google drops a 200 page marked `noindex` but retries a 503.
+- A fragment request runs crawler verification, Clerk caller resolution, a
+  read-only quota check (`check_usage`), queue admission, the turn, the quota
+  charge (`authorize`), and the pipeline. Over-quota callers get the paywall
+  without a queue slot. Racing requests can all pass the check, so the charge
+  decides. Overflowed and cancelled waiting requests are never charged. Keep
+  networked checks out of `authorize`, which holds the only turn. A Clerk key
+  fetch can take 30 seconds.
+- Cancelling a waiting classification frees its slot without running it.
+  Cancelling the active one returns immediately, but the job keeps its slot
+  until the running thread stage finishes. Shutdown cancels waiting jobs and
+  drains the active one before shared clients close.
+- Python 3.14's `asyncio.shield` logs a late failure of the shielded future
+  after its waiter is cancelled, even when code retrieves that failure. The
+  executor waits with `_wait_through_cancellation` (`asyncio.wait` plus
+  explicit retrieval) instead. Keep the raced worker-error regression tests
+  when changing these waits.
 - Checkout recovery retries two seconds after each completed request and has a
   60-second deadline. An input or change inside the form cancels recovery,
   switches to the existing manual-retry message, and enables Try again.

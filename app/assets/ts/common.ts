@@ -1055,9 +1055,10 @@ export class ResultCopier {
     document.addEventListener(
       "click",
       (event: MouseEvent) => {
-        const button = (
-          event.target as Element | null
-        )?.closest<HTMLButtonElement>("[data-copy-original-id]");
+        if (!(event.target instanceof Element)) return;
+        const button = event.target.closest<HTMLButtonElement>(
+          "[data-copy-original-id]",
+        );
         const text = button?.dataset["copyOriginalId"];
         if (!button || !text) {
           return;

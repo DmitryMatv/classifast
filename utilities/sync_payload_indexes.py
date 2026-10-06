@@ -20,7 +20,8 @@ The script will:
 import argparse
 import os
 import sys
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models

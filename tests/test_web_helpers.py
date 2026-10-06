@@ -15,11 +15,12 @@ from app.classifier_page_delivery import (
     build_fragment_push_url,
     get_homepage_popular_lookup_links,
     get_popular_lookup_links,
+    maybe_seed_classifier_page_results,
     slugify,
 )
 from app.usage_tracker import QuotaUnavailableError, UsageStatus
 from app.web import router
-from tests.helpers import build_classification_service
+from tests.helpers import EmptyUsageRedis, build_classification_service
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 
@@ -31,38 +32,105 @@ def _build_test_app() -> FastAPI:
     )
     app.include_router(router)
     app.state.classification_service = build_classification_service()
-    app.state.redis_client = object()
+    app.state.redis_client = EmptyUsageRedis()
     return app
 
 
-class ClassificationResultsContextTests(unittest.IsolatedAsyncioTestCase):
+class ClassificationResultsTimingTests(unittest.IsolatedAsyncioTestCase):
     @patch("app.classification_service.perform_classification")
-    async def test_timing_measures_classification_call_duration(
+    async def test_ssr_timing_measures_classification_call_duration(
         self,
         perform_classification_mock: Mock,
     ) -> None:
-        perform_classification_mock.return_value = {
-            "results": [],
-            "version_config": {},
-            "version_name": "v1",
-            "collection_name": "test_collection",
-            "query": "industrial pump",
-        }
         request = MagicMock()
         request.app.state.classification_service = build_classification_service()
 
         with patch(
-            "app.classifier_page_delivery.perf_counter", side_effect=[10.0, 13.5]
-        ):
-            context = await build_classification_results_context(
+            "app.classification_service.perf_counter", side_effect=[10.0, 13.5]
+        ) as clock:
+
+            def classify(**kwargs):
+                self.assertEqual(clock.call_count, 1)
+                return {
+                    "results": [],
+                    "version_config": {},
+                    "version_name": "v1",
+                    "collection_name": "test_collection",
+                    "query": kwargs["query"],
+                }
+
+            perform_classification_mock.side_effect = classify
+            context, _, _, state = await maybe_seed_classifier_page_results(
                 request=request,
                 classifier_type="UNSPSC",
-                query="industrial pump",
+                decoded_query="",
+                example_query=" industrial\n pump ",
                 version="v1",
                 top_k=10,
             )
 
+        self.assertEqual(state, "success")
         self.assertEqual(context["total_request_time"], 3.5)
+        self.assertEqual(context["query"], "industrial pump")
+        perform_classification_mock.assert_called_once()
+
+    async def test_fragment_timing_measures_authorization_and_classification(
+        self,
+    ) -> None:
+        app = _build_test_app()
+        with (
+            patch(
+                "app.classification_service.perf_counter", side_effect=[20.0, 24.5]
+            ) as clock,
+            patch(
+                "app.web.is_verified_google_search_crawler_request",
+                new=AsyncMock(return_value=False),
+            ),
+            patch("app.web.reserve_usage", new_callable=AsyncMock) as reserve,
+            patch("app.classification_service.perform_classification") as pipeline,
+            patch(
+                "app.web.build_classification_results_context",
+                wraps=build_classification_results_context,
+            ) as adapter,
+        ):
+
+            async def authorize(*args):
+                self.assertEqual(clock.call_count, 1)
+                return UsageStatus(True, 9, 10, False, False, "track")
+
+            def classify(**kwargs):
+                self.assertEqual(clock.call_count, 1)
+                return {
+                    "results": [
+                        {
+                            "score": 0.9,
+                            "payload": {
+                                "original_id": "1234",
+                                "class_name": "Industrial pumps",
+                            },
+                        }
+                    ],
+                    "version_config": {},
+                    "version_name": "v1",
+                    "collection_name": "test_collection",
+                    "query": kwargs["query"],
+                }
+
+            reserve.side_effect = authorize
+            pipeline.side_effect = classify
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+            ) as client:
+                response = await client.get(
+                    "/UNSPSC/fragment",
+                    params={"product_description": " industrial\n pump "},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Finished in 4.50 seconds.", response.text)
+        self.assertEqual(adapter.call_args.kwargs["query"], "industrial pump")
+        reserve.assert_awaited_once()
+        pipeline.assert_called_once()
 
 
 class SlugifyTests(unittest.TestCase):
@@ -714,9 +782,7 @@ class FragmentRouteContractTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         perform_classification_mock.return_value = self._classification_result()
 
-        with patch(
-            "app.classifier_page_delivery.perf_counter", side_effect=[10.0, 13.5]
-        ):
+        with patch("app.classification_service.perf_counter", side_effect=[10.0, 13.5]):
             response = await self._request_fragment(push_url="true")
 
         self.assertEqual(response.status_code, 200)
