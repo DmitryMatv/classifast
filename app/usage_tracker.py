@@ -476,89 +476,44 @@ async def _resolve_authenticated_pro_status(
     return False
 
 
-async def _reserve_anonymous_usage(
-    request: Request, redis_client: redis.Redis
-) -> UsageStatus:
-    tracking_id, _ = get_or_create_tracking_id(request)
-    ip_hash = hash_ip(get_client_ip(request))
-    limit = ANON_LIMIT
+@dataclass(frozen=True)
+class _UsageCounters:
+    """The Redis counters a metered request is checked and charged against."""
 
-    logger.info(
-        "Reserving usage for anonymous user: tracking_id=%s, ip_hash=%s",
-        tracking_id,
-        ip_hash,
-    )
+    keys: tuple[str, ...]
+    limit: int
+    is_authenticated: bool
+    tracking_id: str
 
-    cookie_key = f"anon:{tracking_id}:usage_count"
-    ip_key = f"anon:ip:{ip_hash}:usage_count"
-
-    try:
-        pipeline = redis_client.pipeline(transaction=True)
-        pipeline.incr(cookie_key)
-        pipeline.expire(cookie_key, ANON_USAGE_TTL)
-        pipeline.incr(ip_key)
-        pipeline.expire(ip_key, ANON_USAGE_TTL)
-        results = await pipeline.execute()
-
-        cookie_count = int(results[0])
-        ip_count = int(results[2])
-
-        current_count = max(cookie_count, ip_count)
-        remaining = max(0, limit - current_count)
-
-        logger.info(
-            "Anonymous usage reserved: cookie=%s, ip=%s, current=%s, remaining=%s",
-            cookie_count,
-            ip_count,
-            current_count,
-            remaining,
+    def usage_status(self, count: int, *, allowed: bool) -> UsageStatus:
+        return _usage_status(
+            allowed=allowed,
+            remaining=max(0, self.limit - count),
+            limit=self.limit,
+            is_authenticated=self.is_authenticated,
+            tracking_id=self.tracking_id,
         )
 
-        return _usage_status(
-            allowed=current_count <= limit,
-            remaining=remaining,
-            limit=limit,
+
+def _usage_counters(request: Request, caller: SignedInCaller | None) -> _UsageCounters:
+    if caller is None:
+        tracking_id, _ = get_or_create_tracking_id(request)
+        ip_hash = hash_ip(get_client_ip(request))
+        return _UsageCounters(
+            keys=(
+                f"anon:{tracking_id}:usage_count",
+                f"anon:ip:{ip_hash}:usage_count",
+            ),
+            limit=ANON_LIMIT,
             is_authenticated=False,
             tracking_id=tracking_id,
         )
-    except redis.RedisError as e:
-        logger.error(f"Redis error reserving anonymous usage: {e}")
-        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
-
-
-async def _reserve_authenticated_free_usage(
-    user_id: str, redis_client: redis.Redis
-) -> UsageStatus:
-    key = f"user:{user_id}:usage_count"
-    limit = FREE_USER_LIMIT
-    logger.info(f"Reserving usage for authenticated free user: {user_id}")
-
-    try:
-        pipeline = redis_client.pipeline(transaction=True)
-        pipeline.incr(key)
-        pipeline.expire(key, USAGE_TTL)
-        results = await pipeline.execute()
-
-        current_count = int(results[0])
-        remaining = max(0, limit - current_count)
-
-        logger.info(
-            "Authenticated free user usage reserved: %s, current=%s, remaining=%s",
-            key,
-            current_count,
-            remaining,
-        )
-
-        return _usage_status(
-            allowed=current_count <= limit,
-            remaining=remaining,
-            limit=limit,
-            is_authenticated=True,
-            tracking_id=user_id,
-        )
-    except redis.RedisError as e:
-        logger.error(f"Redis error reserving user usage: {e}")
-        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
+    return _UsageCounters(
+        keys=(f"user:{caller.user_id}:usage_count",),
+        limit=FREE_USER_LIMIT,
+        is_authenticated=True,
+        tracking_id=caller.user_id,
+    )
 
 
 async def resolve_signed_in_caller(
@@ -591,13 +546,29 @@ async def reserve_usage(
         logger.warning("Redis not available, denying metered request")
         raise QuotaUnavailableError("Usage tracking is temporarily unavailable")
 
-    if caller is None:
-        return await _reserve_anonymous_usage(request, redis_client)
-
-    if caller.is_pro:
+    if caller is not None and caller.is_pro:
         return _unlimited_pro_usage(caller.user_id)
 
-    return await _reserve_authenticated_free_usage(caller.user_id, redis_client)
+    counters = _usage_counters(request, caller)
+    try:
+        pipeline = redis_client.pipeline(transaction=True)
+        for key in counters.keys:
+            pipeline.incr(key)
+            pipeline.expire(key, USAGE_TTL)
+        results = await pipeline.execute()
+    except redis.RedisError as e:
+        logger.error(f"Redis error reserving usage: {e}")
+        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
+
+    counts = [int(count) for count in results[::2]]
+    count = max(counts)
+    usage_status = counters.usage_status(count, allowed=count <= counters.limit)
+    logger.info(
+        "Usage reserved: counts=%s, remaining=%s",
+        dict(zip(counters.keys, counts)),
+        usage_status.remaining,
+    )
+    return usage_status
 
 
 def add_quota_headers(response: Response, usage_status: UsageStatus) -> None:
