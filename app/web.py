@@ -52,6 +52,7 @@ from .usage_tracker import (
     QuotaUnavailableError,
     UsageStatus,
     add_quota_headers,
+    check_usage,
     reserve_usage,
     resolve_signed_in_caller,
 )
@@ -108,6 +109,9 @@ async def _prepare_quota_reservation(
 
     redis_client = _get_redis_client(request)
     caller = await resolve_signed_in_caller(request, redis_client)
+    current_usage = await check_usage(request, redis_client, caller)
+    if not current_usage.allowed:
+        raise _QuotaDenied(current_usage)
 
     async def reserve_quota() -> None:
         usage_status = await reserve_usage(request, redis_client, caller)

@@ -10,7 +10,7 @@ from app.classifier import perform_classification, validate_and_prepare_classifi
 from app.classifier_config import CLASSIFIER_CONFIG
 from app.usage_tracker import UsageStatus
 from app.web import router
-from tests.helpers import build_classification_service
+from tests.helpers import EmptyUsageRedis, build_classification_service
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 EMDN_VERSION = "EMDN v2026 (English)"
@@ -34,7 +34,7 @@ def build_test_app() -> FastAPI:
     )
     app.include_router(router)
     app.state.classification_service = build_classification_service()
-    app.state.redis_client = object()
+    app.state.redis_client = EmptyUsageRedis()
     return app
 
 

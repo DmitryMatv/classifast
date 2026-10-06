@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any, ParamSpec, TypeVar
 
 from app.classification_executor import ClassificationExecutor
@@ -13,6 +13,16 @@ async def event_loop_turn() -> None:
     ready = asyncio.get_running_loop().create_future()
     asyncio.get_running_loop().call_soon(ready.set_result, None)
     await ready
+
+
+class EmptyUsageRedis:
+    """Redis with no stored usage for tests that patch the quota charge.
+
+    Only the read-only quota pre-check is supported; any write fails.
+    """
+
+    async def mget(self, keys: Iterable[str]) -> list[None]:
+        return [None for _ in keys]
 
 
 class InlineClassificationExecutor(ClassificationExecutor):

@@ -15,9 +15,19 @@ from fastapi.staticfiles import StaticFiles
 from app import api, main
 from app.classification_executor import ClassificationExecutor, ClassificationQueueFull
 from app.query_enhancer import EnhancementOutcome, EnhancementStatus
-from app.usage_tracker import ANON_LIMIT, TierResolution, UsageStatus
+from app.usage_tracker import (
+    ANON_LIMIT,
+    FREE_USER_LIMIT,
+    TierResolution,
+    UsageStatus,
+    hash_ip,
+)
 from app.web import router
-from tests.helpers import build_classification_service, event_loop_turn
+from tests.helpers import (
+    EmptyUsageRedis,
+    build_classification_service,
+    event_loop_turn,
+)
 
 
 def classification_result(query: str) -> dict:
@@ -46,6 +56,9 @@ class LocalQuotaLedger:
     @property
     def charged(self) -> list[str]:
         return [keys[0] for keys in self.executed]
+
+    async def mget(self, keys: tuple[str, ...]) -> list[int | None]:
+        return [self.counts.get(key) for key in keys]
 
     def pipeline(self, *, transaction: bool) -> Mock:
         commands: list[tuple[str, str]] = []
@@ -205,6 +218,96 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn(quota_cookie_key("overflow"), ledger.counts)
 
+    async def test_exhausted_caller_gets_paywall_without_queue_slot_or_charge(
+        self,
+    ) -> None:
+        exhausted_ip_key = f"anon:ip:{hash_ip('203.0.113.9')}:usage_count"
+        cases = (
+            (
+                "anonymous",
+                {quota_cookie_key("exhausted"): ANON_LIMIT},
+                "Sign in to continue",
+            ),
+            (
+                "free",
+                {"user:user-1:usage_count": FREE_USER_LIMIT},
+                f"used your {FREE_USER_LIMIT} free trial searches",
+            ),
+        )
+        for caller, exhausted_counts, paywall_text in cases:
+            with self.subTest(caller=caller):
+                self.ran.clear()
+                ledger = LocalQuotaLedger(hold="gate-active")
+                ledger.counts.update(exhausted_counts)
+
+                async def identify(request):
+                    query = request.query_params["product_description"]
+                    if caller == "free" and query == "exhausted":
+                        return "user-1", None
+                    return None, None
+
+                with (
+                    patch(
+                        "app.usage_tracker.extract_user_info_from_token",
+                        side_effect=identify,
+                    ),
+                    patch(
+                        "app.usage_tracker.has_active_grace",
+                        new=AsyncMock(return_value=False),
+                    ),
+                    patch(
+                        "app.usage_tracker.get_cached_user_tier",
+                        new=AsyncMock(return_value=TierResolution("confirmed_non_pro")),
+                    ),
+                    patch(
+                        "app.web.is_verified_google_search_crawler_request",
+                        new=AsyncMock(return_value=False),
+                    ),
+                ):
+                    async with httpx.AsyncClient(
+                        transport=httpx.ASGITransport(app=self.metered_app(ledger)),
+                        base_url="http://testserver",
+                    ) as client:
+                        active = await self.submit_fragment(client, "gate-active")
+                        await asyncio.wait_for(ledger.hold_started.wait(), 1)
+                        waiting = [
+                            await self.submit_fragment(client, f"gate-{i}")
+                            for i in range(4)
+                        ]
+                        paywall = await asyncio.wait_for(
+                            client.get(
+                                "/UNSPSC/fragment",
+                                params={"product_description": "exhausted"},
+                                headers={
+                                    "Cookie": "cf_track="
+                                    f"{uuid5(NAMESPACE_DNS, 'exhausted')}",
+                                    "CF-Connecting-IP": "203.0.113.9",
+                                },
+                            ),
+                            1,
+                        )
+                        ledger.release_hold.set()
+                        responses = await asyncio.wait_for(
+                            asyncio.gather(active, *waiting), 1
+                        )
+
+                self.assertEqual(paywall.status_code, 200)
+                self.assertIn(paywall_text, paywall.text)
+                self.assertEqual(
+                    paywall.headers["Cache-Control"], "no-store, max-age=0"
+                )
+                expected = ["gate-active", *[f"gate-{i}" for i in range(4)]]
+                self.assertEqual(
+                    [response.status_code for response in responses], [200] * 5
+                )
+                self.assertEqual(self.ran, expected)
+                self.assertEqual(
+                    ledger.charged, [quota_cookie_key(query) for query in expected]
+                )
+                for key, count in exhausted_counts.items():
+                    self.assertEqual(ledger.counts[key], count)
+                self.assertNotIn(exhausted_ip_key, ledger.counts)
+
     async def test_slow_crawler_verification_does_not_hold_the_queue_turn(
         self,
     ) -> None:
@@ -222,7 +325,7 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
         app = FastAPI()
         app.include_router(router)
         app.state.classification_service = self.service
-        app.state.redis_client = object()
+        app.state.redis_client = EmptyUsageRedis()
         usage = UsageStatus(True, 9, 10, False, False, "test-track")
         with (
             patch("app.web.reserve_usage", new=AsyncMock(return_value=usage)),
@@ -357,9 +460,7 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
         for denial in (True, False):
             with self.subTest(denial=denial):
                 ledger = LocalQuotaLedger(hold="gate-active")
-                if denial:
-                    ledger.counts[quota_cookie_key("gate-active")] = ANON_LIMIT
-                else:
+                if not denial:
                     ledger.fail_tracking_ids.add("gate-active")
 
                 with patch(
@@ -372,6 +473,10 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
                     ) as client:
                         active = await self.submit_fragment(client, "gate-active")
                         await asyncio.wait_for(ledger.hold_started.wait(), 1)
+                        if denial:
+                            # Exhausted after the pre-check passed, so only the
+                            # in-turn charge can deny it.
+                            ledger.counts[quota_cookie_key("gate-active")] = ANON_LIMIT
                         waiting = [
                             await self.submit_fragment(client, f"gate-{i}")
                             for i in range(4)
@@ -489,8 +594,6 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
         ledger = LocalQuotaLedger(hold="gate-active")
         if quota_error:
             ledger.fail_tracking_ids.add("gate-active")
-        else:
-            ledger.counts[quota_cookie_key("gate-active")] = ANON_LIMIT
 
         with (
             patch(
@@ -507,6 +610,10 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
                     client, "gate-active", enhancement_enabled=True
                 )
                 await asyncio.wait_for(ledger.hold_started.wait(), 1)
+                if not quota_error:
+                    # Exhausted after the pre-check passed, so only the in-turn
+                    # charge can deny it.
+                    ledger.counts[quota_cookie_key("gate-active")] = ANON_LIMIT
                 waiting = await self.submit_fragment(client, "waiting")
                 closing = asyncio.create_task(self.executor.close())
                 self.tasks.append(closing)
@@ -822,7 +929,7 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
         app = FastAPI()
         app.include_router(router)
         app.state.classification_service = self.service
-        app.state.redis_client = object()
+        app.state.redis_client = EmptyUsageRedis()
         usage = UsageStatus(True, 9, 10, False, False, "test-track")
         with (
             patch("app.web.reserve_usage", new=AsyncMock(return_value=usage)),
@@ -943,6 +1050,7 @@ class ClassificationQueueTests(unittest.IsolatedAsyncioTestCase):
         pipeline = Mock()
         pipeline.execute = AsyncMock(return_value=[1, True, 1, True])
         redis_client = Mock()
+        redis_client.mget = AsyncMock(side_effect=EmptyUsageRedis().mget)
         redis_client.pipeline.return_value = pipeline
         app.state.redis_client = redis_client
 

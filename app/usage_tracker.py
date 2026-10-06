@@ -532,6 +532,34 @@ async def resolve_signed_in_caller(
     return SignedInCaller(user_id=user_id, is_pro=is_pro)
 
 
+async def check_usage(
+    request: Request,
+    redis_client: redis.Redis | None,
+    caller: SignedInCaller | None,
+) -> UsageStatus:
+    """
+    Read whether one more classification fits the caller's quota, without writing.
+
+    The charge in reserve_usage stays authoritative for concurrent requests.
+    """
+    if not redis_client:
+        logger.warning("Redis not available, denying metered request")
+        raise QuotaUnavailableError("Usage tracking is temporarily unavailable")
+
+    if caller is not None and caller.is_pro:
+        return _unlimited_pro_usage(caller.user_id)
+
+    counters = _usage_counters(request, caller)
+    try:
+        stored_counts = await redis_client.mget(counters.keys)
+    except redis.RedisError as e:
+        logger.error(f"Redis error checking usage: {e}")
+        raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
+
+    count = max(int(stored or 0) for stored in stored_counts)
+    return counters.usage_status(count, allowed=count < counters.limit)
+
+
 async def reserve_usage(
     request: Request,
     redis_client: redis.Redis | None,

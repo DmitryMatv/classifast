@@ -136,11 +136,12 @@ as an operational failure and makes the command exit nonzero.
 Synchronous classification stages run on one dedicated background worker per
 application process. Each process admits one active classification and up to
 four waiting classifications. When the queue is full, fragment and RapidAPI
-requests receive HTTP 503. Server-rendered pages still return 200 to visitors
-and load results in the browser, while verified Google crawlers receive HTTP
-503 with `Retry-After`. An active classification retains its turn through query
-enhancement and every synchronous stage. This bounds queued work and keeps
-health checks, webhooks, and cached-page handling responsive.
+requests receive HTTP 503. Fragment callers already over quota receive the
+paywall instead, without taking a queue slot. Server-rendered pages still return
+200 to visitors and load results in the browser, while verified Google crawlers
+receive HTTP 503 with `Retry-After`. An active classification retains its turn
+through query enhancement and every synchronous stage. This bounds queued work
+and keeps health checks, webhooks, and cached-page handling responsive.
 
 ## API
 

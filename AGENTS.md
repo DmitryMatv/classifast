@@ -168,11 +168,15 @@ sources and run `npm run build`.
   `Retry-After` instead. Only genuine SSR failures send `noindex`, because
   Google drops a 200 page marked `noindex` but retries a 503.
 - A fragment request runs crawler verification, Clerk caller resolution
-  (`resolve_signed_in_caller`), queue admission, the turn, the Redis quota
-  charge (the `authorize` callback), and then the pipeline, in that order.
-  Overflowed and cancelled waiting requests are never charged. Keep slow or
-  networked checks out of `authorize`, because it runs while holding the only
-  turn. A Clerk signing-key fetch can take 30 seconds and a tier lookup 5.
+  (`resolve_signed_in_caller`), a read-only quota check (`check_usage`), queue
+  admission, the turn, the Redis quota charge (the `authorize` callback), and
+  then the pipeline, in that order. Callers already over quota get the paywall
+  from the check without taking a queue slot, even when the queue is full.
+  The check never writes. Concurrent requests can all pass it, so the in-turn
+  charge stays authoritative. Overflowed and cancelled waiting requests are
+  never charged. Keep slow or networked checks out of `authorize`, because it
+  runs while holding the only turn. A Clerk signing-key fetch can take 30
+  seconds and a tier lookup 5.
 - Cancelling a waiting classification frees its slot without running it.
   Cancelling the active one returns immediately, but the job keeps its slot
   until the running thread stage finishes. Shutdown cancels waiting jobs and
