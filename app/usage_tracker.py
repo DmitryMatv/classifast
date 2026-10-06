@@ -4,7 +4,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional
 
 import httpx
 import redis.asyncio as redis
@@ -45,6 +45,12 @@ class UsageStatus:
     is_authenticated: bool
     is_pro: bool
     tracking_id: str | None = None
+
+
+@dataclass(frozen=True)
+class SignedInCaller:
+    user_id: str
+    is_pro: bool
 
 
 TierResolutionStatus = Literal[
@@ -118,7 +124,7 @@ async def has_active_grace(user_id: str, redis_client: redis.Redis | None) -> bo
         return False
 
 
-def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
+def get_or_create_tracking_id(request: Request) -> tuple[str, bool]:
     """Get tracking ID from cookie or create new one."""
     existing = request.cookies.get(TRACKING_COOKIE_NAME)
     if existing:
@@ -135,7 +141,7 @@ def get_or_create_tracking_id(request: Request) -> Tuple[str, bool]:
 
 async def extract_user_info_from_token(
     request: Request,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str]]:
     """
     Extract user_id and tier from verified JWT token.
     Returns (None, None) if token is invalid or unverifiable.
@@ -156,7 +162,7 @@ async def extract_user_info_from_token(
 
 async def extract_from_auth_header(
     request: Request,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str]]:
     """Extract user info from Authorization header."""
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
@@ -175,7 +181,7 @@ async def _authenticate_clerk_token_or_none(
     *,
     validate_azp: bool,
     source_label: str,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str]]:
     try:
         return await authenticate_clerk_token_local(
             token,
@@ -195,7 +201,7 @@ async def _authenticate_clerk_token_or_none(
 
 async def extract_from_session_cookie(
     request: Request,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str]]:
     """Extract user info from Clerk's __session cookie."""
     session_cookie = request.cookies.get("__session")
     if not session_cookie:
@@ -433,13 +439,6 @@ def _unlimited_pro_usage(user_id: str) -> UsageStatus:
     )
 
 
-def _redis_unavailable_usage_status(
-    request: Request, user_id: str | None
-) -> UsageStatus:
-    logger.warning("Redis not available, denying metered request")
-    raise QuotaUnavailableError("Usage tracking is temporarily unavailable")
-
-
 async def _resolve_authenticated_pro_status(
     user_id: str,
     jwt_tier_hint: str | None,
@@ -562,28 +561,43 @@ async def _reserve_authenticated_free_usage(
         raise QuotaUnavailableError("Usage tracking is temporarily unavailable") from e
 
 
+async def resolve_signed_in_caller(
+    request: Request,
+    redis_client: redis.Redis | None,
+) -> SignedInCaller | None:
+    """Verify the Clerk token and resolve Pro access; None means anonymous."""
+    user_id, tier = await extract_user_info_from_token(request)
+    _log_anonymous_auth_diagnostics(request, user_id)
+    if not user_id:
+        return None
+
+    is_pro = redis_client is not None and await _resolve_authenticated_pro_status(
+        user_id, tier, redis_client
+    )
+    return SignedInCaller(user_id=user_id, is_pro=is_pro)
+
+
 async def reserve_usage(
     request: Request,
     redis_client: redis.Redis | None,
+    caller: SignedInCaller | None,
 ) -> UsageStatus:
     """
     Atomically reserve quota for a classification request.
 
     Returns UsageStatus with the admission result and post-reservation quota.
     """
-    user_id, tier = await extract_user_info_from_token(request)
-    _log_anonymous_auth_diagnostics(request, user_id)
-
     if not redis_client:
-        return _redis_unavailable_usage_status(request, user_id)
+        logger.warning("Redis not available, denying metered request")
+        raise QuotaUnavailableError("Usage tracking is temporarily unavailable")
 
-    if user_id and await _resolve_authenticated_pro_status(user_id, tier, redis_client):
-        return _unlimited_pro_usage(user_id)
-
-    if not user_id:
+    if caller is None:
         return await _reserve_anonymous_usage(request, redis_client)
 
-    return await _reserve_authenticated_free_usage(user_id, redis_client)
+    if caller.is_pro:
+        return _unlimited_pro_usage(caller.user_id)
+
+    return await _reserve_authenticated_free_usage(caller.user_id, redis_client)
 
 
 def add_quota_headers(response: Response, usage_status: UsageStatus) -> None:

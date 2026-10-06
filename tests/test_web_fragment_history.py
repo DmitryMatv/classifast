@@ -6,8 +6,8 @@ import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.classifier_config import CLASSIFIER_CONFIG
 from app.classification_service import ClassificationOutcome
+from app.classifier_config import CLASSIFIER_CONFIG
 from app.query_enhancer import EnhancementStatus
 from app.usage_tracker import UsageStatus
 from app.web import router
@@ -87,7 +87,9 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             disabled = await client.get(f"/{self.classifier_type}/trash_removal/")
 
         self.assertEqual(enabled.status_code, 200)
-        self.assertIn('id="enhance-query-switch" name="enhance_query" value="1"', enabled.text)
+        self.assertIn(
+            'id="enhance-query-switch" name="enhance_query" value="1"', enabled.text
+        )
         self.assertIn('role="switch" checked', enabled.text)
         self.assertNotIn('role="switch" checked', disabled.text)
 
@@ -150,6 +152,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             version_name=result["version_name"],
             collection_name=result["collection_name"],
             query=result["query"],
+            elapsed_seconds=0.0,
             enhancement_status=EnhancementStatus.APPLIED,
         )
         with patch.object(
@@ -191,6 +194,7 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             version_name=result["version_name"],
             collection_name=result["collection_name"],
             query=result["query"],
+            elapsed_seconds=0.0,
             enhancement_status=EnhancementStatus.FAILED,
         )
         with patch.object(
@@ -222,13 +226,15 @@ class FragmentHistoryContractTests(unittest.IsolatedAsyncioTestCase):
             tracking_id="track-123",
         )
         crawler_check_mock.return_value = False
-        with patch.object(
-            self.app.state.classification_service,
-            "classify",
-            new_callable=AsyncMock,
-        ) as classify:
-            await self._request_fragment(enhance_query="1")
-            classify.assert_not_awaited()
+        enhancer = Mock(enhance=AsyncMock())
+        with (
+            patch.object(self.app.state.classification_service, "_enhancer", enhancer),
+            patch("app.classification_service.prepare_classification") as prepare,
+        ):
+            response = await self._request_fragment(enhance_query="1")
+            self.assertIn("Sign in to continue", response.text)
+            enhancer.enhance.assert_not_awaited()
+            prepare.assert_not_called()
             perform_classification_mock.assert_not_called()
 
     @patch("app.web.is_verified_google_search_crawler_request", new_callable=AsyncMock)

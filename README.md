@@ -133,11 +133,14 @@ loads the repository `.env`; values already exported by the shell or supplied
 by the container take precedence. A Qdrant client cleanup failure is reported
 as an operational failure and makes the command exit nonzero.
 
-Classification itself remains synchronous and is executed by one dedicated
-background worker per application process. Each process admits one active and
-up to four waiting classifications; requests above that fixed capacity receive
-HTTP 503. This serializes vendor calls while bounding queued work and allowing
-health checks, webhooks, and cached-page handling to remain responsive.
+Synchronous classification stages run on one dedicated background worker per
+application process. Each process admits one active classification and up to
+four waiting classifications. When the queue is full, fragment and RapidAPI
+requests receive HTTP 503. Server-rendered pages still return 200 to visitors
+and load results in the browser, while verified Google crawlers receive HTTP
+503 with `Retry-After`. An active classification retains its turn through query
+enhancement and every synchronous stage. This bounds queued work and keeps
+health checks, webhooks, and cached-page handling responsive.
 
 ## API
 

@@ -559,19 +559,6 @@ class CachedStaticFiles(StaticFiles):
         if isinstance(response, Response):
             response.headers.update(build_cache_headers(get_static_cache_profile(path)))
 
-            # ETag for conditional requests (CF uses this for revalidation)
-            try:
-                if self.directory:
-                    file_path = Path(self.directory) / path
-                    file_stat = file_path.stat()
-                    response.headers["ETag"] = (
-                        f'"{int(file_stat.st_mtime)}-{file_stat.st_size}"'
-                    )
-                else:
-                    response.headers["ETag"] = f'"{hash(path)}"'
-            except (OSError, FileNotFoundError):
-                response.headers["ETag"] = f'"{hash(path)}"'
-
             # Let CF handle compression and vary cache by encoding
             response.headers["Vary"] = "Accept-Encoding"
             # CF-specific: tag for cache purging via API

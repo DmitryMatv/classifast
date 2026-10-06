@@ -1,5 +1,6 @@
 import html
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
@@ -17,6 +18,7 @@ from .cache_profiles import (
     STATIC_TEXT,
     build_cache_headers,
 )
+from .classification_executor import ClassificationQueueFull
 from .classifier_config import CLASSIFIER_CONFIG
 from .classifier_page_delivery import (
     REMOVED_CLASSIFIER_TYPES,
@@ -51,12 +53,20 @@ from .usage_tracker import (
     UsageStatus,
     add_quota_headers,
     reserve_usage,
+    resolve_signed_in_caller,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
+QUEUE_FULL_RETRY_AFTER_SECONDS = 120
+
+
+class _QuotaDenied(Exception):
+    def __init__(self, status: UsageStatus) -> None:
+        super().__init__("Classification quota denied")
+        self.status = status
 
 
 def build_page_headers(canonical_url: str) -> dict[str, str]:
@@ -85,6 +95,26 @@ def get_sample_cache_profile(sample_path: str) -> CacheProfile:
 
 def _get_redis_client(request: Request):
     return getattr(request.app.state, "redis_client", None)
+
+
+async def _prepare_quota_reservation(
+    request: Request,
+) -> Callable[[], Awaitable[None]] | None:
+    # Crawler and Clerk checks can be slow, so they run before queue admission.
+    # The returned charge runs while holding the only classification turn.
+    if await is_verified_google_search_crawler_request(request):
+        logger.info("Bypassing quota for verified Google search crawler")
+        return None
+
+    redis_client = _get_redis_client(request)
+    caller = await resolve_signed_in_caller(request, redis_client)
+
+    async def reserve_quota() -> None:
+        usage_status = await reserve_usage(request, redis_client, caller)
+        if not usage_status.allowed:
+            raise _QuotaDenied(usage_status)
+
+    return reserve_quota
 
 
 def _render_paywall_fragment(
@@ -351,7 +381,6 @@ async def get_classification_fragment(
     )
 
     push_url = resolve_fragment_push_url(push_url, url_change)
-    redis_client = _get_redis_client(request)
     new_url = build_fragment_push_url(
         upper_type,
         normalized_description,
@@ -365,32 +394,24 @@ async def get_classification_fragment(
     if not normalized_description:
         return render_empty_results_fragment(request, normalized_description)
 
-    is_verified_crawler = await is_verified_google_search_crawler_request(request)
-    if is_verified_crawler:
-        logger.info("Bypassing quota for verified Google search crawler")
-    else:
-        try:
-            usage_status = await reserve_usage(request, redis_client)
-            if not usage_status.allowed:
-                return _render_paywall_fragment(
-                    request, usage_status, push_url, new_url
-                )
-        except QuotaUnavailableError as e:
-            logger.warning("Quota unavailable for '%s' fragment: %s", upper_type, e)
-            return _render_status_fragment(
-                str(e),
-                status_code=503,
-            )
-
     try:
-        results_context = await build_classification_results_context(
-            request=request,
+        authorize = await _prepare_quota_reservation(request)
+        outcome = await request.app.state.classification_service.classify(
             classifier_type=upper_type,
             query=normalized_description,
             version=version,
             top_k=top_k,
             enhancement_enabled=enhancement_enabled,
+            authorize=authorize,
         )
+    except _QuotaDenied as exc:
+        return _render_paywall_fragment(request, exc.status, push_url, new_url)
+    except QuotaUnavailableError as exc:
+        logger.warning("Quota unavailable for '%s' fragment: %s", upper_type, exc)
+        return _render_status_fragment(str(exc), status_code=503)
+    except ClassificationQueueFull as exc:
+        logger.warning("Classification queue full for '%s' fragment", upper_type)
+        return _render_status_fragment(str(exc), status_code=503)
     except HTTPException as exc:
         exc.headers = {
             **(exc.headers or {}),
@@ -405,6 +426,11 @@ async def get_classification_fragment(
             headers=build_cache_headers(NO_STORE),
         )
 
+    results_context = build_classification_results_context(
+        outcome=outcome,
+        classifier_type=upper_type,
+        query=normalized_description,
+    )
     page_title = (
         build_fragment_page_title(upper_type, normalized_description)
         if push_url
@@ -465,11 +491,12 @@ async def show_classifier_page_with_query(
     )
     raw_example = config["example"].strip()
     display_example = raw_example if raw_example else ""
-    allow_query_ssr = should_ssr(
+    is_verified_crawler = await is_verified_google_search_crawler_request(request)
+    allow_query_ssr = is_verified_crawler and should_ssr(
         decoded_search_query,
         bool(request.query_params),
         canonical_url,
-    ) and await is_verified_google_search_crawler_request(request)
+    )
     (
         results_data,
         default_example_prefill,
@@ -485,6 +512,7 @@ async def show_classifier_page_with_query(
         allow_query_ssr=allow_query_ssr,
     )
 
+    retry_crawler_later = ssr_state == "overloaded" and is_verified_crawler
     response = templates.TemplateResponse(
         request,
         "classifier_page.html",
@@ -503,10 +531,14 @@ async def show_classifier_page_with_query(
             trigger_search_on_load,
             results_loaded=ssr_state == "success",
         ),
+        status_code=503 if retry_crawler_later else 200,
     )
     response.headers.update(build_page_headers(canonical_url))
-    if ssr_state == "failure":
+    if ssr_state in ("failure", "overloaded"):
         response.headers.update(build_cache_headers(NO_STORE))
+    if ssr_state == "failure":
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    if retry_crawler_later:
+        response.headers["Retry-After"] = str(QUEUE_FULL_RETRY_AFTER_SECONDS)
 
     return response

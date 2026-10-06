@@ -2,9 +2,10 @@ import logging
 import os
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Optional
 
 import httpx
 import tenacity
@@ -164,7 +165,7 @@ def _is_transient_hf_error(error: BaseException) -> bool:
     return False
 
 
-def _coerce_embedding_response(response: Any) -> List[float]:
+def _coerce_embedding_response(response: Any) -> list[float]:
     if hasattr(response, "tolist"):
         response = response.tolist()
 
@@ -188,7 +189,7 @@ def _coerce_embedding_response(response: Any) -> List[float]:
 
 
 def _embedding_dimension_mismatch(
-    embedding_vector: List[float],
+    embedding_vector: list[float],
     embed_dims: Optional[int],
 ) -> bool:
     return embed_dims is not None and len(embedding_vector) != embed_dims
@@ -250,7 +251,7 @@ def get_embedding(
     text: str,
     embed_dims: Optional[int] = None,
     max_seconds: Optional[float] = None,
-) -> List[float]:
+) -> list[float]:
     """
     Generate a single embedding for text using Hugging Face Inference.
 
@@ -314,11 +315,11 @@ def get_embedding(
 # ===== Search Functions =====
 
 
-def _point_result(point: Any, score: float) -> Dict[str, Any]:
+def _point_result(point: Any, score: float) -> dict[str, Any]:
     return {"score": score, "payload": point.payload, "id": point.id}
 
 
-def _scroll_points(scroll_result: Any) -> List[Any]:
+def _scroll_points(scroll_result: Any) -> list[Any]:
     if isinstance(scroll_result, tuple):
         return list(scroll_result[0])
     return []
@@ -327,11 +328,11 @@ def _scroll_points(scroll_result: Any) -> List[Any]:
 def perform_semantic_search(
     qdrant_client: QdrantClient,
     collection_name: str,
-    query_embedding: List[float],
+    query_embedding: list[float],
     top_k: int = 10,
     has_quantization: bool = False,
     search_exact: bool = False,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Perform semantic search using embedding vector.
 
@@ -397,7 +398,7 @@ def perform_exact_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
     query_text: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Perform exact ID match search on original_id field.
 
@@ -439,7 +440,7 @@ def perform_partial_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
     normalized_query: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Perform partial match search on original_id field.
     Only called when exact ID match returns no results.
@@ -506,7 +507,7 @@ def perform_partial_id_search(
 # ===== Cache Control Helpers =====
 
 
-def get_classification_cache_headers() -> Dict[str, str]:
+def get_classification_cache_headers() -> dict[str, str]:
     """Generate Cloudflare-friendly Cache-Control headers for classification responses.
 
     Returns:
@@ -518,15 +519,15 @@ def get_classification_cache_headers() -> Dict[str, str]:
 
 
 def _split_rerank_candidates(
-    candidates: List[Dict[str, Any]],
+    candidates: list[dict[str, Any]],
     rerank_top_n: int,
-) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates_to_rerank = candidates[: min(rerank_top_n, len(candidates))]
     remaining_candidates = candidates[len(candidates_to_rerank) :]
     return candidates_to_rerank, remaining_candidates
 
 
-def _default_rerank_document(candidate: Dict[str, Any]) -> str:
+def _default_rerank_document(candidate: dict[str, Any]) -> str:
     payload = candidate.get("payload", {})
     class_name = payload.get("class_name", "")
     definition = payload.get("definition", "")
@@ -539,43 +540,43 @@ def _default_rerank_document(candidate: Dict[str, Any]) -> str:
 
 
 def _build_rerank_documents(
-    candidates: List[Dict[str, Any]],
-    document_builder: Optional[Callable[[Dict[str, Any]], str]],
-) -> List[str]:
+    candidates: list[dict[str, Any]],
+    document_builder: Optional[Callable[[dict[str, Any]], str]],
+) -> list[str]:
     builder = document_builder or _default_rerank_document
     return [builder(candidate) for candidate in candidates]
 
 
 def _copy_with_rerank_score(
-    candidate: Dict[str, Any],
+    candidate: dict[str, Any],
     score: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     candidate_copy = candidate.copy()
     candidate_copy["rerank_relevance_score"] = score
     return candidate_copy
 
 
 def _zero_score_candidates(
-    candidates: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     return [_copy_with_rerank_score(candidate, 0.0) for candidate in candidates]
 
 
-def _copy_candidates(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _copy_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [candidate.copy() for candidate in candidates]
 
 
 def _sort_by_score_desc(
-    results: List[Dict[str, Any]],
+    results: list[dict[str, Any]],
     top_k: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     return sorted(results, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
 
 
 def _apply_rerank_scores(
-    candidates: List[Dict[str, Any]],
-    scores: List[float],
-) -> List[Dict[str, Any]]:
+    candidates: list[dict[str, Any]],
+    scores: list[float],
+) -> list[dict[str, Any]]:
     if len(scores) != len(candidates):
         raise RuntimeError("Reranker score count does not match candidate count")
     return [
@@ -585,7 +586,7 @@ def _apply_rerank_scores(
 
 
 def _log_rerank_complete(
-    reranked_candidates: List[Dict[str, Any]],
+    reranked_candidates: list[dict[str, Any]],
     document_count: int,
 ) -> None:
     if not reranked_candidates:
@@ -602,14 +603,14 @@ def _log_rerank_complete(
 def rerank_candidates(
     reranker: OpenRouterReranker,
     query: str,
-    candidates: List[Dict[str, Any]],
+    candidates: list[dict[str, Any]],
     top_k: int = 5,
     rerank_top_n: int = 15,
-    document_builder: Optional[Callable[[Dict[str, Any]], str]] = None,
+    document_builder: Optional[Callable[[dict[str, Any]], str]] = None,
     rerank_instruction: Optional[str] = None,
     timeout_seconds: Optional[float] = None,
     query_format: QueryFormat = QueryFormat.LEGACY,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Rerank semantic search results using OpenRouter reranking.
 
     Args:
@@ -670,9 +671,9 @@ def rerank_candidates(
 
 @dataclass(frozen=True)
 class _ClassificationContext:
-    config: Dict[str, Any]
+    config: dict[str, Any]
     version_name: str
-    version_config: Dict[str, Any]
+    version_config: dict[str, Any]
     collection_name: str
     embed_model_name: str
     normalized_query: str
@@ -682,10 +683,10 @@ class _ClassificationContext:
 @dataclass(frozen=True)
 class PreparedClassification:
     context: _ClassificationContext
-    exact_results: List[Dict[str, Any]]
+    exact_results: list[dict[str, Any]]
     exact_ms: float
 
-    def exact_outcome(self, top_k: int) -> Optional[Dict[str, Any]]:
+    def exact_outcome(self, top_k: int) -> Optional[dict[str, Any]]:
         if not self.exact_results:
             return None
         logger.info(
@@ -708,7 +709,7 @@ class PreparedClassification:
 def validate_and_prepare_classification(
     classifier_type: str,
     version: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Validate classifier type and version, return configuration.
 
@@ -800,8 +801,8 @@ def _prepare_classification_context(
 
 def _classification_response(
     context: _ClassificationContext,
-    results: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    results: list[dict[str, Any]],
+) -> dict[str, Any]:
     return {
         "results": results,
         "collection_name": context.collection_name,
@@ -814,7 +815,7 @@ def _classification_response(
 
 def _collection_has_quantization(
     collection_name: str,
-    quantization_cache: Optional[Dict[str, bool]],
+    quantization_cache: Optional[dict[str, bool]],
 ) -> bool:
     if not quantization_cache:
         return False
@@ -829,7 +830,7 @@ def _timed_exact_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
     normalized_query: str,
-) -> tuple[List[Dict[str, Any]], float]:
+) -> tuple[list[dict[str, Any]], float]:
     exact_start = time.perf_counter()
     exact_results = perform_exact_id_search(
         qdrant_client=qdrant_client,
@@ -844,7 +845,7 @@ def _timed_partial_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
     normalized_query: str,
-) -> tuple[List[Dict[str, Any]], float]:
+) -> tuple[list[dict[str, Any]], float]:
     normalized_id_query = normalize_original_id_for_lookup(normalized_query)
     if len(normalized_id_query) < 3:
         return [], 0.0
@@ -860,9 +861,9 @@ def _timed_partial_id_search(
 
 
 def _prepare_exact_id_shortcut_results(
-    exact_results: List[Dict[str, Any]],
+    exact_results: list[dict[str, Any]],
     top_k: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     classification_results = _sort_by_score_desc(exact_results, top_k)
     for result in classification_results:
         result["rerank_relevance_score"] = 0.0
@@ -879,7 +880,7 @@ def _run_semantic_classification_search(
     embed_max_seconds: Optional[float] = None,
     semantic_query: Optional[str] = None,
     query_format: QueryFormat = QueryFormat.LEGACY,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     embedding_text = build_query_embedding_text(
         semantic_query or context.normalized_query,
         context.config.get("query_instruction"),
@@ -904,9 +905,9 @@ def _run_semantic_classification_search(
 
 
 def _exclude_id_match_results(
-    semantic_results: List[Dict[str, Any]],
-    id_match_results: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    semantic_results: list[dict[str, Any]],
+    id_match_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     match_ids = {r.get("id") for r in id_match_results if r.get("id") is not None}
     return [r for r in semantic_results if r.get("id") not in match_ids]
 
@@ -920,14 +921,14 @@ def _semantic_retrieve_limit(top_k: int, reranking_enabled: bool) -> int:
 def _rank_semantic_results(
     reranker: Optional[OpenRouterReranker],
     normalized_query: str,
-    filtered_semantic: List[Dict[str, Any]],
-    id_match_results: List[Dict[str, Any]],
+    filtered_semantic: list[dict[str, Any]],
+    id_match_results: list[dict[str, Any]],
     top_k: int,
     rerank_top_n: int,
     rerank_instruction: Optional[str],
     deadline: Optional[float] = None,
     query_format: QueryFormat = QueryFormat.LEGACY,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     if reranker is not None and not id_match_results and filtered_semantic:
         remaining_seconds: Optional[float] = None
         if deadline is not None:
@@ -966,10 +967,10 @@ def _rank_semantic_results(
 
 
 def _merge_classification_results(
-    id_match_results: List[Dict[str, Any]],
-    semantic_results: List[Dict[str, Any]],
+    id_match_results: list[dict[str, Any]],
+    semantic_results: list[dict[str, Any]],
     top_k: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     return _sort_by_score_desc(id_match_results + semantic_results, top_k)
 
 
@@ -1000,12 +1001,12 @@ def complete_classification(
     embed_client: InferenceClient,
     qdrant_client: QdrantClient,
     top_k: int = 3,
-    quantization_cache: Optional[Dict[str, bool]] = None,
+    quantization_cache: Optional[dict[str, bool]] = None,
     reranker: Optional[OpenRouterReranker] = None,
     semantic_query: Optional[str] = None,
     query_format: QueryFormat = QueryFormat.LEGACY,
     outbound_deadline: Optional[float] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     exact_outcome = prepared.exact_outcome(top_k)
     if exact_outcome is not None:
         return exact_outcome
@@ -1085,10 +1086,10 @@ def perform_classification(
     classifier_type: str,
     version: Optional[str] = None,
     top_k: int = 3,
-    quantization_cache: Optional[Dict[str, bool]] = None,
+    quantization_cache: Optional[dict[str, bool]] = None,
     reranker: Optional[OpenRouterReranker] = None,
     semantic_query: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     outbound_deadline = time.monotonic() + outbound_budget_seconds()
     prepared = prepare_classification(
         embed_client, qdrant_client, query, classifier_type, version

@@ -1,20 +1,29 @@
+import asyncio
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 from app.classification_executor import ClassificationExecutor
 from app.classification_service import ClassificationOutcome, ClassificationService
 
 ResultT = TypeVar("ResultT")
+Params = ParamSpec("Params")
+
+
+async def event_loop_turn() -> None:
+    ready = asyncio.get_running_loop().create_future()
+    asyncio.get_running_loop().call_soon(ready.set_result, None)
+    await ready
 
 
 class InlineClassificationExecutor(ClassificationExecutor):
     """Test executor that preserves the production executor's async interface."""
 
-    async def run(
+    async def _run_stage(
         self,
-        callable_: Callable[..., ResultT],
-        *args: Any,
-        **kwargs: Any,
+        callable_: Callable[Params, ResultT],
+        /,
+        *args: Params.args,
+        **kwargs: Params.kwargs,
     ) -> ResultT:
         return callable_(*args, **kwargs)
 
@@ -46,6 +55,7 @@ def build_classification_outcome(
     version_name: str = "v1",
     collection_name: str = "test_collection",
     query: str = "test query",
+    elapsed_seconds: float = 0.0,
 ) -> ClassificationOutcome:
     return ClassificationOutcome(
         results=results if results is not None else [],
@@ -53,4 +63,5 @@ def build_classification_outcome(
         version_name=version_name,
         collection_name=collection_name,
         query=query,
+        elapsed_seconds=elapsed_seconds,
     )

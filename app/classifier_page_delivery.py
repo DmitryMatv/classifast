@@ -2,7 +2,6 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from time import perf_counter
 from typing import Literal
 from urllib.parse import quote, unquote_plus, urlencode, urlparse
 from xml.etree import ElementTree
@@ -11,6 +10,8 @@ from fastapi import HTTPException, Request
 from starlette.templating import _TemplateResponse
 
 from .cache_profiles import CLASSIFICATION_RESULT, build_cache_headers
+from .classification_executor import ClassificationQueueFull
+from .classification_service import ClassificationOutcome
 from .classifier import get_classification_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG, ClassifierConfig
 from .dependencies import templates
@@ -18,7 +19,7 @@ from .dependencies import templates
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SSRState = Literal["not_attempted", "success", "failure"]
+SSRState = Literal["not_attempted", "success", "failure", "overloaded"]
 
 
 def _load_sitemap_query_paths() -> frozenset[str]:
@@ -397,51 +398,23 @@ def should_ssr(
     )
 
 
-async def build_classification_results_context(
-    request: Request,
+def build_classification_results_context(
+    *,
+    outcome: ClassificationOutcome,
     classifier_type: str,
     query: str,
-    version: str,
-    top_k: int,
-    semantic_query: str | None = None,
-    enhancement_enabled: bool = False,
 ) -> dict[str, object]:
     """Build the template context used to render classification results."""
-    normalized_query = re.sub(r"\s+", " ", query).strip()
-    upper_type = classifier_type.strip().upper()
-
-    if not normalized_query:
-        return {
-            "query": normalized_query,
-            "results_for_query": [],
-            "base_url": "",
-            "append_code_to_url": True,
-            "code_url_suffix": "",
-            "tooltip": "",
-            "total_request_time": 0,
-        }
-
-    start_total_time = perf_counter()
-    outcome = await request.app.state.classification_service.classify(
-        query=normalized_query,
-        classifier_type=upper_type,
-        version=version,
-        top_k=top_k,
-        semantic_query=semantic_query,
-        enhancement_enabled=enhancement_enabled,
-    )
-    total_request_time = perf_counter() - start_total_time
-
     return {
-        "query": normalized_query,
+        "query": query,
         "results_for_query": outcome.results,
         "base_url": outcome.version_config.get("base_url", ""),
         "append_code_to_url": outcome.version_config.get("append_code_to_url", True),
         "code_url_suffix": outcome.version_config.get("code_url_suffix", ""),
         "tooltip": outcome.version_config.get("tooltip", ""),
-        "total_request_time": total_request_time,
+        "total_request_time": outcome.elapsed_seconds,
         "enhancement_status": outcome.enhancement_status,
-        "classifier_type": upper_type,
+        "classifier_type": classifier_type,
     }
 
 
@@ -470,20 +443,29 @@ async def maybe_seed_classifier_page_results(
     if decoded_query and not allow_query_ssr:
         return results_data, False, True, "not_attempted"
 
-    query = decoded_query or example_query
+    query = normalize_product_description(decoded_query or example_query)
     if not query:
         return results_data, False, False, "not_attempted"
 
     results_data["query"] = query
     try:
-        seeded_results = await build_classification_results_context(
-            request=request,
-            classifier_type=classifier_type,
+        outcome = await request.app.state.classification_service.classify(
             query=query,
+            classifier_type=classifier_type,
             version=version,
             top_k=top_k,
         )
+        seeded_results = build_classification_results_context(
+            outcome=outcome,
+            classifier_type=classifier_type,
+            query=query,
+        )
         return seeded_results, not decoded_query, False, "success"
+    except ClassificationQueueFull:
+        logger.warning(
+            "SSR deferred for '%s' page: classification queue full", classifier_type
+        )
+        return results_data, not decoded_query, True, "overloaded"
     except Exception as e:
         logger.warning(
             "SSR fallback for '%s' page classification due to %s: %s",
