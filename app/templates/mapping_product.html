@@ -565,7 +565,8 @@
                     </div>
                     <div class="space-y-2">
                         <button type="button" data-mapping-buy-button data-mapping-slug="{{ product.slug }}"
-                            data-return-url="{{ canonical_url }}" class="primary-action">
+                            data-return-url="{{ url_for('show_mapping_product_page', slug=product.slug) }}"
+                            class="primary-action">
                             Buy full mapping file
                         </button>
                         <a href="{{ url_for('download_mapping_sample', slug=product.slug) }}" class="secondary-action">

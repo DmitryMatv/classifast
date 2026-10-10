@@ -86,6 +86,16 @@ class MappingStorefrontRouteTests(unittest.IsolatedAsyncioTestCase):
             "background-attachment: scroll, scroll, scroll;", response.text
         )
 
+    async def test_mapping_product_buy_button_returns_to_request_host(self) -> None:
+        response = await self._request("GET", f"/mapping/{self.product.slug}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            f'data-return-url="http://testserver/mapping/{self.product.slug}/"',
+            response.text,
+        )
+        self.assertNotIn('data-return-url="https://classifast.com/', response.text)
+
     async def test_mapping_routes_redirect_to_trailing_slash(self) -> None:
         index_response = await self._request("GET", "/mapping")
         product_response = await self._request("GET", f"/mapping/{self.product.slug}")
