@@ -3,17 +3,25 @@ import re
 ORIGINAL_ID_FIELD = "original_id"
 ORIGINAL_ID_NORMALIZED_FIELD = "original_id_normalized"
 ORIGINAL_ID_NORMALIZED_REVERSED_FIELD = "original_id_normalized_reversed"
+# Same value as ORIGINAL_ID_NORMALIZED_FIELD, but keyword-indexed for equality
+# lookups; Qdrant allows one index per field and that one is a prefix index.
+ORIGINAL_ID_NORMALIZED_KEY_FIELD = "original_id_normalized_key"
 ID_LOOKUP_FIELDS = (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD,
 )
 
 NON_ASCII_ALNUM_PATTERN = re.compile(r"[^0-9A-Za-z]+")
 
 
+def compact_original_id(value: object) -> str:
+    return NON_ASCII_ALNUM_PATTERN.sub("", str(value).casefold())
+
+
 def normalize_original_id_for_lookup(value: object) -> str:
-    compacted = NON_ASCII_ALNUM_PATTERN.sub("", str(value).casefold())
+    compacted = compact_original_id(value)
     if (
         len(compacted) == 9
         and compacted.isdigit()

@@ -87,7 +87,7 @@ def test_emdn_exact_code_lookup_shortcuts_embedding() -> None:
     ]
 
     with (
-        patch("app.classifier.perform_exact_id_search", return_value=exact),
+        patch("app.classifier.perform_exact_id_search", return_value=(exact, [])),
         patch("app.classifier.get_embedding") as embedding,
     ):
         result = perform_classification(
@@ -121,7 +121,7 @@ def test_emdn_semantic_search_does_not_add_terminal_or_level_filter() -> None:
     ]
 
     with (
-        patch("app.classifier.perform_exact_id_search", return_value=[]),
+        patch("app.classifier.perform_exact_id_search", return_value=([], [])),
         patch("app.classifier.perform_partial_id_search", return_value=[]),
         patch("app.classifier.get_embedding", return_value=[0.1, 0.2]),
         patch(

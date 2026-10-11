@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
     normalize_original_id_for_lookup,
     reverse_normalized_id,
@@ -132,6 +133,7 @@ def build_normalized_id_payload(original_id: object) -> dict[str, str]:
     return {
         ORIGINAL_ID_NORMALIZED_FIELD: normalized,
         ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: reverse_normalized_id(normalized),
+        ORIGINAL_ID_NORMALIZED_KEY_FIELD: normalized,
     }
 
 
@@ -169,6 +171,7 @@ def _scroll_backfill_points(
             ORIGINAL_ID_FIELD,
             ORIGINAL_ID_NORMALIZED_FIELD,
             ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+            ORIGINAL_ID_NORMALIZED_KEY_FIELD,
         ],
         with_vectors=False,
     )

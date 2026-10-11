@@ -8,6 +8,7 @@ from app import qdrant_schema
 from app.id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
 )
 
@@ -46,6 +47,7 @@ def expected_payload_schema() -> dict[str, models.PayloadIndexInfo]:
         ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: text_index(
             qdrant_schema.build_normalized_original_id_text_index_params()
         ),
+        ORIGINAL_ID_NORMALIZED_KEY_FIELD: keyword_index(),
         "class_name": text_index(qdrant_schema.build_class_name_text_index_params()),
     }
 
