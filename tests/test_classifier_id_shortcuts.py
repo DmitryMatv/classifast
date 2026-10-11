@@ -237,7 +237,28 @@ class PartialOriginalIdSearchTests(unittest.TestCase):
 
         results = perform_partial_id_search(client, "products", "1002")
 
-        self.assertEqual([result["id"] for result in results], ["p1", "p2"])
+        self.assertEqual(sorted(result["id"] for result in results), ["p1", "p2"])
+
+    def test_results_rank_prefix_matches_first_then_shallower_codes(self) -> None:
+        client = SimpleNamespace(
+            scroll=lambda **kwargs: (
+                [
+                    self._point("commodity", "43211503"),
+                    self._point("suffix", "10004321"),
+                    self._point("class", "43211500"),
+                    self._point("family", "43210000"),
+                    self._point("sibling-class", "43211400"),
+                ],
+                None,
+            )
+        )
+
+        results = perform_partial_id_search(client, "products", "4321")
+
+        self.assertEqual(
+            [result["id"] for result in results],
+            ["family", "sibling-class", "class", "commodity", "suffix"],
+        )
 
     def test_malformed_normalized_payload_does_not_drop_later_matches(self) -> None:
         malformed = self._point("bad", "BAD-100")

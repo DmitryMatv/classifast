@@ -469,7 +469,8 @@ def perform_partial_id_search(
         normalized_query: Normalized query (dots, spaces, dashes, leading/trailing zeros removed)
 
     Returns:
-        List of partial match results with score=0.90
+        Partial match results with score=0.90, prefix matches before
+        suffix matches, shallower codes first
     """
     try:
         partial_filter = models.Filter(
@@ -509,13 +510,20 @@ def perform_partial_id_search(
                     if raw_normalized_id is not None
                     else normalize_original_id_for_lookup(original_id_value)
                 )
-                if normalized_original_id.startswith(
-                    normalized_query
-                ) or normalized_original_id.endswith(normalized_query):
-                    partial_results.append(_point_result(point, 0.90))
+                is_prefix = normalized_original_id.startswith(normalized_query)
+                if is_prefix or normalized_original_id.endswith(normalized_query):
+                    # Qdrant filters return arbitrary order: rank hierarchy
+                    # (prefix) matches first, then shallower codes first.
+                    depth_key = (
+                        not is_prefix,
+                        len(normalized_original_id),
+                        normalized_original_id,
+                    )
+                    partial_results.append((depth_key, _point_result(point, 0.90)))
                     seen_ids.add(point.id)
 
-        return partial_results
+        partial_results.sort(key=lambda item: item[0])
+        return [result for _, result in partial_results]
 
     except Exception as e:
         logger.warning("Partial ID search failed: %s", e)
