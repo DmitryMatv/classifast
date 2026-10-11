@@ -19,7 +19,10 @@ from .classifier_config import CLASSIFIER_CONFIG
 from .id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    compact_original_id,
+    is_code_shaped,
     normalize_original_id_for_lookup,
     reverse_normalized_id,
 )
@@ -398,9 +401,9 @@ def perform_exact_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
     query_text: str,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
-    Perform exact ID match search on original_id field.
+    Look up codes whose normalized ID equals the normalized query.
 
     Args:
         qdrant_client: The Qdrant client instance
@@ -408,32 +411,72 @@ def perform_exact_id_search(
         query_text: Query text to match against original_id
 
     Returns:
-        List of exact match results with score=1.0
+        (exact, same_node): exact matches ignore only case and separators
+        (score=1.0); same-node matches differ only by stripped padding zeros,
+        e.g. "43" and "43000000" (score=0.90).
     """
+    compact_query = compact_original_id(query_text)
+    if not compact_query or not is_code_shaped(query_text):
+        return [], []
+    # Restoring a dropped leading zero changes the key of nine-digit CPV codes
+    # ("3111000-2" vs "03111000-2"), so probe both forms.
+    lookup_keys = sorted(
+        {
+            normalize_original_id_for_lookup(compact_query),
+            normalize_original_id_for_lookup("0" + compact_query),
+        }
+    )
+
     try:
-        safe_query = sanitize_query_text(query_text, for_search=True)
         id_filter = models.Filter(
             must=[
                 models.FieldCondition(
-                    key=ORIGINAL_ID_FIELD,
-                    match=models.MatchValue(value=safe_query),
+                    key=ORIGINAL_ID_NORMALIZED_KEY_FIELD,
+                    match=models.MatchAny(any=lookup_keys),
                 )
             ]
         )
 
-        scroll_result = qdrant_client.scroll(
-            collection_name=collection_name,
-            scroll_filter=id_filter,
-            limit=3,  # Max 3 exact ID matches
-            with_payload=True,
-            with_vectors=False,
-        )
-
-        return [_point_result(point, 1.0) for point in _scroll_points(scroll_result)]
-
+        # Page through the whole key bucket: an exact match can sit past the
+        # first page when several codes differ only by padding zeros.
+        points: list[Any] = []
+        offset = None
+        while True:
+            page, offset = qdrant_client.scroll(
+                collection_name=collection_name,
+                scroll_filter=id_filter,
+                limit=100,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            points.extend(page)
+            if offset is None:
+                break
     except Exception as e:
         logger.warning("Exact ID search failed: %s", e)
-        return []
+        return [], []
+
+    query_core = compact_query.lstrip("0")
+    query_leading_zeros = len(compact_query) - len(query_core)
+    exact_results = []
+    same_node_results = []
+    for point in points:
+        original_id = (point.payload or {}).get(ORIGINAL_ID_FIELD, "")
+        compact_id = compact_original_id(original_id)
+        stored_core = compact_id.lstrip("0")
+        if compact_id == compact_query:
+            exact_results.append(_point_result(point, 1.0))
+        # The key strips zeros at both ends, so "1000" shares a key with "01"
+        # and "10". A same-node code keeps every zero the user typed: it may
+        # add trailing padding ("43" -> "43000000") or leading zeros the user
+        # dropped ("101" -> "0101"), but "01" is not "10000000".
+        elif (
+            stored_core.startswith(query_core)
+            and len(compact_id) - len(stored_core) >= query_leading_zeros
+        ):
+            same_node_results.append(_point_result(point, 0.90))
+    return exact_results, same_node_results
 
 
 def perform_partial_id_search(
@@ -451,7 +494,8 @@ def perform_partial_id_search(
         normalized_query: Normalized query (dots, spaces, dashes, leading/trailing zeros removed)
 
     Returns:
-        List of partial match results with score=0.90
+        Partial match results with score=0.90, prefix matches before
+        suffix matches, shallower codes first
     """
     try:
         partial_filter = models.Filter(
@@ -491,13 +535,20 @@ def perform_partial_id_search(
                     if raw_normalized_id is not None
                     else normalize_original_id_for_lookup(original_id_value)
                 )
-                if normalized_original_id.startswith(
-                    normalized_query
-                ) or normalized_original_id.endswith(normalized_query):
-                    partial_results.append(_point_result(point, 0.90))
+                is_prefix = normalized_original_id.startswith(normalized_query)
+                if is_prefix or normalized_original_id.endswith(normalized_query):
+                    # Qdrant filters return arbitrary order: rank hierarchy
+                    # (prefix) matches first, then shallower codes first.
+                    depth_key = (
+                        not is_prefix,
+                        len(normalized_original_id),
+                        normalized_original_id,
+                    )
+                    partial_results.append((depth_key, _point_result(point, 0.90)))
                     seen_ids.add(point.id)
 
-        return partial_results
+        partial_results.sort(key=lambda item: item[0])
+        return [result for _, result in partial_results]
 
     except Exception as e:
         logger.warning("Partial ID search failed: %s", e)
@@ -684,6 +735,7 @@ class _ClassificationContext:
 class PreparedClassification:
     context: _ClassificationContext
     exact_results: list[dict[str, Any]]
+    same_node_results: list[dict[str, Any]]
     exact_ms: float
 
     def exact_outcome(self, top_k: int) -> Optional[dict[str, Any]]:
@@ -830,15 +882,15 @@ def _timed_exact_id_search(
     qdrant_client: QdrantClient,
     collection_name: str,
     normalized_query: str,
-) -> tuple[list[dict[str, Any]], float]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float]:
     exact_start = time.perf_counter()
-    exact_results = perform_exact_id_search(
+    exact_results, same_node_results = perform_exact_id_search(
         qdrant_client=qdrant_client,
         collection_name=collection_name,
         query_text=normalized_query,
     )
     exact_ms = (time.perf_counter() - exact_start) * 1000
-    return exact_results, exact_ms
+    return exact_results, same_node_results, exact_ms
 
 
 def _timed_partial_id_search(
@@ -847,7 +899,7 @@ def _timed_partial_id_search(
     normalized_query: str,
 ) -> tuple[list[dict[str, Any]], float]:
     normalized_id_query = normalize_original_id_for_lookup(normalized_query)
-    if len(normalized_id_query) < 3:
+    if not is_code_shaped(normalized_query) or len(normalized_id_query) < 3:
         return [], 0.0
 
     partial_start = time.perf_counter()
@@ -985,10 +1037,12 @@ def prepare_classification(
         embed_client, qdrant_client, query, classifier_type, version
     )
     try:
-        exact_results, exact_ms = _timed_exact_id_search(
+        exact_results, same_node_results, exact_ms = _timed_exact_id_search(
             qdrant_client, context.collection_name, context.normalized_query
         )
-        return PreparedClassification(context, exact_results, exact_ms)
+        return PreparedClassification(
+            context, exact_results, same_node_results, exact_ms
+        )
     except HTTPException:
         raise
     except Exception as exc:
@@ -1020,8 +1074,11 @@ def complete_classification(
             context.collection_name, quantization_cache
         )
         search_exact = _should_use_exact_qdrant_search(context.classifier_type)
-        partial_results, partial_ms = _timed_partial_id_search(
+        prefix_results, partial_ms = _timed_partial_id_search(
             qdrant_client, context.collection_name, context.normalized_query
+        )
+        partial_results = prepared.same_node_results + _exclude_id_match_results(
+            prefix_results, prepared.same_node_results
         )
         logger.info(
             "ID_SEARCH: exact=%d partial=%d exact_ms=%.2f partial_ms=%.2f",

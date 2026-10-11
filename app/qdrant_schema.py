@@ -10,6 +10,7 @@ from .classifier_config import CLASSIFIER_CONFIG
 from .id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
 )
 
@@ -17,6 +18,7 @@ PAYLOAD_INDEX_FIELDS = (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     "class_name",
 )
 
@@ -154,6 +156,11 @@ _INDEX_FIELD_SPECS: dict[str, _IndexFieldSpec] = {
         data_type=models.PayloadSchemaType.TEXT,
         build_params=build_normalized_original_id_text_index_params,
         normalize=normalize_text_index_params,
+    ),
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD: _IndexFieldSpec(
+        data_type=models.PayloadSchemaType.KEYWORD,
+        build_params=build_original_id_index_params,
+        normalize=normalize_keyword_index_params,
     ),
     "class_name": _IndexFieldSpec(
         data_type=models.PayloadSchemaType.TEXT,

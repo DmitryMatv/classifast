@@ -151,7 +151,7 @@ class ClassificationContractTests(unittest.TestCase):
         ]
 
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_exact_id_search", return_value=([], [])),
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch(
                 "app.classifier.get_embedding",
@@ -221,7 +221,7 @@ class ClassificationContractTests(unittest.TestCase):
         ]
 
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_exact_id_search", return_value=([], [])),
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1, 0.2, 0.3]),
             patch(
@@ -258,7 +258,7 @@ class ClassificationContractTests(unittest.TestCase):
         ]
 
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_exact_id_search", return_value=([], [])),
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1, 0.2, 0.3]),
             patch(
@@ -289,7 +289,7 @@ class ClassificationContractTests(unittest.TestCase):
         ]
 
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_exact_id_search", return_value=([], [])),
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1, 0.2, 0.3]),
             patch(

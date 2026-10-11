@@ -24,7 +24,8 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
         service = build_classification_service(enhancer=enhancer)
         with (
             patch(
-                "app.classifier.perform_exact_id_search", return_value=[exact_result]
+                "app.classifier.perform_exact_id_search",
+                return_value=([exact_result], []),
             ) as exact,
             patch("app.classifier.perform_partial_id_search") as partial,
             patch("app.classifier.get_embedding") as embedding,
@@ -57,7 +58,7 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
             "payload": {"class_name": "Bolts"},
         }
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[]) as exact,
+            patch("app.classifier.perform_exact_id_search", return_value=([], [])) as exact,
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1]) as embedding,
             patch(
@@ -85,7 +86,7 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
         )
         service = build_classification_service(enhancer=enhancer)
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_exact_id_search", return_value=([], [])),
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1]) as embedding,
             patch("app.classifier.perform_semantic_search", return_value=[]),
@@ -100,7 +101,7 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_missing_enhancer_is_reported_as_failure(self) -> None:
         service = build_classification_service()
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=[]),
+            patch("app.classifier.perform_exact_id_search", return_value=([], [])),
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1]),
             patch("app.classifier.perform_semantic_search", return_value=[]),
@@ -127,7 +128,7 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
             )
             with (
                 patch(
-                    "app.classifier.perform_exact_id_search", return_value=[]
+                    "app.classifier.perform_exact_id_search", return_value=([], [])
                 ) as exact,
                 patch(
                     "app.classifier.perform_partial_id_search",

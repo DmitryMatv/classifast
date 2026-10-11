@@ -7,6 +7,7 @@ from app import qdrant_schema
 from app.id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
+    ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
 )
 from utilities import sync_payload_indexes as create_text_indexes
@@ -74,6 +75,7 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
             ORIGINAL_ID_FIELD: self.make_keyword_index(),
             ORIGINAL_ID_NORMALIZED_FIELD: self.make_normalized_id_index(),
             ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: self.make_normalized_id_index(),
+            ORIGINAL_ID_NORMALIZED_KEY_FIELD: self.make_keyword_index(),
             "class_name": self.make_text_index(),
         }
 
@@ -86,7 +88,7 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         )
 
         self.assertTrue(success)
-        self.assertEqual(client.create_payload_index.call_count, 4)
+        self.assertEqual(client.create_payload_index.call_count, 5)
         client.delete_payload_index.assert_not_called()
 
         created_fields = {
@@ -95,6 +97,10 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
         }
         self.assertIsInstance(
             created_fields[ORIGINAL_ID_FIELD],
+            models.KeywordIndexParams,
+        )
+        self.assertIsInstance(
+            created_fields[ORIGINAL_ID_NORMALIZED_KEY_FIELD],
             models.KeywordIndexParams,
         )
         self.assertEqual(
@@ -305,6 +311,7 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
             {
                 ORIGINAL_ID_NORMALIZED_FIELD: "3111002",
                 ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: "2001113",
+                ORIGINAL_ID_NORMALIZED_KEY_FIELD: "3111002",
             },
         )
 
@@ -351,6 +358,7 @@ class QdrantMigrationUtilityTests(unittest.TestCase):
             {
                 ORIGINAL_ID_NORMALIZED_FIELD: "3111002",
                 ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: "2001113",
+                ORIGINAL_ID_NORMALIZED_KEY_FIELD: "3111002",
             },
         )
 
