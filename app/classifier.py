@@ -414,16 +414,24 @@ def perform_exact_id_search(
         (score=1.0); same-node matches differ only by stripped padding zeros,
         e.g. "43" and "43000000" (score=0.90).
     """
-    normalized_query = normalize_original_id_for_lookup(query_text)
-    if not normalized_query:
+    compact_query = compact_original_id(query_text)
+    if not compact_query:
         return [], []
+    # Restoring a dropped leading zero changes the key of nine-digit CPV codes
+    # ("3111000-2" vs "03111000-2"), so probe both forms.
+    lookup_keys = sorted(
+        {
+            normalize_original_id_for_lookup(compact_query),
+            normalize_original_id_for_lookup("0" + compact_query),
+        }
+    )
 
     try:
         id_filter = models.Filter(
             must=[
                 models.FieldCondition(
                     key=ORIGINAL_ID_NORMALIZED_KEY_FIELD,
-                    match=models.MatchValue(value=normalized_query),
+                    match=models.MatchAny(any=lookup_keys),
                 )
             ]
         )
@@ -448,7 +456,6 @@ def perform_exact_id_search(
         logger.warning("Exact ID search failed: %s", e)
         return [], []
 
-    compact_query = compact_original_id(query_text)
     exact_results = []
     same_node_results = []
     for point in points:

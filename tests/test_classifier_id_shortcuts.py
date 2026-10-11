@@ -282,11 +282,11 @@ class ExactOriginalIdSearchTests(unittest.TestCase):
     def _client(self, stored_ids: dict[str, str], captured: dict) -> SimpleNamespace:
         def scroll(**kwargs):
             captured.update(kwargs)
-            wanted = kwargs["scroll_filter"].must[0].match.value
+            wanted = set(kwargs["scroll_filter"].must[0].match.any)
             points = [
                 SimpleNamespace(id=point_id, payload={ORIGINAL_ID_FIELD: original_id})
                 for point_id, original_id in stored_ids.items()
-                if normalize_original_id_for_lookup(original_id) == wanted
+                if normalize_original_id_for_lookup(original_id) in wanted
             ]
             start = kwargs.get("offset") or 0
             end = start + kwargs["limit"]
@@ -301,8 +301,8 @@ class ExactOriginalIdSearchTests(unittest.TestCase):
 
         condition = captured["scroll_filter"].must[0]
         self.assertEqual(condition.key, ORIGINAL_ID_NORMALIZED_KEY_FIELD)
-        self.assertIsInstance(condition.match, models.MatchValue)
-        self.assertEqual(condition.match.value, "43211503")
+        self.assertIsInstance(condition.match, models.MatchAny)
+        self.assertIn("43211503", condition.match.any)
 
     def test_formatted_query_is_exact_match(self) -> None:
         client = self._client({"commodity": "43211503"}, {})
@@ -355,6 +355,28 @@ class ExactOriginalIdSearchTests(unittest.TestCase):
 
         self.assertEqual(exact, [])
         self.assertEqual([r["id"] for r in same_node], ["heading"])
+
+    def test_cpv_code_without_leading_zero_is_same_node(self) -> None:
+        client = self._client({"cpv": "03111000-2"}, {})
+
+        exact, same_node = perform_exact_id_search(client, "products", "3111000-2")
+
+        self.assertEqual(exact, [])
+        self.assertEqual([r["id"] for r in same_node], ["cpv"])
+
+    def test_cpv_code_with_leading_zero_stays_exact(self) -> None:
+        client = self._client({"cpv": "03111000-2"}, {})
+
+        exact, _ = perform_exact_id_search(client, "products", "031110002")
+
+        self.assertEqual([r["id"] for r in exact], ["cpv"])
+
+    def test_leading_zero_probe_does_not_pull_unrelated_codes(self) -> None:
+        client = self._client({"other": "43211520"}, {})
+
+        self.assertEqual(
+            perform_exact_id_search(client, "products", "43211502"), ([], [])
+        )
 
     def test_key_collision_without_right_padding_is_not_same_node(self) -> None:
         client = self._client({"chapter-01": "01", "chapter-10": "10"}, {})
