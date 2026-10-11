@@ -494,6 +494,11 @@ class SameNodeOrderingTests(unittest.TestCase):
 
         self.assertEqual([item["id"] for item in result["results"]], ["semantic"])
 
+    def test_non_latin_description_does_not_pin_partial_code_matches(self) -> None:
+        ids = self._classify("椅子 3101", [], [self._result("hs-3101", "310100")])
+
+        self.assertEqual(ids, ["semantic"])
+
     def test_short_query_still_surfaces_same_node_match(self) -> None:
         ids = self._classify("43", [self._result("segment", "43000000")], [])
 

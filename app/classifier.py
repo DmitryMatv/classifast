@@ -899,7 +899,7 @@ def _timed_partial_id_search(
     normalized_query: str,
 ) -> tuple[list[dict[str, Any]], float]:
     normalized_id_query = normalize_original_id_for_lookup(normalized_query)
-    if len(normalized_id_query) < 3:
+    if not is_code_shaped(normalized_query) or len(normalized_id_query) < 3:
         return [], 0.0
 
     partial_start = time.perf_counter()
