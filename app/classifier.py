@@ -22,6 +22,7 @@ from .id_lookup import (
     ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
     compact_original_id,
+    is_code_shaped,
     normalize_original_id_for_lookup,
     reverse_normalized_id,
 )
@@ -415,7 +416,7 @@ def perform_exact_id_search(
         e.g. "43" and "43000000" (score=0.90).
     """
     compact_query = compact_original_id(query_text)
-    if not compact_query:
+    if not compact_query or not is_code_shaped(query_text):
         return [], []
     # Restoring a dropped leading zero changes the key of nine-digit CPV codes
     # ("3111000-2" vs "03111000-2"), so probe both forms.

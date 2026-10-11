@@ -386,6 +386,17 @@ class ExactOriginalIdSearchTests(unittest.TestCase):
         self.assertEqual(exact, [])
         self.assertEqual(same_node, [])
 
+    def test_non_latin_description_with_digits_skips_lookup(self) -> None:
+        captured: dict = {}
+        client = self._client({"isic": "10", "hs": "3101"}, captured)
+
+        for query in ("10 стульев", "椅子 3101", "café 10"):
+            with self.subTest(query=query):
+                self.assertEqual(
+                    perform_exact_id_search(client, "products", query), ([], [])
+                )
+        self.assertEqual(captured, {})
+
     def test_query_without_alphanumerics_skips_lookup(self) -> None:
         def scroll(**kwargs):
             raise AssertionError("scroll must not run for an empty key")
@@ -441,6 +452,35 @@ class SameNodeOrderingTests(unittest.TestCase):
         )
 
         self.assertEqual(ids, ["family", "class", "semantic"])
+
+    def test_non_latin_description_reaches_semantic_search(self) -> None:
+        classifier_type, version = _first_classifier_with_version()
+        client = SimpleNamespace(
+            scroll=lambda **kwargs: (
+                [SimpleNamespace(id="code-10", payload={ORIGINAL_ID_FIELD: "10"})],
+                None,
+            )
+        )
+        with (
+            patch("app.classifier.perform_partial_id_search", return_value=[]),
+            patch("app.classifier.get_embedding", return_value=[0.1, 0.2]),
+            patch(
+                "app.classifier.perform_semantic_search",
+                return_value=[{"score": 0.5, "id": "semantic", "payload": {}}],
+            ),
+        ):
+            result = perform_classification(
+                embed_client=object(),
+                qdrant_client=client,
+                query="10 стульев",
+                classifier_type=classifier_type,
+                version=version,
+                top_k=3,
+                quantization_cache={},
+                reranker=None,
+            )
+
+        self.assertEqual([item["id"] for item in result["results"]], ["semantic"])
 
     def test_short_query_still_surfaces_same_node_match(self) -> None:
         ids = self._classify("43", [self._result("segment", "43000000")], [])

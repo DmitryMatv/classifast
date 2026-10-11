@@ -14,6 +14,13 @@ ID_LOOKUP_FIELDS = (
 )
 
 NON_ASCII_ALNUM_PATTERN = re.compile(r"[^0-9A-Za-z]+")
+# Letters and digits outside ASCII, which compaction would silently delete.
+NON_ASCII_WORD_CHARACTER_PATTERN = re.compile(r"[^\W0-9A-Za-z_]")
+
+
+def is_code_shaped(value: str) -> bool:
+    """True when compaction removes only separators, never description text."""
+    return not NON_ASCII_WORD_CHARACTER_PATTERN.search(value)
 
 
 def compact_original_id(value: object) -> str:
