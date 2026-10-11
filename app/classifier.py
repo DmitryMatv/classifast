@@ -457,16 +457,24 @@ def perform_exact_id_search(
         logger.warning("Exact ID search failed: %s", e)
         return [], []
 
+    query_core = compact_query.lstrip("0")
+    query_leading_zeros = len(compact_query) - len(query_core)
     exact_results = []
     same_node_results = []
     for point in points:
         original_id = (point.payload or {}).get(ORIGINAL_ID_FIELD, "")
         compact_id = compact_original_id(original_id)
+        stored_core = compact_id.lstrip("0")
         if compact_id == compact_query:
             exact_results.append(_point_result(point, 1.0))
         # The key strips zeros at both ends, so "1000" shares a key with "01"
-        # and "10". Only right-padding of the stored code names the same node.
-        elif compact_id.lstrip("0").startswith(compact_query.lstrip("0")):
+        # and "10". A same-node code keeps every zero the user typed: it may
+        # add trailing padding ("43" -> "43000000") or leading zeros the user
+        # dropped ("101" -> "0101"), but "01" is not "10000000".
+        elif (
+            stored_core.startswith(query_core)
+            and len(compact_id) - len(stored_core) >= query_leading_zeros
+        ):
             same_node_results.append(_point_result(point, 0.90))
     return exact_results, same_node_results
 

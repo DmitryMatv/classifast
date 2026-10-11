@@ -378,6 +378,18 @@ class ExactOriginalIdSearchTests(unittest.TestCase):
             perform_exact_id_search(client, "products", "43211502"), ([], [])
         )
 
+    def test_typed_leading_zero_must_exist_in_stored_code(self) -> None:
+        client = self._client(
+            {"segment-10": "10000000", "sector-11": "11", "segment-43": "43000000"},
+            {},
+        )
+
+        for query in ("01", "011", "0043"):
+            with self.subTest(query=query):
+                self.assertEqual(
+                    perform_exact_id_search(client, "products", query), ([], [])
+                )
+
     def test_key_collision_without_right_padding_is_not_same_node(self) -> None:
         client = self._client({"chapter-01": "01", "chapter-10": "10"}, {})
 
