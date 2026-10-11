@@ -288,7 +288,9 @@ class ExactOriginalIdSearchTests(unittest.TestCase):
                 for point_id, original_id in stored_ids.items()
                 if normalize_original_id_for_lookup(original_id) == wanted
             ]
-            return points, None
+            start = kwargs.get("offset") or 0
+            end = start + kwargs["limit"]
+            return points[start:end], end if end < len(points) else None
 
         return SimpleNamespace(scroll=scroll)
 
@@ -311,6 +313,24 @@ class ExactOriginalIdSearchTests(unittest.TestCase):
                 self.assertEqual([r["id"] for r in exact], ["commodity"])
                 self.assertEqual([r["score"] for r in exact], [1.0])
                 self.assertEqual(same_node, [])
+
+    def test_exact_match_beyond_first_scroll_page_is_found(self) -> None:
+        colliding = [
+            "0" * leading + "43" + "0" * trailing
+            for leading in range(13)
+            for trailing in range(13)
+        ]
+        stored = {
+            f"collision-{i}": code
+            for i, code in enumerate(colliding)
+            if code != "00430"
+        }
+        stored["exact"] = "00430"
+        client = self._client(stored, {})
+
+        exact, _ = perform_exact_id_search(client, "products", "00430")
+
+        self.assertEqual([r["id"] for r in exact], ["exact"])
 
     def test_case_insensitive_alphanumeric_code_is_exact_match(self) -> None:
         client = self._client({"etim": "EC000042"}, {})

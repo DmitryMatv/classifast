@@ -428,13 +428,22 @@ def perform_exact_id_search(
             ]
         )
 
-        scroll_result = qdrant_client.scroll(
-            collection_name=collection_name,
-            scroll_filter=id_filter,
-            limit=10,
-            with_payload=True,
-            with_vectors=False,
-        )
+        # Page through the whole key bucket: an exact match can sit past the
+        # first page when several codes differ only by padding zeros.
+        points: list[Any] = []
+        offset = None
+        while True:
+            page, offset = qdrant_client.scroll(
+                collection_name=collection_name,
+                scroll_filter=id_filter,
+                limit=100,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            points.extend(page)
+            if offset is None:
+                break
     except Exception as e:
         logger.warning("Exact ID search failed: %s", e)
         return [], []
@@ -442,7 +451,7 @@ def perform_exact_id_search(
     compact_query = compact_original_id(query_text)
     exact_results = []
     same_node_results = []
-    for point in _scroll_points(scroll_result):
+    for point in points:
         original_id = (point.payload or {}).get(ORIGINAL_ID_FIELD, "")
         compact_id = compact_original_id(original_id)
         if compact_id == compact_query:
