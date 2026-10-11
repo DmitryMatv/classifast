@@ -34,8 +34,7 @@ from app.id_lookup import (
     ORIGINAL_ID_NORMALIZED_FIELD,
     ORIGINAL_ID_NORMALIZED_KEY_FIELD,
     ORIGINAL_ID_NORMALIZED_REVERSED_FIELD,
-    normalize_original_id_for_lookup,
-    reverse_normalized_id,
+    build_normalized_id_payload,
 )
 from app.qdrant_connection import create_qdrant_client as create_shared_qdrant_client
 from app.qdrant_schema import (
@@ -126,15 +125,6 @@ def restore_previous_index(
     except Exception as e:
         print(f"  ! Rollback failed for '{field_name}': {e}")
         return False
-
-
-def build_normalized_id_payload(original_id: object) -> dict[str, str]:
-    normalized = normalize_original_id_for_lookup(original_id)
-    return {
-        ORIGINAL_ID_NORMALIZED_FIELD: normalized,
-        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: reverse_normalized_id(normalized),
-        ORIGINAL_ID_NORMALIZED_KEY_FIELD: normalized,
-    }
 
 
 def flush_payload_backfill_batch(

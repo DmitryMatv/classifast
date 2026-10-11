@@ -7,6 +7,7 @@ import pytest
 from openpyxl import Workbook
 from qdrant_client import models
 
+from app import qdrant_schema
 from embedders import embedder_remote_EMDN_hf as target
 
 BASE_ROWS = [
@@ -269,6 +270,7 @@ def test_point_payload_preserves_emdn_metadata() -> None:
         "original_id": "A0101",
         "original_id_normalized": "a0101",
         "original_id_normalized_reversed": "1010a",
+        "original_id_normalized_key": "a0101",
         "class_name": "INFUSION NEEDLES",
         "definition": "ADMINISTRATION DEVICES > NEEDLES",
         "category": "A",
@@ -326,15 +328,21 @@ def test_required_payload_indexes_are_created() -> None:
         call.kwargs["field_name"]: call.kwargs["field_schema"]
         for call in client.create_payload_index.call_args_list
     }
-    assert set(calls) == {
-        "original_id",
-        "original_id_normalized",
-        "original_id_normalized_reversed",
-        "class_name",
+    assert set(calls) == set(qdrant_schema.PAYLOAD_INDEX_FIELDS) | {
         "category",
         "level",
         "terminal",
     }
+    for field_name in qdrant_schema.PAYLOAD_INDEX_FIELDS:
+        schema = calls[field_name]
+        index_info = models.PayloadIndexInfo(
+            data_type=getattr(schema.type, "value", schema.type),
+            params=schema,
+            points=0,
+        )
+        assert qdrant_schema.is_expected_payload_index(field_name, index_info), (
+            field_name
+        )
     assert isinstance(calls["original_id"], models.KeywordIndexParams)
     assert calls["original_id_normalized"].tokenizer == models.TokenizerType.PREFIX
     assert calls["class_name"].tokenizer == models.TokenizerType.WORD

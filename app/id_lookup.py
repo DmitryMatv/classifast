@@ -37,3 +37,14 @@ def normalize_original_id_for_lookup(value: object) -> str:
 
 def reverse_normalized_id(value: str) -> str:
     return value[::-1]
+
+
+# Collection builders and the payload migration both write these fields;
+# startup validation requires their indexes on every configured collection.
+def build_normalized_id_payload(original_id: object) -> dict[str, str]:
+    normalized = normalize_original_id_for_lookup(original_id)
+    return {
+        ORIGINAL_ID_NORMALIZED_FIELD: normalized,
+        ORIGINAL_ID_NORMALIZED_REVERSED_FIELD: reverse_normalized_id(normalized),
+        ORIGINAL_ID_NORMALIZED_KEY_FIELD: normalized,
+    }
