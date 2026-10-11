@@ -38,6 +38,9 @@ as `common.test.ts` does for `ResultCopier`.
 backfills payloads and creates or replaces indexes in configured Qdrant
 collections. Runtime startup must validate Qdrant without creating, replacing,
 or deleting indexes.
+Adding a field to `PAYLOAD_INDEX_FIELDS` makes startup fail on every
+collection that lacks it, so run `apply` against production before deploying
+that code.
 
 ## Project Snapshot
 
