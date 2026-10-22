@@ -33,11 +33,11 @@ from .cache_profiles import (
 from .classification_executor import ClassificationExecutor
 from .classification_service import ClassificationService
 from .qdrant_connection import create_qdrant_client, resolve_qdrant_url
-from .query_enhancer import QueryEnhancer
 from .qdrant_schema import (
     QdrantSchemaValidationError,
     validate_configured_collections,
 )
+from .query_enhancer import QueryEnhancer
 from .reranker import OpenRouterReranker
 from .usage_tracker import (
     REDIS_HOST,
