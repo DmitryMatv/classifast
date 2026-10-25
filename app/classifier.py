@@ -224,7 +224,7 @@ def build_rerank_query_text(
 ) -> str:
     """Format an instruction-following reranker query.
 
-    Voyage rerank-3 supports natural-language instructions in the query
+    Voyage rerank-3-lite supports natural-language instructions in the query
     field. Its documented format places the instruction before a labelled
     query, rather than treating the instruction as a suffix to the query.
     """
