@@ -2,11 +2,13 @@
 """
 Test script to verify title functionality in the embedding API
 """
-import os
+
 import asyncio
+import os
+
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from dotenv import load_dotenv
 
 
 async def test_title_functionality():
@@ -41,7 +43,7 @@ async def test_title_functionality():
             contents=test_texts[:1],
             config=config,
         )
-        print(f"✓ Basic RETRIEVAL_DOCUMENT config works")
+        print("✓ Basic RETRIEVAL_DOCUMENT config works")
         print(f"  Embedding dimension: {len(response.embeddings[0].values)}")
     except Exception as e:
         print(f"✗ Basic RETRIEVAL_DOCUMENT failed: {e}")
@@ -57,7 +59,7 @@ async def test_title_functionality():
             contents=[test_texts[0]],
             config=config_with_title,
         )
-        print(f"✓ RETRIEVAL_DOCUMENT with title works")
+        print("✓ RETRIEVAL_DOCUMENT with title works")
         print(f"  Embedding dimension: {len(response.embeddings[0].values)}")
     except Exception as e:
         print(f"✗ RETRIEVAL_DOCUMENT with title failed: {e}")
@@ -90,7 +92,7 @@ async def test_title_functionality():
 
         # Calculate similarity (dot product)
         similarity = sum(a * b for a, b in zip(emb_no_title, emb_with_title))
-        print(f"✓ Embeddings generated successfully")
+        print("✓ Embeddings generated successfully")
         print(f"  Similarity between embeddings: {similarity:.4f}")
         print(f"  Embeddings are {'identical' if similarity > 0.999 else 'different'}")
 
@@ -119,7 +121,7 @@ async def test_title_functionality():
             texts=test_texts,
         )
 
-        print(f"✓ get_embeddings_batch works")
+        print("✓ get_embeddings_batch works")
         print(f"  With titles: {len(embeddings_with_titles)} embeddings")
         print(f"  Without titles: {len(embeddings_without_titles)} embeddings")
 

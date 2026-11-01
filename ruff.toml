@@ -1,0 +1,8 @@
+# Pyflakes, syntax errors, and import sorting. Ruff 0.17's broader default set
+# reports ~150 findings here; adopting it is a separate cleanup.
+[lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[lint.isort]
+# embedders/ is gitignored; without this, sorting differs when it is absent.
+known-first-party = ["app", "embedders"]

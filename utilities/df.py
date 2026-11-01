@@ -1,6 +1,6 @@
 import os
-import pandas as pd
 
+import pandas as pd
 
 # Define file paths for Excel and Parquet
 excel_file_path = "data/2022-NAICS-Codes-listed-numerically-2-Digit-through-6-Digit.xlsx"  # UNGM_UNSPSC_26-May-2025..xlsx # unspsc-english-v260801.1.xlsx

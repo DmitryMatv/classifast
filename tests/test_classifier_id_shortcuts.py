@@ -71,7 +71,9 @@ class PerformClassificationShortcutTests(unittest.TestCase):
         embedding_mock.assert_not_called()
         semantic_mock.assert_not_called()
 
-    def test_semantic_query_changes_embedding_and_reranking_but_not_id_lookup(self) -> None:
+    def test_semantic_query_changes_embedding_and_reranking_but_not_id_lookup(
+        self,
+    ) -> None:
         semantic_results = [
             {
                 "score": 0.42,
@@ -80,8 +82,12 @@ class PerformClassificationShortcutTests(unittest.TestCase):
             }
         ]
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=([], [])) as exact,
-            patch("app.classifier.perform_partial_id_search", return_value=[]) as partial,
+            patch(
+                "app.classifier.perform_exact_id_search", return_value=([], [])
+            ) as exact,
+            patch(
+                "app.classifier.perform_partial_id_search", return_value=[]
+            ) as partial,
             patch("app.classifier.get_embedding", return_value=[0.1]) as embedding,
             patch(
                 "app.classifier.perform_semantic_search", return_value=semantic_results
@@ -431,9 +437,7 @@ class SameNodeOrderingTests(unittest.TestCase):
                 "app.classifier.perform_exact_id_search",
                 return_value=([], same_node),
             ),
-            patch(
-                "app.classifier.perform_partial_id_search", return_value=prefix
-            ),
+            patch("app.classifier.perform_partial_id_search", return_value=prefix),
             patch("app.classifier.get_embedding", return_value=[0.1, 0.2]),
             patch(
                 "app.classifier.perform_semantic_search",

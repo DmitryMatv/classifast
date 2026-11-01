@@ -324,11 +324,15 @@ class ClassificationContractTests(unittest.TestCase):
         semantic_text = "bolt\n\nThreaded fastener"
         expected = "bolt\n\nThreaded fastener\n\nFind matching codes."
         self.assertEqual(
-            build_query_embedding_text(semantic_text, " Find matching codes. ", QueryFormat.INPUT_FIRST),
+            build_query_embedding_text(
+                semantic_text, " Find matching codes. ", QueryFormat.INPUT_FIRST
+            ),
             expected,
         )
         self.assertEqual(
-            build_rerank_query_text(semantic_text, " Find matching codes. ", QueryFormat.INPUT_FIRST),
+            build_rerank_query_text(
+                semantic_text, " Find matching codes. ", QueryFormat.INPUT_FIRST
+            ),
             expected,
         )
 

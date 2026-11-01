@@ -4,10 +4,10 @@ Test script to debug Cloudflare header issues with RapidAPI
 Usage: python test_cloudflare_headers.py YOUR_RAPIDAPI_KEY
 """
 
-import requests
-import json
-import sys
 import os
+import sys
+
+import requests
 
 
 def test_cloudflare_headers(api_key):
