@@ -91,12 +91,13 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         request.base_url = "http://testserver/"
         request.app.state.redis_client = AsyncMock()
         polar_instance = MagicMock()
+        polar_instance.checkouts.create = AsyncMock()
         polar_instance.checkouts.create.return_value = SimpleNamespace(
             url="https://polar.example/checkout"
         )
         polar_context = MagicMock()
-        polar_context.__enter__.return_value = polar_instance
-        polar_context.__exit__.return_value = None
+        polar_context.__aenter__.return_value = polar_instance
+        polar_context.__aexit__.return_value = None
 
         with (
             patch("app.clerk_auth.CLERK_PERMITTED_ORIGINS", "https://classifast.com"),
@@ -106,7 +107,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
                 clear=False,
             ),
             patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
-            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.payments.PolarAsync", return_value=polar_context),
             patch(
                 "app.payments.get_clerk_user_details",
                 new=AsyncMock(return_value={"email": None, "name": None}),
@@ -206,12 +207,13 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         request.base_url = "http://testserver/"
         request.app.state.redis_client = AsyncMock()
         polar_instance = MagicMock()
+        polar_instance.checkouts.create = AsyncMock()
         polar_instance.checkouts.create.return_value = SimpleNamespace(
             url="https://polar.example/checkout"
         )
         polar_context = MagicMock()
-        polar_context.__enter__.return_value = polar_instance
-        polar_context.__exit__.return_value = None
+        polar_context.__aenter__.return_value = polar_instance
+        polar_context.__aexit__.return_value = None
 
         with (
             patch.dict(
@@ -220,7 +222,7 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
                 clear=False,
             ),
             patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
-            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.payments.PolarAsync", return_value=polar_context),
             patch(
                 "app.payments.get_clerk_user_details",
                 new=AsyncMock(return_value={"email": None, "name": None}),
@@ -281,16 +283,17 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         product = next(iter(MAPPING_PRODUCTS.values()))
         polar_instance = MagicMock()
+        polar_instance.checkouts.create = AsyncMock()
         polar_instance.checkouts.create.return_value = SimpleNamespace(
             url="https://polar.example/checkout"
         )
         polar_context = MagicMock()
-        polar_context.__enter__.return_value = polar_instance
-        polar_context.__exit__.return_value = None
+        polar_context.__aenter__.return_value = polar_instance
+        polar_context.__aexit__.return_value = None
 
         with (
             patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
-            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.payments.PolarAsync", return_value=polar_context),
         ):
             response = await self._post_json(
                 "/api/create-mapping-checkout",
@@ -321,14 +324,15 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         request.base_url = "http://testserver/"
         original_error = RuntimeError("polar create failed")
         polar_instance = MagicMock()
+        polar_instance.checkouts.create = AsyncMock()
         polar_instance.checkouts.create.side_effect = original_error
         polar_context = MagicMock()
-        polar_context.__enter__.return_value = polar_instance
-        polar_context.__exit__.return_value = None
+        polar_context.__aenter__.return_value = polar_instance
+        polar_context.__aexit__.return_value = None
 
         with (
             patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
-            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.payments.PolarAsync", return_value=polar_context),
             patch("app.payments.logger.error") as logger_error_mock,
             self.assertRaises(HTTPException) as ctx,
         ):
@@ -364,16 +368,17 @@ class CheckoutRateLimitTests(unittest.IsolatedAsyncioTestCase):
         pipeline.execute.side_effect = [[1, True], [2, False], [3, False]]
         product = next(iter(MAPPING_PRODUCTS.values()))
         polar_instance = MagicMock()
+        polar_instance.checkouts.create = AsyncMock()
         polar_instance.checkouts.create.return_value = SimpleNamespace(
             url="https://polar.example/checkout"
         )
         polar_context = MagicMock()
-        polar_context.__enter__.return_value = polar_instance
-        polar_context.__exit__.return_value = None
+        polar_context.__aenter__.return_value = polar_instance
+        polar_context.__aexit__.return_value = None
 
         with (
             patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
-            patch("app.payments.Polar", return_value=polar_context),
+            patch("app.payments.PolarAsync", return_value=polar_context),
             patch("app.rate_limit.CHECKOUT_RATE_LIMIT", 2),
         ):
             first = await self._post_mapping_checkout(app, product.slug)

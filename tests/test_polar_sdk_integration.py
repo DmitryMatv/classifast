@@ -253,7 +253,8 @@ def test_checkout_routes_use_real_sdk_request_and_response(payment_app, kind):
 
     with (
         patch(
-            "httpx.Client.send", return_value=httpx.Response(201, json=payload)
+            "httpx.AsyncHTTPTransport.handle_async_request",
+            return_value=httpx.Response(201, json=payload),
         ) as send,
         patch("app.payments.get_clerk_user_details", clerk_details),
     ):
