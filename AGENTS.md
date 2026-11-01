@@ -151,6 +151,10 @@ sources and run `npm run build`.
 - Template `url_for` links render as absolute URLs with the request origin.
   Browser checks should use accessible names or inspect the URL pathname,
   rather than match an exact relative `href`.
+- Write middleware as plain ASGI, as `RequestPolicyMiddleware` in `app/main.py`
+  is. A `BaseHTTPMiddleware` inside GZip streams every response, so GZip
+  compresses bodies under `minimum_size` and removes `Content-Length`.
+  `tests/test_request_validation_and_metadata.py` checks both.
 - `CachedStaticFiles` must not replace the `ETag` that Starlette sets.
   Starlette compares `If-None-Match` with its own ETag inside `file_response`,
   before `CachedStaticFiles.get_response` adds headers. A replaced ETag turns
