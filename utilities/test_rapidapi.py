@@ -4,10 +4,11 @@ Test script for RapidAPI endpoints
 Usage: python test_rapidapi.py
 """
 
-import requests
 import json
-import sys
 import os
+import sys
+
+import requests
 
 # Configuration - adjust these values for your setup
 BASE_URL = "http://localhost:8001/api/v1/rapid"
@@ -120,13 +121,13 @@ def main():
 
     results = []
     for name, test_func in tests:
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"{name}")
         print("=" * 50)
         result = test_func()
         results.append(result)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("📊 SUMMARY")
     print("=" * 50)
     for i, (name, _) in enumerate(tests):

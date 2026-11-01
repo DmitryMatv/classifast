@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import httpx
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from polar.v2026_10 import Polar
+from polar.v2026_10 import PolarAsync
 from polar.v2026_10.outputs import Subscription
 from polar.v2026_10.webhooks import (
     PolarWebhookError,
@@ -193,9 +193,8 @@ async def create_checkout(
         # Fetch user details from Clerk to pre-fill checkout form
         user_details = await get_clerk_user_details(user_id)
 
-        # Initialize Polar SDK
-        with Polar(access_token=POLAR_ACCESS_TOKEN) as polar:
-            checkout = polar.checkouts.create(
+        async with PolarAsync(access_token=POLAR_ACCESS_TOKEN) as polar:
+            checkout = await polar.checkouts.create(
                 products=[product_id],
                 metadata={"user_id": user_id},
                 success_url=success_url,
@@ -207,8 +206,8 @@ async def create_checkout(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error creating checkout: {e}")
+    except Exception:
+        logger.exception("Error creating checkout")
         raise HTTPException(status_code=500, detail="Failed to create checkout")
 
 
@@ -238,8 +237,8 @@ async def create_mapping_checkout(request: Request):
         separator = "&" if "?" in success_url else "?"
         success_url += f"{separator}checkout=success"
 
-        with Polar(access_token=POLAR_ACCESS_TOKEN) as polar:
-            checkout = polar.checkouts.create(
+        async with PolarAsync(access_token=POLAR_ACCESS_TOKEN) as polar:
+            checkout = await polar.checkouts.create(
                 products=[product.polar_product_id],
                 metadata={
                     "mapping_slug": product.slug,

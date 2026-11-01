@@ -43,7 +43,11 @@ collection that lacks it, so run `apply` against production before deploying
 that code.
 Collection builders in `embedders/` must write `build_normalized_id_payload()`
 from `app/id_lookup.py` into each point and create every `PAYLOAD_INDEX_FIELDS`
-index with `get_payload_index_schema()`. Only EMDN has a tracked test for this.
+index with `get_payload_index_schema()`.
+`tests/test_embedder_payload_contract.py` checks every builder present in
+`embedders/` and skips one whose third-party imports are not installed. For
+example, `embedder_remote_UNSPSC_OR.py` needs `openai`, which
+`requirements-dev.txt` does not include.
 
 ## Project Snapshot
 
@@ -113,6 +117,10 @@ sources and run `npm run build`.
   `CF-Connecting-IP`; `app/google_crawlers.py` requires the explicit
   `GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP` opt-in. Pick one policy deliberately
   for new IP-dependent code.
+- Never grant access based on `request.client.host`. The Dockerfile runs
+  uvicorn with `--forwarded-allow-ips "*"`, so that value is the leftmost
+  `X-Forwarded-For` entry, which the caller controls. Crawler verification
+  reads only `CF-Connecting-IP` and fails closed without it.
 - `paywall.ts` is wrapped in a parse guard on purpose (class declarations
   re-execute on bfcache/history-restore re-parsing). Do not remove the guard.
 - HTMX 4 history restore preserves `document.body` and replaces its children.
@@ -151,6 +159,10 @@ sources and run `npm run build`.
 - Template `url_for` links render as absolute URLs with the request origin.
   Browser checks should use accessible names or inspect the URL pathname,
   rather than match an exact relative `href`.
+- Write middleware as plain ASGI, as `RequestPolicyMiddleware` in `app/main.py`
+  is. A `BaseHTTPMiddleware` inside GZip streams every response, so GZip
+  compresses bodies under `minimum_size` and removes `Content-Length`.
+  `tests/test_request_validation_and_metadata.py` checks both.
 - `CachedStaticFiles` must not replace the `ETag` that Starlette sets.
   Starlette compares `If-None-Match` with its own ETag inside `file_response`,
   before `CachedStaticFiles.get_response` adds headers. A replaced ETag turns

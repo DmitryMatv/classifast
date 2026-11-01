@@ -271,7 +271,7 @@ def get_embedding(
     Raises:
         HTTPException: If embedding generation fails
     """
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     try:
         logger.debug(
@@ -280,7 +280,7 @@ def get_embedding(
             embed_dims,
         )
 
-        api_start = time.time()
+        api_start = time.perf_counter()
         retry = _build_embedding_retry(max_seconds)
         if embed_dims is None:
             response = retry(
@@ -295,7 +295,7 @@ def get_embedding(
                 model=model_name,
                 dimensions=embed_dims,
             )
-        api_duration = time.time() - api_start
+        api_duration = time.perf_counter() - api_start
         logger.debug("Hugging Face embedding call: %.3fs", api_duration)
 
         embedding_vector = _coerce_embedding_response(response)
@@ -308,7 +308,7 @@ def get_embedding(
         return embedding_vector
 
     except Exception as e:
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
         logger.error("Embedding generation failed: %s (%.3fs elapsed)", e, elapsed)
         raise HTTPException(
             status_code=500, detail="Failed to generate embedding for classification"
@@ -350,7 +350,7 @@ def perform_semantic_search(
     Returns:
         List of semantic search results with confidence scores
     """
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     try:
         # Prepare search parameters
@@ -367,7 +367,7 @@ def perform_semantic_search(
                 oversampling=3.0,
             )
 
-        query_start = time.time()
+        query_start = time.perf_counter()
         search_result = qdrant_client.query_points(
             collection_name=collection_name,
             query=query_embedding,
@@ -377,7 +377,7 @@ def perform_semantic_search(
             with_vectors=False,
             search_params=search_params,
         )
-        query_duration = time.time() - query_start
+        query_duration = time.perf_counter() - query_start
         logger.debug(
             "Qdrant semantic search: %.3fs, collection=%s, top_k=%d, exact=%s, found=%d results",
             query_duration,
@@ -390,7 +390,7 @@ def perform_semantic_search(
         return [_point_result(hit, hit.score) for hit in search_result.points]
 
     except Exception as e:
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
         logger.error("Semantic search failed: %s (%.3fs elapsed)", e, elapsed)
         raise HTTPException(
             status_code=500, detail="Semantic search failed. Please try again."
@@ -1046,7 +1046,7 @@ def prepare_classification(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("Classification error for '%s': %s", context.classifier_type, exc)
+        logger.exception("Classification error for '%s'", context.classifier_type)
         raise HTTPException(status_code=500, detail="Error processing request") from exc
 
 
@@ -1131,8 +1131,8 @@ def complete_classification(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("Classification error for '%s': %s", context.classifier_type, e)
+    except Exception:
+        logger.exception("Classification error for '%s'", context.classifier_type)
         raise HTTPException(status_code=500, detail="Error processing request")
 
 

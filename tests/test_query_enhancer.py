@@ -1,5 +1,5 @@
-import unittest
 import json
+import unittest
 
 import httpx
 
@@ -19,9 +19,7 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(
                 200,
                 json={
-                    "choices": [
-                        {"message": {"content": "  Threaded metal fastener  "}}
-                    ]
+                    "choices": [{"message": {"content": "  Threaded metal fastener  "}}]
                 },
             )
 
@@ -83,12 +81,12 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
             requests.append(request)
             return httpx.Response(
                 200,
-                json={"choices": [{"message": {"content": "A threaded metal fastener"}}]},
+                json={
+                    "choices": [{"message": {"content": "A threaded metal fastener"}}]
+                },
             )
 
-        async with httpx.AsyncClient(
-            transport=httpx.MockTransport(respond)
-        ) as client:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             enhancer = QueryEnhancer("test-key", client=client)
             for query in ("bolt 123 mm", "M8 bolt"):
                 self.assertIs(
@@ -107,9 +105,7 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
                 json={"choices": [{"message": {"content": "A common product term"}}]},
             )
 
-        async with httpx.AsyncClient(
-            transport=httpx.MockTransport(respond)
-        ) as client:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             enhancer = QueryEnhancer("test-key", client=client)
             for query in ("3D", "B2B"):
                 outcome = await enhancer.enhance(query, "UNSPSC")
@@ -121,11 +117,7 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
             transport=httpx.MockTransport(
                 lambda request: httpx.Response(
                     200,
-                    json={
-                        "choices": [
-                            {"message": {"content": "Threaded fastener …"}}
-                        ]
-                    },
+                    json={"choices": [{"message": {"content": "Threaded fastener …"}}]},
                 )
             )
         ) as client:

@@ -58,7 +58,9 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
             "payload": {"class_name": "Bolts"},
         }
         with (
-            patch("app.classifier.perform_exact_id_search", return_value=([], [])) as exact,
+            patch(
+                "app.classifier.perform_exact_id_search", return_value=([], [])
+            ) as exact,
             patch("app.classifier.perform_partial_id_search", return_value=[]),
             patch("app.classifier.get_embedding", return_value=[0.1]) as embedding,
             patch(

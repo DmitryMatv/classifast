@@ -1,6 +1,7 @@
-import httpx
 import unittest
 from unittest.mock import AsyncMock, patch
+
+import httpx
 
 from app.clerk_auth import (
     ClerkAuthenticationError,
@@ -9,8 +10,8 @@ from app.clerk_auth import (
     authenticate_clerk_token_local,
     authenticate_clerk_token_with_session,
     decode_and_verify_clerk_jwt,
-    verify_clerk_session_active,
     should_validate_clerk_azp,
+    verify_clerk_session_active,
 )
 
 

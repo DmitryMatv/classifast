@@ -9,13 +9,12 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from starlette.templating import _TemplateResponse
 
-from app.cache_profiles import CacheProfile
-
 from .cache_profiles import (
     HTML_PAGE,
     NO_STORE,
     STATIC_MEDIA,
     STATIC_TEXT,
+    CacheProfile,
     build_cache_headers,
 )
 from .classification_executor import ClassificationQueueFull
@@ -92,6 +91,10 @@ def get_sample_cache_profile(sample_path: str) -> CacheProfile:
     if sample_path.endswith(".csv"):
         return STATIC_TEXT
     return STATIC_MEDIA
+
+
+def _query_suffix(request: Request) -> str:
+    return f"?{request.url.query}" if request.url.query else ""
 
 
 def _get_redis_client(request: Request):
@@ -196,18 +199,12 @@ async def read_root(request: Request):
 
 @router.get("/mapping", include_in_schema=False)
 @router.head("/mapping", include_in_schema=False)
-async def redirect_mapping_index_no_slash(request: Request):
-    query_string = f"?{request.url.query}" if request.url.query else ""
-    return RedirectResponse(url=f"/mapping/{query_string}", status_code=301)
-
-
 @router.get("/mappings", include_in_schema=False)
 @router.head("/mappings", include_in_schema=False)
 @router.get("/mappings/", include_in_schema=False)
 @router.head("/mappings/", include_in_schema=False)
-async def redirect_legacy_mapping_index(request: Request):
-    query_string = f"?{request.url.query}" if request.url.query else ""
-    return RedirectResponse(url=f"/mapping/{query_string}", status_code=301)
+async def redirect_mapping_index(request: Request):
+    return RedirectResponse(url=f"/mapping/{_query_suffix(request)}", status_code=301)
 
 
 @router.get("/mapping/", response_class=HTMLResponse)
@@ -235,27 +232,16 @@ async def show_mapping_index(request: Request):
 
 @router.get("/mapping/{slug}", include_in_schema=False)
 @router.head("/mapping/{slug}", include_in_schema=False)
-async def redirect_mapping_product_no_slash(slug: str, request: Request):
-    product = get_mapping_product(slug)
-    if not product:
-        raise HTTPException(status_code=404, detail="Mapping product not found")
-    query_string = f"?{request.url.query}" if request.url.query else ""
-    return RedirectResponse(
-        url=f"/mapping/{product.slug}/{query_string}", status_code=301
-    )
-
-
 @router.get("/mappings/{slug}", include_in_schema=False)
 @router.head("/mappings/{slug}", include_in_schema=False)
 @router.get("/mappings/{slug}/", include_in_schema=False)
 @router.head("/mappings/{slug}/", include_in_schema=False)
-async def redirect_legacy_mapping_product(slug: str, request: Request):
+async def redirect_mapping_product(slug: str, request: Request):
     product = get_mapping_product(slug)
     if not product:
         raise HTTPException(status_code=404, detail="Mapping product not found")
-    query_string = f"?{request.url.query}" if request.url.query else ""
     return RedirectResponse(
-        url=f"/mapping/{product.slug}/{query_string}", status_code=301
+        url=f"/mapping/{product.slug}/{_query_suffix(request)}", status_code=301
     )
 
 
@@ -330,8 +316,9 @@ async def redirect_classifier_page_no_slash(classifier_type: str, request: Reque
             detail=f"Classifier '{classifier_type}' is no longer available",
         )
     if upper_type in CLASSIFIER_CONFIG:
-        query_string = f"?{request.url.query}" if request.url.query else ""
-        return RedirectResponse(url=f"/{upper_type}/{query_string}", status_code=301)
+        return RedirectResponse(
+            url=f"/{upper_type}/{_query_suffix(request)}", status_code=301
+        )
     raise HTTPException(status_code=404, detail=f"Type '{classifier_type}' not found")
 
 
@@ -422,8 +409,8 @@ async def get_classification_fragment(
             **build_cache_headers(NO_STORE),
         }
         raise
-    except Exception as e:
-        logger.error("Error during '%s' fragment classification: %s", upper_type, e)
+    except Exception:
+        logger.exception("Error during '%s' fragment classification", upper_type)
         raise HTTPException(
             status_code=500,
             detail="Error processing request",
