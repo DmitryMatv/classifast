@@ -18,8 +18,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from huggingface_hub import InferenceClient
 from qdrant_client import QdrantClient
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.datastructures import URL, MutableHeaders, QueryParams
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from . import api, payments, web
 from .cache_profiles import (
@@ -300,22 +300,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-# Performance monitoring middleware
-class PerformanceMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        start_time = time.time()
-        response = await call_next(request)
-        process_time = time.time() - start_time
-        response.headers["X-Process-Time"] = str(process_time)
-        return response
-
-
-app.add_middleware(PerformanceMiddleware)
-
-
-# Add Gzip compression middleware, excluding sitemap.xml and robots.txt
-# Googlebot may not handle gzipped sitemaps properly
-GZIP_EXCLUDED_PATHS = frozenset({"/sitemap.xml", "/robots.txt", "/llms.txt"})
+# Gzip excludes sitemap.xml and robots.txt because Googlebot may not handle
+# gzipped sitemaps properly.
+GZIP_EXCLUDED_PATHS = frozenset({"/sitemap.xml", "/robots.txt"})
 
 
 class GZipMiddlewareExcludingSitemap(GZipMiddleware):
@@ -332,83 +319,53 @@ class GZipMiddlewareExcludingSitemap(GZipMiddleware):
             await super().__call__(scope, receive, send)
 
 
-app.add_middleware(GZipMiddlewareExcludingSitemap, minimum_size=1000)
+SPAM_SIGNATURES = (
+    "cfRLUnblockHandlers",
+    "UnblockHandlers",
+    "copyOriginalId",
+)
 
+ATTACK_PATTERNS = re.compile(
+    r"(%25){3,}"  # Triple+ encoded % signs
+    r"|"
+    r"(\d{2,4})\1{15,}"  # 15+ repetitions of a 2-4 digit pattern
+    r"|"
+    r"\d{50,}"  # 50+ consecutive digits
+    r"|"
+    r"%3c%3c|%3e%3e"  # HTML injection attempts
+    r"|"
+    r"(?<![a-zA-Z0-9])[0-9A-Fa-f]{64,}(?![a-zA-Z0-9])"  # 64+ hex chars at word boundaries
+)
 
-# URL Encoding Validation Middleware
-class URLEncodingValidationMiddleware(BaseHTTPMiddleware):
-    _spam_signatures = [
-        "cfRLUnblockHandlers",
-        "UnblockHandlers",
-        "copyOriginalId",
-    ]
-
-    _attack_patterns = re.compile(
-        r"(%25){3,}"  # Triple+ encoded % signs
-        r"|"  # OR
-        r"(\d{2,4})\1{15,}"  # 15+ repetitions of 2-4 digit pattern (removed unnecessary grouping)
-        r"|"  # OR
-        r"\d{50,}"  # 50+ consecutive digits
-        r"|"  # OR
-        r"%3c%3c|%3e%3e"  # HTML injection attempts
-        r"|"  # OR
-        r"(?<![a-zA-Z0-9])[0-9A-Fa-f]{64,}(?![a-zA-Z0-9])"  # 64+ hex chars at word boundaries (catches excessively long hex strings)
-    )
-
-    async def dispatch(self, request: Request, call_next):
-        decoded_values = (
-            list(request.query_params.values()) if request.query_params else []
-        )
-
-        # Length checks should count the raw URL once so oversized keys and encoded
-        # query text are still bounded without double-counting decoded values.
-        length_checked_content = "".join(
-            [request.url.path or "", request.url.query or ""]
-        )
-        if length_checked_content and len(length_checked_content) > 4000:
-            logger.warning(
-                "Suspicious URL encoding detected: %s...",
-                length_checked_content[:100],
-            )
-            return self._create_error_response()
-
-        pattern_checked_content = "".join(
-            [request.url.path or "", request.url.query or "", *decoded_values]
-        )
-
-        # Check for attack patterns
-        if self._attack_patterns.search(pattern_checked_content):
-            logger.warning(
-                "Suspicious pattern detected: %s...", pattern_checked_content[:100]
-            )
-            return self._create_error_response()
-
-        # Check for known spam signatures (Cloudflare bypass attempts)
-        for sig in self._spam_signatures:
-            if sig in pattern_checked_content:
-                logger.warning("Known spam signature detected: %s...", sig)
-                return self._create_error_response()
-
-        response = await call_next(request)
-        return response
-
-    def _create_error_response(self) -> JSONResponse:
-        """Create standardized error response"""
-        return JSONResponse(
-            status_code=400,
-            content={
-                "detail": "Request rejected due to suspicious URL encoding patterns",
-                "error": "INVALID_ENCODING",
-            },
-        )
-
-
-app.add_middleware(URLEncodingValidationMiddleware)
-
-
-# Query Parameter Normalization Middleware
 QUERY_WHITESPACE_RE = re.compile(r"\s+")
 QUERY_COMPONENT_EXTRA_SAFE_CHARS = "()*,:"
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-XSS-Protection": "0",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Content-Security-Policy": (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com; "
+        "script-src-elem 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com; "
+        "worker-src 'self' blob:; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; "
+        "img-src 'self' data: https: https://*.googleapis.com https://*.gstatic.com https://*.clerk.com https://clerk.classifast.com; "
+        "font-src 'self' https://fonts.gstatic.com https://*.googleapis.com https://*.gstatic.com; "
+        "connect-src 'self' https: https://*.clerk.com https://accounts.google.com https://accounts.google.com/gsi/ https://*.googleapis.com https://challenges.cloudflare.com; "
+        "frame-src 'self' https://accounts.google.com https://challenges.cloudflare.com; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "manifest-src 'self'; "
+        "object-src 'none'; "
+        "frame-ancestors 'none'; "
+        "upgrade-insecure-requests;"
+    ),
+}
 
 
 def _normalize_query_value(value: str) -> str:
@@ -473,69 +430,91 @@ def _build_canonical_url(request_url: str, canonical_query: str) -> str:
     )
 
 
-def _query_redirect_response(canonical_url: str) -> Response:
-    return Response(status_code=308, headers={"Location": canonical_url})
+def _rejected_url_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": "Request rejected due to suspicious URL encoding patterns",
+            "error": "INVALID_ENCODING",
+        },
+    )
 
 
-class QueryNormalizationMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        """Normalize query parameters by stripping whitespace and redirect to canonical URL."""
-        query_items = list(request.query_params.multi_items())
-        normalized_items, needs_redirect = _normalize_query_items(query_items)
+def _policy_response(url: URL, query_params: QueryParams) -> Response | None:
+    """Return the response that replaces this request, or None to route it."""
+    normalized_items, needs_redirect = _normalize_query_items(
+        list(query_params.multi_items())
+    )
+    if needs_redirect:
+        canonical_query = _build_canonical_query(normalized_items)
+        canonical_url = _build_canonical_url(str(url), canonical_query)
+        logger.info("Redirecting to normalized URL for path: %s", url.path)
+        return Response(status_code=308, headers={"Location": canonical_url})
 
-        if needs_redirect:
-            canonical_query = _build_canonical_query(normalized_items)
-            canonical_url = _build_canonical_url(str(request.url), canonical_query)
-            logger.info("Redirecting to normalized URL for path: %s", request.url.path)
-            return _query_redirect_response(canonical_url)
-
-        return await call_next(request)
-
-
-app.add_middleware(QueryNormalizationMiddleware)
-
-
-# Security Headers Middleware
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-
-        # Set security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
+    # Count the raw URL once so oversized keys and encoded query text are
+    # bounded without double-counting decoded values.
+    length_checked_content = (url.path or "") + (url.query or "")
+    if len(length_checked_content) > 4000:
+        logger.warning(
+            "Suspicious URL encoding detected: %s...",
+            length_checked_content[:100],
         )
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = (
-            "geolocation=(), microphone=(), camera=()"
+        return _rejected_url_response()
+
+    pattern_checked_content = "".join(
+        [url.path or "", url.query or "", *query_params.values()]
+    )
+    if ATTACK_PATTERNS.search(pattern_checked_content):
+        logger.warning(
+            "Suspicious pattern detected: %s...", pattern_checked_content[:100]
         )
+        return _rejected_url_response()
 
-        # Hardened CSP following Google's recommendations and best practices
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com https://ajax.cloudflare.com; "
-            "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com https://static.cloudflareinsights.com https://*.clerk.com https://clerk.classifast.com https://accounts.google.com https://challenges.cloudflare.com https://ajax.cloudflare.com; "
-            "worker-src 'self' blob:; "
-            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; "
-            "style-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; "
-            "img-src 'self' data: https: https://*.googleapis.com https://*.gstatic.com https://*.clerk.com https://clerk.classifast.com; "
-            "font-src 'self' https://fonts.gstatic.com https://*.googleapis.com https://*.gstatic.com; "
-            "connect-src 'self' https: https://*.clerk.com https://accounts.google.com https://accounts.google.com/gsi/ https://*.googleapis.com https://challenges.cloudflare.com; "
-            "frame-src 'self' https://accounts.google.com https://challenges.cloudflare.com; "
-            "base-uri 'self'; "
-            "form-action 'self'; "
-            "manifest-src 'self'; "
-            "object-src 'none'; "
-            "frame-ancestors 'none'; "
-            "upgrade-insecure-requests;"
+    for signature in SPAM_SIGNATURES:
+        if signature in pattern_checked_content:
+            logger.warning("Known spam signature detected: %s...", signature)
+            return _rejected_url_response()
+
+    return None
+
+
+class RequestPolicyMiddleware:
+    """Redirect or reject non-canonical URLs, then stamp response headers.
+
+    Every response gets the security headers. Only routed responses get
+    X-Process-Time.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        policy_response = _policy_response(
+            URL(scope=scope), QueryParams(scope["query_string"])
         )
+        if policy_response is not None:
+            policy_response.headers.update(SECURITY_HEADERS)
+            await policy_response(scope, receive, send)
+            return
 
-        return response
+        start_time = time.perf_counter()
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Process-Time"] = str(time.perf_counter() - start_time)
+                headers.update(SECURITY_HEADERS)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
-app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(GZipMiddlewareExcludingSitemap, minimum_size=1000)
+app.add_middleware(RequestPolicyMiddleware)
 
 
 # Mount static files with cache-profile-based browser and Cloudflare TTLs.

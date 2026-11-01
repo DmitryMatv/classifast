@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.classifier_config import CLASSIFIER_CONFIG
-from app.main import QueryNormalizationMiddleware, URLEncodingValidationMiddleware
+from app.main import RequestPolicyMiddleware
 from app.web import router
 from tests.helpers import build_classification_service
 
@@ -18,7 +18,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 
 def _build_middleware_test_app() -> FastAPI:
     app = FastAPI()
-    app.add_middleware(URLEncodingValidationMiddleware)
+    app.add_middleware(RequestPolicyMiddleware)
 
     @app.get("/echo")
     async def echo(request: Request):
@@ -29,7 +29,7 @@ def _build_middleware_test_app() -> FastAPI:
 
 def _build_query_normalization_test_app() -> FastAPI:
     app = FastAPI()
-    app.add_middleware(QueryNormalizationMiddleware)
+    app.add_middleware(RequestPolicyMiddleware)
 
     @app.get("/echo")
     async def echo(request: Request):
@@ -172,6 +172,55 @@ class QueryNormalizationMiddlewareTests(unittest.IsolatedAsyncioTestCase):
             response.json()["query"],
             "product_description=pump&push_url=false&top_k=30",
         )
+
+
+class RequestPolicyStackTests(unittest.IsolatedAsyncioTestCase):
+    async def _get(self, url: str) -> httpx.Response:
+        from app.main import app
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(url)
+
+    def assert_security_headers(self, response: httpx.Response) -> None:
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+        self.assertIn(
+            "frame-ancestors 'none'", response.headers["Content-Security-Policy"]
+        )
+
+    async def test_routed_responses_get_security_and_timing_headers(self):
+        for url, status in (("/robots.txt", 200), ("/NOPE/", 404)):
+            with self.subTest(url=url):
+                response = await self._get(url)
+                self.assertEqual(response.status_code, status)
+                self.assert_security_headers(response)
+                float(response.headers["X-Process-Time"])
+
+    async def test_rejected_and_redirected_urls_get_security_headers_only(self):
+        for url, status in (
+            ("/robots.txt?q=%25%25%25", 400),
+            ("/robots.txt?q=a%20%20b", 308),
+        ):
+            with self.subTest(url=url):
+                response = await self._get(url)
+                self.assertEqual(response.status_code, status)
+                self.assert_security_headers(response)
+                self.assertNotIn("X-Process-Time", response.headers)
+
+    async def test_small_responses_keep_length_and_skip_gzip(self):
+        response = await self._get("/NOPE/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn("Content-Encoding", response.headers)
+        self.assertEqual(response.headers["Content-Length"], str(len(response.content)))
+
+    async def test_whitespace_redirect_runs_before_url_screening(self):
+        response = await self._get("/robots.txt?q=%20a%20%20%25%25%25")
+
+        self.assertEqual(response.status_code, 308)
 
 
 class ClassifierPageMetadataTests(unittest.IsolatedAsyncioTestCase):
