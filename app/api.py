@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import logging
 import os
 import time
@@ -65,7 +66,7 @@ def verify_rapidapi_auth(request: Request) -> bool:
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    if proxy_secret != RAPIDAPI_SECRET:
+    if not hmac.compare_digest(proxy_secret.encode(), RAPIDAPI_SECRET.encode()):
         logger.warning("Invalid RapidAPI proxy secret received")
         raise HTTPException(status_code=401, detail="Invalid authentication")
 
