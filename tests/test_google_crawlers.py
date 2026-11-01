@@ -5,6 +5,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app import google_crawlers
 from app.google_crawlers import (
@@ -347,3 +352,57 @@ class GoogleCrawlerVerificationTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GoogleCrawlerProxyStackTests(unittest.IsolatedAsyncioTestCase):
+    """Run verification behind uvicorn's proxy middleware as the Dockerfile does."""
+
+    def setUp(self) -> None:
+        google_crawlers._cached_networks = None
+        google_crawlers._cached_at = 0.0
+
+    async def _verify_behind_proxy(self, headers: dict[str, str]) -> bool:
+        async def endpoint(request: Request) -> PlainTextResponse:
+            verified = await is_verified_google_search_crawler_request(request)
+            return PlainTextResponse(str(verified))
+
+        app = ProxyHeadersMiddleware(
+            Starlette(routes=[Route("/", endpoint)]), trusted_hosts="*"
+        )
+        with patch(
+            "app.google_crawlers._get_google_common_crawler_networks",
+            new=AsyncMock(return_value=[ipaddress.ip_network("66.249.64.0/19")]),
+        ):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+            ) as client:
+                response = await client.get(
+                    "/",
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)",
+                        **headers,
+                    },
+                )
+        return response.text == "True"
+
+    async def test_spoofed_forwarded_for_is_not_verified(self) -> None:
+        spoofed = {"X-Forwarded-For": "66.249.66.1, 203.0.113.9"}
+        for trust in ("false", "true"):
+            with (
+                self.subTest(trust_cf_connecting_ip=trust),
+                patch.dict(
+                    os.environ, {"GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP": trust}
+                ),
+            ):
+                self.assertFalse(await self._verify_behind_proxy(spoofed))
+
+    async def test_trusted_cloudflare_client_ip_is_verified(self) -> None:
+        with patch.dict(os.environ, {"GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP": "true"}):
+            verified = await self._verify_behind_proxy(
+                {
+                    "CF-Connecting-IP": "66.249.66.1",
+                    "X-Forwarded-For": "66.249.66.1, 172.70.1.1",
+                }
+            )
+
+        self.assertTrue(verified)
