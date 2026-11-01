@@ -113,6 +113,10 @@ sources and run `npm run build`.
   `CF-Connecting-IP`; `app/google_crawlers.py` requires the explicit
   `GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP` opt-in. Pick one policy deliberately
   for new IP-dependent code.
+- Never grant access based on `request.client.host`. The Dockerfile runs
+  uvicorn with `--forwarded-allow-ips "*"`, so that value is the leftmost
+  `X-Forwarded-For` entry, which the caller controls. Crawler verification
+  reads only `CF-Connecting-IP` and fails closed without it.
 - `paywall.ts` is wrapped in a parse guard on purpose (class declarations
   re-execute on bfcache/history-restore re-parsing). Do not remove the guard.
 - HTMX 4 history restore preserves `document.body` and replaces its children.

@@ -76,15 +76,15 @@ def _has_supported_google_user_agent(user_agent: str) -> bool:
     return any(token in user_agent for token in SUPPORTED_GOOGLE_CRAWLER_TOKENS)
 
 
-def _get_client_ip(request: Request) -> str:
+def _get_client_ip(request: Request) -> str | None:
     # CF-Connecting-IP is trustworthy only when direct origin access is blocked.
     # Application code cannot establish that infrastructure property, so require
     # an explicit deployment opt-in before treating the header as authoritative.
-    if _trust_cloudflare_connecting_ip():
-        cf_ip = request.headers.get("cf-connecting-ip")
-        if cf_ip:
-            return cf_ip
-    return request.client.host if request.client else "unknown"
+    # Never fall back to request.client.host: uvicorn runs with
+    # --forwarded-allow-ips "*", so it is the caller's X-Forwarded-For value.
+    if not _trust_cloudflare_connecting_ip():
+        return None
+    return request.headers.get("cf-connecting-ip")
 
 
 def _parse_google_crawler_networks(payload: dict[str, object]) -> list[IPNetwork]:
@@ -168,8 +168,11 @@ async def is_verified_google_search_crawler_request(request: Request) -> bool:
     if not _has_supported_google_user_agent(user_agent):
         return False
 
+    raw_client_ip = _get_client_ip(request)
+    if raw_client_ip is None:
+        return False
     try:
-        client_ip = ipaddress.ip_address(_get_client_ip(request))
+        client_ip = ipaddress.ip_address(raw_client_ip)
     except ValueError:
         return False
 

@@ -139,7 +139,7 @@ class GoogleCrawlerVerificationTests(unittest.IsolatedAsyncioTestCase):
             verified = await is_verified_google_search_crawler_request(request)
 
         self.assertFalse(verified)
-        ranges_mock.assert_awaited_once()
+        ranges_mock.assert_not_awaited()
 
     async def test_cloudflare_header_is_ignored_without_explicit_trust(self) -> None:
         request = _build_request(
@@ -158,9 +158,11 @@ class GoogleCrawlerVerificationTests(unittest.IsolatedAsyncioTestCase):
             verified = await is_verified_google_search_crawler_request(request)
 
         self.assertFalse(verified)
-        ranges_mock.assert_awaited_once()
+        ranges_mock.assert_not_awaited()
 
-    async def test_peer_ip_is_used_when_cloudflare_header_is_missing(self) -> None:
+    async def test_google_peer_ip_is_not_trusted_without_cloudflare_header(
+        self,
+    ) -> None:
         request = _build_request(
             user_agent="Googlebot/2.1 (+http://www.google.com/bot.html)",
             client_ip=None,
@@ -173,8 +175,8 @@ class GoogleCrawlerVerificationTests(unittest.IsolatedAsyncioTestCase):
         ) as ranges_mock:
             verified = await is_verified_google_search_crawler_request(request)
 
-        self.assertTrue(verified)
-        ranges_mock.assert_awaited_once()
+        self.assertFalse(verified)
+        ranges_mock.assert_not_awaited()
 
     async def test_normal_browser_user_agent_does_not_fetch_ranges(self) -> None:
         request = _build_request(
