@@ -206,8 +206,8 @@ async def create_checkout(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error creating checkout: {e}")
+    except Exception:
+        logger.exception("Error creating checkout")
         raise HTTPException(status_code=500, detail="Failed to create checkout")
 
 

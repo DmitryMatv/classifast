@@ -163,8 +163,8 @@ async def rapid_classify(
         ) from exc
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("RapidAPI classification error: %s", e)
+    except Exception:
+        logger.exception("RapidAPI classification error")
         raise HTTPException(status_code=500, detail="Classification failed")
 
 

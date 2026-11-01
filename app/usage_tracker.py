@@ -135,7 +135,7 @@ def get_or_create_tracking_id(request: Request) -> tuple[str, bool]:
         except ValueError:
             pass
     new_id = str(uuid.uuid4())
-    logger.info(f"Created new tracking ID: {new_id}")
+    logger.debug("Created new tracking ID: %s", new_id)
     return new_id, True
 
 
@@ -216,7 +216,7 @@ async def extract_from_session_cookie(
 
 async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
     """Fetch current tier directly from Clerk API and classify the result."""
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     clerk_secret = os.getenv("CLERK_SECRET_KEY")
     if not clerk_secret or not user_id:
@@ -225,7 +225,7 @@ async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            api_start = time.time()
+            api_start = time.perf_counter()
             response = await client.get(
                 f"https://api.clerk.com/v1/users/{user_id}",
                 headers={
@@ -233,7 +233,7 @@ async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
                     "Clerk-API-Version": "2025-11-10",
                 },
             )
-            api_duration = time.time() - api_start
+            api_duration = time.perf_counter() - api_start
             logger.debug(
                 "Clerk API tier check: %.3fs, user_id=%s, status=%d",
                 api_duration,
@@ -263,15 +263,15 @@ async def fetch_clerk_user_tier(user_id: str) -> TierResolution:
             )
             return TierResolution(status="explicit_negative")
     except (httpx.TimeoutException, httpx.RequestError) as e:
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
         logger.warning(f"Failed to fetch tier from Clerk API: {e} ({elapsed:.3f}s)")
         return TierResolution(status="transient_unavailable")
     except (ValueError, KeyError, TypeError) as e:
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
         logger.warning(f"Failed to parse tier from Clerk API: {e} ({elapsed:.3f}s)")
         return TierResolution(status="explicit_negative")
     except Exception as e:  # Fallback for unexpected errors
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
         logger.error(f"Unexpected error fetching tier from Clerk: {e} ({elapsed:.3f}s)")
         return TierResolution(status="explicit_negative")
 
@@ -328,7 +328,7 @@ async def get_cached_user_tier(
     Preserve the distinction between confirmed non-Pro, explicit negatives,
     and transient outages so JWT Pro hints only fail open for infrastructure issues.
     """
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     if not user_id:
         return TierResolution(status="explicit_negative")
@@ -364,7 +364,7 @@ async def get_cached_user_tier(
         except (redis.RedisError, ValueError):
             pass
 
-    total_elapsed = time.time() - start_time
+    total_elapsed = time.perf_counter() - start_time
     logger.info(
         "Tier check completed: %.3fs, user_id=%s, status=%s, tier=%s",
         total_elapsed,

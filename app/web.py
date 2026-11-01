@@ -409,8 +409,8 @@ async def get_classification_fragment(
             **build_cache_headers(NO_STORE),
         }
         raise
-    except Exception as e:
-        logger.error("Error during '%s' fragment classification: %s", upper_type, e)
+    except Exception:
+        logger.exception("Error during '%s' fragment classification", upper_type)
         raise HTTPException(
             status_code=500,
             detail="Error processing request",
