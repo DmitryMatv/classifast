@@ -43,7 +43,11 @@ collection that lacks it, so run `apply` against production before deploying
 that code.
 Collection builders in `embedders/` must write `build_normalized_id_payload()`
 from `app/id_lookup.py` into each point and create every `PAYLOAD_INDEX_FIELDS`
-index with `get_payload_index_schema()`. Only EMDN has a tracked test for this.
+index with `get_payload_index_schema()`.
+`tests/test_embedder_payload_contract.py` checks every builder present in
+`embedders/` and skips one whose third-party imports are not installed. For
+example, `embedder_remote_UNSPSC_OR.py` needs `openai`, which
+`requirements-dev.txt` does not include.
 
 ## Project Snapshot
 
