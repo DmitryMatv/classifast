@@ -326,7 +326,7 @@ SPAM_SIGNATURES = (
 )
 
 ATTACK_PATTERNS = re.compile(
-    r"(%25){3,}"  # Triple+ encoded % signs
+    r"(?:%25){3,}"  # Triple+ encoded % signs
     r"|"
     r"(\d{2,4})\1{15,}"  # 15+ repetitions of a 2-4 digit pattern
     r"|"

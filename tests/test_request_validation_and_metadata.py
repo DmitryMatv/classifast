@@ -101,6 +101,36 @@ class RequestValidationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"], "INVALID_ENCODING")
 
+    async def test_repeated_digit_block_is_rejected(self):
+        transport = httpx.ASGITransport(app=self.app)
+        # 32 and 48 digits stay under the separate 50-digit rule. A path is
+        # used because a trailing query value is checked twice back to back,
+        # which doubles its digit run.
+        repeated_blocks = ["12" * 16, "123" * 16]
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            for block in repeated_blocks:
+                with self.subTest(block=block):
+                    response = await client.get(f"/echo/{block}")
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.json()["error"], "INVALID_ENCODING")
+
+    async def test_short_digit_sequences_are_not_rejected(self):
+        transport = httpx.ASGITransport(app=self.app)
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            for query in ["43211503", "2024-01-15", "1212121212"]:
+                with self.subTest(query=query):
+                    response = await client.get("/echo", params={"q": query})
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.json()["q"], query)
+
     async def test_cloudflare_bypass_spam_is_blocked(self):
         transport = httpx.ASGITransport(app=self.app)
 
