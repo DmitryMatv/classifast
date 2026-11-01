@@ -12,7 +12,6 @@ from typing import Any
 from urllib.parse import quote, quote_from_bytes, urlencode, urlparse, urlunparse
 
 import redis.asyncio as redis
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -67,8 +66,6 @@ handler = logging.StreamHandler()
 handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 
 @dataclass

@@ -44,13 +44,14 @@ def group_original_id_tokens(original_id: object) -> list[dict[str, object]]:
 
 
 # Setup Jinja2 templates
-templates = Jinja2Templates(directory="app/templates")
+APP_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=APP_DIR / "templates")
 templates.env.filters["group_original_id_tokens"] = group_original_id_tokens
 
 # Content-hash versioning for static assets. Appending ?v=<hash> to built
 # js/css URLs keeps Cloudflare's cache key per deploy, so freshly deployed
 # bundles are fetched instead of serving stale code against new HTML.
-_STATIC_DIR = Path("app/static")
+_STATIC_DIR = APP_DIR / "static"
 _ASSET_VERSION_LENGTH = 10
 _asset_version_cache: dict[str, str] = {}
 
