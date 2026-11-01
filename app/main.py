@@ -546,10 +546,8 @@ def get_static_cache_profile(path: str) -> CacheProfile:
     """Map a static asset path to the cache profile used for the response."""
     if path.endswith((".png", ".jpg", ".ico", ".pdf", ".zip", ".xlsx")):
         return STATIC_MEDIA
-    if path.endswith((".css", ".js", ".min.js")):
+    if path.endswith((".css", ".js")):
         return STATIC_CODE
-    if path.endswith(".csv"):
-        return STATIC_TEXT
     return STATIC_TEXT
 
 
@@ -598,11 +596,6 @@ async def robots_txt():
 @app.get("/sitemap.xml", response_class=FileResponse)
 async def sitemap_xml():
     return static_file_response("sitemap.xml", cache_profile=STATIC_TEXT)
-
-
-@app.get("/llms.txt", response_class=FileResponse)
-async def llms_txt():
-    return static_file_response("llms.txt", cache_profile=STATIC_TEXT)
 
 
 # Healthcheck
