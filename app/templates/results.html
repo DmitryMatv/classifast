@@ -1,5 +1,5 @@
 {% if query %}
-<section aria-labelledby="results-heading">
+<section aria-labelledby="results-heading" data-results-section data-query="{{ query | e }}" data-classifier="{{ classifier_type | default('') | e }}">
     <figure class="mb-2" hidden> <!-- Unhide for debug -->
         <figcaption id="results-heading" class="font-semibold">Results for:</figcaption>
         <pre
@@ -17,7 +17,23 @@
         set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | round(2)
         if result.score is not none else 0)
         -%}
-        <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem">
+        {% if base_url and base_url.strip() %}
+        {% set code_for_url = result.payload.original_id.replace('.', '') if 'NACE' in request.url.path
+        else result.payload.original_id %}
+        {% set detail_url = base_url ~ (code_for_url if append_code_to_url else '') ~
+        (code_url_suffix | default('')) %}
+        {% else %}
+        {% set detail_url = '' %}
+        {% endif %}
+        <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem"
+            data-classification-result
+            data-code="{{ result.payload.original_id | e }}"
+            data-name="{{ result.payload.class_name | default('') | e }}"
+            data-score="{{ '%.2f'|format(score_pct) }}"
+            data-score-raw="{{ result.score if result.score is not none else 0 }}"
+            data-definition="{{ result.payload.definition | default('') | e }}"
+            {% if result.payload.id_level %}data-level="{{ result.payload.id_level | e }}"{% endif %}
+            {% if detail_url %}data-url="{{ detail_url | e }}"{% endif %}>
             <div class="absolute inset-y-0 left-0 score-bar" data-score-bar
                 data-score-width="{{ '%.2f'|format(score_pct) }}"></div>
             <div class="relative p-3">
@@ -118,12 +134,39 @@
         </p>
     </div>
 
-    <!-- Share Button -->
-    <div class="mt-8">
+    <!-- Share and Export Buttons -->
+    <div class="mt-8 flex flex-wrap items-center gap-3">
         <button type="button" id="share-button"
-            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-8 py-2 rounded text-base transition-colors duration-150 ease-in-out transform"
+            class="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-6 py-2 rounded text-base transition-colors duration-150 ease-in-out transform cursor-pointer"
             title="Copy shareable link to clipboard">
             Copy link
+        </button>
+        <button type="button" data-export-action="csv"
+            class="inline-flex items-center gap-1.5 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-semibold px-4 py-2 rounded text-base transition-colors duration-150 ease-in-out cursor-pointer shadow-xs"
+            title="Export results to CSV"
+            aria-label="Export classification results as CSV">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="inline align-middle relative -top-0.5 lucide lucide-download">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
+            <span>Export CSV</span>
+        </button>
+        <button type="button" data-export-action="json"
+            class="inline-flex items-center gap-1.5 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-semibold px-4 py-2 rounded text-base transition-colors duration-150 ease-in-out cursor-pointer shadow-xs"
+            title="Export results to JSON"
+            aria-label="Export classification results as JSON">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="inline align-middle relative -top-0.5 lucide lucide-file-code">
+                <path d="M10 12.5 8 15l2 2.5" />
+                <path d="m14 12.5 2 2.5-2 2.5" />
+                <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+            </svg>
+            <span>Export JSON</span>
         </button>
     </div>
     {% elif results_loaded | default(false) %}
