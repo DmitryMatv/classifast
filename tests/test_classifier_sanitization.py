@@ -399,6 +399,48 @@ class ClassificationContractTests(unittest.TestCase):
         self.assertTrue(all(item["score"] != 0.0 for item in result))
         self.assertTrue(all("rerank_relevance_score" not in item for item in result))
 
+    def test_rerank_documents_use_payload_context(self) -> None:
+        from app.classifier import _default_rerank_document
+
+        cases = {
+            "plain": (
+                {"class_name": "Pumps", "definition": "Devices that move fluids."},
+                "Pumps - Definition: Devices that move fluids.",
+            ),
+            "etim": (
+                {
+                    "class_name": "Electric strike for doors",
+                    "definition": "An electromechanical locking device.",
+                    "parent_group_name": "Electric strikes",
+                    "synonyms": "['Door code opener', 'Electric strike for doors', 'Door code opener']",
+                },
+                "Electric strike for doors - Group: Electric strikes - "
+                "Also known as: Door code opener - "
+                "Definition: An electromechanical locking device.",
+            ),
+            "emdn": (
+                {
+                    "class_name": "PYRUVATE",
+                    "definition": "IN VITRO DIAGNOSTIC MEDICAL DEVICES > REAGENTS",
+                    "hierarchy": "Category: IN VITRO DIAGNOSTIC MEDICAL DEVICES",
+                },
+                "PYRUVATE - Hierarchy: IN VITRO DIAGNOSTIC MEDICAL DEVICES > REAGENTS",
+            ),
+            "definition only": (
+                {"definition": "Live horses -> Other"},
+                "Live horses -> Other",
+            ),
+            "malformed synonyms": (
+                {"class_name": "Valve", "synonyms": "not a list"},
+                "Valve",
+            ),
+        }
+        for name, (payload, expected) in cases.items():
+            with self.subTest(name):
+                self.assertEqual(
+                    _default_rerank_document({"payload": payload}), expected
+                )
+
     def test_rerank_wraps_query_instruction_and_limits_response(self) -> None:
         semantic_results = [
             {

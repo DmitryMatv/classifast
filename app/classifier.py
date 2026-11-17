@@ -1,3 +1,4 @@
+import ast
 import logging
 import os
 import re
@@ -576,16 +577,46 @@ def _split_rerank_candidates(
     return candidates_to_rerank, remaining_candidates
 
 
+def _payload_synonyms(payload: dict[str, Any], class_name: str) -> list[str]:
+    """Return synonyms other than the class name.
+
+    ETIM payloads store synonyms as the string form of a Python list.
+    """
+    raw = payload.get("synonyms")
+    if isinstance(raw, str):
+        try:
+            raw = ast.literal_eval(raw)
+        except (ValueError, SyntaxError):
+            return []
+    if not isinstance(raw, (list, tuple)):
+        return []
+    excluded = class_name.casefold()
+    synonyms = []
+    for synonym in raw:
+        text = str(synonym).strip()
+        if text and text.casefold() != excluded and text not in synonyms:
+            synonyms.append(text)
+    return synonyms
+
+
 def _default_rerank_document(candidate: dict[str, Any]) -> str:
     payload = candidate.get("payload", {})
     class_name = payload.get("class_name", "")
     definition = payload.get("definition", "")
 
-    if class_name and definition:
-        return f"{class_name} - Definition: {definition}"
+    if not class_name:
+        return definition or ""
+
+    parts = [class_name]
+    if group := payload.get("parent_group_name"):
+        parts.append(f"Group: {group}")
+    if synonyms := _payload_synonyms(payload, class_name):
+        parts.append(f"Also known as: {'; '.join(synonyms)}")
     if definition:
-        return definition
-    return class_name or ""
+        # EMDN stores the ancestor path in ``definition`` and sets ``hierarchy``.
+        label = "Hierarchy" if "hierarchy" in payload else "Definition"
+        parts.append(f"{label}: {definition}")
+    return " - ".join(parts)
 
 
 def _build_rerank_documents(
