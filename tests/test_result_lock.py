@@ -9,7 +9,7 @@ from tests.test_web_helpers import _build_test_app
 RANKED_NAMES = ["Rank one pumps", "Rank two valves", "Rank three hoses", "Rank four"]
 
 
-def _classification_result() -> dict:
+def _classification_result(scores=(0.9, 0.8, 0.7, 0.6)) -> dict:
     return {
         "results": [
             {
@@ -21,7 +21,7 @@ def _classification_result() -> dict:
                 },
             }
             for rank, (name, score) in enumerate(
-                zip(RANKED_NAMES, [0.9, 0.8, 0.7, 0.6]), start=1
+                zip(RANKED_NAMES, scores), start=1
             )
         ],
         "version_config": {"base_url": "", "tooltip": ""},
@@ -53,8 +53,10 @@ class ResultLockFragmentTests(unittest.IsolatedAsyncioTestCase):
         self.resolve_caller = patch(
             "app.web.resolve_signed_in_caller", new=AsyncMock(return_value=None)
         ).start()
-        classify = patch("app.classification_service.perform_classification").start()
-        classify.return_value = _classification_result()
+        self.classify = patch(
+            "app.classification_service.perform_classification"
+        ).start()
+        self.classify.return_value = _classification_result()
 
     async def _request_fragment(self, **extra_params: str) -> httpx.Response:
         transport = httpx.ASGITransport(app=self.app)
@@ -88,6 +90,21 @@ class ResultLockFragmentTests(unittest.IsolatedAsyncioTestCase):
         self.check_usage.assert_not_awaited()
         self.reserve_usage.assert_not_awaited()
         self.resolve_caller.assert_not_awaited()
+
+    async def test_lock_cards_show_the_gap_to_the_top_match_when_it_is_close(
+        self,
+    ) -> None:
+        self.classify.return_value = _classification_result((0.741, 0.676, 0.5, 0.4))
+
+        response = await self._request_fragment()
+
+        self.assertIn("Only 6.5 points behind #1.", response.text)
+        self.assertEqual(response.text.count("points behind"), 1)
+        self.assertIn(
+            "Check it with Pro before you rely on the top match.", response.text
+        )
+        self.assertIn('aria-label="Unlock result #2 with Pro"', response.text)
+        self.assertIn('aria-label="Unlock result #3 with Pro"', response.text)
 
     async def test_pro_unlock_shows_every_rank_and_is_not_cached(self) -> None:
         self.resolve_caller.return_value = SignedInCaller(user_id="u1", is_pro=True)
