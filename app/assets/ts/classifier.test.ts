@@ -213,6 +213,25 @@ describe("classifier.ts", () => {
     expect(makeRequest().has("unlock")).toBe(false);
   });
 
+  it("requests unlocked results when a stale page already shows lock cards", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    form.dataset.resultLock = "false";
+    const clerk = window.Clerk;
+    if (!clerk) throw new Error("Missing Clerk");
+    clerk.user = { id: "user_123" };
+    const results = document.getElementById("results-container");
+    if (!results) throw new Error("Missing results container");
+    results.innerHTML = "<div data-result-lock></div>";
+
+    const detail = createConfigRequestDetail(form);
+    document.body.dispatchEvent(
+      new CustomEvent("htmx:config:request", { detail, bubbles: true }),
+    );
+
+    expect(detail.ctx.request.body.get("unlock")).toBe("1");
+  });
+
   it("restores the beta switch from a shared URL on browser navigation", async () => {
     await import("./classifier");
     const enhancementSwitch = document.getElementById(

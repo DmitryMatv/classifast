@@ -235,6 +235,28 @@ describe("paywall.ts", () => {
     expect(unlock.textContent).toContain("Error - Try again");
   });
 
+  it("reruns the lookup instead of checkout when a Pro user signs in from a lock card", async () => {
+    const target = document.getElementById("results-container");
+    if (!target) throw new Error("Missing results target");
+    target.innerHTML = LOCKED_RESULTS;
+    await initialize();
+    const unlock = target.querySelector("[data-upgrade-button]");
+    if (!(unlock instanceof HTMLButtonElement)) throw new Error("Missing unlock");
+
+    unlock.click();
+    expect(window.Clerk?.openSignIn).toHaveBeenCalledTimes(1);
+    notify(
+      { id: "user_123", publicMetadata: { tier: "pro" } },
+      { getToken: vi.fn(async () => "token") },
+    );
+    await flush();
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(form().requestSubmit).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.length).toBe(0);
+    expect(unlock.disabled).toBe(false);
+  });
+
   it("keeps checking activation until results arrive without locked ranks", async () => {
     window.__checkoutReturnUrl = "http://localhost:3000/?checkout=success";
     await initialize();

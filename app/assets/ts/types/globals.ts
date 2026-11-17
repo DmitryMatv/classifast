@@ -96,6 +96,7 @@ declare global {
     lastName?: string;
     emailAddresses?: Array<{ emailAddress: string }>;
     imageUrl?: string;
+    publicMetadata?: { tier?: unknown };
   }
 
   interface ClerkListenerPayload {

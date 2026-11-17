@@ -590,7 +590,10 @@ class ClassifierPage {
         } else {
           htmxEvent.detail.ctx.request.body.delete("enhance_query");
         }
-        if (form.dataset.resultLock === "true" && window.Clerk?.user) {
+        const resultLockActive =
+          form.dataset.resultLock === "true" ||
+          !!document.querySelector("#results-container [data-result-lock]");
+        if (resultLockActive && window.Clerk?.user) {
           htmxEvent.detail.ctx.request.body.set("unlock", "1");
         } else {
           htmxEvent.detail.ctx.request.body.delete("unlock");

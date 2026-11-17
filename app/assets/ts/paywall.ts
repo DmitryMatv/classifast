@@ -345,6 +345,11 @@ if (!window.__paywallScriptParsed) {
         this.recovery
       )
         return;
+      if (user.publicMetadata?.tier === "pro") {
+        this.clearUpgrade();
+        ClerkHelpers.submitForm();
+        return;
+      }
       const operation = {
         kind: "creating",
         returnUrl,

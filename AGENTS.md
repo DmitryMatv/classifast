@@ -119,8 +119,10 @@ sources and run `npm run build`.
   contains them. Signed-in users request `unlock=1`, and the server returns
   every rank only to Pro callers. Every `unlock=1` response is `no-store` under
   any flag state, because the CDN cache key ignores `Authorization`. Toggling
-  the flag leaves old fragments in Cloudflare for up to 7 days and in browsers
-  for up to a day; purge Cache-Tag `classification-results` after a toggle.
+  the flag leaves old fragments and pages in Cloudflare and browsers, so purge
+  everything in Cloudflare after a toggle. A browser can keep a stale page for
+  about an hour; on it, lock cards already on screen still trigger `unlock=1`.
+  An Unlock click from a Pro user reruns the lookup instead of opening checkout.
 - Two client-IP trust policies coexist: `app/usage_tracker.py` always trusts
   `CF-Connecting-IP`; `app/google_crawlers.py` requires the explicit
   `GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP` opt-in. Pick one policy deliberately
