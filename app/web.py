@@ -21,6 +21,7 @@ from .classification_executor import ClassificationQueueFull
 from .classifier_config import CLASSIFIER_CONFIG
 from .classifier_page_delivery import (
     REMOVED_CLASSIFIER_TYPES,
+    RESULT_LOCK_ENABLED,
     build_classification_results_context,
     build_classifier_canonical_url,
     build_classifier_page_context,
@@ -348,6 +349,7 @@ async def get_classification_fragment(
     push_url: bool | None = Query(None),
     url_change: bool | None = Query(None),
     enhance_query: str | None = Query(None),
+    unlock: str | None = Query(None),
 ):
     """
     GET endpoint for retrieving classification results as an HTML fragment.
@@ -355,6 +357,7 @@ async def get_classification_fragment(
     """
     normalized_description = normalize_product_description(product_description)
     enhancement_enabled = enhance_query == "1"
+    unlock_requested = unlock == "1"
     upper_type, config = get_classifier_or_404(classifier_type)
     version, top_k, default_version = resolve_classifier_options(
         config,
@@ -385,8 +388,17 @@ async def get_classification_fragment(
     if not normalized_description:
         return render_empty_results_fragment(request, normalized_description)
 
+    unlocked = False
     try:
-        authorize = await _prepare_quota_reservation(request)
+        if RESULT_LOCK_ENABLED:
+            authorize = None
+            if unlock_requested:
+                caller = await resolve_signed_in_caller(
+                    request, _get_redis_client(request)
+                )
+                unlocked = caller is not None and caller.is_pro
+        else:
+            authorize = await _prepare_quota_reservation(request)
         outcome = await request.app.state.classification_service.classify(
             classifier_type=upper_type,
             query=normalized_description,
@@ -421,6 +433,7 @@ async def get_classification_fragment(
         outcome=outcome,
         classifier_type=upper_type,
         query=normalized_description,
+        unlocked=unlocked,
     )
     page_title = (
         build_fragment_page_title(upper_type, normalized_description)
@@ -430,7 +443,12 @@ async def get_classification_fragment(
     response = render_classification_results_fragment(
         request, results_context, page_title, push_url, new_url
     )
-    if results_context.get("enhancement_status") is EnhancementStatus.FAILED:
+    # The CDN cache key ignores Authorization, so per-caller unlock responses
+    # must never be stored under any flag state.
+    if (
+        unlock_requested
+        or results_context.get("enhancement_status") is EnhancementStatus.FAILED
+    ):
         response.headers.update(build_cache_headers(NO_STORE))
 
     return response

@@ -590,6 +590,11 @@ class ClassifierPage {
         } else {
           htmxEvent.detail.ctx.request.body.delete("enhance_query");
         }
+        if (form.dataset.resultLock === "true" && window.Clerk?.user) {
+          htmxEvent.detail.ctx.request.body.set("unlock", "1");
+        } else {
+          htmxEvent.detail.ctx.request.body.delete("unlock");
+        }
 
         if (!this.pendingAutoloadRequestConfig) {
           return;

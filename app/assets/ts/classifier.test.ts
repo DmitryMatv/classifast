@@ -192,6 +192,27 @@ describe("classifier.ts", () => {
     expect(makeRequest().has("enhance_query")).toBe(false);
   });
 
+  it("requests unlocked results only for signed-in users on locked pages", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const makeRequest = () => {
+      const detail = createConfigRequestDetail(form);
+      document.body.dispatchEvent(
+        new CustomEvent("htmx:config:request", { detail, bubbles: true }),
+      );
+      return detail.ctx.request.body;
+    };
+    const clerk = window.Clerk;
+    if (!clerk) throw new Error("Missing Clerk");
+
+    form.dataset.resultLock = "true";
+    expect(makeRequest().has("unlock")).toBe(false);
+    clerk.user = { id: "user_123" };
+    expect(makeRequest().get("unlock")).toBe("1");
+    form.dataset.resultLock = "false";
+    expect(makeRequest().has("unlock")).toBe(false);
+  });
+
   it("restores the beta switch from a shared URL on browser navigation", async () => {
     await import("./classifier");
     const enhancementSwitch = document.getElementById(
