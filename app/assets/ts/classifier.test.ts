@@ -213,7 +213,7 @@ describe("classifier.ts", () => {
     expect(makeRequest().has("unlock")).toBe(false);
   });
 
-  it("requests unlocked results when a stale page already shows lock cards", async () => {
+  it("keeps requesting unlocked results after a stale page shows lock cards", async () => {
     await import("./classifier");
     const form = getClassifierForm();
     form.dataset.resultLock = "false";
@@ -224,12 +224,17 @@ describe("classifier.ts", () => {
     if (!results) throw new Error("Missing results container");
     results.innerHTML = "<div data-result-lock></div>";
 
-    const detail = createConfigRequestDetail(form);
-    document.body.dispatchEvent(
-      new CustomEvent("htmx:config:request", { detail, bubbles: true }),
-    );
+    const makeRequest = () => {
+      const detail = createConfigRequestDetail(form);
+      document.body.dispatchEvent(
+        new CustomEvent("htmx:config:request", { detail, bubbles: true }),
+      );
+      return detail.ctx.request.body;
+    };
 
-    expect(detail.ctx.request.body.get("unlock")).toBe("1");
+    expect(makeRequest().get("unlock")).toBe("1");
+    results.innerHTML = "<ul><li>Every rank</li></ul>";
+    expect(makeRequest().get("unlock")).toBe("1");
   });
 
   it("restores the beta switch from a shared URL on browser navigation", async () => {

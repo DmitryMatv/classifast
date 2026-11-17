@@ -121,7 +121,8 @@ sources and run `npm run build`.
   any flag state, because the CDN cache key ignores `Authorization`. Toggling
   the flag leaves old fragments and pages in Cloudflare and browsers, so purge
   everything in Cloudflare after a toggle. A browser can keep a stale page for
-  about an hour; on it, lock cards already on screen still trigger `unlock=1`.
+  about an hour; on it, the first lock cards seen switch the form to `unlock=1`
+  for the rest of that page.
   An Unlock click from a Pro user reruns the lookup instead of opening checkout.
 - Two client-IP trust policies coexist: `app/usage_tracker.py` always trusts
   `CF-Connecting-IP`; `app/google_crawlers.py` requires the explicit
