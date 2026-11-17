@@ -3,6 +3,7 @@ import unittest
 
 import httpx
 
+from app.classifier_config import CLASSIFIER_CONFIG
 from app.query_enhancer import (
     QUERY_ENHANCEMENT_MODEL,
     EnhancementStatus,
@@ -31,11 +32,52 @@ class QueryEnhancerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result.status, EnhancementStatus.APPLIED)
         self.assertEqual(len(requests), 1)
         self.assertEqual(requests[0].url.path, "/api/v1/chat/completions")
-        self.assertEqual(requests[0].read().decode().count(QUERY_ENHANCEMENT_MODEL), 1)
-        messages = json.loads(requests[0].read())["messages"]
-        self.assertEqual(len(messages), 1)
-        self.assertEqual(messages[0]["role"], "user")
-        self.assertTrue(messages[0]["content"].startswith("bolt\n\nFor a UNSPSC"))
+        body = json.loads(requests[0].read())
+        self.assertEqual(body["model"], QUERY_ENHANCEMENT_MODEL)
+        self.assertEqual(body["reasoning"], {"effort": "none"})
+        self.assertNotIn("temperature", body)
+        system, user = body["messages"]
+        self.assertEqual(system["role"], "system")
+        self.assertIn("UNSPSC classification", system["content"])
+        self.assertIn("a purchased product or service", system["content"])
+        self.assertEqual(user, {"role": "user", "content": "bolt"})
+
+    async def test_system_prompt_uses_the_classifier_subject(self) -> None:
+        requests = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200, json={"choices": [{"message": {"content": "Pet grooming"}}]}
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            enhancer = QueryEnhancer("test-key", client=client)
+            await enhancer.enhance("dog grooming", "naics")
+
+        system = json.loads(requests[0].read())["messages"][0]["content"]
+        self.assertIn("NAICS classification", system)
+        self.assertIn("a business or the economic activity it performs", system)
+
+    def test_every_classifier_has_a_query_subject(self) -> None:
+        for classifier_type, config in CLASSIFIER_CONFIG.items():
+            with self.subTest(classifier_type=classifier_type):
+                self.assertTrue(config["query_subject"].strip())
+
+    async def test_no_description_replies_are_skipped(self) -> None:
+        for reply in ("NONE", "None.", '""', "''"):
+            with self.subTest(reply=reply):
+                async with httpx.AsyncClient(
+                    transport=httpx.MockTransport(
+                        lambda request: httpx.Response(
+                            200, json={"choices": [{"message": {"content": reply}}]}
+                        )
+                    )
+                ) as client:
+                    enhancer = QueryEnhancer("test-key", client=client)
+                    outcome = await enhancer.enhance("bolt", "UNSPSC")
+                self.assertEqual(outcome.text, "bolt")
+                self.assertIs(outcome.status, EnhancementStatus.SKIPPED)
 
     async def test_failures_and_invalid_output_keep_original(self) -> None:
         for response, status in (

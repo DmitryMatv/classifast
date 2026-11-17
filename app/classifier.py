@@ -203,17 +203,15 @@ class QueryFormat(Enum):
     INPUT_FIRST = "input_first"
 
 
-def build_query_embedding_text(
-    query: str,
-    instruction: Optional[str],
-    query_format: QueryFormat = QueryFormat.LEGACY,
-) -> str:
-    """Format a Qwen3 embedding query with its task instruction."""
+def build_query_embedding_text(query: str, instruction: Optional[str]) -> str:
+    """Format a Qwen3 embedding query with its task instruction.
+
+    Qwen3-Embedding is trained on ``Instruct: {task}\nQuery:{query}``. An
+    expanded query keeps its description inside the ``Query:`` part.
+    """
     instruction_text = instruction.strip() if instruction else ""
     if not instruction_text:
         return query
-    if query_format is QueryFormat.INPUT_FIRST:
-        return f"{query}\n\n{instruction_text}"
     return f"Instruct: {instruction_text}\nQuery:{query}"
 
 
@@ -931,12 +929,10 @@ def _run_semantic_classification_search(
     search_exact: bool,
     embed_max_seconds: Optional[float] = None,
     semantic_query: Optional[str] = None,
-    query_format: QueryFormat = QueryFormat.LEGACY,
 ) -> list[dict[str, Any]]:
     embedding_text = build_query_embedding_text(
         semantic_query or context.normalized_query,
         context.config.get("query_instruction"),
-        query_format,
     )
     query_embedding = get_embedding(
         embed_client=embed_client,
@@ -1106,7 +1102,6 @@ def complete_classification(
             search_exact=search_exact,
             embed_max_seconds=outbound_deadline - time.monotonic(),
             semantic_query=semantic_query,
-            query_format=query_format,
         )
         filtered_semantic = _exclude_id_match_results(semantic_results, partial_results)
         ranked_semantic = _rank_semantic_results(

@@ -41,7 +41,9 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
         embedding.assert_not_called()
         enhancer.enhance.assert_not_awaited()
 
-    async def test_beta_miss_formats_only_applied_description_input_first(self) -> None:
+    async def test_beta_miss_embeds_description_in_template_and_reranks_input_first(
+        self,
+    ) -> None:
         query = "bolt"
         semantic = "bolt\n\nA threaded fastener"
         config = CLASSIFIER_CONFIG["UNSPSC"]
@@ -74,7 +76,7 @@ class ClassificationServiceContractTests(unittest.IsolatedAsyncioTestCase):
         enhancer.enhance.assert_awaited_once_with(query, "UNSPSC")
         self.assertEqual(
             embedding.call_args.kwargs["text"],
-            f"{semantic}\n\n{config['query_instruction']}",
+            f"Instruct: {config['query_instruction']}\nQuery:{semantic}",
         )
         self.assertEqual(
             reranker.rerank.call_args.args[0],

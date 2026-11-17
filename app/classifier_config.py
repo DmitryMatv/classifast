@@ -7,37 +7,151 @@ DEFAULT_EMBEDDING_MODEL = os.getenv(
 )
 DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "2048"))
 
-# 'Given a web search query, retrieve relevant passages that answer the query'
-DEFAULT_QUERY_INSTRUCTION = "Given a text description, retrieve the most relevant taxonomy entry that directly and specifically classifies it. Prefer exact functional, industry, material, or use-case matches over broad parent categories, and do not infer unsupported details."
+# Query instructions follow the Qwen3-Embedding task pattern
+# ("Given a web search query, retrieve relevant passages that answer the query"):
+# name the kind of query and the kind of entry to retrieve. Documents are
+# embedded without an instruction. Ranking rules belong in the reranker
+# instructions below, since an embedding cannot apply them.
 
-
-DEFAULT_RERANK_INSTRUCTION = (
-    "Prioritize the taxonomy entry that most directly and specifically classifies the text description. "
-    "Favor exact functional, industry, material, and use-case matches over broad parent categories. "
-    "Penalize candidates that require unsupported inferences."
+ETIM_QUERY_INSTRUCTION = (
+    "Given a B2B technical product listing, retrieve the ETIM class that describes the type of product. "
+    "The product's function and technical features identify the class."
 )
 
 UNSPSC_QUERY_INSTRUCTION = (
-    "Retrieve the most relevant UNSPSC entry that directly and specifically classifies the given product or service description. "
-    "Prefer commodity-level matches when available; avoid broad segment or family matches. Do not infer unsupported details."
+    "Given a description of a purchased product or service, retrieve the UNSPSC commodity that names it. "
+    "Commodities are the most detailed UNSPSC level."
 )
 
-UNSPSC_RERANK_INSTRUCTION = (
-    "Prioritize the UNSPSC entry that most directly and specifically classifies the product or service description. "
-    "Favor commodity-level matches over broad segment or family matches. "
-    "Penalize candidates that require unsupported inferences."
+GPC_QUERY_INSTRUCTION = (
+    "Given a trade item description, retrieve the GS1 GPC brick that categorizes the product. "
+    "What the item essentially is and its intended use identify the brick."
 )
 
 EMDN_QUERY_INSTRUCTION = (
-    "Retrieve the most relevant terminal EMDN term that directly and specifically describes the given medical device. "
-    "Match its intended purpose, device type, design, materials, and clinical application, using hierarchy context to distinguish similar terms. "
-    "Do not infer unsupported characteristics."
+    "Given a medical device description, retrieve the terminal EMDN term that names its device type and intended purpose. "
+    "Use hierarchy context, design, materials, and clinical application to separate similar terms."
+)
+
+NAICS_QUERY_INSTRUCTION = (
+    "Given a description of a business or its activity, retrieve the NAICS industry that covers that activity. "
+    "Manufacturing, wholesale, retail, and services are separate industries."
+)
+
+ISIC_QUERY_INSTRUCTION = (
+    "Given a description of a business or economic activity, retrieve the ISIC class that covers that activity. "
+    "Growing or extracting, manufacturing, trade, and services are separate classes."
+)
+
+NACE_QUERY_INSTRUCTION = (
+    "Given a description of a business or economic activity, retrieve the NACE class that covers that activity. "
+    "Growing or extracting, manufacturing, trade, and services are separate classes."
+)
+
+HS_QUERY_INSTRUCTION = (
+    "Given a description of traded goods, retrieve the HS subheading that classifies them for customs. "
+    "Material, processing state, and function identify the subheading."
+)
+
+CN_QUERY_INSTRUCTION = (
+    "Given a description of traded goods, retrieve the EU Combined Nomenclature code that classifies them for customs. "
+    "Material, processing state, and function identify the code."
+)
+
+HTS_QUERY_INSTRUCTION = (
+    "Given a description of goods imported into the United States, retrieve the HTS tariff line that classifies them. "
+    "Material, processing state, and function identify the line."
+)
+
+CPV_QUERY_INSTRUCTION = "Given a description of what a public buyer purchases, retrieve the CPV code that names those supplies, works, or services."
+
+NSN_QUERY_INSTRUCTION = "Given a supply item description, retrieve NATO Stock Number items of the same type and specification."
+
+# Reranker instructions follow the instruction-following reranker pattern
+# (Voyage rerank-2.5+): state what the documents are, who writes the queries,
+# and which entry should win. Rerankers without instruction support (such as
+# Cohere Rerank 5) read this text as part of the query.
+
+ETIM_RERANK_INSTRUCTION = (
+    "Documents are ETIM classes for technical products such as electrical, lighting, HVAC, plumbing, and building equipment. "
+    "Queries are B2B product listings, often with part numbers, brands, and ratings. "
+    "Rank highest the class for the product type itself, judged by its function and technical features, not its brand or model number."
+)
+
+UNSPSC_RERANK_INSTRUCTION = (
+    "Documents are UNSPSC entries, mostly commodities, used to classify purchases and spend. "
+    "Queries describe a purchased product or service, often with brand or model names. "
+    "Rank highest the commodity that names exactly this kind of product or service. "
+    "Rank broad family or class entries lower, and also parts or accessories of the item unless the query itself is a part or accessory."
+)
+
+GPC_RERANK_INSTRUCTION = (
+    "Documents are GS1 GPC bricks, the product categories used in retail and supplier catalogs. "
+    "Queries are trade item descriptions, often with brand, size, or pack details. "
+    "Rank highest the brick for what the item essentially is and its intended use, not its brand or packaging."
 )
 
 EMDN_RERANK_INSTRUCTION = (
-    "Prioritize the terminal EMDN term that most directly and specifically describes the medical device, using its title and ancestor hierarchy. "
-    "Favor exact intended-purpose, device-type, design, material, and clinical-application matches. "
-    "Penalize candidates that require unsupported inferences."
+    "Documents are terminal EMDN terms for medical devices, each shown with its ancestor hierarchy. "
+    "Queries are device descriptions from manufacturers registering medical devices in the EU. "
+    "Rank highest the term that matches the device type, intended purpose, and clinical application; "
+    "use design and material details to choose between similar terms."
+)
+
+NAICS_RERANK_INSTRUCTION = (
+    "Documents are NAICS 2022 entries at every level, from 2-digit sectors to 6-digit national industries. "
+    "Queries describe a business or the activity it performs. "
+    "Rank highest the most detailed industry that covers the main activity, and match its kind: "
+    "manufacturing, wholesale, retail, and services are separate industries. Rank broader parent entries lower."
+)
+
+ISIC_RERANK_INSTRUCTION = (
+    "Documents are ISIC classes, the most detailed level of the UN classification of economic activities, with their inclusion notes. "
+    "Queries describe a business or the activity it performs. "
+    "Rank highest the class for the main activity, and match its kind: "
+    "growing or extracting, manufacturing, trade, and services are separate classes."
+)
+
+NACE_RERANK_INSTRUCTION = (
+    "Documents are NACE Rev. 2.1 classes, the most detailed level of the EU classification of economic activities, with their inclusion notes. "
+    "Queries describe a business or the activity it performs. "
+    "Rank highest the class for the main activity, and match its kind: "
+    "growing or extracting, manufacturing, trade, and services are separate classes."
+)
+
+HS_RERANK_INSTRUCTION = (
+    "Documents are 6-digit Harmonized System subheadings used for customs classification. "
+    "Queries describe traded goods. "
+    "Rank highest the subheading that covers the goods as traded: their material, processing state "
+    "(such as fresh, frozen, or prepared), and function. "
+    "Rank parts, accessories, and related goods lower unless the query describes them."
+)
+
+CN_RERANK_INSTRUCTION = (
+    "Documents are 8-digit EU Combined Nomenclature codes with their full customs descriptions. "
+    "Queries describe goods in EU import, export, or intra-EU trade. "
+    "Rank highest the code that covers the goods as traded: their material, processing state "
+    "(such as fresh, frozen, or prepared), and function. "
+    "Country of origin and brand names do not affect the code."
+)
+
+HTS_RERANK_INSTRUCTION = (
+    "Documents are 10-digit US Harmonized Tariff Schedule lines, each shown as a path of descriptions "
+    "from the heading down to the line; 'Other' covers goods not named by its sibling lines. "
+    "Queries describe goods imported into the United States. "
+    "Rank highest the line whose full path covers the goods as traded: their material, processing state, and function."
+)
+
+CPV_RERANK_INSTRUCTION = (
+    "Documents are Common Procurement Vocabulary entries used in EU public tenders, at every level from divisions to detailed codes. "
+    "Queries describe what a public buyer purchases or what a supplier provides. "
+    "Rank highest the most specific entry that names these supplies, works, or services. Rank broader parent entries lower."
+)
+
+NSN_RERANK_INSTRUCTION = (
+    "Documents are individual NATO Stock Number supply items, each with an item name and description. "
+    "Queries describe a military or government supply item, sometimes with part details or ratings. "
+    "Rank highest the item of the same type, then prefer matching specifications such as size, rating, and material."
 )
 
 
@@ -58,6 +172,7 @@ class ClassifierConfig(TypedDict):
     embed_dims: int
     query_instruction: str
     rerank_instruction: NotRequired[str]
+    query_subject: str
     versions: dict[str, VersionConfig]
 
 
@@ -69,8 +184,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "SH203-C20 Miniature Circuit Breaker 6kA 20A 3P",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": ETIM_QUERY_INSTRUCTION,
+        "rerank_instruction": ETIM_RERANK_INSTRUCTION,
+        "query_subject": "a technical product, such as electrical, lighting, HVAC, or plumbing equipment",
         "versions": {
             "ETIM version 10.0 (2024-12-10)": {
                 "collection_name": "ETIM_10_1_Qwen3-8B_v1",
@@ -87,6 +203,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": UNSPSC_QUERY_INSTRUCTION,
         "rerank_instruction": UNSPSC_RERANK_INSTRUCTION,
+        "query_subject": "a purchased product or service",
         "versions": {
             "UNSPSC UNv260801.1 (18 March 2025)": {
                 "collection_name": "UNSPSC_UNv260801-1__OR_Qwen3-8B__v2",
@@ -101,8 +218,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Oil spill absorbent pads",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": GPC_QUERY_INSTRUCTION,
+        "rerank_instruction": GPC_RERANK_INSTRUCTION,
+        "query_subject": "a retail or consumer trade item",
         "versions": {
             "GPC as of May 2026 (v20260520)": {
                 "collection_name": "GPC_20260520_v1",
@@ -120,6 +238,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
         "query_instruction": EMDN_QUERY_INSTRUCTION,
         "rerank_instruction": EMDN_RERANK_INSTRUCTION,
+        "query_subject": "a medical device",
         "versions": {
             "EMDN v2026 (English)": {
                 "collection_name": "EMDN_2026_EN_Qwen3-8B_v1",
@@ -135,8 +254,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Dog grooming",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": NAICS_QUERY_INSTRUCTION,
+        "rerank_instruction": NAICS_RERANK_INSTRUCTION,
+        "query_subject": "a business or the economic activity it performs",
         "versions": {
             "2022 NAICS": {
                 "collection_name": "NAICS_2022_eng_qwen3_8b_2048_v1",
@@ -156,8 +276,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Gas station operation",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": ISIC_QUERY_INSTRUCTION,
+        "rerank_instruction": ISIC_RERANK_INSTRUCTION,
+        "query_subject": "a business or the economic activity it performs",
         "versions": {
             "ISIC Rev. 4": {
                 "collection_name": "ISIC_Rev4_Qwen3-8B_v1",
@@ -176,8 +297,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Frozen mangoes",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": HS_QUERY_INSTRUCTION,
+        "rerank_instruction": HS_RERANK_INSTRUCTION,
+        "query_subject": "goods in international trade",
         "versions": {
             "HS6 2022": {
                 "collection_name": "HS6_2022_Qwen3-8B_v1",
@@ -192,8 +314,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Frozen mangoes from Brazil",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": CN_QUERY_INSTRUCTION,
+        "rerank_instruction": CN_RERANK_INSTRUCTION,
+        "query_subject": "goods in EU import, export, or intra-EU trade",
         "versions": {
             "CN 2026": {
                 "collection_name": "CN2026_Qwen3-8B_v4",
@@ -208,8 +331,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Used car dealership",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": NACE_QUERY_INSTRUCTION,
+        "rerank_instruction": NACE_RERANK_INSTRUCTION,
+        "query_subject": "a business or the economic activity it performs",
         "versions": {
             "NACE Rev. 2.1": {
                 "collection_name": "NACE_Rev2_1_Qwen3-8B_v2",
@@ -224,8 +348,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Indie gamedev studio",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": CPV_QUERY_INSTRUCTION,
+        "rerank_instruction": CPV_RERANK_INSTRUCTION,
+        "query_subject": "supplies, works, or services bought by a public authority",
         "versions": {
             "CPV 2008 (ver. 2013)": {
                 "collection_name": "cpv_2008_qwen3_8b_v1",
@@ -242,8 +367,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "1000W 120V AC power supply",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": NSN_QUERY_INSTRUCTION,
+        "rerank_instruction": NSN_RERANK_INSTRUCTION,
+        "query_subject": "a military or government supply item",
         "versions": {
             "NSN extract (February 22, 2023)": {
                 "collection_name": "NSN_Qwen3-8B_v1",
@@ -257,8 +383,9 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "example": "Smartphone",
         "embed_model_name": DEFAULT_EMBEDDING_MODEL,
         "embed_dims": DEFAULT_EMBEDDING_DIMS,
-        "query_instruction": DEFAULT_QUERY_INSTRUCTION,
-        "rerank_instruction": DEFAULT_RERANK_INSTRUCTION,
+        "query_instruction": HTS_QUERY_INSTRUCTION,
+        "rerank_instruction": HTS_RERANK_INSTRUCTION,
+        "query_subject": "goods imported into the United States",
         "versions": {
             "2026 HTS Revision 11 (July 1, 2026)": {
                 "collection_name": "HTS_2026_Qwen3-8B_v1",
