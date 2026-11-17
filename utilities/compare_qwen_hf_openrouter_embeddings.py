@@ -12,6 +12,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
+from huggingface_hub.errors import HfHubHTTPError
 
 DEFAULT_TEXT = "Industrial pump for chemical garbage processing (or, to put it simply, garbage in -> pump -> garbage out).GARBAGE IN = GARBAGE OUT !!!"
 # DEFAULT_TEXT = "trash"
@@ -22,7 +23,8 @@ DEFAULT_OPENROUTER_MODEL = "qwen/qwen3-embedding-8b"
 DEFAULT_DIMENSIONS = 2048
 # DEFAULT_DIMENSIONS = 4096
 
-DEFAULT_HF_PROVIDER = "auto"
+DEFAULT_HF_PROVIDER = "deepinfra"
+HF_MAX_ATTEMPTS = 5
 
 EXIT_EXACT_MATCH = 0
 EXIT_DIFFERENT = 1
@@ -119,14 +121,30 @@ def get_huggingface_embedding(
     dimensions: int,
 ) -> tuple[list[float], float]:
     client = InferenceClient(provider=hf_provider, api_key=hf_token)
-    start = time.perf_counter()
-    response = client.feature_extraction(
-        [text],
-        model=model,
-        dimensions=dimensions,
-    )
-    elapsed_ms = (time.perf_counter() - start) * 1000
-    return normalize_single_embedding(response, "Hugging Face"), elapsed_ms
+    for attempt in range(1, HF_MAX_ATTEMPTS + 1):
+        start = time.perf_counter()
+        try:
+            response = client.feature_extraction(
+                [text],
+                model=model,
+                dimensions=dimensions,
+            )
+        except HfHubHTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            retryable = status == 429 or (status is not None and status >= 500)
+            if not retryable or attempt == HF_MAX_ATTEMPTS:
+                raise
+            delay = 2**attempt
+            print(
+                f"Hugging Face returned {status} (attempt {attempt}/"
+                f"{HF_MAX_ATTEMPTS}); retrying in {delay}s...",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+            continue
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        return normalize_single_embedding(response, "Hugging Face"), elapsed_ms
+    raise AssertionError("unreachable")
 
 
 def get_openrouter_embedding(
@@ -138,7 +156,7 @@ def get_openrouter_embedding(
     provider: str | None,
 ) -> tuple[list[float], float]:
     try:
-        from openai import OpenAI
+        from openai import AuthenticationError, OpenAI
     except ModuleNotFoundError as exc:
         raise RuntimeError(
             "The openai package is not installed. Run: "
@@ -160,7 +178,14 @@ def get_openrouter_embedding(
         kwargs["extra_body"] = {"provider": {"only": [provider]}}
 
     start = time.perf_counter()
-    response = client.embeddings.create(**kwargs)
+    try:
+        response = client.embeddings.create(**kwargs)
+    except AuthenticationError as exc:
+        raise RuntimeError(
+            f"OpenRouter rejected OPENROUTER_API_KEY ({exc.message}). The key is "
+            "revoked or belongs to a deleted account; create a new one at "
+            "https://openrouter.ai/settings/keys and update .env"
+        ) from exc
     elapsed_ms = (time.perf_counter() - start) * 1000
     if not response.data:
         raise RuntimeError("OpenRouter embedding response contained no data")
