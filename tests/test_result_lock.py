@@ -20,9 +20,7 @@ def _classification_result(scores=(0.9, 0.8, 0.7, 0.6)) -> dict:
                     "definition": f"{name} definition.",
                 },
             }
-            for rank, (name, score) in enumerate(
-                zip(RANKED_NAMES, scores), start=1
-            )
+            for rank, (name, score) in enumerate(zip(RANKED_NAMES, scores), start=1)
         ],
         "version_config": {"base_url": "", "tooltip": ""},
         "version_name": "v1",
