@@ -20,6 +20,9 @@ function renderPaywall(): void {
     <button id="retry-button">Try again</button></div>`;
 }
 
+const LOCKED_RESULTS = `<ul><li>Top match</li><li><div data-result-lock>
+  <button type="button" data-upgrade-button>Unlock with Pro</button></div></li></ul>`;
+
 type TestRequest = HtmxRequestContext & {
   request: HtmxRequestContext["request"] & {
     signal: AbortSignal;
@@ -200,6 +203,82 @@ describe("paywall.ts", () => {
     notify(user, window.Clerk?.session);
     expect(form().requestSubmit).toHaveBeenCalledTimes(1);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("starts checkout from a locked result and shows progress on its button", async () => {
+    notify({ id: "user_123" }, { getToken: vi.fn(async () => "token") });
+    let finish: (response: Response) => void = () => {};
+    vi.mocked(fetch).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const target = document.getElementById("results-container");
+    if (!target) throw new Error("Missing results target");
+    target.innerHTML = LOCKED_RESULTS;
+    await initialize();
+    const unlock = target.querySelector("[data-upgrade-button]");
+    if (!(unlock instanceof HTMLButtonElement)) throw new Error("Missing unlock");
+
+    unlock.click();
+    await flush();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/create-checkout",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(unlock.disabled).toBe(true);
+    expect(unlock.textContent).toBe("Preparing...");
+    finish(new Response("", { status: 503 }));
+    await flush();
+    expect(unlock.disabled).toBe(false);
+    expect(unlock.textContent).toContain("Error - Try again");
+  });
+
+  it("reruns the lookup instead of checkout when a Pro user signs in from a lock card", async () => {
+    const target = document.getElementById("results-container");
+    if (!target) throw new Error("Missing results target");
+    target.innerHTML = LOCKED_RESULTS;
+    await initialize();
+    const unlock = target.querySelector("[data-upgrade-button]");
+    if (!(unlock instanceof HTMLButtonElement)) throw new Error("Missing unlock");
+
+    unlock.click();
+    expect(window.Clerk?.openSignIn).toHaveBeenCalledTimes(1);
+    notify(
+      { id: "user_123", publicMetadata: { tier: "pro" } },
+      { getToken: vi.fn(async () => "token") },
+    );
+    await flush();
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(form().requestSubmit).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.length).toBe(0);
+    expect(unlock.disabled).toBe(false);
+  });
+
+  it("keeps checking activation until results arrive without locked ranks", async () => {
+    window.__checkoutReturnUrl = "http://localhost:3000/?checkout=success";
+    await initialize();
+    const initial = request();
+    emit("htmx:config:request", initial);
+    complete(initial, 200, LOCKED_RESULTS);
+    let retry = request();
+    vi.mocked(window.htmx!.ajax).mockImplementation(
+      async (_method, _url, options) => {
+        retry = request(options.event);
+        emit("htmx:config:request", retry);
+        emit("htmx:before:request", retry);
+      },
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(window.htmx?.ajax).toHaveBeenCalledTimes(1);
+
+    complete(retry, 200, '<p id="full-results">Every rank</p>');
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(window.htmx?.ajax).toHaveBeenCalledTimes(1);
+    expect(document.getElementById("full-results")).not.toBeNull();
+    expect(document.getElementById("paywall-warning")).toBeNull();
   });
 
   it("does not automatically recreate checkout after a failed POST and renders the current button", async () => {

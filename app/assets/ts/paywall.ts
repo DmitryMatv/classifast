@@ -14,6 +14,7 @@ if (!window.__paywallScriptParsed) {
   window.__paywallScriptParsed = true;
   const UPGRADE_INTENT_KEY = "classifast:upgrade-intent";
   const RECOVERY_KEY = "classifast:checkout-recovery";
+  const UPGRADE_BUTTONS = "#upgrade-button, [data-upgrade-button]";
   const RECOVERY_DURATION_MS = 60000;
   const RECOVERY_INTERVAL_MS = 2000;
 
@@ -150,7 +151,9 @@ if (!window.__paywallScriptParsed) {
               !!event.detail.ctx.response &&
               event.detail.ctx.response.status >= 200 &&
               event.detail.ctx.response.status < 300 &&
-              !event.detail.ctx.target.querySelector("#paywall-warning");
+              !event.detail.ctx.target.querySelector(
+                "#paywall-warning, [data-result-lock]",
+              );
           }
           if (
             event.detail.ctx.target.id === "results-container" ||
@@ -289,7 +292,7 @@ if (!window.__paywallScriptParsed) {
         this.clearUpgrade();
         return;
       }
-      if (button.id === "upgrade-button") {
+      if (button.matches(UPGRADE_BUTTONS)) {
         event.preventDefault();
         if (
           this.recovery ||
@@ -342,6 +345,11 @@ if (!window.__paywallScriptParsed) {
         this.recovery
       )
         return;
+      if (user.publicMetadata?.tier === "pro") {
+        this.clearUpgrade();
+        ClerkHelpers.submitForm();
+        return;
+      }
       const operation = {
         kind: "creating",
         returnUrl,
@@ -667,17 +675,20 @@ if (!window.__paywallScriptParsed) {
         if (retry instanceof HTMLButtonElement) retry.disabled = !delayed;
         return;
       }
-      const button = document.getElementById("upgrade-button");
-      if (!(button instanceof HTMLButtonElement)) return;
-      button.dataset.upgradeMarkup ??= button.innerHTML;
-      button.disabled =
+      const busy =
         this.operation.kind === "creating" ||
         this.operation.kind === "redirecting";
-      button.innerHTML = button.disabled
-        ? "Preparing..."
-        : this.operation.kind === "error"
-          ? "Error - Try again"
-          : button.dataset.upgradeMarkup;
+      for (const button of document.querySelectorAll<HTMLButtonElement>(
+        UPGRADE_BUTTONS,
+      )) {
+        button.dataset.upgradeMarkup ??= button.innerHTML;
+        button.disabled = busy;
+        button.innerHTML = busy
+          ? "Preparing..."
+          : this.operation.kind === "error"
+            ? "Error - Try again"
+            : button.dataset.upgradeMarkup;
+      }
     }
 
     private cleanUrl(value: string): string {

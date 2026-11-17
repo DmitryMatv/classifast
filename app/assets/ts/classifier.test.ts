@@ -192,6 +192,51 @@ describe("classifier.ts", () => {
     expect(makeRequest().has("enhance_query")).toBe(false);
   });
 
+  it("requests unlocked results only for signed-in users on locked pages", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    const makeRequest = () => {
+      const detail = createConfigRequestDetail(form);
+      document.body.dispatchEvent(
+        new CustomEvent("htmx:config:request", { detail, bubbles: true }),
+      );
+      return detail.ctx.request.body;
+    };
+    const clerk = window.Clerk;
+    if (!clerk) throw new Error("Missing Clerk");
+
+    form.dataset.resultLock = "true";
+    expect(makeRequest().has("unlock")).toBe(false);
+    clerk.user = { id: "user_123" };
+    expect(makeRequest().get("unlock")).toBe("1");
+    form.dataset.resultLock = "false";
+    expect(makeRequest().has("unlock")).toBe(false);
+  });
+
+  it("keeps requesting unlocked results after a stale page shows lock cards", async () => {
+    await import("./classifier");
+    const form = getClassifierForm();
+    form.dataset.resultLock = "false";
+    const clerk = window.Clerk;
+    if (!clerk) throw new Error("Missing Clerk");
+    clerk.user = { id: "user_123" };
+    const results = document.getElementById("results-container");
+    if (!results) throw new Error("Missing results container");
+    results.innerHTML = "<div data-result-lock></div>";
+
+    const makeRequest = () => {
+      const detail = createConfigRequestDetail(form);
+      document.body.dispatchEvent(
+        new CustomEvent("htmx:config:request", { detail, bubbles: true }),
+      );
+      return detail.ctx.request.body;
+    };
+
+    expect(makeRequest().get("unlock")).toBe("1");
+    results.innerHTML = "<ul><li>Every rank</li></ul>";
+    expect(makeRequest().get("unlock")).toBe("1");
+  });
+
   it("restores the beta switch from a shared URL on browser navigation", async () => {
     await import("./classifier");
     const enhancementSwitch = document.getElementById(

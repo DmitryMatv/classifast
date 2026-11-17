@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SSRState = Literal["not_attempted", "success", "failure", "overloaded"]
+
+RESULT_LOCK_ENABLED = os.getenv("RESULT_LOCK_ENABLED", "").strip() == "1"
+LOCKED_RESULT_RANKS = frozenset({2, 3})
 
 
 def _load_sitemap_query_paths() -> frozenset[str]:
@@ -403,11 +407,14 @@ def build_classification_results_context(
     outcome: ClassificationOutcome,
     classifier_type: str,
     query: str,
+    unlocked: bool = False,
 ) -> dict[str, object]:
     """Build the template context used to render classification results."""
     return {
         "query": query,
-        "results_for_query": outcome.results,
+        "results_for_query": (
+            outcome.results if unlocked else lock_results(outcome.results)
+        ),
         "base_url": outcome.version_config.get("base_url", ""),
         "append_code_to_url": outcome.version_config.get("append_code_to_url", True),
         "code_url_suffix": outcome.version_config.get("code_url_suffix", ""),
@@ -416,6 +423,18 @@ def build_classification_results_context(
         "enhancement_status": outcome.enhancement_status,
         "classifier_type": classifier_type,
     }
+
+
+def lock_results(results: list[dict]) -> list[dict]:
+    """Replace Pro-only ranks with score-only placeholders so cached HTML omits them."""
+    if not RESULT_LOCK_ENABLED:
+        return results
+    return [
+        {"locked": True, "score": result.get("score")}
+        if rank in LOCKED_RESULT_RANKS
+        else result
+        for rank, result in enumerate(results, start=1)
+    ]
 
 
 def build_empty_classifier_results(decoded_query: str) -> dict[str, object]:
@@ -511,6 +530,7 @@ def build_classifier_page_context(
         "default_example_prefill": default_example_prefill,
         "trigger_search_on_load": trigger_search_on_load,
         "results_loaded": results_loaded,
+        "result_lock_enabled": RESULT_LOCK_ENABLED,
         "default_top_k": default_top_k,
         "first_version": first_version,
         "canonical_url": canonical_url,

@@ -113,6 +113,17 @@ sources and run `npm run build`.
   cookie additionally breaks the `HTML_PAGE`/`CLASSIFICATION_RESULT` CDN cache
   profiles; on other routes it is still forbidden by design, so use
   client-side JavaScript for any per-user state.
+- `RESULT_LOCK_ENABLED=1` replaces web result ranks 2 and 3 with score-only
+  lock cards for non-Pro callers and skips the web quota entirely.
+  `lock_results` removes those ranks before rendering, so cacheable HTML never
+  contains them. Signed-in users request `unlock=1`, and the server returns
+  every rank only to Pro callers. Every `unlock=1` response is `no-store` under
+  any flag state, because the CDN cache key ignores `Authorization`. Toggling
+  the flag leaves old fragments and pages in Cloudflare and browsers, so purge
+  everything in Cloudflare after a toggle. A browser can keep a stale page for
+  about an hour; on it, the first lock cards seen switch the form to `unlock=1`
+  for the rest of that page.
+  An Unlock click from a Pro user reruns the lookup instead of opening checkout.
 - Two client-IP trust policies coexist: `app/usage_tracker.py` always trusts
   `CF-Connecting-IP`; `app/google_crawlers.py` requires the explicit
   `GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP` opt-in. Pick one policy deliberately
