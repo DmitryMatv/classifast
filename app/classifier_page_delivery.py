@@ -478,6 +478,7 @@ async def maybe_seed_classifier_page_results(
             outcome=outcome,
             classifier_type=classifier_type,
             query=query,
+            unlocked=not decoded_query,
         )
         return seeded_results, not decoded_query, False, "success"
     except ClassificationQueueFull:

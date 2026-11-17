@@ -96,8 +96,8 @@ class ResultLockFragmentTests(unittest.IsolatedAsyncioTestCase):
 
         response = await self._request_fragment()
 
-        self.assertIn("Only 6.5 points behind #1.", response.text)
-        self.assertEqual(response.text.count("points behind"), 1)
+        self.assertIn("Only 6.5% behind #1.", response.text)
+        self.assertEqual(response.text.count("% behind"), 1)
         self.assertIn(
             "Check it with Pro before you rely on the top match.", response.text
         )
@@ -173,6 +173,18 @@ class ResultLockSsrTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(RANKED_NAMES[0], response.text)
         self.assertNotIn(RANKED_NAMES[1], response.text)
         self.assertNotIn(RANKED_NAMES[2], response.text)
+
+    async def test_example_results_on_the_base_page_stay_unlocked(self) -> None:
+        transport = httpx.ASGITransport(app=_build_test_app())
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            response = await client.get("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        for name in RANKED_NAMES:
+            self.assertIn(name, response.text)
+        self.assertNotIn("data-result-lock>", response.text)
 
 
 if __name__ == "__main__":
