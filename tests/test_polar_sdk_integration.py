@@ -7,6 +7,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI
 
@@ -253,8 +254,8 @@ def test_checkout_routes_use_real_sdk_request_and_response(payment_app, kind):
 
     with (
         patch(
-            "httpx.AsyncHTTPTransport.handle_async_request",
-            return_value=httpx.Response(201, json=payload),
+            "httpx2.AsyncHTTPTransport.handle_async_request",
+            return_value=httpx2.Response(201, json=payload),
         ) as send,
         patch("app.payments.get_clerk_user_details", clerk_details),
     ):

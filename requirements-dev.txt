@@ -1,4 +1,5 @@
 -r requirements.txt
+anyio>=4.16.0
 mypy
 pytest
 pyrefly
