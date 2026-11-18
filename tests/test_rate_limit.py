@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request
 
 from app import rate_limit
@@ -118,3 +119,39 @@ class CheckoutCounterExpiryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(counter.count, 1)
         self.assertEqual(counter.expires_at, 90)
+
+
+class LookupRateLimitTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.app = FastAPI()
+        self.request = Request(
+            {
+                "type": "http",
+                "app": self.app,
+                "headers": [],
+                "client": ("203.0.113.10", 1234),
+            }
+        )
+        self.addCleanup(patch.stopall)
+        patch("app.rate_limit.LOOKUP_RATE_LIMIT", 2).start()
+        patch("app.rate_limit.LOOKUP_RATE_LIMIT_WINDOW_SECONDS", 60).start()
+
+    async def test_lookups_over_the_allowance_are_limited_within_one_window(
+        self,
+    ) -> None:
+        counter = _CounterRedis()
+        self.app.state.redis_client = counter
+
+        results = [
+            await rate_limit.lookup_rate_limit_exceeded(self.request) for _ in range(3)
+        ]
+
+        self.assertEqual(results, [False, False, True])
+        self.assertEqual(counter.expires_at, 60)
+
+    async def test_redis_errors_allow_the_lookup(self) -> None:
+        failing = MagicMock()
+        failing.pipeline.side_effect = redis.RedisError("down")
+        self.app.state.redis_client = failing
+
+        self.assertFalse(await rate_limit.lookup_rate_limit_exceeded(self.request))

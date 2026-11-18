@@ -116,7 +116,15 @@ sources and run `npm run build`.
 - `RESULT_LOCK_ENABLED=1` replaces web result ranks 2 and 3 with score-only
   lock cards for non-Pro callers and skips the web quota entirely.
   `lock_results` removes those ranks before rendering, so cacheable HTML never
-  contains them. Signed-in users request `unlock=1`, and the server returns
+  contains them. A lookup of the classifier's configured `example` is never
+  locked (`is_example_query`), on the base page or through the fragment, so
+  visitors see what Pro returns. Without the quota, non-Pro lookups are capped
+  per IP by `lookup_rate_limit_exceeded` (`LOOKUP_RATE_LIMIT` per
+  `LOOKUP_RATE_LIMIT_WINDOW` seconds, default 60 per hour) and get a 429.
+  Base-page SSR counts too, because any query string misses the page cache; a
+  limited caller gets the page without results, `no-store`, and the browser
+  loads the example through the fragment. That limit fails open on Redis
+  errors, unlike the checkout limit. Signed-in users request `unlock=1`, and the server returns
   every rank only to Pro callers. Every `unlock=1` response is `no-store` under
   any flag state, because the CDN cache key ignores `Authorization`. Toggling
   the flag leaves old fragments and pages in Cloudflare and browsers, so purge

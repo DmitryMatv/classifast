@@ -16,11 +16,12 @@ from .classification_service import ClassificationOutcome
 from .classifier import get_classification_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG, ClassifierConfig
 from .dependencies import templates
+from .rate_limit import lookup_rate_limit_exceeded
 
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SSRState = Literal["not_attempted", "success", "failure", "overloaded"]
+SSRState = Literal["not_attempted", "success", "failure", "overloaded", "rate_limited"]
 
 RESULT_LOCK_ENABLED = os.getenv("RESULT_LOCK_ENABLED", "").strip() == "1"
 LOCKED_RESULT_RANKS = frozenset({2, 3})
@@ -425,6 +426,11 @@ def build_classification_results_context(
     }
 
 
+def is_example_query(query: str, example: str) -> bool:
+    """The classifier's public example is never locked, so it shows what Pro returns."""
+    return query == normalize_product_description(example)
+
+
 def lock_results(results: list[dict]) -> list[dict]:
     """Replace Pro-only ranks with score-only placeholders so cached HTML omits them."""
     if not RESULT_LOCK_ENABLED:
@@ -467,6 +473,14 @@ async def maybe_seed_classifier_page_results(
         return results_data, False, False, "not_attempted"
 
     results_data["query"] = query
+    # Query strings bypass the page cache, so base-page SSR is unmetered work
+    # without the quota. Limited callers load the example through the fragment.
+    if (
+        RESULT_LOCK_ENABLED
+        and not decoded_query
+        and await lookup_rate_limit_exceeded(request)
+    ):
+        return results_data, True, True, "rate_limited"
     try:
         outcome = await request.app.state.classification_service.classify(
             query=query,
@@ -478,6 +492,7 @@ async def maybe_seed_classifier_page_results(
             outcome=outcome,
             classifier_type=classifier_type,
             query=query,
+            unlocked=is_example_query(query, example_query),
         )
         return seeded_results, not decoded_query, False, "success"
     except ClassificationQueueFull:

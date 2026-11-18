@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 
+from app.classifier_page_delivery import get_classifier_or_404
 from app.usage_tracker import SignedInCaller
 from tests.test_web_helpers import _build_test_app
 
@@ -54,16 +55,21 @@ class ResultLockFragmentTests(unittest.IsolatedAsyncioTestCase):
         self.classify = patch(
             "app.classification_service.perform_classification"
         ).start()
+        self.rate_limited = patch(
+            "app.web.lookup_rate_limit_exceeded", new=AsyncMock(return_value=False)
+        ).start()
         self.classify.return_value = _classification_result()
 
-    async def _request_fragment(self, **extra_params: str) -> httpx.Response:
+    async def _request_fragment(
+        self, query: str = "industrial pump", **extra_params: str
+    ) -> httpx.Response:
         transport = httpx.ASGITransport(app=self.app)
         async with httpx.AsyncClient(
             transport=transport, base_url="http://testserver"
         ) as client:
             return await client.get(
                 "/ISIC/fragment",
-                params={"product_description": "industrial pump", **extra_params},
+                params={"product_description": query, **extra_params},
             )
 
     def _assert_locked(self, html: str) -> None:
@@ -96,8 +102,8 @@ class ResultLockFragmentTests(unittest.IsolatedAsyncioTestCase):
 
         response = await self._request_fragment()
 
-        self.assertIn("Only 6.5 points behind #1.", response.text)
-        self.assertEqual(response.text.count("points behind"), 1)
+        self.assertIn("Only 6.5% behind #1.", response.text)
+        self.assertEqual(response.text.count("% behind"), 1)
         self.assertIn(
             "Check it with Pro before you rely on the top match.", response.text
         )
@@ -125,6 +131,35 @@ class ResultLockFragmentTests(unittest.IsolatedAsyncioTestCase):
         self._assert_locked(response.text)
         self.assertEqual(response.headers["Cloudflare-CDN-Cache-Control"], "no-store")
 
+    async def test_the_classifier_example_is_never_locked(self) -> None:
+        example = get_classifier_or_404("ISIC")[1]["example"]
+
+        response = await self._request_fragment(query=f"  {example} ")
+
+        for name in RANKED_NAMES:
+            self.assertIn(name, response.text)
+        self.assertNotIn("data-result-lock", response.text)
+        self.assertIn("public", response.headers["Cloudflare-CDN-Cache-Control"])
+
+    async def test_rate_limited_lookup_returns_429_without_classifying(self) -> None:
+        self.rate_limited.return_value = True
+
+        response = await self._request_fragment()
+
+        self.assertEqual(response.status_code, 429)
+        self.assertIn("Too many lookups", response.text)
+        self.assertEqual(response.headers["Cloudflare-CDN-Cache-Control"], "no-store")
+        self.classify.assert_not_called()
+
+    async def test_pro_lookups_are_not_rate_limited(self) -> None:
+        self.rate_limited.return_value = True
+        self.resolve_caller.return_value = SignedInCaller(user_id="u1", is_pro=True)
+
+        response = await self._request_fragment(unlock="1")
+
+        self.assertEqual(response.status_code, 200)
+        self.rate_limited.assert_not_awaited()
+
     async def test_unlock_request_is_not_cached_while_lock_is_disabled(self) -> None:
         _enable_lock(False)
         self.check_usage.return_value = Mock(allowed=True)
@@ -148,6 +183,7 @@ class ResultLockFragmentTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(name, response.text)
         self.assertIn("public", response.headers["Cloudflare-CDN-Cache-Control"])
         self.check_usage.assert_awaited_once()
+        self.rate_limited.assert_not_awaited()
 
 
 class ResultLockSsrTests(unittest.IsolatedAsyncioTestCase):
@@ -158,21 +194,52 @@ class ResultLockSsrTests(unittest.IsolatedAsyncioTestCase):
             "app.web.is_verified_google_search_crawler_request",
             new=AsyncMock(return_value=True),
         ).start()
-        classify = patch("app.classification_service.perform_classification").start()
-        classify.return_value = _classification_result()
+        self.classify = patch(
+            "app.classification_service.perform_classification"
+        ).start()
+        self.classify.return_value = _classification_result()
+        self.rate_limited = patch(
+            "app.classifier_page_delivery.lookup_rate_limit_exceeded",
+            new=AsyncMock(return_value=False),
+        ).start()
 
-    async def test_crawler_page_gets_the_same_locked_results(self) -> None:
+    async def _get_page(self, path: str) -> httpx.Response:
         transport = httpx.ASGITransport(app=_build_test_app())
         async with httpx.AsyncClient(
             transport=transport, base_url="http://testserver"
         ) as client:
-            response = await client.get("/UNSPSC/laptop_computer/")
+            return await client.get(path)
+
+    async def test_crawler_page_gets_the_same_locked_results(self) -> None:
+        response = await self._get_page("/UNSPSC/laptop_computer/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('data-result-lock="true"', response.text)
         self.assertIn(RANKED_NAMES[0], response.text)
         self.assertNotIn(RANKED_NAMES[1], response.text)
         self.assertNotIn(RANKED_NAMES[2], response.text)
+        self.rate_limited.assert_not_awaited()
+
+    async def test_example_results_on_the_base_page_stay_unlocked(self) -> None:
+        response = await self._get_page("/UNSPSC/")
+
+        self.assertEqual(response.status_code, 200)
+        for name in RANKED_NAMES:
+            self.assertIn(name, response.text)
+        self.assertNotIn("data-result-lock>", response.text)
+
+    async def test_rate_limited_base_page_loads_the_example_in_the_browser(
+        self,
+    ) -> None:
+        self.rate_limited.return_value = True
+
+        response = await self._get_page("/UNSPSC/?top_k=7")
+
+        self.assertEqual(response.status_code, 200)
+        self.classify.assert_not_called()
+        self.assertNotIn(RANKED_NAMES[0], response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertEqual(response.headers["Cloudflare-CDN-Cache-Control"], "no-store")
 
 
 if __name__ == "__main__":

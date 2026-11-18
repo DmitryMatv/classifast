@@ -32,6 +32,7 @@ from .classifier_page_delivery import (
     get_classifier_or_404,
     get_default_top_k,
     get_homepage_popular_lookup_links,
+    is_example_query,
     maybe_seed_classifier_page_results,
     normalize_product_description,
     render_classification_results_fragment,
@@ -48,6 +49,7 @@ from .mapping_store import (
     list_mapping_products,
 )
 from .query_enhancer import EnhancementStatus
+from .rate_limit import lookup_rate_limit_exceeded
 from .usage_tracker import (
     QuotaUnavailableError,
     UsageStatus,
@@ -397,6 +399,14 @@ async def get_classification_fragment(
                     request, _get_redis_client(request)
                 )
                 unlocked = caller is not None and caller.is_pro
+            if not unlocked and await lookup_rate_limit_exceeded(request):
+                return _render_status_fragment(
+                    "Too many lookups from your network. Please try again later.",
+                    status_code=429,
+                )
+            unlocked = unlocked or is_example_query(
+                normalized_description, config["example"]
+            )
         else:
             authorize = await _prepare_quota_reservation(request)
         outcome = await request.app.state.classification_service.classify(
@@ -543,7 +553,7 @@ async def show_classifier_page_with_query(
         status_code=503 if retry_crawler_later else 200,
     )
     response.headers.update(build_page_headers(canonical_url))
-    if ssr_state in ("failure", "overloaded"):
+    if ssr_state in ("failure", "overloaded", "rate_limited"):
         response.headers.update(build_cache_headers(NO_STORE))
     if ssr_state == "failure":
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
