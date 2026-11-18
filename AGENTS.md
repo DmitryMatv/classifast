@@ -57,7 +57,7 @@ Classifast is a classification service web application that uses embeddings and 
 
 - Backend: Python FastAPI
 - Frontend: TypeScript with Tailwind CSS (built with Node/npm and Vite, served via FastAPI)
-- Infrastructure: Redis (usage tracking), Qdrant (vector database), Hugging Face Inference (embeddings), OpenRouter (deployed-service reranking and opt-in query enhancement), Clerk (authentication), Polar (payments)
+- Infrastructure: Redis (usage tracking), Qdrant (vector database), OpenRouter (query embeddings, deployed-service reranking, and opt-in query enhancement), Clerk (authentication), Polar (payments)
 
 ## Hardware, Deployment, Cache
 
@@ -157,13 +157,16 @@ sources and run `npm run build`.
   crawler IP ranges, and the classification queue capacity are all
   process-local. Scaling workers changes their semantics.
 - There is no integration test suite. Most tests use mocks, including the checkout
-  rate-limit tests. The suite does not prove deployed Qdrant, Redis, or Hugging
-  Face connectivity. Manual live helpers live in `utilities/test_*.py`, which
+  rate-limit tests. The suite does not prove deployed Qdrant, Redis, or
+  OpenRouter connectivity. Manual live helpers live in `utilities/test_*.py`, which
   pytest excludes from collection.
 - `/health` requires initialized embedding and Qdrant clients, then probes
-  Qdrant only. If `HF_TOKEN` is missing, public pages can still serve while
-  `/health` returns 503, provided Qdrant startup succeeds. It does not check
-  Redis or live Hugging Face requests. A Qdrant startup failure stops the app.
+  Qdrant only. If `OPENROUTER_API_KEY` is missing, public pages can still serve
+  while `/health` returns 503, provided Qdrant startup succeeds. It does not
+  check Redis or live OpenRouter requests. A Qdrant startup failure stops the app.
+- Patching `tenacity.nap.sleep` does not skip retry waits, because
+  `tenacity.Retrying` binds its `sleep` default when the class is defined.
+  Patch `tenacity.nap.time.sleep`, as `tests/test_embedder.py` does.
 - `.env` is a personal cross-project secrets file (it contains keys unrelated
   to classifast too). Never print, copy, or commit it.
 - Checkout endpoints are rate limited per IP via `app/rate_limit.py`
