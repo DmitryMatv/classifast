@@ -3,7 +3,6 @@ python-multipart
 fastapi>=0.122.0
 uvicorn[standard]
 openpyxl>=3.1.0,<3.2.0
-huggingface_hub>=1.21.0,<2.0.0
 httpx>=0.24.0,<0.30.0
 qdrant-client>=1.16.0,<2.0.0
 Jinja2>=3.1.0,<4.0.0
