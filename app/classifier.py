@@ -8,15 +8,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
 
-import httpx
-import tenacity
 from fastapi import HTTPException
-from huggingface_hub import InferenceClient
-from huggingface_hub.errors import HfHubHTTPError, InferenceTimeoutError
 from qdrant_client import QdrantClient, models
 
 from .cache_profiles import CLASSIFICATION_RESULT, add_vary, build_cache_headers
 from .classifier_config import CLASSIFIER_CONFIG
+from .embedder import OpenRouterEmbedder
 from .id_lookup import (
     ORIGINAL_ID_FIELD,
     ORIGINAL_ID_NORMALIZED_FIELD,
@@ -43,7 +40,6 @@ DIGIT_PATTERN = re.compile(r"\d")
 ALLOWED_QUERY_PATTERN = re.compile(
     r"^[\w\s\-\.\,\:\;\(\)\[\]\{\}\/\\\&\@\#\%\+\=\*\?\!\~\`\'\"\<\>\u00A0-\uFFFF]+$"
 )
-TRANSIENT_HF_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 DEFAULT_RERANK_CANDIDATE_LIMIT = 100
 DEFAULT_OUTBOUND_BUDGET_SECONDS = 60.0
 MIN_RERANK_BUDGET_SECONDS = 2.0
@@ -159,39 +155,6 @@ def sanitize_query_text(query: str, for_search: bool = False) -> str:
     return query.strip()
 
 
-def _is_transient_hf_error(error: BaseException) -> bool:
-    if isinstance(error, (InferenceTimeoutError, httpx.TransportError)):
-        return True
-    if isinstance(error, HfHubHTTPError):
-        response = getattr(error, "response", None)
-        status_code = getattr(response, "status_code", None)
-        return status_code in TRANSIENT_HF_STATUS_CODES
-    return False
-
-
-def _coerce_embedding_response(response: Any) -> list[float]:
-    if hasattr(response, "tolist"):
-        response = response.tolist()
-
-    if not isinstance(response, list):
-        raise RuntimeError("Embedding response is not a list")
-
-    if len(response) == 1 and isinstance(response[0], list):
-        response = response[0]
-    elif response and isinstance(response[0], list):
-        raise RuntimeError(
-            "Embedding response is token-level; expected a pooled sentence vector"
-        )
-
-    if not response:
-        raise RuntimeError("Empty embedding generated")
-
-    try:
-        return [float(value) for value in response]
-    except (TypeError, ValueError) as exc:
-        raise RuntimeError("Embedding response contains non-numeric values") from exc
-
-
 def _embedding_dimension_mismatch(
     embedding_vector: list[float],
     embed_dims: Optional[int],
@@ -235,30 +198,18 @@ def build_rerank_query_text(
     return f"{instruction_text}\nQuery: {query}"
 
 
-def _build_embedding_retry(max_seconds: float | None = None) -> tenacity.Retrying:
-    stop: "tenacity.stop.stop_base" = tenacity.stop_after_attempt(3)
-    if max_seconds is not None:
-        stop = stop | tenacity.stop_after_delay(max_seconds)
-    return tenacity.Retrying(
-        stop=stop,
-        wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
-        retry=tenacity.retry_if_exception(_is_transient_hf_error),
-        reraise=True,
-    )
-
-
 def get_embedding(
-    embed_client: InferenceClient,
+    embed_client: OpenRouterEmbedder,
     model_name: str,
     text: str,
     embed_dims: Optional[int] = None,
     max_seconds: Optional[float] = None,
 ) -> list[float]:
     """
-    Generate a single embedding for text using Hugging Face Inference.
+    Generate a single embedding for text through OpenRouter.
 
     Args:
-        embed_client: The Hugging Face Inference client
+        embed_client: The OpenRouter embeddings client
         model_name: The embedding model name
         text: Text to embed
         embed_dims: Expected embedding dimensions
@@ -278,26 +229,12 @@ def get_embedding(
             model_name,
             embed_dims,
         )
-
-        api_start = time.perf_counter()
-        retry = _build_embedding_retry(max_seconds)
-        if embed_dims is None:
-            response = retry(
-                embed_client.feature_extraction,
-                text,
-                model=model_name,
-            )
-        else:
-            response = retry(
-                embed_client.feature_extraction,
-                text,
-                model=model_name,
-                dimensions=embed_dims,
-            )
-        api_duration = time.perf_counter() - api_start
-        logger.debug("Hugging Face embedding call: %.3fs", api_duration)
-
-        embedding_vector = _coerce_embedding_response(response)
+        embedding_vector = embed_client.embed(
+            text,
+            model=model_name,
+            dimensions=embed_dims,
+            max_seconds=max_seconds,
+        )
 
         if _embedding_dimension_mismatch(embedding_vector, embed_dims):
             raise RuntimeError(
@@ -833,7 +770,7 @@ def validate_and_prepare_classification(
 
 
 def _prepare_classification_context(
-    embed_client: InferenceClient,
+    embed_client: OpenRouterEmbedder,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -952,7 +889,7 @@ def _prepare_exact_id_shortcut_results(
 
 
 def _run_semantic_classification_search(
-    embed_client: InferenceClient,
+    embed_client: OpenRouterEmbedder,
     qdrant_client: QdrantClient,
     context: _ClassificationContext,
     top_k: int,
@@ -1054,7 +991,7 @@ def _merge_classification_results(
 
 
 def prepare_classification(
-    embed_client: InferenceClient,
+    embed_client: OpenRouterEmbedder,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,
@@ -1079,7 +1016,7 @@ def prepare_classification(
 
 def complete_classification(
     prepared: PreparedClassification,
-    embed_client: InferenceClient,
+    embed_client: OpenRouterEmbedder,
     qdrant_client: QdrantClient,
     top_k: int = 3,
     quantization_cache: Optional[dict[str, bool]] = None,
@@ -1163,7 +1100,7 @@ def complete_classification(
 
 
 def perform_classification(
-    embed_client: InferenceClient,
+    embed_client: OpenRouterEmbedder,
     qdrant_client: QdrantClient,
     query: str,
     classifier_type: str,

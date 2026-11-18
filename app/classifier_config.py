@@ -2,10 +2,10 @@ import os
 from typing import NotRequired, TypedDict
 
 DEFAULT_EMBEDDING_MODEL = os.getenv(
-    "HF_EMBEDDING_MODEL",
-    "Qwen/Qwen3-Embedding-8B",
+    "OPENROUTER_EMBEDDING_MODEL",
+    "qwen/qwen3-embedding-8b",
 )
-DEFAULT_EMBEDDING_DIMS = int(os.getenv("HF_EMBEDDING_DIMS", "2048"))
+DEFAULT_EMBEDDING_DIMS = int(os.getenv("EMBEDDING_DIMS", "2048"))
 
 # Query instructions follow the Qwen3-Embedding task pattern
 # ("Given a web search query, retrieve relevant passages that answer the query"):

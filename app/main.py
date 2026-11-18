@@ -8,7 +8,6 @@ import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 from urllib.parse import quote, quote_from_bytes, urlencode, urlparse, urlunparse
 
 import redis.asyncio as redis
@@ -16,7 +15,6 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from huggingface_hub import InferenceClient
 from qdrant_client import QdrantClient
 from starlette.datastructures import URL, MutableHeaders, QueryParams
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -31,6 +29,7 @@ from .cache_profiles import (
 )
 from .classification_executor import ClassificationExecutor
 from .classification_service import ClassificationService
+from .embedder import AUTO_PROVIDER, OpenRouterEmbedder
 from .qdrant_connection import create_qdrant_client, resolve_qdrant_url
 from .qdrant_schema import (
     QdrantSchemaValidationError,
@@ -70,7 +69,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StartupClients:
-    embed_client: Any | None = None
+    embed_client: OpenRouterEmbedder | None = None
     qdrant_client: QdrantClient | None = None
     collection_quantization_cache: dict[str, bool] = field(default_factory=dict)
     redis_client: redis.Redis | None = None
@@ -78,29 +77,34 @@ class StartupClients:
     query_enhancer: QueryEnhancer | None = None
 
 
-def initialize_embed_client() -> Any | None:
-    """Initialize the Hugging Face embedding client if credentials are present."""
-    hf_token = os.getenv("HF_TOKEN")
-    if not hf_token:
-        logger.error("Error: HF_TOKEN not found in environment variables.")
+def initialize_embed_client() -> OpenRouterEmbedder | None:
+    """Initialize the OpenRouter embedding client if credentials are present."""
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        logger.error("Error: OPENROUTER_API_KEY not found in environment variables.")
         return None
 
     try:
-        provider: Any = os.getenv("HF_INFERENCE_PROVIDER", "").strip() or "auto"
-        embed_timeout = float(os.getenv("HF_EMBEDDING_TIMEOUT_SECONDS", "20"))
-        if embed_timeout <= 0:
-            raise ValueError("HF_EMBEDDING_TIMEOUT_SECONDS must be greater than zero")
-        embed_client = InferenceClient(
-            provider=provider, api_key=hf_token, timeout=embed_timeout
+        provider = (
+            os.getenv("OPENROUTER_EMBEDDING_PROVIDER", "").strip().lower()
+            or AUTO_PROVIDER
+        )
+        timeout_seconds = float(os.getenv("OPENROUTER_EMBEDDING_TIMEOUT_SECONDS", "20"))
+        if timeout_seconds <= 0:
+            raise ValueError(
+                "OPENROUTER_EMBEDDING_TIMEOUT_SECONDS must be greater than zero"
+            )
+        embed_client = OpenRouterEmbedder(
+            api_key=api_key, provider=provider, timeout_seconds=timeout_seconds
         )
         logger.info(
-            "Hugging Face Inference client initialized successfully with provider=%s timeout=%.1fs.",
+            "OpenRouter embedding client initialized successfully with provider=%s timeout=%.1fs.",
             provider,
-            embed_timeout,
+            timeout_seconds,
         )
         return embed_client
     except Exception as e:
-        logger.error("Error initializing Hugging Face Inference client: %s", e)
+        logger.error("Error initializing OpenRouter embedding client: %s", e)
         return None
 
 
@@ -259,6 +263,12 @@ async def close_startup_clients(clients: StartupClients) -> None:
             await clients.query_enhancer.close()
         except Exception as exc:
             logger.error("Error closing query enhancer: %s", exc)
+    if clients.embed_client:
+        try:
+            clients.embed_client.close()
+            logger.info("OpenRouter embedding client closed.")
+        except Exception as e:
+            logger.error("Error closing OpenRouter embedding client: %s", e)
     if clients.reranker:
         try:
             clients.reranker.close()

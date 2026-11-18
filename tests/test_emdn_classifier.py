@@ -53,7 +53,7 @@ def test_emdn_classifier_configuration_contract() -> None:
 
     assert config["title"] == "EMDN Code Finder"
     assert config["heading"] == "Find the right EMDN code for a medical device."
-    assert config["embed_model_name"] == "Qwen/Qwen3-Embedding-8B"
+    assert config["embed_model_name"] == "qwen/qwen3-embedding-8b"
     assert config["embed_dims"] == 2048
     assert config["versions"][EMDN_VERSION]["collection_name"] == EMDN_COLLECTION
     assert config["versions"][EMDN_VERSION]["base_url"] == EMDN_CODE_BASE_URL

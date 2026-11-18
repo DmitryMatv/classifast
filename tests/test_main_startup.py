@@ -33,65 +33,68 @@ class MainStartupClientTests(unittest.TestCase):
             client = main.initialize_embed_client()
 
         self.assertIsNone(client)
-        self.assertTrue(any("HF_TOKEN not found" in message for message in logs.output))
+        self.assertTrue(
+            any("OPENROUTER_API_KEY not found" in message for message in logs.output)
+        )
 
-    @patch.dict(main.os.environ, {"HF_TOKEN": "test-key"}, clear=True)
-    @patch.object(main, "InferenceClient")
-    def test_initialize_embed_client_builds_client_with_default_provider(
-        self,
-        client_class,
-    ):
-        embed_client = MagicMock()
-        client_class.return_value = embed_client
-
+    @patch.dict(main.os.environ, {"OPENROUTER_API_KEY": "test-key"}, clear=True)
+    @patch.object(main, "OpenRouterEmbedder")
+    def test_initialize_embed_client_defaults_to_auto_routing(self, embedder_class):
         result = main.initialize_embed_client()
 
-        self.assertIs(result, embed_client)
-        client_class.assert_called_once_with(
-            provider="auto",
-            api_key="test-key",
-            timeout=20.0,
+        self.assertIs(result, embedder_class.return_value)
+        embedder_class.assert_called_once_with(
+            api_key="test-key", provider="auto", timeout_seconds=20.0
         )
 
     @patch.dict(
         main.os.environ,
-        {"HF_TOKEN": "test-key", "HF_INFERENCE_PROVIDER": "  "},
+        {"OPENROUTER_API_KEY": "test-key", "OPENROUTER_EMBEDDING_PROVIDER": "  "},
         clear=True,
     )
-    @patch.object(main, "InferenceClient")
+    @patch.object(main, "OpenRouterEmbedder")
     def test_initialize_embed_client_defaults_blank_provider_to_auto(
-        self,
-        client_class,
+        self, embedder_class
     ):
-        embed_client = MagicMock()
-        client_class.return_value = embed_client
+        main.initialize_embed_client()
 
-        result = main.initialize_embed_client()
+        self.assertEqual(embedder_class.call_args.kwargs["provider"], "auto")
 
-        self.assertIs(result, embed_client)
-        client_class.assert_called_once_with(
-            provider="auto",
-            api_key="test-key",
-            timeout=20.0,
+    @patch.dict(
+        main.os.environ,
+        {
+            "OPENROUTER_API_KEY": "test-key",
+            "OPENROUTER_EMBEDDING_PROVIDER": " DeepInfra ",
+            "OPENROUTER_EMBEDDING_TIMEOUT_SECONDS": "7.5",
+        },
+        clear=True,
+    )
+    @patch.object(main, "OpenRouterEmbedder")
+    def test_initialize_embed_client_uses_configured_provider_and_timeout(
+        self, embedder_class
+    ):
+        main.initialize_embed_client()
+
+        embedder_class.assert_called_once_with(
+            api_key="test-key", provider="deepinfra", timeout_seconds=7.5
         )
 
     @patch.dict(
         main.os.environ,
-        {"HF_TOKEN": "test-key", "HF_INFERENCE_PROVIDER": "custom-provider"},
+        {"OPENROUTER_API_KEY": "test-key", "OPENROUTER_EMBEDDING_TIMEOUT_SECONDS": "0"},
         clear=True,
     )
-    @patch.object(main, "InferenceClient")
-    def test_initialize_embed_client_uses_configured_provider(self, client_class):
-        embed_client = MagicMock()
-        client_class.return_value = embed_client
+    def test_initialize_embed_client_rejects_non_positive_timeout(self):
+        with self.assertLogs(main.logger, level="ERROR") as logs:
+            client = main.initialize_embed_client()
 
-        result = main.initialize_embed_client()
-
-        self.assertIs(result, embed_client)
-        client_class.assert_called_once_with(
-            provider="custom-provider",
-            api_key="test-key",
-            timeout=20.0,
+        self.assertIsNone(client)
+        self.assertTrue(
+            any(
+                "OPENROUTER_EMBEDDING_TIMEOUT_SECONDS must be greater than zero"
+                in message
+                for message in logs.output
+            )
         )
 
     @patch.dict(main.os.environ, {}, clear=True)
@@ -419,13 +422,14 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(events, ["executor", "qdrant", "redis"])
 
-    async def test_close_startup_clients_closes_reranker_qdrant_and_redis(self):
+    async def test_close_startup_clients_closes_every_client(self):
+        embed_client = MagicMock()
         reranker = MagicMock()
         qdrant_client = MagicMock()
         redis_client = MagicMock()
         redis_client.close = AsyncMock()
         clients = main.StartupClients(
-            embed_client=None,
+            embed_client=embed_client,
             reranker=reranker,
             qdrant_client=qdrant_client,
             collection_quantization_cache={},
@@ -435,6 +439,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(main.logger, level="INFO") as logs:
             await main.close_startup_clients(clients)
 
+        embed_client.close.assert_called_once_with()
         reranker.close.assert_called_once_with()
         qdrant_client.close.assert_called_once_with()
         redis_client.close.assert_awaited_once_with()
