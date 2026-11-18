@@ -553,7 +553,7 @@ async def show_classifier_page_with_query(
         status_code=503 if retry_crawler_later else 200,
     )
     response.headers.update(build_page_headers(canonical_url))
-    if ssr_state in ("failure", "overloaded"):
+    if ssr_state in ("failure", "overloaded", "rate_limited"):
         response.headers.update(build_cache_headers(NO_STORE))
     if ssr_state == "failure":
         response.headers["X-Robots-Tag"] = "noindex, nofollow"

@@ -194,33 +194,52 @@ class ResultLockSsrTests(unittest.IsolatedAsyncioTestCase):
             "app.web.is_verified_google_search_crawler_request",
             new=AsyncMock(return_value=True),
         ).start()
-        classify = patch("app.classification_service.perform_classification").start()
-        classify.return_value = _classification_result()
+        self.classify = patch(
+            "app.classification_service.perform_classification"
+        ).start()
+        self.classify.return_value = _classification_result()
+        self.rate_limited = patch(
+            "app.classifier_page_delivery.lookup_rate_limit_exceeded",
+            new=AsyncMock(return_value=False),
+        ).start()
 
-    async def test_crawler_page_gets_the_same_locked_results(self) -> None:
+    async def _get_page(self, path: str) -> httpx.Response:
         transport = httpx.ASGITransport(app=_build_test_app())
         async with httpx.AsyncClient(
             transport=transport, base_url="http://testserver"
         ) as client:
-            response = await client.get("/UNSPSC/laptop_computer/")
+            return await client.get(path)
+
+    async def test_crawler_page_gets_the_same_locked_results(self) -> None:
+        response = await self._get_page("/UNSPSC/laptop_computer/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('data-result-lock="true"', response.text)
         self.assertIn(RANKED_NAMES[0], response.text)
         self.assertNotIn(RANKED_NAMES[1], response.text)
         self.assertNotIn(RANKED_NAMES[2], response.text)
+        self.rate_limited.assert_not_awaited()
 
     async def test_example_results_on_the_base_page_stay_unlocked(self) -> None:
-        transport = httpx.ASGITransport(app=_build_test_app())
-        async with httpx.AsyncClient(
-            transport=transport, base_url="http://testserver"
-        ) as client:
-            response = await client.get("/UNSPSC/")
+        response = await self._get_page("/UNSPSC/")
 
         self.assertEqual(response.status_code, 200)
         for name in RANKED_NAMES:
             self.assertIn(name, response.text)
         self.assertNotIn("data-result-lock>", response.text)
+
+    async def test_rate_limited_base_page_loads_the_example_in_the_browser(
+        self,
+    ) -> None:
+        self.rate_limited.return_value = True
+
+        response = await self._get_page("/UNSPSC/?top_k=7")
+
+        self.assertEqual(response.status_code, 200)
+        self.classify.assert_not_called()
+        self.assertNotIn(RANKED_NAMES[0], response.text)
+        self.assertIn('data-autoload-enabled="true"', response.text)
+        self.assertEqual(response.headers["Cloudflare-CDN-Cache-Control"], "no-store")
 
 
 if __name__ == "__main__":
