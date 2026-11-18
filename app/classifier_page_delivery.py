@@ -478,6 +478,8 @@ async def maybe_seed_classifier_page_results(
             outcome=outcome,
             classifier_type=classifier_type,
             query=query,
+            # Base pages classify only the configured example, which no request
+            # input can change, so showing every rank there leaks no lookups.
             unlocked=not decoded_query,
         )
         return seeded_results, not decoded_query, False, "success"

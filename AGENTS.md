@@ -116,7 +116,9 @@ sources and run `npm run build`.
 - `RESULT_LOCK_ENABLED=1` replaces web result ranks 2 and 3 with score-only
   lock cards for non-Pro callers and skips the web quota entirely.
   `lock_results` removes those ranks before rendering, so cacheable HTML never
-  contains them. Signed-in users request `unlock=1`, and the server returns
+  contains them. Base-page example results stay unlocked on purpose: they
+  classify only the configured `example`, which no request input changes, and
+  show visitors what Pro returns. Signed-in users request `unlock=1`, and the server returns
   every rank only to Pro callers. Every `unlock=1` response is `no-store` under
   any flag state, because the CDN cache key ignores `Authorization`. Toggling
   the flag leaves old fragments and pages in Cloudflare and browsers, so purge
