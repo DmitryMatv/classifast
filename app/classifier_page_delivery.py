@@ -425,6 +425,11 @@ def build_classification_results_context(
     }
 
 
+def is_example_query(query: str, example: str) -> bool:
+    """The classifier's public example is never locked, so it shows what Pro returns."""
+    return query == normalize_product_description(example)
+
+
 def lock_results(results: list[dict]) -> list[dict]:
     """Replace Pro-only ranks with score-only placeholders so cached HTML omits them."""
     if not RESULT_LOCK_ENABLED:
@@ -478,9 +483,7 @@ async def maybe_seed_classifier_page_results(
             outcome=outcome,
             classifier_type=classifier_type,
             query=query,
-            # Base pages classify only the configured example, which no request
-            # input can change, so showing every rank there leaks no lookups.
-            unlocked=not decoded_query,
+            unlocked=is_example_query(query, example_query),
         )
         return seeded_results, not decoded_query, False, "success"
     except ClassificationQueueFull:
