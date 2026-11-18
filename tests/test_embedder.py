@@ -14,6 +14,7 @@ from app.embedder import (
 )
 
 MODEL = "qwen/qwen3-embedding-8b"
+REAL_SLEEP = time.sleep
 Handler = Callable[[httpx.Request], httpx.Response]
 
 
@@ -173,6 +174,24 @@ class OpenRouterEmbedderTests(unittest.TestCase):
         )
 
         self.assertEqual(handler.requests[0].extensions["timeout"]["read"], 5.0)
+
+    def test_retries_continue_past_request_timeout_within_budget(self) -> None:
+        responses = [httpx.Response(503), httpx.Response(503), ok([1.0])]
+        calls = 0
+
+        def slow_then_ok(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            REAL_SLEEP(0.06)
+            return responses.pop(0)
+
+        with patch("tenacity.nap.time.sleep"):
+            vector = embedder_for(slow_then_ok, timeout_seconds=0.05).embed(
+                "pump", model=MODEL, max_seconds=10.0
+            )
+
+        self.assertEqual(vector, [1.0])
+        self.assertEqual(calls, 3)
 
     def test_spent_budget_stops_retries(self) -> None:
         calls = 0

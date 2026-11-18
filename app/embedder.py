@@ -101,7 +101,7 @@ class OpenRouterEmbedder:
         request_timeout = self._timeout_seconds
         if max_seconds is not None:
             request_timeout = max(0.1, min(max_seconds, self._timeout_seconds))
-            stop = stop | tenacity.stop_after_delay(request_timeout)
+            stop = stop | tenacity.stop_after_delay(max_seconds)
         retryer = tenacity.Retrying(
             stop=stop,
             wait=tenacity.wait_exponential(multiplier=1, min=1, max=10),
