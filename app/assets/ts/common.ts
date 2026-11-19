@@ -1,5 +1,6 @@
 import "./types/globals";
 import { ClerkHelpers } from "./clerk-helpers";
+import { ResultExporter } from "./results-export";
 
 // Shared TypeScript functionality for Classifast application
 
@@ -1161,6 +1162,7 @@ let commonControls: Element[] = [];
 let commonControlsAbort: AbortController | null = null;
 let clerkAuthStarted = false;
 let resultCopierStarted = false;
+let resultExporterStarted = false;
 if (ownsCommonLifecycle)
   commonLifecycleAbort.signal.addEventListener(
     "abort",
@@ -1206,6 +1208,10 @@ function initializeCommonControls(): void {
   if (!resultCopierStarted) {
     resultCopierStarted = true;
     new ResultCopier();
+  }
+  if (!resultExporterStarted) {
+    resultExporterStarted = true;
+    new ResultExporter();
   }
 }
 
