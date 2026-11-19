@@ -97,6 +97,7 @@ declare global {
     emailAddresses?: Array<{ emailAddress: string }>;
     imageUrl?: string;
     publicMetadata?: { tier?: unknown };
+    reload?: () => Promise<unknown>;
   }
 
   interface ClerkListenerPayload {

@@ -10,6 +10,15 @@ function redirectToPaywallUrl(url: string): void {
   else window.location.assign(url);
 }
 
+// The page's Clerk user keeps the tier it loaded with. Lookups request
+// unlock=1 only for a Pro tier, so refresh it wherever an upgrade may have
+// happened since the page loaded.
+async function reloadClerkUser(): Promise<void> {
+  try {
+    await window.Clerk?.user?.reload?.();
+  } catch {}
+}
+
 if (!window.__paywallScriptParsed) {
   window.__paywallScriptParsed = true;
   const UPGRADE_INTENT_KEY = "classifast:upgrade-intent";
@@ -374,6 +383,10 @@ if (!window.__paywallScriptParsed) {
         const url = await Promise.race([
           cancelled,
           (async () => {
+            // A tab opened before an upgrade still holds the old tier, and
+            // the checkout endpoint does not reject existing subscribers.
+            await reloadClerkUser();
+            if (window.Clerk?.user?.publicMetadata?.tier === "pro") return null;
             const token = await session.getToken();
             if (
               !token ||
@@ -411,6 +424,12 @@ if (!window.__paywallScriptParsed) {
           window.Clerk?.user?.id !== operation.userId
         )
           return;
+        if (url === null) {
+          this.operation = { kind: "idle" };
+          this.render();
+          ClerkHelpers.submitForm();
+          return;
+        }
         this.operation = { kind: "redirecting" };
         redirectToPaywallUrl(url);
       } catch (error: unknown) {
@@ -561,6 +580,13 @@ if (!window.__paywallScriptParsed) {
       recovery.attempt = attempt;
       this.retryControllers.set(event, controller);
       try {
+        await reloadClerkUser();
+        if (
+          controller.signal.aborted ||
+          this.recovery !== recovery ||
+          recovery.attempt !== attempt
+        )
+          return;
         await window.htmx?.ajax(
           "GET",
           recovery.form.getAttribute("hx-get") ?? "",

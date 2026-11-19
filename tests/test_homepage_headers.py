@@ -42,7 +42,7 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=3600, stale-while-revalidate=86400",
+            "max-age=86400, stale-while-revalidate=86400",
         )
         self.assertNotIn("Expires", response.headers)
         self.assertEqual(
@@ -61,7 +61,7 @@ class HomepageHeaderTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             response.headers["Cloudflare-CDN-Cache-Control"],
-            "max-age=3600, stale-while-revalidate=86400",
+            "max-age=86400, stale-while-revalidate=86400",
         )
         self.assertNotIn("Expires", response.headers)
         self.assertEqual(

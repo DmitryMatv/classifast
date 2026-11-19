@@ -192,7 +192,7 @@ describe("classifier.ts", () => {
     expect(makeRequest().has("enhance_query")).toBe(false);
   });
 
-  it("requests unlocked results only for signed-in users on locked pages", async () => {
+  it("requests unlocked results only for Pro users on locked pages", async () => {
     await import("./classifier");
     const form = getClassifierForm();
     const makeRequest = () => {
@@ -208,6 +208,10 @@ describe("classifier.ts", () => {
     form.dataset.resultLock = "true";
     expect(makeRequest().has("unlock")).toBe(false);
     clerk.user = { id: "user_123" };
+    expect(makeRequest().has("unlock")).toBe(false);
+    clerk.user = { id: "user_123", publicMetadata: { tier: "free" } };
+    expect(makeRequest().has("unlock")).toBe(false);
+    clerk.user = { id: "user_123", publicMetadata: { tier: "pro" } };
     expect(makeRequest().get("unlock")).toBe("1");
     form.dataset.resultLock = "false";
     expect(makeRequest().has("unlock")).toBe(false);
@@ -219,7 +223,7 @@ describe("classifier.ts", () => {
     form.dataset.resultLock = "false";
     const clerk = window.Clerk;
     if (!clerk) throw new Error("Missing Clerk");
-    clerk.user = { id: "user_123" };
+    clerk.user = { id: "user_123", publicMetadata: { tier: "pro" } };
     const results = document.getElementById("results-container");
     if (!results) throw new Error("Missing results container");
     results.innerHTML = "<div data-result-lock></div>";

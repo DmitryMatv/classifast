@@ -7,9 +7,12 @@ class CacheProfile:
     cloudflare_cache_control: str
 
 
+# Cloudflare keeps pages for a day: a cached page links assets by content
+# hash, but origin serves the current file for any hash, so a longer TTL
+# pairs old HTML with new JS after a deploy unless the deploy purges the cache.
 HTML_PAGE = CacheProfile(
     browser_cache_control="public, max-age=600, stale-while-revalidate=3600",
-    cloudflare_cache_control="max-age=3600, stale-while-revalidate=86400",
+    cloudflare_cache_control="max-age=86400, stale-while-revalidate=86400",
 )
 
 CLASSIFICATION_RESULT = CacheProfile(

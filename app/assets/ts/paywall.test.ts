@@ -219,7 +219,8 @@ describe("paywall.ts", () => {
     target.innerHTML = LOCKED_RESULTS;
     await initialize();
     const unlock = target.querySelector("[data-upgrade-button]");
-    if (!(unlock instanceof HTMLButtonElement)) throw new Error("Missing unlock");
+    if (!(unlock instanceof HTMLButtonElement))
+      throw new Error("Missing unlock");
 
     unlock.click();
     await flush();
@@ -241,7 +242,8 @@ describe("paywall.ts", () => {
     target.innerHTML = LOCKED_RESULTS;
     await initialize();
     const unlock = target.querySelector("[data-upgrade-button]");
-    if (!(unlock instanceof HTMLButtonElement)) throw new Error("Missing unlock");
+    if (!(unlock instanceof HTMLButtonElement))
+      throw new Error("Missing unlock");
 
     unlock.click();
     expect(window.Clerk?.openSignIn).toHaveBeenCalledTimes(1);
@@ -279,6 +281,60 @@ describe("paywall.ts", () => {
     expect(window.htmx?.ajax).toHaveBeenCalledTimes(1);
     expect(document.getElementById("full-results")).not.toBeNull();
     expect(document.getElementById("paywall-warning")).toBeNull();
+  });
+
+  it("reruns the lookup instead of checkout when a stale tab's user is already Pro", async () => {
+    const target = document.getElementById("results-container");
+    if (!target) throw new Error("Missing results target");
+    target.innerHTML = LOCKED_RESULTS;
+    const user: ClerkUser = {
+      id: "user_123",
+      publicMetadata: { tier: "free" },
+    };
+    user.reload = vi.fn(async () => {
+      user.publicMetadata = { tier: "pro" };
+    });
+    notify(user, { getToken: vi.fn(async () => "token") });
+    await initialize();
+    const unlock = target.querySelector("[data-upgrade-button]");
+    if (!(unlock instanceof HTMLButtonElement))
+      throw new Error("Missing unlock");
+
+    unlock.click();
+    await flush();
+
+    expect(user.reload).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(form().requestSubmit).toHaveBeenCalledTimes(1);
+    expect(unlock.disabled).toBe(false);
+  });
+
+  it("refreshes the Clerk user before each activation check", async () => {
+    const clerk = window.Clerk;
+    if (!clerk) throw new Error("Missing Clerk");
+    const user: ClerkUser = {
+      id: "user_123",
+      publicMetadata: { tier: "free" },
+    };
+    const reload = vi.fn(async () => {
+      user.publicMetadata = { tier: "pro" };
+    });
+    user.reload = reload;
+    clerk.user = user;
+    window.__checkoutReturnUrl = "http://localhost:3000/?checkout=success";
+    await initialize();
+    const initial = request();
+    emit("htmx:config:request", initial);
+    complete(initial, 200, LOCKED_RESULTS);
+    expect(reload).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(window.htmx?.ajax).toHaveBeenCalledTimes(1);
+    expect(reload.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(window.htmx!.ajax).mock.invocationCallOrder[0]!,
+    );
   });
 
   it("does not automatically recreate checkout after a failed POST and renders the current button", async () => {
