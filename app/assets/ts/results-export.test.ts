@@ -48,6 +48,12 @@ describe("results-export", () => {
       expect(escapeCSVField("\tformula")).toBe("'\tformula");
       expect(escapeCSVField("=SUM(A1, B1)")).toBe('"\'=SUM(A1, B1)"');
     });
+
+    it("neutralizes a formula behind a leading line feed", () => {
+      expect(escapeCSVField('\n=HYPERLINK("https://evil.example")')).toBe(
+        '"\'\n=HYPERLINK(""https://evil.example"")"',
+      );
+    });
   });
 
   describe("formatResultsAsCSV", () => {
