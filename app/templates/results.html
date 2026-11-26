@@ -19,7 +19,7 @@
         set score_pct = (([[(result.score * 100), 0] | max, 100] | min) | round(2)
         if result.score is not none else 0)
         -%}
-        {% if base_url and base_url.strip() %}
+        {% if not result.locked and base_url and base_url.strip() %}
         {% set code_for_url = result.payload.original_id.replace('.', '') if 'NACE' in request.url.path
         else result.payload.original_id %}
         {% set detail_url = base_url ~ (code_for_url if append_code_to_url else '') ~
@@ -28,6 +28,7 @@
         {% set detail_url = '' %}
         {% endif %}
         <li class="rounded shadow border border-gray-200 relative overflow-hidden" role="listitem"
+            {% if not result.locked %}
             data-classification-result
             data-code="{{ result.payload.original_id | e }}"
             data-name="{{ result.payload.class_name | default('') | e }}"
@@ -35,7 +36,8 @@
             data-score-raw="{{ result.score if result.score is not none else 0 }}"
             data-definition="{{ result.payload.definition | default('') | e }}"
             {% if result.payload.id_level %}data-level="{{ result.payload.id_level | e }}"{% endif %}
-            {% if detail_url %}data-url="{{ detail_url | e }}"{% endif %}>
+            {% if detail_url %}data-url="{{ detail_url | e }}"{% endif %}
+            {% endif %}>
             <div class="absolute inset-y-0 left-0 score-bar" data-score-bar
                 data-score-width="{{ '%.2f'|format(score_pct) }}"></div>
             {% if result.locked %}
