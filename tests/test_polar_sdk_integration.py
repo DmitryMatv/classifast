@@ -303,6 +303,31 @@ def test_checkout_routes_use_real_sdk_request_and_response(payment_app, kind):
     payment_app.state.redis_client.setex.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    "return_url",
+    ["javascript://testserver/%0aalert(1)", "ftp://testserver/NAICS/"],
+)
+@pytest.mark.parametrize("kind", ["pro", "mapping"])
+def test_checkout_routes_reject_non_web_return_url_on_allowed_host(
+    payment_app, kind, return_url
+):
+    path = "/api/create-checkout" if kind == "pro" else "/api/create-mapping-checkout"
+    payment_app.dependency_overrides[payments.get_current_user_id] = lambda: "user_123"
+
+    with patch("httpx2.AsyncHTTPTransport.handle_async_request") as send:
+        response = asyncio.run(
+            _post(
+                payment_app,
+                path,
+                json={"slug": "unspsc-to-cpv-mapping", "return_url": return_url},
+            )
+        )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid return_url"}
+    send.assert_not_called()
+
+
 @pytest.mark.parametrize("key_encoding", ["base64", "utf8"])
 @pytest.mark.parametrize(
     "event_type,status,tier",

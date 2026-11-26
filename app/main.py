@@ -165,7 +165,7 @@ async def initialize_redis_client() -> redis.Redis | None:
     except asyncio.CancelledError:
         if redis_client:
             try:
-                await redis_client.close()
+                await redis_client.aclose()
             except Exception:
                 logger.exception(
                     "Error closing Redis client after startup cancellation."
@@ -175,7 +175,7 @@ async def initialize_redis_client() -> redis.Redis | None:
         logger.warning("Redis not available, usage tracking disabled: %s", e)
         if redis_client:
             try:
-                await redis_client.close()
+                await redis_client.aclose()
             except Exception:
                 pass
         return None
@@ -283,7 +283,7 @@ async def close_startup_clients(clients: StartupClients) -> None:
             logger.error("Error closing Qdrant client: %s", e)
     if clients.redis_client:
         try:
-            await clients.redis_client.close()
+            await clients.redis_client.aclose()
             logger.info("Redis client closed.")
         except Exception as e:
             logger.error("Error closing Redis client: %s", e)
@@ -317,7 +317,7 @@ GZIP_EXCLUDED_PATHS = frozenset({"/sitemap.xml", "/robots.txt"})
 
 class GZipMiddlewareExcludingSitemap(GZipMiddleware):
     def __init__(
-        self, app: ASGIApp, minimum_size: int = 500, compresslevel: int = 9
+        self, app: ASGIApp, minimum_size: int = 500, compresslevel: int = 6
     ) -> None:
         super().__init__(app, minimum_size, compresslevel)
         self.exclude_paths = GZIP_EXCLUDED_PATHS

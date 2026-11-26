@@ -288,7 +288,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(result, redis_client)
         redis_client.ping.assert_called_once_with()
-        redis_client.close.assert_not_called()
+        redis_client.aclose.assert_not_called()
 
     @patch.object(main.redis, "Redis")
     async def test_initialize_redis_client_accepts_sync_ping(self, redis_class):
@@ -300,19 +300,19 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(result, redis_client)
         redis_client.ping.assert_called_once_with()
-        redis_client.close.assert_not_called()
+        redis_client.aclose.assert_not_called()
 
     @patch.object(main.redis, "Redis")
     async def test_initialize_redis_client_closes_on_failure(self, redis_class):
         redis_client = MagicMock()
         redis_client.ping.side_effect = Exception("redis down")
-        redis_client.close = AsyncMock()
+        redis_client.aclose = AsyncMock()
         redis_class.return_value = redis_client
 
         result = await main.initialize_redis_client()
 
         self.assertIsNone(result)
-        redis_client.close.assert_awaited_once_with()
+        redis_client.aclose.assert_awaited_once_with()
 
     @patch.object(main.redis, "Redis")
     async def test_initialize_redis_client_closes_and_reraises_cancellation(
@@ -322,13 +322,13 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         cancelled_ping = asyncio.get_running_loop().create_future()
         cancelled_ping.cancel()
         redis_client.ping.return_value = cancelled_ping
-        redis_client.close = AsyncMock()
+        redis_client.aclose = AsyncMock()
         redis_class.return_value = redis_client
 
         with self.assertRaises(asyncio.CancelledError):
             await main.initialize_redis_client()
 
-        redis_client.close.assert_awaited_once_with()
+        redis_client.aclose.assert_awaited_once_with()
 
     @patch.object(main, "initialize_redis_client", new_callable=AsyncMock)
     @patch.object(main, "initialize_qdrant_client")
@@ -362,7 +362,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
     ):
         qdrant_client = MagicMock()
         redis_client = MagicMock()
-        redis_client.close = AsyncMock()
+        redis_client.aclose = AsyncMock()
         initialize_qdrant.return_value = (qdrant_client, {"products": False})
         initialize_redis.return_value = redis_client
 
@@ -370,7 +370,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
             await main.initialize_startup_clients()
 
         qdrant_client.close.assert_called_once_with()
-        redis_client.close.assert_awaited_once_with()
+        redis_client.aclose.assert_awaited_once_with()
 
     @patch.object(main, "close_startup_clients", new_callable=AsyncMock)
     @patch.object(main, "initialize_startup_clients", new_callable=AsyncMock)
@@ -403,7 +403,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         async def close_redis() -> None:
             events.append("redis")
 
-        redis_client.close = AsyncMock(side_effect=close_redis)
+        redis_client.aclose = AsyncMock(side_effect=close_redis)
         clients = main.StartupClients(
             qdrant_client=qdrant_client,
             redis_client=redis_client,
@@ -427,7 +427,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         reranker = MagicMock()
         qdrant_client = MagicMock()
         redis_client = MagicMock()
-        redis_client.close = AsyncMock()
+        redis_client.aclose = AsyncMock()
         clients = main.StartupClients(
             embed_client=embed_client,
             reranker=reranker,
@@ -442,7 +442,7 @@ class MainStartupAsyncClientTests(unittest.IsolatedAsyncioTestCase):
         embed_client.close.assert_called_once_with()
         reranker.close.assert_called_once_with()
         qdrant_client.close.assert_called_once_with()
-        redis_client.close.assert_awaited_once_with()
+        redis_client.aclose.assert_awaited_once_with()
         self.assertTrue(
             any("OpenRouter reranker closed" in message for message in logs.output)
         )

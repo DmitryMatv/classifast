@@ -58,7 +58,9 @@ def _candidate_id_values_from_object(raw_value: object) -> list[object]:
     ]
 
 
-def _normalize_candidate_ids(raw_value) -> set[str]:
+def _normalize_candidate_ids(
+    raw_value: bool | float | int | object | str | None,
+) -> set[str]:
     if raw_value is None:
         return set()
     if isinstance(raw_value, str):
@@ -138,7 +140,7 @@ def validate_return_url(request: Request, return_url: str | None) -> str | None:
     if extra_hosts:
         allowed_hosts.extend(h.strip() for h in extra_hosts.split(",") if h.strip())
 
-    if not parsed.netloc or parsed.netloc not in allowed_hosts:
+    if parsed.scheme not in ("http", "https") or parsed.netloc not in allowed_hosts:
         logger.warning(f"Invalid return_url rejected: {return_url[:50]}")
         raise HTTPException(status_code=400, detail="Invalid return_url")
 

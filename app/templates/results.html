@@ -67,7 +67,7 @@
                             </svg>
                         </button>
                         {% if base_url and base_url.strip() %}
-                        {% set code_for_url = result.payload.original_id.replace('.', '') if 'NACE' in request.url.path
+                        {% set code_for_url = result.payload.original_id.replace('.', '') if classifier_type == 'NACE'
                         else result.payload.original_id %}
                         {% set detail_url = base_url ~ (code_for_url if append_code_to_url else '') ~
                         (code_url_suffix | default('')) %}
