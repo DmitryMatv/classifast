@@ -590,6 +590,19 @@ class ClassifierPage {
         } else {
           htmxEvent.detail.ctx.request.body.delete("enhance_query");
         }
+        if (document.querySelector("#results-container [data-result-lock]")) {
+          form.dataset.resultLock = "true";
+        }
+        // Only Pro callers get anything from unlock=1, and every such
+        // response skips the CDN cache. The server still decides access.
+        if (
+          form.dataset.resultLock === "true" &&
+          window.Clerk?.user?.publicMetadata?.tier === "pro"
+        ) {
+          htmxEvent.detail.ctx.request.body.set("unlock", "1");
+        } else {
+          htmxEvent.detail.ctx.request.body.delete("unlock");
+        }
 
         if (!this.pendingAutoloadRequestConfig) {
           return;

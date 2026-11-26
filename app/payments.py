@@ -192,6 +192,10 @@ async def create_checkout(
 
         # Fetch user details from Clerk to pre-fill checkout form
         user_details = await get_clerk_user_details(user_id)
+        # Polar would sell a second subscription to an existing subscriber.
+        # A failed Clerk lookup has no tier, so checkout stays available.
+        if user_details.get("tier") == "pro":
+            raise HTTPException(status_code=409, detail="Already subscribed to Pro")
 
         async with PolarAsync(access_token=POLAR_ACCESS_TOKEN) as polar:
             checkout = await polar.checkouts.create(
@@ -391,10 +395,10 @@ async def update_clerk_user_metadata(user_id: str, metadata: dict) -> bool:
 
 
 async def get_clerk_user_details(user_id: str) -> dict:
-    """Fetch user email and name from Clerk for checkout pre-fill"""
+    """Fetch user email, name, and tier from Clerk for checkout"""
     if not CLERK_SECRET_KEY:
         logger.warning("CLERK_SECRET_KEY missing, cannot fetch user details")
-        return {"email": None, "name": None}
+        return {"email": None, "name": None, "tier": None}
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -421,7 +425,13 @@ async def get_clerk_user_details(user_id: str) -> dict:
                 last_name = user_data.get("last_name") or ""
                 full_name = f"{first_name} {last_name}".strip() or None
 
-                return {"email": primary_email, "name": full_name}
+                public_metadata = user_data.get("public_metadata")
+                tier = (
+                    public_metadata.get("tier")
+                    if isinstance(public_metadata, dict)
+                    else None
+                )
+                return {"email": primary_email, "name": full_name, "tier": tier}
             else:
                 logger.warning(
                     f"Failed to fetch Clerk user details: {response.status_code}"
@@ -429,4 +439,4 @@ async def get_clerk_user_details(user_id: str) -> dict:
     except Exception as e:
         logger.error(f"Error fetching Clerk user details: {e}")
 
-    return {"email": None, "name": None}
+    return {"email": None, "name": None, "tier": None}

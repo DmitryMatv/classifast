@@ -42,7 +42,7 @@ Classifast is a web application that provides easy classification of any text in
 - **Backend**: FastAPI with Python
 - **Frontend**: TypeScript, Tailwind CSS, HTMX
 - **Vector Database**: Qdrant for semantic search
-- **Embedding Models**: Hugging Face Inference with Qwen embeddings
+- **Embedding Models**: Qwen embeddings served through OpenRouter
 - **Deployment**: Docker containerized
 
 ## Demo
@@ -57,30 +57,38 @@ Visit the working instance at [classifast.com](https://classifast.com) to try.
 4. Set environment variables for embedding inference, API keys, and payments/quota behavior
 5. Run frontend watchers and the app: `npm run dev`
 
+Query embeddings and reranking are both served by OpenRouter with
+`OPENROUTER_API_KEY`. Without that key, public pages still serve but
+classification and `/health` are unavailable.
+
 Relevant embedding environment variables:
 
-- `HF_TOKEN`
-- `HF_INFERENCE_PROVIDER` defaults to `auto`
-- `HF_EMBEDDING_MODEL` defaults to `Qwen/Qwen3-Embedding-8B`
-- `HF_EMBEDDING_DIMS` defaults to `2048`
+- `OPENROUTER_EMBEDDING_PROVIDER` defaults to `auto`, which lets OpenRouter
+  route each request to the lowest-latency provider. Any other value is a
+  provider name, such as `deepinfra`, that serves every request with no
+  fallback to other providers.
+- `OPENROUTER_EMBEDDING_MODEL` defaults to `qwen/qwen3-embedding-8b`
+- `OPENROUTER_EMBEDDING_TIMEOUT_SECONDS` defaults to `20`
+- `EMBEDDING_DIMS` defaults to `2048`
 
-Reranking is served by OpenRouter and uses its own API key and model:
+Relevant reranking environment variables:
 
-- `OPENROUTER_API_KEY`
 - `OPENROUTER_RERANK_MODEL` defaults to `voyageai/rerank-3-lite`
 - `OPENROUTER_RERANK_TIMEOUT_SECONDS` defaults to `30`
 
-Embedding inference uses the configured `HF_INFERENCE_PROVIDER`. Reranking is
-sent to OpenRouter's `/api/v1/rerank` endpoint with the `OPENROUTER_API_KEY`.
+Embeddings are sent to OpenRouter's `/api/v1/embeddings` endpoint and
+reranking to its `/api/v1/rerank` endpoint.
 
 The classifier page also has an off-by-default **Expand query** beta switch.
-When enabled, `google/gemini-3.1-flash-lite` adds a short description after the
-original query for embedding and reranking. The beta model inputs put each
-classification instruction after that semantic text. Exact ID matches skip the
-model call. Code-like queries also skip it after an exact miss. The original
-text stays in the input, result heading, URL, and ID lookup. If OpenRouter is
-unavailable or the API key is absent, classification uses the original text and
-the ordinary instruction-first format. Provider failures are not cached. Shared
+When enabled, `anthropic/claude-haiku-5.5` adds a short description after the
+original query for embedding and reranking. The embedding input keeps the
+Qwen3 `Instruct: …\nQuery:…` template with the description inside the query
+part; the reranker input puts the rerank instruction after the semantic text.
+Exact ID matches skip the model call. Code-like queries also skip it after an
+exact miss. The original text stays in the input, result heading, URL, and ID
+lookup. If OpenRouter is unavailable or the API key is absent, classification
+uses the original text and the ordinary instruction-first format. Provider
+failures are not cached. Shared
 beta searches use `?enhance_query=1` in the URL.
 
 Relevant Qdrant environment variables:

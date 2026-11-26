@@ -1,5 +1,6 @@
 import os
 import unittest
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -128,6 +129,54 @@ class CheckoutRouteTests(unittest.IsolatedAsyncioTestCase):
         )
         request.app.state.redis_client.setex.assert_not_called()
         auth_mock.assert_awaited_once_with("token", validate_azp=True)
+
+    async def test_create_checkout_rejects_existing_pro_subscriber(self) -> None:
+        request = AsyncMock()
+        request.json.return_value = {"return_url": "http://testserver/NAICS/"}
+        request.base_url = "http://testserver/"
+        polar_class = MagicMock()
+
+        with (
+            patch.dict(
+                os.environ,
+                {"POLAR_PRO_PRODUCT_ID": "configured-pro-product"},
+                clear=False,
+            ),
+            patch("app.payments.POLAR_ACCESS_TOKEN", "polar-token"),
+            patch("app.payments.PolarAsync", polar_class),
+            patch(
+                "app.payments.get_clerk_user_details",
+                new=AsyncMock(
+                    return_value={"email": None, "name": None, "tier": "pro"}
+                ),
+            ),
+            self.assertRaises(HTTPException) as ctx,
+        ):
+            await payments.create_checkout(request, user_id="user_123")
+
+        self.assertEqual(ctx.exception.status_code, 409)
+        polar_class.assert_not_called()
+
+    async def test_clerk_user_details_include_public_tier(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "email_addresses": [{"id": "e1", "email_address": "a@b.c"}],
+                    "primary_email_address_id": "e1",
+                    "first_name": "Ada",
+                    "public_metadata": {"tier": "pro"},
+                },
+            )
+
+        mock_client = partial(httpx.AsyncClient, transport=httpx.MockTransport(handler))
+        with (
+            patch("app.payments.CLERK_SECRET_KEY", "sk_test"),
+            patch("app.payments.httpx.AsyncClient", mock_client),
+        ):
+            details = await payments.get_clerk_user_details("user_123")
+
+        self.assertEqual(details, {"email": "a@b.c", "name": "Ada", "tier": "pro"})
 
     async def test_create_checkout_skips_azp_when_permitted_origins_not_configured(
         self,

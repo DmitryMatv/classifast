@@ -24,11 +24,11 @@ class ClassifierConfigEnvironmentTests(unittest.TestCase):
             patch.dict(os.environ, {}, clear=False),
             patch.dict(sys.modules, {package_name: package}),
         ):
-            os.environ.pop("HF_EMBEDDING_DIMS", None)
+            os.environ.pop("EMBEDDING_DIMS", None)
             os.environ.pop("REDIS_HOST", None)
 
             def load_test_dotenv() -> None:
-                os.environ["HF_EMBEDDING_DIMS"] = "3072"
+                os.environ["EMBEDDING_DIMS"] = "3072"
                 os.environ["REDIS_HOST"] = "redis.from-dotenv"
 
             with patch("dotenv.load_dotenv", side_effect=load_test_dotenv) as loader:

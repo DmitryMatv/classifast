@@ -11,6 +11,8 @@
     {% if tooltip and tooltip.strip() %}
     <p class="text-gray-600 mb-4">{{ tooltip }}</p>
     {% endif %}
+    {%- set top_score = results_for_query[0].score -%}
+    {%- set top_pct = ([[(top_score * 100), 0] | max, 100] | min) if top_score is not none else none -%}
     <ul class="space-y-3" role="list">
         {% for result in results_for_query %}
         {%-
@@ -36,6 +38,35 @@
             {% if detail_url %}data-url="{{ detail_url | e }}"{% endif %}>
             <div class="absolute inset-y-0 left-0 score-bar" data-score-bar
                 data-score-width="{{ '%.2f'|format(score_pct) }}"></div>
+            {% if result.locked %}
+            {%- set gap_points = ((top_pct | round(1)) - (score_pct | round(1))) | round(1)
+            if top_pct is not none and result.score is not none else none -%}
+            <div class="relative p-3 flex flex-wrap items-center gap-x-4 gap-y-2" data-result-lock>
+                <div class="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true" class="shrink-0 text-gray-500 lucide lucide-lock">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <p class="text-gray-700">
+                        <span class="font-semibold">Result #{{ loop.index }} is locked.</span>
+                        {% if gap_points is none or gap_points >= 10 -%}
+                        Check it with Pro before you rely on the top match.
+                        {%- elif gap_points == 0 -%}
+                        Same score as #1.
+                        {%- else -%}
+                        Only {{ "%.1f"|format(gap_points) }}% behind #1.
+                        {%- endif %}
+                    </p>
+                </div>
+                <button type="button" data-upgrade-button aria-label="Unlock result #{{ loop.index }} with Pro"
+                    class="cursor-pointer bg-sky-700 hover:bg-sky-800 active:bg-sky-900 active:scale-95 text-white font-semibold px-4 py-1 rounded transition-all duration-150 ease-in-out transform">
+                    Unlock with Pro
+                </button>
+                <span class="ml-auto text-gray-600">{{ "%.1f"|format(score_pct) }}%</span>
+            </div>
+            {% else %}
             <div class="relative p-3">
                 <div class="flex-1">
                     <div class="flex items-baseline gap-2">
@@ -117,6 +148,7 @@
                     <p class="text-gray-600">{{ result.payload.definition | e }}</p>
                 </div>
             </div>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>

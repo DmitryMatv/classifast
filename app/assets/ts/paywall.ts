@@ -10,10 +10,20 @@ function redirectToPaywallUrl(url: string): void {
   else window.location.assign(url);
 }
 
+// The page's Clerk user keeps the tier it loaded with. Lookups request
+// unlock=1 only for a Pro tier, so refresh it wherever an upgrade may have
+// happened since the page loaded.
+async function reloadClerkUser(): Promise<void> {
+  try {
+    await window.Clerk?.user?.reload?.();
+  } catch {}
+}
+
 if (!window.__paywallScriptParsed) {
   window.__paywallScriptParsed = true;
   const UPGRADE_INTENT_KEY = "classifast:upgrade-intent";
   const RECOVERY_KEY = "classifast:checkout-recovery";
+  const UPGRADE_BUTTONS = "#upgrade-button, [data-upgrade-button]";
   const RECOVERY_DURATION_MS = 60000;
   const RECOVERY_INTERVAL_MS = 2000;
 
@@ -150,7 +160,9 @@ if (!window.__paywallScriptParsed) {
               !!event.detail.ctx.response &&
               event.detail.ctx.response.status >= 200 &&
               event.detail.ctx.response.status < 300 &&
-              !event.detail.ctx.target.querySelector("#paywall-warning");
+              !event.detail.ctx.target.querySelector(
+                "#paywall-warning, [data-result-lock]",
+              );
           }
           if (
             event.detail.ctx.target.id === "results-container" ||
@@ -289,7 +301,7 @@ if (!window.__paywallScriptParsed) {
         this.clearUpgrade();
         return;
       }
-      if (button.id === "upgrade-button") {
+      if (button.matches(UPGRADE_BUTTONS)) {
         event.preventDefault();
         if (
           this.recovery ||
@@ -342,6 +354,11 @@ if (!window.__paywallScriptParsed) {
         this.recovery
       )
         return;
+      if (user.publicMetadata?.tier === "pro") {
+        this.clearUpgrade();
+        ClerkHelpers.submitForm();
+        return;
+      }
       const operation = {
         kind: "creating",
         returnUrl,
@@ -366,6 +383,10 @@ if (!window.__paywallScriptParsed) {
         const url = await Promise.race([
           cancelled,
           (async () => {
+            // A tab opened before an upgrade still holds the old tier, and
+            // the checkout endpoint does not reject existing subscribers.
+            await reloadClerkUser();
+            if (window.Clerk?.user?.publicMetadata?.tier === "pro") return null;
             const token = await session.getToken();
             if (
               !token ||
@@ -403,6 +424,12 @@ if (!window.__paywallScriptParsed) {
           window.Clerk?.user?.id !== operation.userId
         )
           return;
+        if (url === null) {
+          this.operation = { kind: "idle" };
+          this.render();
+          ClerkHelpers.submitForm();
+          return;
+        }
         this.operation = { kind: "redirecting" };
         redirectToPaywallUrl(url);
       } catch (error: unknown) {
@@ -553,6 +580,13 @@ if (!window.__paywallScriptParsed) {
       recovery.attempt = attempt;
       this.retryControllers.set(event, controller);
       try {
+        await reloadClerkUser();
+        if (
+          controller.signal.aborted ||
+          this.recovery !== recovery ||
+          recovery.attempt !== attempt
+        )
+          return;
         await window.htmx?.ajax(
           "GET",
           recovery.form.getAttribute("hx-get") ?? "",
@@ -667,17 +701,20 @@ if (!window.__paywallScriptParsed) {
         if (retry instanceof HTMLButtonElement) retry.disabled = !delayed;
         return;
       }
-      const button = document.getElementById("upgrade-button");
-      if (!(button instanceof HTMLButtonElement)) return;
-      button.dataset.upgradeMarkup ??= button.innerHTML;
-      button.disabled =
+      const busy =
         this.operation.kind === "creating" ||
         this.operation.kind === "redirecting";
-      button.innerHTML = button.disabled
-        ? "Preparing..."
-        : this.operation.kind === "error"
-          ? "Error - Try again"
-          : button.dataset.upgradeMarkup;
+      for (const button of document.querySelectorAll<HTMLButtonElement>(
+        UPGRADE_BUTTONS,
+      )) {
+        button.dataset.upgradeMarkup ??= button.innerHTML;
+        button.disabled = busy;
+        button.innerHTML = busy
+          ? "Preparing..."
+          : this.operation.kind === "error"
+            ? "Error - Try again"
+            : button.dataset.upgradeMarkup;
+      }
     }
 
     private cleanUrl(value: string): string {

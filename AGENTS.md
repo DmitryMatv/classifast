@@ -57,7 +57,7 @@ Classifast is a classification service web application that uses embeddings and 
 
 - Backend: Python FastAPI
 - Frontend: TypeScript with Tailwind CSS (built with Node/npm and Vite, served via FastAPI)
-- Infrastructure: Redis (usage tracking), Qdrant (vector database), Hugging Face Inference (embeddings), OpenRouter (deployed-service reranking and opt-in query enhancement), Clerk (authentication), Polar (payments)
+- Infrastructure: Redis (usage tracking), Qdrant (vector database), OpenRouter (query embeddings, deployed-service reranking, and opt-in query enhancement), Clerk (authentication), Polar (payments)
 
 ## Hardware, Deployment, Cache
 
@@ -113,6 +113,25 @@ sources and run `npm run build`.
   cookie additionally breaks the `HTML_PAGE`/`CLASSIFICATION_RESULT` CDN cache
   profiles; on other routes it is still forbidden by design, so use
   client-side JavaScript for any per-user state.
+- `RESULT_LOCK_ENABLED=1` replaces web result ranks 2 and 3 with score-only
+  lock cards for non-Pro callers and skips the web quota entirely.
+  `lock_results` removes those ranks before rendering, so cacheable HTML never
+  contains them. A lookup of the classifier's configured `example` is never
+  locked (`is_example_query`), on the base page or through the fragment, so
+  visitors see what Pro returns. Without the quota, non-Pro lookups are capped
+  per IP by `lookup_rate_limit_exceeded` (`LOOKUP_RATE_LIMIT` per
+  `LOOKUP_RATE_LIMIT_WINDOW` seconds, default 60 per hour) and get a 429.
+  Base-page SSR counts too, because any query string misses the page cache; a
+  limited caller gets the page without results, `no-store`, and the browser
+  loads the example through the fragment. That limit fails open on Redis
+  errors, unlike the checkout limit. Signed-in users request `unlock=1`, and the server returns
+  every rank only to Pro callers. Every `unlock=1` response is `no-store` under
+  any flag state, because the CDN cache key ignores `Authorization`. Toggling
+  the flag leaves old fragments and pages in Cloudflare and browsers, so purge
+  everything in Cloudflare after a toggle. A browser can keep a stale page for
+  about an hour; on it, the first lock cards seen switch the form to `unlock=1`
+  for the rest of that page.
+  An Unlock click from a Pro user reruns the lookup instead of opening checkout.
 - Two client-IP trust policies coexist: `app/usage_tracker.py` always trusts
   `CF-Connecting-IP`; `app/google_crawlers.py` requires the explicit
   `GOOGLE_CRAWLER_TRUST_CF_CONNECTING_IP` opt-in. Pick one policy deliberately
@@ -138,13 +157,16 @@ sources and run `npm run build`.
   crawler IP ranges, and the classification queue capacity are all
   process-local. Scaling workers changes their semantics.
 - There is no integration test suite. Most tests use mocks, including the checkout
-  rate-limit tests. The suite does not prove deployed Qdrant, Redis, or Hugging
-  Face connectivity. Manual live helpers live in `utilities/test_*.py`, which
+  rate-limit tests. The suite does not prove deployed Qdrant, Redis, or
+  OpenRouter connectivity. Manual live helpers live in `utilities/test_*.py`, which
   pytest excludes from collection.
 - `/health` requires initialized embedding and Qdrant clients, then probes
-  Qdrant only. If `HF_TOKEN` is missing, public pages can still serve while
-  `/health` returns 503, provided Qdrant startup succeeds. It does not check
-  Redis or live Hugging Face requests. A Qdrant startup failure stops the app.
+  Qdrant only. If `OPENROUTER_API_KEY` is missing, public pages can still serve
+  while `/health` returns 503, provided Qdrant startup succeeds. It does not
+  check Redis or live OpenRouter requests. A Qdrant startup failure stops the app.
+- Patching `tenacity.nap.sleep` does not skip retry waits, because
+  `tenacity.Retrying` binds its `sleep` default when the class is defined.
+  Patch `tenacity.nap.time.sleep`, as `tests/test_embedder.py` does.
 - `.env` is a personal cross-project secrets file (it contains keys unrelated
   to classifast too). Never print, copy, or commit it.
 - Checkout endpoints are rate limited per IP via `app/rate_limit.py`

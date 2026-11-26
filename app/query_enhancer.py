@@ -8,11 +8,13 @@ from typing import Any
 import httpx
 
 from .classifier import sanitize_query_text
+from .classifier_config import CLASSIFIER_CONFIG
 
 logger = logging.getLogger(__name__)
 
 OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
-QUERY_ENHANCEMENT_MODEL = "google/gemini-3.1-flash-lite"
+QUERY_ENHANCEMENT_MODEL = "anthropic/claude-haiku-5.5"
+NO_DESCRIPTION_REPLY = "NONE"
 CODE_LIKE_PATTERN = re.compile(r"(?i)^(?=.*[a-z])(?=.*\d)[a-z\d][a-z\d.\-_/]*$")
 
 
@@ -34,6 +36,26 @@ def _is_code_like(original: str) -> bool:
         re.fullmatch(r"[\d\s.\-]+", stripped)
         or (len(stripped) >= 5 and CODE_LIKE_PATTERN.fullmatch(stripped))
     )
+
+
+def _system_prompt(classifier_type: str) -> str:
+    key = classifier_type.upper()
+    subject = CLASSIFIER_CONFIG[key]["query_subject"]
+    return (
+        f"You expand search queries for {key} classification. "
+        f"The user's message is a description of {subject}. "
+        "Reply with one plain English sentence that says what it is in generic terms: "
+        "turn brand names, model names, abbreviations, and trade jargon into the common type, "
+        "without repeating the brand. "
+        "Keep the details the text gives and add none of your own. "
+        "If you do not recognize what the text refers to, "
+        "or it could mean different kinds of things, "
+        f"reply with {NO_DESCRIPTION_REPLY}. Reply with the sentence only."
+    )
+
+
+def _is_no_description(description: str) -> bool:
+    return description.strip(" \"'.").upper() in ("", NO_DESCRIPTION_REPLY)
 
 
 class QueryEnhancer:
@@ -60,22 +82,13 @@ class QueryEnhancer:
                     json={
                         "model": QUERY_ENHANCEMENT_MODEL,
                         "max_tokens": 80,
-                        "temperature": 0,
+                        "reasoning": {"effort": "none"},
                         "messages": [
                             {
-                                "role": "user",
-                                "content": (
-                                    f"{sanitized_original}\n\n"
-                                    f"For a {classifier_type} classification search, "
-                                    "write one short, neutral description of the "
-                                    "user's product or service. Use only its common "
-                                    "meaning and details supported by the input. "
-                                    "Do not guess materials, uses, industry, or "
-                                    "specifications. If the meaning is unclear, return "
-                                    "an empty string. Output only the description, "
-                                    "with no preface."
-                                ),
-                            }
+                                "role": "system",
+                                "content": _system_prompt(classifier_type),
+                            },
+                            {"role": "user", "content": sanitized_original},
                         ],
                     },
                     timeout=3.0,
@@ -86,7 +99,7 @@ class QueryEnhancer:
             if not isinstance(description, str):
                 return EnhancementOutcome(original, EnhancementStatus.FAILED)
             description = re.sub(r"\s+", " ", description).strip()
-            if not description:
+            if _is_no_description(description):
                 return EnhancementOutcome(original, EnhancementStatus.SKIPPED)
             if len(description) > 240 or any(
                 ord(character) < 32 for character in description

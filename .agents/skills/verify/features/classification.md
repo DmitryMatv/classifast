@@ -19,7 +19,7 @@ A visitor enters a product description and receives ranked codes for the chosen 
 
 ## Driving it with browser preview
 
-Preconditions: use the default full-mode launch with the disposable local Redis server described in the main skill. Doctor must report `health_gate_passed: true` and `local_redis_ready: true`. The server reads the configured Qdrant, Hugging Face, and optional OpenRouter targets from `.env`. Use a quota-eligible test identity.
+Preconditions: use the default full-mode launch with the disposable local Redis server described in the main skill. Doctor must report `health_gate_passed: true` and `local_redis_ready: true`. The server reads the configured Qdrant and OpenRouter targets from `.env`. Use a quota-eligible test identity.
 
 - Navigate to `<instance URL>/UNSPSC/`. Inspect the form. Find `role=textbox[name='Product description']`, `role=combobox[name='Classification version']`, and `role=combobox[name='Number of results to show']`.
 - Fill the description with `stainless steel office scissors` using `preview_type({"locator":"role=textbox[name='Product description']","text":"stainless steel office scissors","clear":true})`. Record the typed value before submission using a snapshot or the read-only fallback in the main skill.
