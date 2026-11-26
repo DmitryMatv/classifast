@@ -22,7 +22,8 @@ export interface ClassificationExportPayload {
 
 /**
  * Escapes a field for CSV according to RFC 4180.
- * Neutralizes formula execution characters (=, +, -, @, \t, \r, \n) by prepending a single quote
+ * Neutralizes formula execution prefixes (=, +, -, @, \t, \r, \n), including
+ * formulas preceded by leading whitespace, by prepending a single quote
  * so spreadsheet applications (Excel, LibreOffice) do not evaluate exported cells as formulas.
  * If the field contains commas, double quotes, or newlines,
  * wrap it in double quotes and escape internal double quotes by doubling them.
@@ -32,7 +33,7 @@ export function escapeCSVField(value: string | number | undefined | null): strin
     return "";
   }
   let str = String(value);
-  if (/^[=+\-@\t\r\n]/.test(str)) {
+  if (/^\s*[=+\-@\t\r\n]/.test(str)) {
     str = `'${str}`;
   }
   if (

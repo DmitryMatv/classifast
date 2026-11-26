@@ -49,10 +49,16 @@ describe("results-export", () => {
       expect(escapeCSVField("=SUM(A1, B1)")).toBe('"\'=SUM(A1, B1)"');
     });
 
-    it("neutralizes a formula behind a leading line feed", () => {
+    it("neutralizes a formula behind a leading line feed or whitespace", () => {
       expect(escapeCSVField('\n=HYPERLINK("https://evil.example")')).toBe(
         '"\'\n=HYPERLINK(""https://evil.example"")"',
       );
+      expect(escapeCSVField('  =HYPERLINK("https://evil.example")')).toBe(
+        '"\'  =HYPERLINK(""https://evil.example"")"',
+      );
+      expect(escapeCSVField("  +SUM(1+1)")).toBe("'  +SUM(1+1)");
+      expect(escapeCSVField("  \t=cmd")).toBe("'  \t=cmd");
+      expect(escapeCSVField("  Laptop")).toBe("  Laptop");
     });
   });
 
