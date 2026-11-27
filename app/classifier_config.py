@@ -205,7 +205,7 @@ CLASSIFIER_CONFIG: dict[str, ClassifierConfig] = {
         "rerank_instruction": UNSPSC_RERANK_INSTRUCTION,
         "query_subject": "a purchased product or service",
         "versions": {
-            "UNSPSC UNv260801.1 (18 March 2025)": {
+            "UNv260801 (27 Sep 2026)": {
                 "collection_name": "UNSPSC_UNv260801-1__OR_Qwen3-8B__v2",
                 "base_url": "https://usa.databasesets.com/unspsc/search?keywords=",
             },
